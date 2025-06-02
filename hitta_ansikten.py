@@ -5,6 +5,7 @@ import pickle
 import signal
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import face_recognition
@@ -33,20 +34,25 @@ DEFAULT_CONFIG = {
     "rectangle_thickness": 6,
     "padding": 15,
     "auto_ignore": False,
-    "auto_ignore_on_fix": True
+    "auto_ignore_on_fix": True,
+    "detection_model": "hog",
+    "label_bg_color": [0, 0, 0, 192],
+    "label_text_color": [255, 255, 0],
 }
+
 
 def load_config():
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     if CONFIG_PATH.exists():
         try:
             with open(CONFIG_PATH, "r") as f:
-                return json.load(f)
+                return {**DEFAULT_CONFIG, **json.load(f)}
         except Exception:
             pass
     with open(CONFIG_PATH, "w") as f:
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG
+
 
 # === Ladda / initiera databaser ===
 def load_database():
@@ -70,6 +76,7 @@ def load_database():
 
     return known_faces, ignored_faces, processed_files
 
+
 def save_database(known_faces, ignored_faces, processed_files):
     with open(ENCODING_PATH, "wb") as f:
         pickle.dump(known_faces, f)
@@ -78,224 +85,303 @@ def save_database(known_faces, ignored_faces, processed_files):
     with open(PROCESSED_PATH, "w") as f:
         f.writelines(f"{name}\n" for name in sorted(processed_files))
 
+
 # === Funktion för att skapa tempbild med etiketter ===
 def create_labeled_image(rgb_image, face_locations, labels, config):
-    img = Image.fromarray(rgb_image)
-    draw = ImageDraw.Draw(img)
-    padding = config.get("padding", DEFAULT_CONFIG["padding"])
-    width, height = img.size
-    font_size_factor = config.get("font_size_factor", DEFAULT_CONFIG["font_size_factor"])
-    font_size = int(max(width / font_size_factor, 16))
-    print(f"[DEBUG] Bildbredd: {width}, font_size_factor: {font_size_factor}, resulterande fontstorlek: {font_size}")
+    image = Image.fromarray(rgb_image)
+    draw = ImageDraw.Draw(image, "RGBA")
+    width, height = image.size
+    font_size = max(10, width // config.get("font_size_factor", 45))
+    font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
+    font = ImageFont.truetype(font_path, font_size)
 
-    try:
-        font_path = fm.findfont(fm.FontProperties(family='DejaVu Sans'))
-        font = ImageFont.truetype(font_path, font_size)
-    except:
-        font = ImageFont.load_default()
+    bg_color = tuple(config.get("label_bg_color", [0, 0, 0, 192]))
+    text_color = tuple(config.get("label_text_color", [255, 255, 0]))
 
-    used_boxes = []
-    for idx, ((top, right, bottom, left), label) in enumerate(zip(face_locations, labels)):
-        draw.rectangle(
-            ((left - padding, top - padding), (right + padding, bottom + padding)),
-            outline=(255, 0, 0), width=config.get("rectangle_thickness", DEFAULT_CONFIG["rectangle_thickness"])
-        )
-        text = f"#{idx + 1}: {label}"
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
+    for i, (top, right, bottom, left) in enumerate(face_locations):
+        label = labels[i]
+        label_lines = label.split("\n")
+        padding = config.get("padding", 15)
+        line_sizes = [draw.textbbox((0, 0), line, font=font) for line in label_lines]
+        text_width = max(b[2] - b[0] for b in line_sizes)
+        text_height = font_size * len(label_lines)
 
-        text_x = left - padding + 5
-        text_y = top - padding - text_height - 8
-        if text_y < 0:
-            text_y = bottom + padding + 3
+        # Starta under lådan, flytta uppåt vid krock
+        label_y = bottom + padding
+        if label_y + text_height > height:
+            label_y = top - padding - text_height
 
-        for (t2, r2, b2, l2) in face_locations:
-            if t2 < text_y + text_height and b2 > text_y and l2 < text_x + text_width and r2 > text_x:
-                text_y = bottom + padding + 3
+        # Om etikett krockar med annan ansiktslåda: flytta över istället för under (eller vice versa)
+        for other_top, other_right, other_bottom, other_left in face_locations:
+            if (
+                other_top < label_y + text_height
+                and label_y < other_bottom
+                and left < other_right
+                and right > other_left
+                and not (other_top == top and other_right == right)
+            ):
+                # Prova ovanför istället
+                label_y = top - padding - text_height
                 break
 
+        rect_start = (left, label_y)
+        rect_end = (left + text_width + 10, label_y + text_height + 4)
+        draw.rectangle([rect_start, rect_end], fill=bg_color)
+
         draw.rectangle(
-            [(text_x - 5, text_y - 3), (text_x + text_width + 5, text_y + text_height + 3)],
-            fill=(0, 0, 0, 192)
-        )
-        draw.text(
-            (text_x, text_y),
-            text,
-            fill=(255, 255, 0),
-            font=font
+            [(left, top), (right, bottom)],
+            outline="red",
+            width=config.get("rectangle_thickness", 6),
         )
 
-    tmp_path = Path(tempfile.gettempdir()) / "face_train_preview.jpg"
-    if tmp_path.exists():
-        tmp_path.unlink()
-    img.save(tmp_path)
-    img.close()
-    return tmp_path
+        # Rita varje textrad, gul text
+        y_offset = 0
+        for line in label_lines:
+            draw.text(
+                (left + 5, label_y + y_offset + 2), line, fill=text_color, font=font
+            )
+            y_offset += font_size
+
+    temp_name = "/tmp/hitta_ansikten_preview.jpg"
+    image.save(temp_name, format="JPEG")
+    return temp_name
+
 
 # === Beräkna avstånd till kända encodings ===
 def best_matches(encoding, known_faces, ignored_faces, config):
-    suggestions = []
-    for name, encodings in known_faces.items():
-        for e in encodings:
-            dist = np.linalg.norm(encoding - e)
-            suggestions.append((name, dist))
-    suggestions.sort(key=lambda x: x[1])
+    matches = []
+    for name, encs in known_faces.items():
+        dists = face_recognition.face_distance(encs, encoding)
+        score = 1 - np.min(dists)
+        if np.min(dists) < config.get("match_threshold", 0.6):
+            matches.append((name, score))
+    matches.sort(key=lambda x: -x[1])
 
-    matches = [(name, round(1.0 - dist, 2)) for name, dist in suggestions[:5] if dist < config["match_threshold"]]
+    ignore_scores = []
+    for ignored in ignored_faces:
+        d = face_recognition.face_distance([ignored], encoding)[0]
+        score = 1 - d
+        if d < config.get("ignore_distance", 0.5):
+            ignore_scores.append(score)
+    best_ignore = max(ignore_scores) if ignore_scores else None
 
-    ignore_hits = []
-    for e in ignored_faces:
-        dist = np.linalg.norm(encoding - e)
-        if dist < config["ignore_distance"]:
-            ignore_hits.append(round(1.0 - dist, 2))
+    return matches, best_ignore
 
-    return ("IGNORED", matches) if ignore_hits else (matches[0][0] if matches else None, matches)
 
 # === Huvudlogik ===
 def process_image(image_path, known_faces, ignored_faces, config):
     with rawpy.imread(str(image_path)) as raw:
         rgb = raw.postprocess()
+    # -- Bildresize om större än 2500 px på längsta sidan (innan face detection)
+    max_dim = max(rgb.shape[0], rgb.shape[1])
+    if max_dim > 2500:
+        scale = 2500 / max_dim
+        rgb = (Image.fromarray(rgb)
+               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.LANCZOS))
+        rgb = np.array(rgb)
 
-    face_locations = face_recognition.face_locations(rgb)
-    face_locations = sorted(face_locations, key=lambda loc: loc[3])
-    face_encodings = face_recognition.face_encodings(rgb, face_locations)
+    attempt_settings = [
+        {"model": config.get("detection_model", "hog"), "upsample": 1},
+        {"model": "cnn", "upsample": 0},
+        {"model": "hog", "upsample": 2},
+        {"model": "cnn", "upsample": 1},
+        {"model": "cnn", "upsample": 2},
+    ]
 
-    if not face_encodings:
-        print(f"Inga ansikten i {image_path.name}")
-        return False
+    shown_image = False
 
-    metadata = []
-    labels = []
-    for i, encoding in enumerate(face_encodings):
-        match, suggestions = best_matches(encoding, known_faces, ignored_faces, config)
-        if match == "IGNORED" and config.get("auto_ignore"):
-            label = f"Ignorerat (auto)"
-        elif match == "IGNORED":
-            label = f"Möjl. ignorera"
-        elif match:
-            label = f"{match}"
-        else:
-            label = f"Okänt ansikte"
-        labels.append(label)
-        metadata.append({"index": i+1, "suggestion": match, "suggestions": suggestions})
+    attempt_idx = 0
+    while attempt_idx < len(attempt_settings):
+        setting = attempt_settings[attempt_idx]
+        t0 = time.time()
+        if attempt_idx > 0:
+            print(
+                "⚙️  Försök {}: model={}, upsample={}".format(
+                    attempt_idx + 1, setting["model"], setting["upsample"]
+                )
+            )
 
-    img_path = create_labeled_image(rgb, face_locations, labels, config)
-    os.system(f"open {img_path}")
+        face_locations = face_recognition.face_locations(
+            rgb, model=setting["model"], number_of_times_to_upsample=setting["upsample"]
+        )
+        elapsed = time.time() - t0
+        print(
+            f"[DEBUG] Försök {attempt_idx + 1}: {setting['model']}, upsample={setting['upsample']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
+        )
 
-    for i, encoding in enumerate(face_encodings):
-        print(f"\nAnsikte #{i+1}:")
-        match, suggestions = best_matches(encoding, known_faces, ignored_faces, config)
+        face_locations = sorted(face_locations, key=lambda loc: loc[3])
+        face_encodings = face_recognition.face_encodings(rgb, face_locations)
 
-        if match == "IGNORED" and config.get("auto_ignore"):
-            print("↪ Detta ansikte har tidigare ignorerats (auto). Hoppar över.")
-            continue
-        elif match == "IGNORED":
-            print("↪ Detta ansikte liknar ett tidigare ignorerat. [Enter = bekräfta ignorera, r = rätta] › ", end="")
-            ans = input().strip()
-            if ans == "":
-                ignored_faces.append(encoding)
-                continue
-            elif ans.lower() != "r":
-                continue
-
-        if match and match != "IGNORED":
-            print(f"↪ Föreslaget: {match} ({suggestions[0][1]*100:.0f}%)")
-            answer = input("[Enter = bekräfta, n = rätta, i = ignorera] › ").strip()
-            if answer == "":
-                name = match
-            elif answer == "n":
-                name = input("Ange korrekt namn › ").strip()
-            elif answer == "i":
-                ignored_faces.append(encoding)
-                continue
+        # Visa preview med bästa möjliga etikett ("Namn", "Okänd", "IGN?")
+        preview_labels = []
+        for i, encoding in enumerate(face_encodings):
+            matches, ignore_score = best_matches(
+                encoding, known_faces, ignored_faces, config
+            )
+            if ignore_score and not config.get("auto_ignore", False):
+                label = "#{}\nIGN?".format(i + 1)
+            elif matches:
+                suggestion = matches[0][0]
+                label = "#{}\n{}".format(i + 1, suggestion)
             else:
-                print("Ogiltigt svar. Hoppar över.")
-                continue
-        else:
-            if suggestions:
-                print("↪ Osäkra förslag:")
-                used_keys = set()
-                shortcut_map = {}
-                for s, p in suggestions:
-                    key = next((c for c in s.lower() if c not in used_keys), None)
-                    if not key:
-                        key = str(len(shortcut_map))
-                    used_keys.add(key)
-                    shortcut_map[key] = s
-                    print(f"  [{key.upper()}] {s} ({p*100:.0f}%)")
-                answer = input("Välj förslag, skriv namn, eller 'i' för ignorera › ").strip().lower()
-                if answer == "i":
-                    ignored_faces.append(encoding)
-                    continue
-                elif answer in shortcut_map:
-                    name = shortcut_map[answer]
+                label = "#{}\nOkänd".format(i + 1)
+            preview_labels.append(label)
+
+        if face_encodings:
+            preview_path = create_labeled_image(
+                rgb, face_locations, preview_labels, config
+            )
+            os.system(f"open -a Phoenix\\ Slides '{preview_path}'")
+
+            # Input-loop: Hantera terminalinput för alla ansikten!
+            labels = []
+            all_ignored = True
+            retry_requested = False
+            for i, encoding in enumerate(face_encodings):
+                print("\nAnsikte #{}:".format(i + 1))
+                matches, ignore_score = best_matches(
+                    encoding, known_faces, ignored_faces, config
+                )
+
+                # Förslag: Ignorera (tidigare ignorerad)
+                ans = None
+                if ignore_score and not config.get("auto_ignore", False):
+                    ans = input(
+                        "↪ Detta ansikte liknar ett tidigare ignorerat. [Enter = bekräfta ignorera, r = rätta, n = försök igen, x = skippa bild] › "
+                    ).strip().lower()
+                    if ans == "x":
+                        return "skipped"
+                    if ans == "n":
+                        retry_requested = True
+                        break
+                    if ans != "r":
+                        ignored_faces.append(encoding)
+                        labels.append("#{}\nIGNORERAD".format(i + 1))
+                        continue
+
+                # Namnförslag om match finns
+                if matches:
+                    suggestion = matches[0][0]
+                    confidence = int(matches[0][1] * 100)
+                    prompt = "↪ Föreslaget: {} ({}%)\n[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, x = skippa bild] › ".format(
+                        suggestion, confidence
+                    )
+                    val = input(prompt).strip().lower()
+                    if val == "x":
+                        return "skipped"
+                    if val == "n":
+                        retry_requested = True
+                        break
+                    if val == "":
+                        name = suggestion
+                        all_ignored = False
+                    elif val == "i":
+                        ignored_faces.append(encoding)
+                        labels.append("#{}\nIGNORERAD".format(i + 1))
+                        continue
+                    else:
+                        name = input("Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ").strip()
+                        if name.lower() == "x":
+                            return "skipped"
+                        if name.lower() == "n":
+                            retry_requested = True
+                            break
+                        if name == "i":
+                            ignored_faces.append(encoding)
+                            labels.append("#{}\nIGNORERAD".format(i + 1))
+                            continue
+                        all_ignored = False
                 else:
-                    name = answer
-            else:
-                name = input("Ange namn (eller 'i' för ignorera) › ").strip()
-                if name == "i":
-                    ignored_faces.append(encoding)
-                    continue
+                    name = input("Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ").strip()
+                    if name.lower() == "x":
+                        return "skipped"
+                    if name.lower() == "n":
+                        retry_requested = True
+                        break
+                    if name == "i":
+                        ignored_faces.append(encoding)
+                        labels.append("#{}\nIGNORERAD".format(i + 1))
+                        continue
+                    all_ignored = False
 
-        known_faces.setdefault(name, []).append(encoding)
-        metadata[i]["confirmed"] = name
+                if name not in known_faces:
+                    known_faces[name] = []
+                known_faces[name].append(encoding)
+                labels.append("#{}\n{}".format(i + 1, name))
 
-    with open(METADATA_PATH, "a") as meta_file:
-        json.dump({"file": image_path.name, "faces": metadata}, meta_file)
-        meta_file.write("\n")
+            if retry_requested:
+                attempt_idx += 1
+                continue  # Kör nästa modell/tröskel direkt
 
-    return True
+            # Om allt ignorerades, fortsätt till nästa försök (ej spara som processad)
+            if all_ignored:
+                attempt_idx += 1
+                continue
+
+            # Ingen extra bild visas efter terminalen!
+            return True  # Fanns ansikten
+
+        # Ingen ansikte på denna tröskel
+        if not shown_image:
+            temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
+            os.system(f"open -a Phoenix\\ Slides '{temp_path}'")
+            shown_image = True
+            ans = (
+                input("⚠️  Fortsätta försöka? [j = ja, annat/n/x = hoppa över] › ")
+                .strip()
+                .lower()
+            )
+            if ans == "x" or ans == "n" or ans != "j":
+                return "skipped"
+
+        attempt_idx += 1
+
+    print("⏭ Inga ansikten kunde hittas i {} , hoppar över.".format(image_path.name))
+    return "no_faces"
+
 
 # === Graceful Exit ===
 def signal_handler(sig, frame):
     print("\n⏹ Avbruten. Programmet avslutas.")
     sys.exit(0)
 
+
 signal.signal(signal.SIGINT, signal_handler)
+
 
 # === Entry point ===
 def main():
-    if len(sys.argv) < 2:
-        print("Användning: python train_faces.py <sökväg_till_bilder> [--fix globpattern]")
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('path')
+    parser.add_argument('--fix', nargs='*', default=None)
+    args = parser.parse_args()
 
-    fix_mode = False
-    glob_pattern = None
-
-    if "--fix" in sys.argv:
-        fix_mode = True
-        idx = sys.argv.index("--fix")
-        if idx + 1 < len(sys.argv):
-            glob_pattern = sys.argv[idx + 1].lower()
-        else:
-            print("⚠️  Du måste ange ett filnamnsmönster efter --fix")
-            sys.exit(1)
-
-    folder = Path(sys.argv[1])
-    files = [f for f in folder.iterdir() if f.suffix in SUPPORTED_EXT]
     config = load_config()
-
     known_faces, ignored_faces, processed_files = load_database()
+    root = Path(args.path)
 
-    for file in sorted(files):
-        if fix_mode:
-            if not fnmatch.fnmatch(file.name.lower(), glob_pattern):
-                continue
-        elif file.name in processed_files:
-            print(f"↪ Hoppar över redan behandlad fil: {file.name}")
+    if args.fix:
+        files_to_fix = set(args.fix)
+    else:
+        files_to_fix = None
+
+    for path in sorted(root.rglob("*")):
+        if path.suffix not in SUPPORTED_EXT:
+            continue
+        if files_to_fix is not None and path.name not in files_to_fix:
+            continue
+        if files_to_fix is None and path.name in processed_files:
+            print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
             continue
 
-        print(f"\n=== Bearbetar: {file.name} ===")
-        try:
-            if process_image(file, known_faces, ignored_faces, config):
-                processed_files.add(file.name)
-                save_database(known_faces, ignored_faces, processed_files)
-        except Exception as e:
-            print(f"Fel vid bearbetning av {file.name}: {e}")
+        print(f"\n=== Bearbetar: {path.name} ===")
+        result = process_image(path, known_faces, ignored_faces, config)
+        # Spara om: (a) klar, (b) ingen ansikte, (c) användaren explicit hoppade över
+        if result is True or result == "no_faces" or result == "skipped":
+            processed_files.add(path.name)
+            save_database(known_faces, ignored_faces, processed_files)
 
-    print("\n✅ Klart. Databas uppdaterad.")
 
 if __name__ == "__main__":
     main()
-
