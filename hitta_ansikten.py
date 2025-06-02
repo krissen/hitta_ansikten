@@ -14,6 +14,8 @@ import matplotlib.font_manager as fm
 import numpy as np
 import rawpy
 from PIL import Image, ImageDraw, ImageFont
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import WordCompleter
 from xdg import xdg_data_home
 
 # === Konstanter ===
@@ -40,6 +42,10 @@ DEFAULT_CONFIG = {
     "label_text_color": [255, 255, 0],
 }
 
+def input_name(known_names):
+    completer = WordCompleter(sorted(known_names), ignore_case=True, sentence=True)
+    name = prompt("Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ", completer=completer)
+    return name.strip()
 
 def load_config():
     BASE_DIR.mkdir(parents=True, exist_ok=True)
@@ -170,9 +176,11 @@ def best_matches(encoding, known_faces, ignored_faces, config):
 
 # === Huvudlogik ===
 def process_image(image_path, known_faces, ignored_faces, config):
+    from prompt_toolkit import prompt
+    from prompt_toolkit.completion import WordCompleter
+
     with rawpy.imread(str(image_path)) as raw:
         rgb = raw.postprocess()
-    # -- Bildresize om större än 2500 px på längsta sidan (innan face detection)
     max_dim = max(rgb.shape[0], rgb.shape[1])
     if max_dim > 2500:
         scale = 2500 / max_dim
@@ -212,7 +220,6 @@ def process_image(image_path, known_faces, ignored_faces, config):
         face_locations = sorted(face_locations, key=lambda loc: loc[3])
         face_encodings = face_recognition.face_encodings(rgb, face_locations)
 
-        # Visa preview med bästa möjliga etikett ("Namn", "Okänd", "IGN?")
         preview_labels = []
         for i, encoding in enumerate(face_encodings):
             matches, ignore_score = best_matches(
@@ -233,7 +240,6 @@ def process_image(image_path, known_faces, ignored_faces, config):
             )
             os.system(f"open -a Phoenix\\ Slides '{preview_path}'")
 
-            # Input-loop: Hantera terminalinput för alla ansikten!
             labels = []
             all_ignored = True
             retry_requested = False
@@ -243,7 +249,7 @@ def process_image(image_path, known_faces, ignored_faces, config):
                     encoding, known_faces, ignored_faces, config
                 )
 
-                # Förslag: Ignorera (tidigare ignorerad)
+                # Ignorera-prompt
                 ans = None
                 if ignore_score and not config.get("auto_ignore", False):
                     ans = input(
@@ -263,10 +269,10 @@ def process_image(image_path, known_faces, ignored_faces, config):
                 if matches:
                     suggestion = matches[0][0]
                     confidence = int(matches[0][1] * 100)
-                    prompt = "↪ Föreslaget: {} ({}%)\n[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, x = skippa bild] › ".format(
+                    prompt_txt = "↪ Föreslaget: {} ({}%)\n[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, x = skippa bild] › ".format(
                         suggestion, confidence
                     )
-                    val = input(prompt).strip().lower()
+                    val = input(prompt_txt).strip().lower()
                     if val == "x":
                         return "skipped"
                     if val == "n":
@@ -280,7 +286,8 @@ def process_image(image_path, known_faces, ignored_faces, config):
                         labels.append("#{}\nIGNORERAD".format(i + 1))
                         continue
                     else:
-                        name = input("Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ").strip()
+                        # Använd prompt_toolkit-autocompletion för namn
+                        name = input_name(list(known_faces.keys()))
                         if name.lower() == "x":
                             return "skipped"
                         if name.lower() == "n":
@@ -292,7 +299,8 @@ def process_image(image_path, known_faces, ignored_faces, config):
                             continue
                         all_ignored = False
                 else:
-                    name = input("Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ").strip()
+                    # Ingen match – använd prompt_toolkit-autocompletion
+                    name = input_name(list(known_faces.keys()))
                     if name.lower() == "x":
                         return "skipped"
                     if name.lower() == "n":
@@ -313,25 +321,19 @@ def process_image(image_path, known_faces, ignored_faces, config):
                 attempt_idx += 1
                 continue  # Kör nästa modell/tröskel direkt
 
-            # Om allt ignorerades, fortsätt till nästa försök (ej spara som processad)
             if all_ignored:
                 attempt_idx += 1
                 continue
 
-            # Ingen extra bild visas efter terminalen!
-            return True  # Fanns ansikten
+            return True
 
         # Ingen ansikte på denna tröskel
         if not shown_image:
             temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
             os.system(f"open -a Phoenix\\ Slides '{temp_path}'")
             shown_image = True
-            ans = (
-                input("⚠️  Fortsätta försöka? [j = ja, annat/n/x = hoppa över] › ")
-                .strip()
-                .lower()
-            )
-            if ans == "x" or ans == "n" or ans != "j":
+            ans = input("⚠️  Fortsätta försöka? [Enter = ja, x = hoppa över] › ").strip().lower()
+            if ans == "x":
                 return "skipped"
 
         attempt_idx += 1
@@ -377,7 +379,6 @@ def main():
 
         print(f"\n=== Bearbetar: {path.name} ===")
         result = process_image(path, known_faces, ignored_faces, config)
-        # Spara om: (a) klar, (b) ingen ansikte, (c) användaren explicit hoppade över
         if result is True or result == "no_faces" or result == "skipped":
             processed_files.add(path.name)
             save_database(known_faces, ignored_faces, processed_files)
