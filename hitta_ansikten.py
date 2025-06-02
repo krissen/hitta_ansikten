@@ -40,6 +40,8 @@ DEFAULT_CONFIG = {
     "detection_model": "hog",
     "label_bg_color": [0, 0, 0, 192],
     "label_text_color": [255, 255, 0],
+    "max_downsample_px": 2500,
+    "max_fullres_px": 6000
 }
 
 def input_name(known_names):
@@ -179,28 +181,43 @@ def process_image(image_path, known_faces, ignored_faces, config):
     from prompt_toolkit import prompt
     from prompt_toolkit.completion import WordCompleter
 
-    with rawpy.imread(str(image_path)) as raw:
-        rgb = raw.postprocess()
-    max_dim = max(rgb.shape[0], rgb.shape[1])
-    if max_dim > 2500:
-        scale = 2500 / max_dim
-        rgb = (Image.fromarray(rgb)
-               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.LANCZOS))
-        rgb = np.array(rgb)
+    def load_and_resize_raw(max_dim=None):
+        with rawpy.imread(str(image_path)) as raw:
+            rgb = raw.postprocess()
+        if max_dim and max(rgb.shape[0], rgb.shape[1]) > max_dim:
+            scale = max_dim / max(rgb.shape[0], rgb.shape[1])
+            rgb = (Image.fromarray(rgb)
+                   .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.LANCZOS))
+            rgb = np.array(rgb)
+        return rgb
 
+    # All settings; vilka ska köras på låg resp hög upplösning?
     attempt_settings = [
-        {"model": config.get("detection_model", "hog"), "upsample": 1},
-        {"model": "cnn", "upsample": 0},
-        {"model": "hog", "upsample": 2},
-        {"model": "cnn", "upsample": 1},
-        {"model": "cnn", "upsample": 2},
+        {"model": config.get("detection_model", "hog"), "upsample": 1, "highres": False},
+        {"model": "cnn", "upsample": 0, "highres": False},
+        {"model": "hog", "upsample": 2, "highres": True},
+        {"model": "cnn", "upsample": 1, "highres": True},
+        {"model": "cnn", "upsample": 2, "highres": True},
     ]
 
-    shown_image = False
+    max_down = config.get("max_downsample_px", 2500)
+    max_full = config.get("max_fullres_px", 6000)
+    # Starta alltid på nedsamplad, byt till fullres om attempt["highres"]
+    rgb_down = load_and_resize_raw(max_down)
+    rgb_full = None  # Lazy-load vid behov
 
+    shown_image = False
     attempt_idx = 0
     while attempt_idx < len(attempt_settings):
         setting = attempt_settings[attempt_idx]
+        # Byt bild om highres krävs
+        if not setting.get("highres"):
+            rgb = rgb_down
+        else:
+            if rgb_full is None:
+                rgb_full = load_and_resize_raw(max_full if max_full > 0 else None)
+            rgb = rgb_full
+
         t0 = time.time()
         if attempt_idx > 0:
             print(
