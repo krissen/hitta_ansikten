@@ -6,6 +6,7 @@ import signal
 import sys
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 
 import face_recognition
@@ -43,11 +44,6 @@ DEFAULT_CONFIG = {
     "max_downsample_px": 2500,
     "max_fullres_px": 6000
 }
-
-def input_name(known_names):
-    completer = WordCompleter(sorted(known_names), ignore_case=True, sentence=True)
-    name = prompt("Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ", completer=completer)
-    return name.strip()
 
 def load_config():
     BASE_DIR.mkdir(parents=True, exist_ok=True)
@@ -92,6 +88,27 @@ def save_database(known_faces, ignored_faces, processed_files):
         pickle.dump(ignored_faces, f)
     with open(PROCESSED_PATH, "w") as f:
         f.writelines(f"{name}\n" for name in sorted(processed_files))
+
+
+def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir, log_name="attempt_stats.jsonl"):
+    """
+    Spara attempts-statistik för en bild till en JSONL-fil i base_dir.
+    :param image_path: Path till bilden.
+    :param attempts: Lista med dict för varje attempt.
+    :param used_attempt_idx: Index (int) för attempt som blev det faktiska valet (eller None om ingen).
+    :param base_dir: Path till katalogen där loggfilen ska finnas.
+    :param log_name: Filnamn på loggfilen.
+    """
+    log_entry = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "filename": str(image_path),
+        "attempts": attempts,
+        "used_attempt": used_attempt_idx
+    }
+    log_path = base_dir / log_name
+    base_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "a") as f:
+        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
 # === Funktion för att skapa tempbild med etiketter ===
@@ -176,46 +193,153 @@ def best_matches(encoding, known_faces, ignored_faces, config):
     return matches, best_ignore
 
 
-# === Huvudlogik ===
-def process_image(image_path, known_faces, ignored_faces, config):
-    from prompt_toolkit import prompt
-    from prompt_toolkit.completion import WordCompleter
+def load_and_resize_raw(image_path, max_dim=None):
+    with rawpy.imread(str(image_path)) as raw:
+        rgb = raw.postprocess()
+    if max_dim and max(rgb.shape[0], rgb.shape[1]) > max_dim:
+        scale = max_dim / max(rgb.shape[0], rgb.shape[1])
+        rgb = (Image.fromarray(rgb)
+               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.LANCZOS))
+        rgb = np.array(rgb)
+    return rgb
 
-    def load_and_resize_raw(max_dim=None):
-        with rawpy.imread(str(image_path)) as raw:
-            rgb = raw.postprocess()
-        if max_dim and max(rgb.shape[0], rgb.shape[1]) > max_dim:
-            scale = max_dim / max(rgb.shape[0], rgb.shape[1])
-            rgb = (Image.fromarray(rgb)
-                   .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.LANCZOS))
-            rgb = np.array(rgb)
-        return rgb
+def face_detection_attempt(rgb, model, upsample):
+    face_locations = face_recognition.face_locations(
+        rgb, model=model, number_of_times_to_upsample=upsample
+    )
+    face_locations = sorted(face_locations, key=lambda loc: loc[3])
+    face_encodings = face_recognition.face_encodings(rgb, face_locations)
+    return face_locations, face_encodings
 
-    # All settings; vilka ska köras på låg resp hög upplösning?
+def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config):
+    labels = []
+    for i, encoding in enumerate(face_encodings):
+        matches, ignore_score = best_matches(
+            encoding, known_faces, ignored_faces, config
+        )
+        if ignore_score and not config.get("auto_ignore", False):
+            label = "#{}\nIGN?".format(i + 1)
+        elif matches:
+            suggestion = matches[0][0]
+            label = "#{}\n{}".format(i + 1, suggestion)
+        else:
+            label = "#{}\nOkänd".format(i + 1)
+        labels.append(label)
+    return labels
+
+def input_name(known_names):
+    completer = WordCompleter(sorted(known_names), ignore_case=True, sentence=True)
+    name = prompt("Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › ", completer=completer)
+    return name.strip()
+
+def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
+    labels = []
+    all_ignored = True
+    retry_requested = False
+    for i, encoding in enumerate(face_encodings):
+        print("\nAnsikte #{}:".format(i + 1))
+        matches, ignore_score = best_matches(
+            encoding, known_faces, ignored_faces, config
+        )
+        # Ignorera-prompt
+        ans = None
+        if ignore_score and not config.get("auto_ignore", False):
+            ans = input(
+                "↪ Detta ansikte liknar ett tidigare ignorerat. [Enter = bekräfta ignorera, r = rätta, n = försök igen, x = skippa bild] › "
+            ).strip().lower()
+            if ans == "x":
+                return "skipped", []
+            if ans == "n":
+                retry_requested = True
+                break
+            if ans != "r":
+                ignored_faces.append(encoding)
+                labels.append("#{}\nIGNORERAD".format(i + 1))
+                continue
+
+        # Namnförslag om match finns
+        if matches:
+            suggestion = matches[0][0]
+            confidence = int(matches[0][1] * 100)
+            prompt_txt = "↪ Föreslaget: {} ({}%)\n[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, x = skippa bild] › ".format(
+                suggestion, confidence
+            )
+            val = input(prompt_txt).strip().lower()
+            if val == "x":
+                return "skipped", []
+            if val == "n":
+                retry_requested = True
+                break
+            if val == "":
+                name = suggestion
+                all_ignored = False
+            elif val == "i":
+                ignored_faces.append(encoding)
+                labels.append("#{}\nIGNORERAD".format(i + 1))
+                continue
+            else:
+                name = input_name(list(known_faces.keys()))
+                if name.lower() == "x":
+                    return "skipped", []
+                if name.lower() == "n":
+                    retry_requested = True
+                    break
+                if name == "i":
+                    ignored_faces.append(encoding)
+                    labels.append("#{}\nIGNORERAD".format(i + 1))
+                    continue
+                all_ignored = False
+        else:
+            name = input_name(list(known_faces.keys()))
+            if name.lower() == "x":
+                return "skipped", []
+            if name.lower() == "n":
+                retry_requested = True
+                break
+            if name == "i":
+                ignored_faces.append(encoding)
+                labels.append("#{}\nIGNORERAD".format(i + 1))
+                continue
+            all_ignored = False
+
+        if name not in known_faces:
+            known_faces[name] = []
+        known_faces[name].append(encoding)
+        labels.append("#{}\n{}".format(i + 1, name))
+
+    if retry_requested:
+        return "retry", []
+    if all_ignored:
+        return "all_ignored", []
+    return "ok", labels
+
+def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     attempt_settings = [
         {"model": config.get("detection_model", "hog"), "upsample": 1, "highres": False},
         {"model": "cnn", "upsample": 0, "highres": False},
-        {"model": "hog", "upsample": 2, "highres": True},
+        {"model": "cnn", "upsample": 0, "highres": True},
+        {"model": "hog", "upsample": 1, "highres": True},
         {"model": "cnn", "upsample": 1, "highres": True},
-        {"model": "cnn", "upsample": 2, "highres": True},
+        {"model": "hog", "upsample": 2, "highres": True},
+        {"model": "cnn", "upsample": 2, "highres": False},
     ]
-
     max_down = config.get("max_downsample_px", 2500)
     max_full = config.get("max_fullres_px", 6000)
-    # Starta alltid på nedsamplad, byt till fullres om attempt["highres"]
-    rgb_down = load_and_resize_raw(max_down)
+    rgb_down = load_and_resize_raw(image_path, max_down)
     rgb_full = None  # Lazy-load vid behov
 
     shown_image = False
     attempt_idx = 0
+    attempts_stats = []
+    used_attempt = None
+
     while attempt_idx < len(attempt_settings):
         setting = attempt_settings[attempt_idx]
-        # Byt bild om highres krävs
         if not setting.get("highres"):
             rgb = rgb_down
         else:
             if rgb_full is None:
-                rgb_full = load_and_resize_raw(max_full if max_full > 0 else None)
+                rgb_full = load_and_resize_raw(image_path, max_full if max_full > 0 else None)
             rgb = rgb_full
 
         t0 = time.time()
@@ -226,137 +350,62 @@ def process_image(image_path, known_faces, ignored_faces, config):
                 )
             )
 
-        face_locations = face_recognition.face_locations(
-            rgb, model=setting["model"], number_of_times_to_upsample=setting["upsample"]
+        face_locations, face_encodings = face_detection_attempt(
+            rgb, setting["model"], setting["upsample"]
         )
         elapsed = time.time() - t0
         print(
             f"[DEBUG] Försök {attempt_idx + 1}: {setting['model']}, upsample={setting['upsample']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
         )
 
-        face_locations = sorted(face_locations, key=lambda loc: loc[3])
-        face_encodings = face_recognition.face_encodings(rgb, face_locations)
+        attempts_stats.append({
+            "attempt_index": attempt_idx,
+            "model": setting["model"],
+            "upsample": setting["upsample"],
+            "highres": setting["highres"],
+            "time_seconds": round(elapsed, 3),
+            "faces_found": len(face_encodings),
+        })
 
-        preview_labels = []
-        for i, encoding in enumerate(face_encodings):
-            matches, ignore_score = best_matches(
-                encoding, known_faces, ignored_faces, config
-            )
-            if ignore_score and not config.get("auto_ignore", False):
-                label = "#{}\nIGN?".format(i + 1)
-            elif matches:
-                suggestion = matches[0][0]
-                label = "#{}\n{}".format(i + 1, suggestion)
-            else:
-                label = "#{}\nOkänd".format(i + 1)
-            preview_labels.append(label)
-
+        preview_labels = label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config)
         if face_encodings:
             preview_path = create_labeled_image(
                 rgb, face_locations, preview_labels, config
             )
             os.system(f"open -a Phoenix\\ Slides '{preview_path}'")
+            review_result, labels = user_review_encodings(face_encodings, known_faces, ignored_faces, config)
 
-            labels = []
-            all_ignored = True
-            retry_requested = False
-            for i, encoding in enumerate(face_encodings):
-                print("\nAnsikte #{}:".format(i + 1))
-                matches, ignore_score = best_matches(
-                    encoding, known_faces, ignored_faces, config
-                )
-
-                # Ignorera-prompt
-                ans = None
-                if ignore_score and not config.get("auto_ignore", False):
-                    ans = input(
-                        "↪ Detta ansikte liknar ett tidigare ignorerat. [Enter = bekräfta ignorera, r = rätta, n = försök igen, x = skippa bild] › "
-                    ).strip().lower()
-                    if ans == "x":
-                        return "skipped"
-                    if ans == "n":
-                        retry_requested = True
-                        break
-                    if ans != "r":
-                        ignored_faces.append(encoding)
-                        labels.append("#{}\nIGNORERAD".format(i + 1))
-                        continue
-
-                # Namnförslag om match finns
-                if matches:
-                    suggestion = matches[0][0]
-                    confidence = int(matches[0][1] * 100)
-                    prompt_txt = "↪ Föreslaget: {} ({}%)\n[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, x = skippa bild] › ".format(
-                        suggestion, confidence
-                    )
-                    val = input(prompt_txt).strip().lower()
-                    if val == "x":
-                        return "skipped"
-                    if val == "n":
-                        retry_requested = True
-                        break
-                    if val == "":
-                        name = suggestion
-                        all_ignored = False
-                    elif val == "i":
-                        ignored_faces.append(encoding)
-                        labels.append("#{}\nIGNORERAD".format(i + 1))
-                        continue
-                    else:
-                        # Använd prompt_toolkit-autocompletion för namn
-                        name = input_name(list(known_faces.keys()))
-                        if name.lower() == "x":
-                            return "skipped"
-                        if name.lower() == "n":
-                            retry_requested = True
-                            break
-                        if name == "i":
-                            ignored_faces.append(encoding)
-                            labels.append("#{}\nIGNORERAD".format(i + 1))
-                            continue
-                        all_ignored = False
-                else:
-                    # Ingen match – använd prompt_toolkit-autocompletion
-                    name = input_name(list(known_faces.keys()))
-                    if name.lower() == "x":
-                        return "skipped"
-                    if name.lower() == "n":
-                        retry_requested = True
-                        break
-                    if name == "i":
-                        ignored_faces.append(encoding)
-                        labels.append("#{}\nIGNORERAD".format(i + 1))
-                        continue
-                    all_ignored = False
-
-                if name not in known_faces:
-                    known_faces[name] = []
-                known_faces[name].append(encoding)
-                labels.append("#{}\n{}".format(i + 1, name))
-
-            if retry_requested:
-                attempt_idx += 1
-                continue  # Kör nästa modell/tröskel direkt
-
-            if all_ignored:
+            if review_result == "skipped":
+                log_attempt_stats(image_path, attempts_stats, used_attempt, BASE_DIR)
+                return "skipped"
+            if review_result == "retry":
                 attempt_idx += 1
                 continue
+            if review_result == "all_ignored":
+                attempt_idx += 1
+                continue
+            if review_result == "ok":
+                used_attempt = attempt_idx
+                log_attempt_stats(image_path, attempts_stats, used_attempt, BASE_DIR)
+                return True
 
-            return True
-
-        # Ingen ansikte på denna tröskel
         if not shown_image:
             temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
             os.system(f"open -a Phoenix\\ Slides '{temp_path}'")
             shown_image = True
             ans = input("⚠️  Fortsätta försöka? [Enter = ja, x = hoppa över] › ").strip().lower()
             if ans == "x":
+                log_attempt_stats(image_path, attempts_stats, None)
                 return "skipped"
 
         attempt_idx += 1
 
     print("⏭ Inga ansikten kunde hittas i {} , hoppar över.".format(image_path.name))
+    log_attempt_stats(image_path, attempts_stats, None)
     return "no_faces"
+
+def process_image(image_path, known_faces, ignored_faces, config):
+    return main_process_image_loop(image_path, known_faces, ignored_faces, config)
 
 
 # === Graceful Exit ===
