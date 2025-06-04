@@ -30,19 +30,21 @@ SUPPORTED_EXT = [".nef", ".NEF"]
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
-    "min_confidence": 0.4,
-    "ignore_distance": 0.5,
-    "match_threshold": 0.6,
-    "font_size_factor": 45,
-    "rectangle_thickness": 6,
-    "padding": 15,
     "auto_ignore": False,
     "auto_ignore_on_fix": True,
     "detection_model": "hog",
+    "font_size_factor": 45,
+    "ignore_distance": 0.5,
+    "image_viewer_app": "Bildvisare",
     "label_bg_color": [0, 0, 0, 192],
     "label_text_color": [255, 255, 0],
+    "match_threshold": 0.6,
     "max_downsample_px": 2500,
-    "max_fullres_px": 6000
+    "max_fullres_px": 6000,
+    "min_confidence": 0.4,
+    "padding": 15,
+    "rectangle_thickness": 6,
+    "temp_image_path": "/tmp/hitta_ansikten_preview.jpg",
 }
 
 def load_config():
@@ -80,6 +82,32 @@ def load_database():
 
     return known_faces, ignored_faces, processed_files
 
+def show_temp_image(preview_path, config, last_shown=[None]):
+    viewer_app = config.get("image_viewer_app", "Bildvisare")
+    status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "status.json"
+    expected_path = str(Path(preview_path).resolve())
+
+    should_open = True  # Default: öppna om osäkert
+
+    if status_path.exists():
+        try:
+            with open(status_path, "r") as f:
+                status = json.load(f)
+            if status.get("app_status") == "running" and os.path.samefile(status.get("file_path", ""), expected_path):
+                should_open = False  # Bildvisare kör redan och visar rätt fil
+            elif status.get("app_status") == "exited":
+                should_open = True
+            else:
+                should_open = True
+        except Exception as e:
+            print(f"    [DEBUG] Kunde inte läsa/parsea bildvisarens status.json: {e}")
+            should_open = True
+
+    if should_open:
+        os.system(f"open -a '{viewer_app}' '{preview_path}'")
+        last_shown[0] = preview_path
+    else:
+        last_shown[0] = preview_path
 
 def save_database(known_faces, ignored_faces, processed_files):
     with open(ENCODING_PATH, "wb") as f:
@@ -89,30 +117,75 @@ def save_database(known_faces, ignored_faces, processed_files):
     with open(PROCESSED_PATH, "w") as f:
         f.writelines(f"{name}\n" for name in sorted(processed_files))
 
+def parse_inputs(args, supported_ext):
+    """
+    Tar en lista av input-argument och returnerar en lista av Path-objekt för bilder som ska behandlas.
+    Args:
+        args: lista av strängar (filnamn, globs, mappar, '.' etc)
+        supported_ext: lista med filändelser (t.ex. [".nef", ".NEF"])
+    Returns:
+        paths: sorterad lista med Path-objekt
+    """
+    files = set()
+    for arg in args:
+        path = Path(arg)
+        if path.is_dir():
+            # Alla filer rekursivt i mappen
+            for f in path.rglob("*"):
+                if f.suffix in supported_ext and f.is_file():
+                    files.add(f.resolve())
+        elif "*" in arg or "?" in arg or "[" in arg:
+            # Globmönster (t.ex. 2601* eller ./bilder/2024-0[123]*.nef)
+            for f in Path(".").glob(arg):
+                if f.suffix in supported_ext and f.is_file():
+                    files.add(f.resolve())
+        elif arg == ".":
+            # Punkt: nuvarande katalog
+            for f in Path(".").rglob("*"):
+                if f.suffix in supported_ext and f.is_file():
+                    files.add(f.resolve())
+        elif path.is_file() and path.suffix in supported_ext:
+            files.add(path.resolve())
+        else:
+            # Om inget hittas – prova fnmatch på hela filesystemet från current dir (undantagsvis)
+            for f in Path(".").rglob("*"):
+                if fnmatch.fnmatch(f.name, arg) and f.suffix in supported_ext and f.is_file():
+                    files.add(f.resolve())
+    return sorted(files)
 
-def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir, log_name="attempt_stats.jsonl"):
+
+def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir=None, log_name="attempt_stats.jsonl"):
     """
     Spara attempts-statistik för en bild till en JSONL-fil i base_dir.
     :param image_path: Path till bilden.
     :param attempts: Lista med dict för varje attempt.
     :param used_attempt_idx: Index (int) för attempt som blev det faktiska valet (eller None om ingen).
-    :param base_dir: Path till katalogen där loggfilen ska finnas.
+    :param base_dir: Path till katalogen där loggfilen ska finnas (om None: '.').
     :param log_name: Filnamn på loggfilen.
     """
+    from pathlib import Path
+    if base_dir is None:
+        base_dir = Path(".")
     log_entry = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "filename": str(image_path),
         "attempts": attempts,
         "used_attempt": used_attempt_idx
     }
-    log_path = base_dir / log_name
-    base_dir.mkdir(parents=True, exist_ok=True)
+    log_path = Path(base_dir) / log_name
+    Path(base_dir).mkdir(parents=True, exist_ok=True)
     with open(log_path, "a") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
 # === Funktion för att skapa tempbild med etiketter ===
 def create_labeled_image(rgb_image, face_locations, labels, config):
+    import tempfile
+
+    import matplotlib.font_manager as fm
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
+
     image = Image.fromarray(rgb_image)
     draw = ImageDraw.Draw(image, "RGBA")
     width, height = image.size
@@ -123,53 +196,80 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
     bg_color = tuple(config.get("label_bg_color", [0, 0, 0, 192]))
     text_color = tuple(config.get("label_text_color", [255, 255, 0]))
 
+    placed_boxes = []  # (left, top, right, bottom) för alla placerade labelrutor och ansikten
+
+    def box_overlaps(b1, b2):
+        # b = (left, top, right, bottom)
+        return not (b1[2] <= b2[0] or b1[0] >= b2[2] or b1[3] <= b2[1] or b1[1] >= b2[3])
+
+    def place_label_around_face(top, right, bottom, left, label_lines, text_width, text_height):
+        # Testa olika placeringar, returnera (x, y) (left, top) för labelruta, eller None
+        # 1. Under ansiktet
+        padding = config.get("padding", 15)
+        candidates = [
+            # Under
+            (left, bottom + padding),
+            # Ovanför
+            (left, top - padding - text_height),
+            # Till höger om
+            (right + padding, top),
+            # Till vänster om
+            (left - padding - text_width, top),
+        ]
+        for lx, ly in candidates:
+            # Hela labelrutan måste synas inom bild
+            if lx < 0 or ly < 0 or lx + text_width > width or ly + text_height > height:
+                continue
+            label_box = (lx, ly, lx + text_width, ly + text_height)
+            # Krockar labelrutan med någon ansiktslåda eller redan placerad label?
+            collision = False
+            for box in placed_boxes:
+                if box_overlaps(label_box, box):
+                    collision = True
+                    break
+            if not collision:
+                return lx, ly
+        # Om ingen plats funkar, tvinga nedanför (men kan överlappa)
+        lx, ly = left, min(height - text_height - 1, bottom + padding)
+        return lx, ly
+
+    # Rita alla ansikten och labels
     for i, (top, right, bottom, left) in enumerate(face_locations):
         label = labels[i]
         label_lines = label.split("\n")
-        padding = config.get("padding", 15)
+        # Räkna storlek på hela textblocket
         line_sizes = [draw.textbbox((0, 0), line, font=font) for line in label_lines]
-        text_width = max(b[2] - b[0] for b in line_sizes)
-        text_height = font_size * len(label_lines)
+        text_width = max(b[2] - b[0] for b in line_sizes) + 10
+        text_height = font_size * len(label_lines) + 4
 
-        # Starta under lådan, flytta uppåt vid krock
-        label_y = bottom + padding
-        if label_y + text_height > height:
-            label_y = top - padding - text_height
+        # Ansiktslåda (lägg in i placerade lådor direkt)
+        face_box = (left, top, right, bottom)
+        placed_boxes.append(face_box)
 
-        # Om etikett krockar med annan ansiktslåda: flytta över istället för under (eller vice versa)
-        for other_top, other_right, other_bottom, other_left in face_locations:
-            if (
-                other_top < label_y + text_height
-                and label_y < other_bottom
-                and left < other_right
-                and right > other_left
-                and not (other_top == top and other_right == right)
-            ):
-                # Prova ovanför istället
-                label_y = top - padding - text_height
-                break
+        # Bestäm plats för labelrutan
+        lx, ly = place_label_around_face(top, right, bottom, left, label_lines, text_width, text_height)
+        label_box = (lx, ly, lx + text_width, ly + text_height)
+        placed_boxes.append(label_box)
 
-        rect_start = (left, label_y)
-        rect_end = (left + text_width + 10, label_y + text_height + 4)
-        draw.rectangle([rect_start, rect_end], fill=bg_color)
+        # Rita labelbakgrund
+        draw.rectangle([lx, ly, lx + text_width, ly + text_height], fill=bg_color)
+        # Rita texten rad för rad
+        y_offset = 2
+        for j, line in enumerate(label_lines):
+            draw.text((lx + 5, ly + y_offset), line, fill=text_color, font=font)
+            y_offset += font_size
 
+        # Rita ansiktslåda
         draw.rectangle(
             [(left, top), (right, bottom)],
             outline="red",
             width=config.get("rectangle_thickness", 6),
         )
 
-        # Rita varje textrad, gul text
-        y_offset = 0
-        for line in label_lines:
-            draw.text(
-                (left + 5, label_y + y_offset + 2), line, fill=text_color, font=font
-            )
-            y_offset += font_size
-
-    temp_name = "/tmp/hitta_ansikten_preview.jpg"
-    image.save(temp_name, format="JPEG")
-    return temp_name
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        temp_name = config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg")
+        image.save(temp_name, format="JPEG")
+        return temp_name
 
 
 # === Beräkna avstånd till kända encodings ===
@@ -345,8 +445,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
         t0 = time.time()
         if attempt_idx > 0:
             print(
-                "⚙️  Försök {}: model={}, upsample={}".format(
-                    attempt_idx + 1, setting["model"], setting["upsample"]
+                "⚙️  Försök {}: model={}, upsample={}, highres={}".format(
+                    attempt_idx + 1, setting["model"], setting["upsample"], setting["highres"]
                 )
             )
 
@@ -355,7 +455,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
         )
         elapsed = time.time() - t0
         print(
-            f"[DEBUG] Försök {attempt_idx + 1}: {setting['model']}, upsample={setting['upsample']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
+            f"    [DEBUG] Försök {attempt_idx + 1}: {setting['model']}, upsample={setting['upsample']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
         )
 
         attempts_stats.append({
@@ -372,7 +472,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             preview_path = create_labeled_image(
                 rgb, face_locations, preview_labels, config
             )
-            os.system(f"open -a Phoenix\\ Slides '{preview_path}'")
+            show_temp_image(preview_path, config)
+
             review_result, labels = user_review_encodings(face_encodings, known_faces, ignored_faces, config)
 
             if review_result == "skipped":
@@ -391,11 +492,11 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
 
         if not shown_image:
             temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
-            os.system(f"open -a Phoenix\\ Slides '{temp_path}'")
+            show_temp_image(temp_path, config)
             shown_image = True
             ans = input("⚠️  Fortsätta försöka? [Enter = ja, x = hoppa över] › ").strip().lower()
             if ans == "x":
-                log_attempt_stats(image_path, attempts_stats, None)
+                log_attempt_stats(image_path, attempts_stats, used_attempt, BASE_DIR)
                 return "skipped"
 
         attempt_idx += 1
@@ -419,35 +520,33 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # === Entry point ===
 def main():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('path')
-    parser.add_argument('--fix', nargs='*', default=None)
-    args = parser.parse_args()
+    if len(sys.argv) < 2:
+        print("Användning: python hitta_ansikten.py <fil/glob/katalog/…>")
+        sys.exit(1)
 
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
-    root = Path(args.path)
+    # Acceptera flera input
+    input_paths = parse_inputs(sys.argv[1:], SUPPORTED_EXT)
+    if not input_paths:
+        print("Inga matchande bildfiler hittades.")
+        sys.exit(1)
 
-    if args.fix:
-        files_to_fix = set(args.fix)
-    else:
-        files_to_fix = None
+    # BASE_DIR för loggning etc
+    from xdg import xdg_data_home
+    BASE_DIR = xdg_data_home() / "faceid"
 
-    for path in sorted(root.rglob("*")):
-        if path.suffix not in SUPPORTED_EXT:
-            continue
-        if files_to_fix is not None and path.name not in files_to_fix:
-            continue
-        if files_to_fix is None and path.name in processed_files:
+    for path in input_paths:
+        if path.name in processed_files:
             print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
             continue
 
         print(f"\n=== Bearbetar: {path.name} ===")
         result = process_image(path, known_faces, ignored_faces, config)
-        if result is True or result == "no_faces" or result == "skipped":
+        if result is True or result == "skipped":
             processed_files.add(path.name)
             save_database(known_faces, ignored_faces, processed_files)
+        # loggning sker redan i process_image/main_process_image_loop
 
 
 if __name__ == "__main__":
