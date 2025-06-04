@@ -179,45 +179,35 @@ def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir=None, log
     with open(log_path, "a") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
-
 # === Funktion för att skapa tempbild med etiketter ===
 def create_labeled_image(rgb_image, face_locations, labels, config):
     import math
     import tempfile
 
     import matplotlib.font_manager as fm
-    import numpy as np
     from PIL import Image, ImageDraw, ImageFont
 
-    # ---- Inställningar ----
-    canvas_factor = 1.5  # 1.5x så stor canvas (både bredd och höjd)
-    margin = 50          # Minimal marginal från originalbild till textlådor (pixlar)
     font_size = max(10, rgb_image.shape[1] // config.get("font_size_factor", 45))
+    font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
+    font = ImageFont.truetype(font_path, font_size)
     bg_color = tuple(config.get("label_bg_color", [0, 0, 0, 192]))
     text_color = tuple(config.get("label_text_color", [255, 255, 0]))
 
-    # ---- Ladda font ----
-    font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
-    font = ImageFont.truetype(font_path, font_size)
-
-    # ---- Skapa större canvas ----
     orig_height, orig_width = rgb_image.shape[0:2]
-    canvas_width = int(orig_width * canvas_factor)
-    canvas_height = int(orig_height * canvas_factor)
-    offset_x = (canvas_width - orig_width) // 2
-    offset_y = (canvas_height - orig_height) // 2
+    max_label_width = orig_width // 3
+    margin = 100
+    buffer = 80  # px skyddszon runt alla lådor
 
-    # Lägg in originalbilden centrerat på canvasen
-    canvas = Image.new("RGB", (canvas_width, canvas_height), (20, 20, 20))
-    canvas.paste(Image.fromarray(rgb_image), (offset_x, offset_y))
-    draw = ImageDraw.Draw(canvas, "RGBA")
-
-    # ---- Hjälpfunktioner ----
-    def box_overlaps(b1, b2):
-        return not (b1[2] <= b2[0] or b1[0] >= b2[2] or b1[3] <= b2[1] or b1[1] >= b2[3])
+    # Hjälpfunktioner
+    def box_overlaps_with_buffer(b1, b2, buffer=40):
+        l1, t1, r1, b1_ = b1
+        l2, t2, r2, b2_ = b2
+        return not (r1 + buffer <= l2 - buffer or
+                    l1 - buffer >= r2 + buffer or
+                    b1_ + buffer <= t2 - buffer or
+                    t1 - buffer >= b2_ + buffer)
 
     def robust_word_wrap(label_text, max_label_width, draw, font):
-        # Robust radbrytning: även mitt i ord om inget ryms
         lines = []
         text = label_text
         while text:
@@ -231,185 +221,127 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
                     break
         return lines
 
-    def place_label_anywhere(
-        face_box_canvas, text_width, text_height, placed_boxes, canvas_width, canvas_height, 
-        offset_x, offset_y, margin
-    ):
-        # 1. Försök först utanför/ovanför/nedanför/vänster/höger om bilden i fasta rader/kolumner
-        # (Lägg etiketter i marginalerna på canvasen)
-        # Testa översta raden (ovanför bild), nedersta, vänster, höger
-        slots_per_side = max(6, len(face_locations))
-        candidate_areas = []
-
-        # Ovanför bilden
-        for i in range(slots_per_side):
-            frac = (i + 0.5) / slots_per_side
-            lx = int(offset_x + frac * orig_width - text_width // 2)
-            ly = int(offset_y - margin - text_height)
-            if lx < 0 or ly < 0 or lx + text_width > canvas_width:
-                continue
-            candidate_areas.append((lx, ly))
-        # Nedanför bilden
-        for i in range(slots_per_side):
-            frac = (i + 0.5) / slots_per_side
-            lx = int(offset_x + frac * orig_width - text_width // 2)
-            ly = int(offset_y + orig_height + margin)
-            if lx < 0 or ly + text_height > canvas_height or lx + text_width > canvas_width:
-                continue
-            candidate_areas.append((lx, ly))
-        # Till vänster om bilden
-        for i in range(slots_per_side):
-            frac = (i + 0.5) / slots_per_side
-            lx = int(offset_x - margin - text_width)
-            ly = int(offset_y + frac * orig_height - text_height // 2)
-            if ly < 0 or lx < 0 or ly + text_height > canvas_height:
-                continue
-            candidate_areas.append((lx, ly))
-        # Till höger om bilden
-        for i in range(slots_per_side):
-            frac = (i + 0.5) / slots_per_side
-            lx = int(offset_x + orig_width + margin)
-            ly = int(offset_y + frac * orig_height - text_height // 2)
-            if lx + text_width > canvas_width or ly < 0 or ly + text_height > canvas_height:
-                continue
-            candidate_areas.append((lx, ly))
-
-        # Testa alla ovan
-        for lx, ly in candidate_areas:
-            label_box = (lx, ly, lx + text_width, ly + text_height)
-            collision = False
-            for box in placed_boxes:
-                if box_overlaps(label_box, box):
-                    collision = True
-                    break
-            if not collision:
-                return lx, ly
-
-        # 2. Annars: ring/cirkelmetod, stega ut från ansiktet tills etikett får plats
-        cx = (face_box_canvas[0] + face_box_canvas[2]) // 2
-        cy = (face_box_canvas[1] + face_box_canvas[3]) // 2
-        max_radius = int(0.9 * max(canvas_width, canvas_height))
-        padding = config.get("padding", 15)
-        for radius in range(100, max_radius, padding // 2):
-            for angle in range(0, 360, 8):
-                radians = math.radians(angle)
-                lx = int(cx + radius * math.cos(radians) - text_width // 2)
-                ly = int(cy + radius * math.sin(radians) - text_height // 2)
-                if lx < 0 or ly < 0 or lx + text_width > canvas_width or ly + text_height > canvas_height:
-                    continue
-                label_box = (lx, ly, lx + text_width, ly + text_height)
-                # Får ej överlappa ansiktslåda
-                if box_overlaps(label_box, face_box_canvas):
-                    continue
-                collision = False
-                for box in placed_boxes:
-                    if box_overlaps(label_box, box):
-                        collision = True
-                        break
-                if not collision:
-                    return lx, ly
-        # Fallback: nederst i canvas
-        fallback_lx = min(max(0, offset_x), canvas_width - text_width - 1)
-        fallback_ly = canvas_height - text_height - 1
-        return fallback_lx, fallback_ly
-
-    # --------- Börja med etikettplacering ---------
-    max_label_width = orig_width // 3
-    padding = config.get("padding", 15)
+    # Dummy draw for measuring text size
+    draw_temp = ImageDraw.Draw(Image.new("RGB", (orig_width, orig_height)), "RGBA")
+    placements = []
     placed_boxes = []
 
-    # För varje ansikte
     for i, (top, right, bottom, left) in enumerate(face_locations):
-        # Flytta ansiktsboxen till canvasens koordinatsystem
-        face_box_canvas = (left + offset_x, top + offset_y, right + offset_x, bottom + offset_y)
-        placed_boxes.append(face_box_canvas)
+        face_box = (left, top, right, bottom)
+        placed_boxes.append(face_box)
 
-        # ----- Etikett: text och radbrytning -----
         label_text = "{} {}".format(labels[i].split('\n')[0], labels[i].split('\n')[1]) if "\n" in labels[i] else labels[i]
-        lines = robust_word_wrap(label_text, max_label_width, draw, font)
-        line_sizes = [draw.textbbox((0, 0), line, font=font) for line in lines]
+        lines = robust_word_wrap(label_text, max_label_width, draw_temp, font)
+        line_sizes = [draw_temp.textbbox((0, 0), line, font=font) for line in lines]
         text_width = max(b[2] - b[0] for b in line_sizes) + 10
         text_height = font_size * len(lines) + 4
 
-        # ----- Dynamisk numrering, utanför ansiktslådan -----
+        # Siffran, ovanför ansiktslådan om plats
         num_font_size = max(12, font_size // 2)
         num_font = ImageFont.truetype(font_path, num_font_size)
         num_text = f"#{i+1}"
-        num_text_bbox = draw.textbbox((0, 0), num_text, font=num_font)
+        num_text_bbox = draw_temp.textbbox((0, 0), num_text, font=num_font)
         num_text_w = num_text_bbox[2] - num_text_bbox[0]
         num_text_h = num_text_bbox[3] - num_text_bbox[1]
+        num_x = left
+        num_y = top - num_text_h - 4
+        num_box = (num_x, num_y, num_x + num_text_w, num_y + num_text_h)
 
-        candidate_offsets = [
-            (-4, -num_text_h - 4),                              # ovanför vänster
-            ((right-left)//2 - num_text_w//2, -num_text_h - 4), # rakt ovanför mitten
-            (right-left - num_text_w + 4, -num_text_h - 4),     # ovanför höger
-            (-num_text_w - 4, (bottom-top)//2 - num_text_h//2), # vänster om mitten
-            (right-left + 4, (bottom-top)//2 - num_text_h//2),  # höger om mitten
-            (-4, bottom - top + 4),                             # under vänster
-            ((right-left)//2 - num_text_w//2, bottom - top + 4),# under mitten
-            (right-left - num_text_w + 4, bottom - top + 4),    # under höger
-        ]
-        for dx, dy in candidate_offsets:
-            num_x = left + dx + offset_x
-            num_y = top + dy + offset_y
-            if num_x < 0 or num_y < 0 or num_x + num_text_w > canvas_width or num_y + num_text_h > canvas_height:
-                continue
-            num_box = (num_x, num_y, num_x + num_text_w, num_y + num_text_h)
-            collision = False
-            for box in placed_boxes:
-                if box_overlaps(num_box, box):
-                    collision = True
+        # ----- Hitta etikettposition -----
+        found = False
+        # Pröva ringar/cirklar längre och längre bort
+        cx = (left + right) // 2
+        cy = (top + bottom) // 2
+        for radius in range(max((bottom-top), (right-left)) + margin, max(orig_width, orig_height) * 2, 25):
+            for angle in range(0, 360, 10):
+                radians = math.radians(angle)
+                lx = int(cx + radius * math.cos(radians) - text_width // 2)
+                ly = int(cy + radius * math.sin(radians) - text_height // 2)
+                label_box = (lx, ly, lx + text_width, ly + text_height)
+                # Får inte krocka med någon befintlig låda (inkl. buffer)
+                collision = False
+                for box in placed_boxes:
+                    if box_overlaps_with_buffer(label_box, box, buffer):
+                        collision = True
+                        break
+                if not collision:
+                    found = True
                     break
-            if not collision:
+            if found:
                 break
-        else:
-            num_x = max(0, left - 4 + offset_x)
-            num_y = max(0, top - num_text_h - 4 + offset_y)
-            num_box = (num_x, num_y, num_x + num_text_w, num_y + num_text_h)
-        draw.rectangle(num_box, fill=(0, 0, 0, 180))
-        draw.text((num_x, num_y), num_text, fill=(255,255,0), font=num_font)
-        placed_boxes.append(num_box)
-
-        # ----- Etikettplacering (kollisionssäkrad, tillåt utanför bild) -----
-        lx, ly = place_label_anywhere(
-            face_box_canvas, text_width, text_height, placed_boxes, 
-            canvas_width, canvas_height, offset_x, offset_y, margin
-        )
-        label_box = (lx, ly, lx + text_width, ly + text_height)
+        # Om ingen plats finns ens utanför – låt etiketten ligga långt ut (canvas expanderas sen)
+        if not found:
+            lx = -text_width - margin
+            ly = -text_height - margin
+            label_box = (lx, ly, lx + text_width, ly + text_height)
         placed_boxes.append(label_box)
+        placements.append({
+            "face_box": face_box,
+            "label_box": label_box,
+            "num_box": num_box,
+            "lines": lines,
+            "num_text": num_text,
+            "num_font": num_font,
+            "text_width": text_width,
+            "text_height": text_height,
+            "label_pos": (lx, ly),
+        })
 
-        # Rita labelbakgrund
-        draw.rectangle([lx, ly, lx + text_width, ly + text_height], fill=bg_color)
-        # Rita texten rad för rad
+    # 2. Beräkna nödvändigt canvas-storlek utifrån alla etikettboxar
+    min_x = 0
+    min_y = 0
+    max_x = orig_width
+    max_y = orig_height
+    for p in placements:
+        for box in [p["label_box"], p["num_box"]]:
+            min_x = min(min_x, box[0])
+            min_y = min(min_y, box[1])
+            max_x = max(max_x, box[2])
+            max_y = max(max_y, box[3])
+    offset_x = -min_x
+    offset_y = -min_y
+    canvas_width = max_x - min_x
+    canvas_height = max_y - min_y
+
+    canvas = Image.new("RGB", (canvas_width, canvas_height), (20, 20, 20))
+    canvas.paste(Image.fromarray(rgb_image), (offset_x, offset_y))
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    # Rita allt på nya canvasen
+    for p in placements:
+        # Ansiktslåda
+        face_box = tuple(x + offset if i % 2 == 0 else x + offset_y for i, (x, offset) in enumerate(zip(p["face_box"], (offset_x, offset_y, offset_x, offset_y))))
+        draw.rectangle([face_box[0], face_box[1], face_box[2], face_box[3]],
+                       outline="red",
+                       width=config.get("rectangle_thickness", 6))
+
+        # Etikett
+        lx, ly = p["label_pos"]
+        lx += offset_x
+        ly += offset_y
+        draw.rectangle([lx, ly, lx + p["text_width"], ly + p["text_height"]], fill=bg_color)
         y_offset = 2
-        for j, line in enumerate(lines):
+        for line in p["lines"]:
             draw.text((lx + 5, ly + y_offset), line, fill=text_color, font=font)
             y_offset += font_size
 
-        # Rita ansiktslåda (i rött)
-        draw.rectangle(
-            [(face_box_canvas[0], face_box_canvas[1]), (face_box_canvas[2], face_box_canvas[3])],
-            outline="red",
-            width=config.get("rectangle_thickness", 6),
-        )
+        # Nummer
+        nb = p["num_box"]
+        nb_off = (nb[0] + offset_x, nb[1] + offset_y, nb[2] + offset_x, nb[3] + offset_y)
+        draw.rectangle(nb_off, fill=(0, 0, 0, 180))
+        draw.text((nb_off[0], nb_off[1]), p["num_text"], fill=(255,255,0), font=p["num_font"])
 
-        # Rita pil från ansiktslådans centrum till etikettens centrum
-        face_cx = (face_box_canvas[0] + face_box_canvas[2]) // 2
-        face_cy = (face_box_canvas[1] + face_box_canvas[3]) // 2
-        label_cx = lx + text_width // 2
-        label_cy = ly + text_height // 2
-        draw.line(
-            [(face_cx, face_cy), (label_cx, label_cy)],
-            fill="yellow",
-            width=2,
-        )
+        # Pil
+        face_cx = (face_box[0] + face_box[2]) // 2
+        face_cy = (face_box[1] + face_box[3]) // 2
+        label_cx = lx + p["text_width"] // 2
+        label_cy = ly + p["text_height"] // 2
+        draw.line([(face_cx, face_cy), (label_cx, label_cy)], fill="yellow", width=2)
 
-    # ---- Spara resultat ----
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
         temp_name = config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg")
         canvas.save(temp_name, format="JPEG")
         return temp_name
-
 
 # === Beräkna avstånd till kända encodings ===
 def best_matches(encoding, known_faces, ignored_faces, config):
@@ -645,7 +577,15 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     ]
     max_down = config.get("max_downsample_px", 2500)
     max_full = config.get("max_fullres_px", 6000)
-    rgb_down = load_and_resize_raw(image_path, max_down)
+    try:
+        rgb_down = load_and_resize_raw(image_path, max_down)
+    except Exception as e:
+        msg = str(e)
+        if hasattr(e, 'args') and len(e.args) > 0 and isinstance(e.args[0], bytes):
+            msg = e.args[0].decode(errors="ignore")
+        print(f"⏭ Hoppar över {image_path.name}: {msg}")
+        return "skipped"
+
     rgb_full = None  # Lazy-load vid behov
 
     shown_image = False
@@ -659,7 +599,11 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             rgb = rgb_down
         else:
             if rgb_full is None:
-                rgb_full = load_and_resize_raw(image_path, max_full if max_full > 0 else None)
+                try:
+                    rgb_full = load_and_resize_raw(image_path, max_full if max_full > 0 else None)
+                except Exception as e:
+                    print(f"⏭ Hoppar över {image_path.name} (vid helres): {e}")
+                    return "skipped"
             rgb = rgb_full
 
         t0 = time.time()
