@@ -1,5 +1,6 @@
 import fnmatch
 import json
+import math
 import os
 import pickle
 import signal
@@ -30,21 +31,22 @@ SUPPORTED_EXT = [".nef", ".NEF"]
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
-    "auto_ignore": False,
-    "auto_ignore_on_fix": True,
-    "detection_model": "hog",
-    "font_size_factor": 45,
-    "ignore_distance": 0.5,
-    "image_viewer_app": "Bildvisare",
-    "label_bg_color": [0, 0, 0, 192],
-    "label_text_color": [255, 255, 0],
-    "match_threshold": 0.6,
-    "max_downsample_px": 2500,
-    "max_fullres_px": 6000,
-    "min_confidence": 0.4,
-    "padding": 15,
-    "rectangle_thickness": 6,
-    "temp_image_path": "/tmp/hitta_ansikten_preview.jpg",
+  "auto_ignore": False,
+  "auto_ignore_on_fix": True,
+  "detection_model": "hog",
+  "font_size_factor": 45,
+  "ignore_distance": 0.5,
+  "image_viewer_app": "Bildvisare",
+  "label_bg_color": [0, 0, 0, 192],
+  "label_text_color": [255, 255, 0],
+  "prefer_name_margin": 0.10,  # Namn måste vara minst så här mycket bättre än ignore för att vinna automatiskt
+  "match_threshold": 0.6,
+  "max_downsample_px": 2500,
+  "max_fullres_px": 6000,
+  "min_confidence": 0.4,
+  "padding": 15,
+  "rectangle_thickness": 6,
+  "temp_image_path": "/tmp/hitta_ansikten_preview.jpg",
 }
 
 def load_config():
@@ -180,48 +182,101 @@ def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir=None, log
 
 # === Funktion för att skapa tempbild med etiketter ===
 def create_labeled_image(rgb_image, face_locations, labels, config):
+    import math
     import tempfile
 
     import matplotlib.font_manager as fm
     import numpy as np
     from PIL import Image, ImageDraw, ImageFont
 
-    image = Image.fromarray(rgb_image)
-    draw = ImageDraw.Draw(image, "RGBA")
-    width, height = image.size
-    font_size = max(10, width // config.get("font_size_factor", 45))
-    font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
-    font = ImageFont.truetype(font_path, font_size)
-
+    # ---- Inställningar ----
+    canvas_factor = 1.5  # 1.5x så stor canvas (både bredd och höjd)
+    margin = 50          # Minimal marginal från originalbild till textlådor (pixlar)
+    font_size = max(10, rgb_image.shape[1] // config.get("font_size_factor", 45))
     bg_color = tuple(config.get("label_bg_color", [0, 0, 0, 192]))
     text_color = tuple(config.get("label_text_color", [255, 255, 0]))
 
-    placed_boxes = []  # (left, top, right, bottom) för alla placerade labelrutor och ansikten
+    # ---- Ladda font ----
+    font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
+    font = ImageFont.truetype(font_path, font_size)
 
+    # ---- Skapa större canvas ----
+    orig_height, orig_width = rgb_image.shape[0:2]
+    canvas_width = int(orig_width * canvas_factor)
+    canvas_height = int(orig_height * canvas_factor)
+    offset_x = (canvas_width - orig_width) // 2
+    offset_y = (canvas_height - orig_height) // 2
+
+    # Lägg in originalbilden centrerat på canvasen
+    canvas = Image.new("RGB", (canvas_width, canvas_height), (20, 20, 20))
+    canvas.paste(Image.fromarray(rgb_image), (offset_x, offset_y))
+    draw = ImageDraw.Draw(canvas, "RGBA")
+
+    # ---- Hjälpfunktioner ----
     def box_overlaps(b1, b2):
-        # b = (left, top, right, bottom)
         return not (b1[2] <= b2[0] or b1[0] >= b2[2] or b1[3] <= b2[1] or b1[1] >= b2[3])
 
-    def place_label_around_face(top, right, bottom, left, label_lines, text_width, text_height):
-        # Testa olika placeringar, returnera (x, y) (left, top) för labelruta, eller None
-        # 1. Under ansiktet
-        padding = config.get("padding", 15)
-        candidates = [
-            # Under
-            (left, bottom + padding),
-            # Ovanför
-            (left, top - padding - text_height),
-            # Till höger om
-            (right + padding, top),
-            # Till vänster om
-            (left - padding - text_width, top),
-        ]
-        for lx, ly in candidates:
-            # Hela labelrutan måste synas inom bild
-            if lx < 0 or ly < 0 or lx + text_width > width or ly + text_height > height:
+    def robust_word_wrap(label_text, max_label_width, draw, font):
+        # Robust radbrytning: även mitt i ord om inget ryms
+        lines = []
+        text = label_text
+        while text:
+            for cut in range(len(text), 0, -1):
+                trial = text[:cut]
+                bbox = draw.textbbox((0, 0), trial, font=font)
+                line_width = bbox[2] - bbox[0]
+                if line_width <= max_label_width or cut == 1:
+                    lines.append(trial.strip())
+                    text = text[cut:].lstrip()
+                    break
+        return lines
+
+    def place_label_anywhere(
+        face_box_canvas, text_width, text_height, placed_boxes, canvas_width, canvas_height, 
+        offset_x, offset_y, margin
+    ):
+        # 1. Försök först utanför/ovanför/nedanför/vänster/höger om bilden i fasta rader/kolumner
+        # (Lägg etiketter i marginalerna på canvasen)
+        # Testa översta raden (ovanför bild), nedersta, vänster, höger
+        slots_per_side = max(6, len(face_locations))
+        candidate_areas = []
+
+        # Ovanför bilden
+        for i in range(slots_per_side):
+            frac = (i + 0.5) / slots_per_side
+            lx = int(offset_x + frac * orig_width - text_width // 2)
+            ly = int(offset_y - margin - text_height)
+            if lx < 0 or ly < 0 or lx + text_width > canvas_width:
                 continue
+            candidate_areas.append((lx, ly))
+        # Nedanför bilden
+        for i in range(slots_per_side):
+            frac = (i + 0.5) / slots_per_side
+            lx = int(offset_x + frac * orig_width - text_width // 2)
+            ly = int(offset_y + orig_height + margin)
+            if lx < 0 or ly + text_height > canvas_height or lx + text_width > canvas_width:
+                continue
+            candidate_areas.append((lx, ly))
+        # Till vänster om bilden
+        for i in range(slots_per_side):
+            frac = (i + 0.5) / slots_per_side
+            lx = int(offset_x - margin - text_width)
+            ly = int(offset_y + frac * orig_height - text_height // 2)
+            if ly < 0 or lx < 0 or ly + text_height > canvas_height:
+                continue
+            candidate_areas.append((lx, ly))
+        # Till höger om bilden
+        for i in range(slots_per_side):
+            frac = (i + 0.5) / slots_per_side
+            lx = int(offset_x + orig_width + margin)
+            ly = int(offset_y + frac * orig_height - text_height // 2)
+            if lx + text_width > canvas_width or ly < 0 or ly + text_height > canvas_height:
+                continue
+            candidate_areas.append((lx, ly))
+
+        # Testa alla ovan
+        for lx, ly in candidate_areas:
             label_box = (lx, ly, lx + text_width, ly + text_height)
-            # Krockar labelrutan med någon ansiktslåda eller redan placerad label?
             collision = False
             for box in placed_boxes:
                 if box_overlaps(label_box, box):
@@ -229,25 +284,97 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
                     break
             if not collision:
                 return lx, ly
-        # Om ingen plats funkar, tvinga nedanför (men kan överlappa)
-        lx, ly = left, min(height - text_height - 1, bottom + padding)
-        return lx, ly
 
-    # Rita alla ansikten och labels
+        # 2. Annars: ring/cirkelmetod, stega ut från ansiktet tills etikett får plats
+        cx = (face_box_canvas[0] + face_box_canvas[2]) // 2
+        cy = (face_box_canvas[1] + face_box_canvas[3]) // 2
+        max_radius = int(0.9 * max(canvas_width, canvas_height))
+        padding = config.get("padding", 15)
+        for radius in range(100, max_radius, padding // 2):
+            for angle in range(0, 360, 8):
+                radians = math.radians(angle)
+                lx = int(cx + radius * math.cos(radians) - text_width // 2)
+                ly = int(cy + radius * math.sin(radians) - text_height // 2)
+                if lx < 0 or ly < 0 or lx + text_width > canvas_width or ly + text_height > canvas_height:
+                    continue
+                label_box = (lx, ly, lx + text_width, ly + text_height)
+                # Får ej överlappa ansiktslåda
+                if box_overlaps(label_box, face_box_canvas):
+                    continue
+                collision = False
+                for box in placed_boxes:
+                    if box_overlaps(label_box, box):
+                        collision = True
+                        break
+                if not collision:
+                    return lx, ly
+        # Fallback: nederst i canvas
+        fallback_lx = min(max(0, offset_x), canvas_width - text_width - 1)
+        fallback_ly = canvas_height - text_height - 1
+        return fallback_lx, fallback_ly
+
+    # --------- Börja med etikettplacering ---------
+    max_label_width = orig_width // 3
+    padding = config.get("padding", 15)
+    placed_boxes = []
+
+    # För varje ansikte
     for i, (top, right, bottom, left) in enumerate(face_locations):
-        label = labels[i]
-        label_lines = label.split("\n")
-        # Räkna storlek på hela textblocket
-        line_sizes = [draw.textbbox((0, 0), line, font=font) for line in label_lines]
+        # Flytta ansiktsboxen till canvasens koordinatsystem
+        face_box_canvas = (left + offset_x, top + offset_y, right + offset_x, bottom + offset_y)
+        placed_boxes.append(face_box_canvas)
+
+        # ----- Etikett: text och radbrytning -----
+        label_text = "{} {}".format(labels[i].split('\n')[0], labels[i].split('\n')[1]) if "\n" in labels[i] else labels[i]
+        lines = robust_word_wrap(label_text, max_label_width, draw, font)
+        line_sizes = [draw.textbbox((0, 0), line, font=font) for line in lines]
         text_width = max(b[2] - b[0] for b in line_sizes) + 10
-        text_height = font_size * len(label_lines) + 4
+        text_height = font_size * len(lines) + 4
 
-        # Ansiktslåda (lägg in i placerade lådor direkt)
-        face_box = (left, top, right, bottom)
-        placed_boxes.append(face_box)
+        # ----- Dynamisk numrering, utanför ansiktslådan -----
+        num_font_size = max(12, font_size // 2)
+        num_font = ImageFont.truetype(font_path, num_font_size)
+        num_text = f"#{i+1}"
+        num_text_bbox = draw.textbbox((0, 0), num_text, font=num_font)
+        num_text_w = num_text_bbox[2] - num_text_bbox[0]
+        num_text_h = num_text_bbox[3] - num_text_bbox[1]
 
-        # Bestäm plats för labelrutan
-        lx, ly = place_label_around_face(top, right, bottom, left, label_lines, text_width, text_height)
+        candidate_offsets = [
+            (-4, -num_text_h - 4),                              # ovanför vänster
+            ((right-left)//2 - num_text_w//2, -num_text_h - 4), # rakt ovanför mitten
+            (right-left - num_text_w + 4, -num_text_h - 4),     # ovanför höger
+            (-num_text_w - 4, (bottom-top)//2 - num_text_h//2), # vänster om mitten
+            (right-left + 4, (bottom-top)//2 - num_text_h//2),  # höger om mitten
+            (-4, bottom - top + 4),                             # under vänster
+            ((right-left)//2 - num_text_w//2, bottom - top + 4),# under mitten
+            (right-left - num_text_w + 4, bottom - top + 4),    # under höger
+        ]
+        for dx, dy in candidate_offsets:
+            num_x = left + dx + offset_x
+            num_y = top + dy + offset_y
+            if num_x < 0 or num_y < 0 or num_x + num_text_w > canvas_width or num_y + num_text_h > canvas_height:
+                continue
+            num_box = (num_x, num_y, num_x + num_text_w, num_y + num_text_h)
+            collision = False
+            for box in placed_boxes:
+                if box_overlaps(num_box, box):
+                    collision = True
+                    break
+            if not collision:
+                break
+        else:
+            num_x = max(0, left - 4 + offset_x)
+            num_y = max(0, top - num_text_h - 4 + offset_y)
+            num_box = (num_x, num_y, num_x + num_text_w, num_y + num_text_h)
+        draw.rectangle(num_box, fill=(0, 0, 0, 180))
+        draw.text((num_x, num_y), num_text, fill=(255,255,0), font=num_font)
+        placed_boxes.append(num_box)
+
+        # ----- Etikettplacering (kollisionssäkrad, tillåt utanför bild) -----
+        lx, ly = place_label_anywhere(
+            face_box_canvas, text_width, text_height, placed_boxes, 
+            canvas_width, canvas_height, offset_x, offset_y, margin
+        )
         label_box = (lx, ly, lx + text_width, ly + text_height)
         placed_boxes.append(label_box)
 
@@ -255,42 +382,63 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
         draw.rectangle([lx, ly, lx + text_width, ly + text_height], fill=bg_color)
         # Rita texten rad för rad
         y_offset = 2
-        for j, line in enumerate(label_lines):
+        for j, line in enumerate(lines):
             draw.text((lx + 5, ly + y_offset), line, fill=text_color, font=font)
             y_offset += font_size
 
-        # Rita ansiktslåda
+        # Rita ansiktslåda (i rött)
         draw.rectangle(
-            [(left, top), (right, bottom)],
+            [(face_box_canvas[0], face_box_canvas[1]), (face_box_canvas[2], face_box_canvas[3])],
             outline="red",
             width=config.get("rectangle_thickness", 6),
         )
 
+        # Rita pil från ansiktslådans centrum till etikettens centrum
+        face_cx = (face_box_canvas[0] + face_box_canvas[2]) // 2
+        face_cy = (face_box_canvas[1] + face_box_canvas[3]) // 2
+        label_cx = lx + text_width // 2
+        label_cy = ly + text_height // 2
+        draw.line(
+            [(face_cx, face_cy), (label_cx, label_cy)],
+            fill="yellow",
+            width=2,
+        )
+
+    # ---- Spara resultat ----
     with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
         temp_name = config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg")
-        image.save(temp_name, format="JPEG")
+        canvas.save(temp_name, format="JPEG")
         return temp_name
 
 
 # === Beräkna avstånd till kända encodings ===
 def best_matches(encoding, known_faces, ignored_faces, config):
-    matches = []
+    """
+    Returnerar:
+        (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
+    där dist är lägre = bättre.
+    """
+    best_name = None
+    best_name_dist = None
+    best_ignore = None
+    best_ignore_dist = None
+
+    # Namnmatch
     for name, encs in known_faces.items():
         dists = face_recognition.face_distance(encs, encoding)
-        score = 1 - np.min(dists)
-        if np.min(dists) < config.get("match_threshold", 0.6):
-            matches.append((name, score))
-    matches.sort(key=lambda x: -x[1])
+        min_dist = np.min(dists)
+        if best_name_dist is None or min_dist < best_name_dist:
+            best_name_dist = min_dist
+            best_name = name
 
-    ignore_scores = []
-    for ignored in ignored_faces:
+    # Ignore-match
+    for idx, ignored in enumerate(ignored_faces):
         d = face_recognition.face_distance([ignored], encoding)[0]
-        score = 1 - d
-        if d < config.get("ignore_distance", 0.5):
-            ignore_scores.append(score)
-    best_ignore = max(ignore_scores) if ignore_scores else None
+        if best_ignore_dist is None or d < best_ignore_dist:
+            best_ignore_dist = d
+            best_ignore = idx
 
-    return matches, best_ignore
+    return (best_name, best_name_dist), (best_ignore, best_ignore_dist)
 
 
 def load_and_resize_raw(image_path, max_dim=None):
@@ -314,14 +462,36 @@ def face_detection_attempt(rgb, model, upsample):
 def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config):
     labels = []
     for i, encoding in enumerate(face_encodings):
-        matches, ignore_score = best_matches(
+        (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches(
             encoding, known_faces, ignored_faces, config
         )
-        if ignore_score and not config.get("auto_ignore", False):
+        name_thr = config.get("match_threshold", 0.6)
+        ignore_thr = config.get("ignore_distance", 0.5)
+        margin = config.get("prefer_name_margin", 0.10)
+
+        if (
+            best_name is not None
+            and best_name_dist is not None
+            and best_name_dist < name_thr
+            and (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
+        ):
+            # Namn vinner klart över ignore
+            label = "#{}\n{}".format(i + 1, best_name)
+        elif (
+            best_ignore_dist is not None
+            and best_ignore_dist < ignore_thr
+            and (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
+        ):
             label = "#{}\nIGN?".format(i + 1)
-        elif matches:
-            suggestion = matches[0][0]
-            label = "#{}\n{}".format(i + 1, suggestion)
+        elif (
+            best_name is not None
+            and best_name_dist is not None
+            and best_name_dist < name_thr
+            and best_ignore_dist is not None
+            and abs(best_name_dist - best_ignore_dist) < margin
+        ):
+            # Osäkert: lika nära namn som ignore
+            label = "#{}\n{} / IGN?".format(i + 1, best_name)
         else:
             label = "#{}\nOkänd".format(i + 1)
         labels.append(label)
@@ -338,31 +508,23 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
     retry_requested = False
     for i, encoding in enumerate(face_encodings):
         print("\nAnsikte #{}:".format(i + 1))
-        matches, ignore_score = best_matches(
+        (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches(
             encoding, known_faces, ignored_faces, config
         )
-        # Ignorera-prompt
-        ans = None
-        if ignore_score and not config.get("auto_ignore", False):
-            ans = input(
-                "↪ Detta ansikte liknar ett tidigare ignorerat. [Enter = bekräfta ignorera, r = rätta, n = försök igen, x = skippa bild] › "
-            ).strip().lower()
-            if ans == "x":
-                return "skipped", []
-            if ans == "n":
-                retry_requested = True
-                break
-            if ans != "r":
-                ignored_faces.append(encoding)
-                labels.append("#{}\nIGNORERAD".format(i + 1))
-                continue
+        name_thr = config.get("match_threshold", 0.6)
+        ignore_thr = config.get("ignore_distance", 0.5)
+        margin = config.get("prefer_name_margin", 0.10)
 
-        # Namnförslag om match finns
-        if matches:
-            suggestion = matches[0][0]
-            confidence = int(matches[0][1] * 100)
+        # Case: namn-match vinner tydligt
+        if (
+            best_name is not None
+            and best_name_dist is not None
+            and best_name_dist < name_thr
+            and (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
+        ):
+            confidence = int((1 - best_name_dist) * 100)
             prompt_txt = "↪ Föreslaget: {} ({}%)\n[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, x = skippa bild] › ".format(
-                suggestion, confidence
+                best_name, confidence
             )
             val = input(prompt_txt).strip().lower()
             if val == "x":
@@ -371,7 +533,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                 retry_requested = True
                 break
             if val == "":
-                name = suggestion
+                name = best_name
                 all_ignored = False
             elif val == "i":
                 ignored_faces.append(encoding)
@@ -389,6 +551,64 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                     labels.append("#{}\nIGNORERAD".format(i + 1))
                     continue
                 all_ignored = False
+
+        # Case: ignore vinner tydligt
+        elif (
+            best_ignore_dist is not None
+            and best_ignore_dist < ignore_thr
+            and (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
+        ):
+            ans = input(
+                "↪ Detta ansikte liknar ett tidigare ignorerat. [Enter = bekräfta ignorera, r = rätta, n = försök igen, x = skippa bild] › "
+            ).strip().lower()
+            if ans == "x":
+                return "skipped", []
+            if ans == "n":
+                retry_requested = True
+                break
+            if ans != "r":
+                ignored_faces.append(encoding)
+                labels.append("#{}\nIGNORERAD".format(i + 1))
+                continue
+
+        # Case: osäker, visa båda
+        elif (
+            best_name is not None
+            and best_name_dist is not None
+            and best_ignore_dist is not None
+            and abs(best_name_dist - best_ignore_dist) < margin
+        ):
+            # Visa båda förslag
+            confidence = int((1 - best_name_dist) * 100) if best_name_dist is not None else 0
+            ans = input(
+                f"↪ Osäkert: {best_name} ({confidence}%) eller ignorera?\n[Enter = bekräfta {best_name}, i = ignorera, r = rätta, n = försök igen, x = skippa bild] › "
+            ).strip().lower()
+            if ans == "x":
+                return "skipped", []
+            if ans == "n":
+                retry_requested = True
+                break
+            if ans == "" or ans == "y":
+                name = best_name
+                all_ignored = False
+            elif ans == "i":
+                ignored_faces.append(encoding)
+                labels.append("#{}\nIGNORERAD".format(i + 1))
+                continue
+            else:
+                name = input_name(list(known_faces.keys()))
+                if name.lower() == "x":
+                    return "skipped", []
+                if name.lower() == "n":
+                    retry_requested = True
+                    break
+                if name == "i":
+                    ignored_faces.append(encoding)
+                    labels.append("#{}\nIGNORERAD".format(i + 1))
+                    continue
+                all_ignored = False
+
+        # Ingen match – okänd
         else:
             name = input_name(list(known_faces.keys()))
             if name.lower() == "x":
