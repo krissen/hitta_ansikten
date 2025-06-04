@@ -7,9 +7,11 @@ import signal
 import sys
 import tempfile
 import time
+import warnings
 from datetime import datetime
 from pathlib import Path
 
+warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
 import face_recognition
 import imageio
 import matplotlib.font_manager as fm
@@ -195,8 +197,8 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
 
     orig_height, orig_width = rgb_image.shape[0:2]
     max_label_width = orig_width // 3
-    margin = 100
-    buffer = 80  # px skyddszon runt alla lådor
+    margin = 50
+    buffer = 40  # px skyddszon runt alla lådor
 
     # Hjälpfunktioner
     def box_overlaps_with_buffer(b1, b2, buffer=40):
@@ -439,6 +441,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
     all_ignored = True
     retry_requested = False
     for i, encoding in enumerate(face_encodings):
+        name = None
         print("\nAnsikte #{}:".format(i + 1))
         (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches(
             encoding, known_faces, ignored_faces, config
@@ -502,6 +505,18 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                 ignored_faces.append(encoding)
                 labels.append("#{}\nIGNORERAD".format(i + 1))
                 continue
+            else:
+                name = input_name(list(known_faces.keys()))
+                if name.lower() == "x":
+                    return "skipped", []
+                if name.lower() == "n":
+                    retry_requested = True
+                    break
+                if name == "i":
+                    ignored_faces.append(encoding)
+                    labels.append("#{}\nIGNORERAD".format(i + 1))
+                    continue
+                all_ignored = False
 
         # Case: osäker, visa båda
         elif (
@@ -510,7 +525,6 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
             and best_ignore_dist is not None
             and abs(best_name_dist - best_ignore_dist) < margin
         ):
-            # Visa båda förslag
             confidence = int((1 - best_name_dist) * 100) if best_name_dist is not None else 0
             ans = input(
                 f"↪ Osäkert: {best_name} ({confidence}%) eller ignorera?\n[Enter = bekräfta {best_name}, i = ignorera, r = rätta, n = försök igen, x = skippa bild] › "
@@ -554,10 +568,11 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                 continue
             all_ignored = False
 
-        if name not in known_faces:
-            known_faces[name] = []
-        known_faces[name].append(encoding)
-        labels.append("#{}\n{}".format(i + 1, name))
+        if name is not None:
+            if name not in known_faces:
+                known_faces[name] = []
+            known_faces[name].append(encoding)
+            labels.append("#{}\n{}".format(i + 1, name))
 
     if retry_requested:
         return "retry", []
