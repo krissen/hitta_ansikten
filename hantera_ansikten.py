@@ -1,12 +1,14 @@
 import pickle
 from pathlib import Path
-from xdg import xdg_data_home
+
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
+from xdg import xdg_data_home
 
 BASE_DIR = xdg_data_home() / "faceid"
 ENCODING_PATH = BASE_DIR / "encodings.pkl"
 IGNORED_PATH = BASE_DIR / "ignored.pkl"
+
 
 def load():
     if ENCODING_PATH.exists():
@@ -21,23 +23,28 @@ def load():
         ignored = []
     return known, ignored
 
+
 def save(known, ignored):
     with open(ENCODING_PATH, "wb") as f:
         pickle.dump(known, f)
     with open(IGNORED_PATH, "wb") as f:
         pickle.dump(ignored, f)
 
+
 def print_known(known):
     print("\nNuvarande namn i databasen:")
     for idx, name in enumerate(sorted(known), 1):
         print(f"  {idx:2d}. {name} ({len(known[name])} encodings)")
 
+
 def name_input(known, msg="Namn: "):
     completer = WordCompleter(sorted(known), ignore_case=True, sentence=True)
     return prompt(msg, completer=completer).strip()
 
+
 def print_menu():
-    print("""
+    print(
+        """
 Meny:
  1. Byt namn på en person
  2. Slå ihop två personer
@@ -46,7 +53,9 @@ Meny:
  5. Flytta encodings från ignore till nytt namn
  6. Visa namn/statistik
  0. Avsluta
-""")
+"""
+    )
+
 
 def main():
     known, ignored = load()
@@ -79,21 +88,26 @@ def main():
             target = input(f"Slå ihop som nytt namn: (default '{name1}') ").strip()
             if not target:
                 target = name1
-            known[target] = known.get(target, []) + known[name2]
-            if target != name1:
-                known[target] += known[name1]
-                del known[name1]
-            del known[name2]
+            # Samla alla encodings
+            encodings = []
+            if target in known:
+                encodings.extend(known[target])
+            if name1 in known:
+                encodings.extend(known[name1])
+            if name2 in known:
+                encodings.extend(known[name2])
+            # Unika encodings, bevara ordning (valfritt)
+            seen = set()
+            encodings_unique = []
+            for enc in encodings:
+                if id(enc) not in seen:
+                    seen.add(id(enc))
+                    encodings_unique.append(enc)
+            known[target] = encodings_unique
+            for n in (name1, name2):
+                if n != target and n in known:
+                    del known[n]
             print(f"{name1} + {name2} → {target}")
-            save(known, ignored)
-        elif val == "3":
-            print_known(known)
-            name = name_input(known, "Namn att ta bort (autocomplete): ")
-            if name not in known:
-                print("Namn hittades ej.")
-                continue
-            del known[name]
-            print(f"{name} borttagen.")
             save(known, ignored)
         elif val == "4":
             print_known(known)
@@ -136,6 +150,6 @@ def main():
         else:
             print("Ogiltigt val.")
 
+
 if __name__ == "__main__":
     main()
-
