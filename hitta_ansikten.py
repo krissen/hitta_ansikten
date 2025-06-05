@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import fnmatch
 import json
 import math
@@ -154,7 +155,15 @@ def parse_inputs(args, supported_ext):
                     yield f.resolve()
 
 
-def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir=None, log_name="attempt_stats.jsonl"):
+def log_attempt_stats(
+    image_path,
+    attempts,
+    used_attempt_idx,
+    base_dir=None,
+    log_name="attempt_stats.jsonl",
+    review_results=None,
+    labels_per_attempt=None
+):
     """
     Spara attempts-statistik för en bild till en JSONL-fil i base_dir.
     :param image_path: Path till bilden.
@@ -162,6 +171,8 @@ def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir=None, log
     :param used_attempt_idx: Index (int) för attempt som blev det faktiska valet (eller None om ingen).
     :param base_dir: Path till katalogen där loggfilen ska finnas (om None: '.').
     :param log_name: Filnamn på loggfilen.
+    :param review_results: Lista med user_review_encodings-resultat per attempt, t.ex. ["ok", "retry", ...]
+    :param labels_per_attempt: Lista av etikettlistor (labels från varje attempt).
     """
     from pathlib import Path
     if base_dir is None:
@@ -172,10 +183,15 @@ def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir=None, log
         "attempts": attempts,
         "used_attempt": used_attempt_idx
     }
+    if review_results is not None:
+        log_entry["review_results"] = review_results
+    if labels_per_attempt is not None:
+        log_entry["labels_per_attempt"] = labels_per_attempt
     log_path = Path(base_dir) / log_name
     Path(base_dir).mkdir(parents=True, exist_ok=True)
     with open(log_path, "a") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
 
 # === Funktion för att skapa tempbild med etiketter ===
 def create_labeled_image(rgb_image, face_locations, labels, config):
@@ -602,6 +618,10 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     attempts_stats = []
     used_attempt = None
 
+    # --- NYA: Loggar ---
+    review_results = []
+    labels_per_attempt = []
+
     while attempt_idx < len(attempt_settings):
         setting = attempt_settings[attempt_idx]
         if not setting.get("highres"):
@@ -649,8 +669,19 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
 
             review_result, labels = user_review_encodings(face_encodings, known_faces, ignored_faces, config)
 
+            # --- LOGGA detta försök ---
+            review_results.append(review_result)
+            labels_per_attempt.append(labels)
+
             if review_result == "skipped":
-                log_attempt_stats(image_path, attempts_stats, used_attempt, BASE_DIR)
+                log_attempt_stats(
+                    image_path,
+                    attempts_stats,
+                    used_attempt,
+                    BASE_DIR,
+                    review_results=review_results,
+                    labels_per_attempt=labels_per_attempt
+                )
                 return "skipped"
             if review_result == "retry":
                 attempt_idx += 1
@@ -660,8 +691,20 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
                 continue
             if review_result == "ok":
                 used_attempt = attempt_idx
-                log_attempt_stats(image_path, attempts_stats, used_attempt, BASE_DIR)
+                log_attempt_stats(
+                    image_path,
+                    attempts_stats,
+                    used_attempt,
+                    BASE_DIR,
+                    review_results=review_results,
+                    labels_per_attempt=labels_per_attempt
+                )
                 return True
+
+        else:
+            # Om inga ansikten hittades i attempt – logga ändå
+            review_results.append("no_faces")
+            labels_per_attempt.append([])
 
         if not shown_image:
             temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
@@ -669,14 +712,29 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             shown_image = True
             ans = input("⚠️  Fortsätta försöka? [Enter = ja, x = hoppa över] › ").strip().lower()
             if ans == "x":
-                log_attempt_stats(image_path, attempts_stats, used_attempt, BASE_DIR)
+                log_attempt_stats(
+                    image_path,
+                    attempts_stats,
+                    used_attempt,
+                    BASE_DIR,
+                    review_results=review_results,
+                    labels_per_attempt=labels_per_attempt
+                )
                 return "skipped"
 
         attempt_idx += 1
 
     print("⏭ Inga ansikten kunde hittas i {} , hoppar över.".format(image_path.name))
-    log_attempt_stats(image_path, attempts_stats, None)
+    log_attempt_stats(
+        image_path,
+        attempts_stats,
+        None,
+        BASE_DIR,
+        review_results=review_results,
+        labels_per_attempt=labels_per_attempt
+    )
     return "no_faces"
+
 
 def process_image(image_path, known_faces, ignored_faces, config):
     return main_process_image_loop(image_path, known_faces, ignored_faces, config)
