@@ -236,7 +236,7 @@ def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_i
         best_ignore_dist is not None and best_ignore_dist < ignore_thr and
         (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
     ):
-        return f"#%d\ning" % (i + 1), "ign"
+        return f"#%d\nign" % (i + 1), "ign"
 
     # Fall: *ingen* tillräckligt nära (okänt)
     else:
@@ -642,7 +642,6 @@ def input_name(known_names, prompt_txt=None):
     name = safe_input(prompt_txt, completer=completer)
     return name.strip()
 
-
 def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     # Tre upplösningar: låg, mellan, hög
     max_down = config.get("max_downsample_px")
@@ -652,7 +651,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     rgb_mid = load_and_resize_raw(image_path, max_mid)
     rgb_full = load_and_resize_raw(image_path, max_full)
 
-    # Försöksinställningar i rätt ordning (du bestämde):
+    # Försöksinställningar i rätt ordning:
     attempt_settings = [
         {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": max_down, "rgb_img": rgb_down},
         {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": max_mid,  "rgb_img": rgb_mid},
@@ -668,6 +667,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     used_attempt = None
     review_results = []
     labels_per_attempt = []
+    has_had_faces = False
 
     while attempt_idx < len(attempt_settings):
         setting = attempt_settings[attempt_idx]
@@ -697,6 +697,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
 
         preview_labels = label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config)
         if face_encodings:
+            has_had_faces = True
             preview_path = create_labeled_image(
                 rgb, face_locations, preview_labels, config
             )
@@ -740,7 +741,10 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             review_results.append("no_faces")
             labels_per_attempt.append([])
 
-        if not shown_image:
+        # Endast fråga om fortsättning om:
+        # - Det är första gången i loopen
+        # - Inga ansikten har någonsin hittats hittills (has_had_faces == False)
+        if not shown_image and not has_had_faces:
             temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
             show_temp_image(temp_path, config)
             shown_image = True
