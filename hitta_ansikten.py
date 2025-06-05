@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import fnmatch
 import json
 import math
@@ -121,41 +122,36 @@ def save_database(known_faces, ignored_faces, processed_files):
     with open(PROCESSED_PATH, "w") as f:
         f.writelines(f"{name}\n" for name in sorted(processed_files))
 
+
 def parse_inputs(args, supported_ext):
-    """
-    Tar en lista av input-argument och returnerar en lista av Path-objekt för bilder som ska behandlas.
-    Args:
-        args: lista av strängar (filnamn, globs, mappar, '.' etc)
-        supported_ext: lista med filändelser (t.ex. [".nef", ".NEF"])
-    Returns:
-        paths: sorterad lista med Path-objekt
-    """
-    files = set()
+    seen = set()  # för att undvika dubbletter
     for arg in args:
         path = Path(arg)
         if path.is_dir():
-            # Alla filer rekursivt i mappen
+            # Generator för rekursivt genomgång av katalog
             for f in path.rglob("*"):
-                if f.suffix in supported_ext and f.is_file():
-                    files.add(f.resolve())
+                if f.suffix in supported_ext and f.is_file() and f not in seen:
+                    seen.add(f)
+                    yield f.resolve()
         elif "*" in arg or "?" in arg or "[" in arg:
-            # Globmönster (t.ex. 2601* eller ./bilder/2024-0[123]*.nef)
             for f in Path(".").glob(arg):
-                if f.suffix in supported_ext and f.is_file():
-                    files.add(f.resolve())
+                if f.suffix in supported_ext and f.is_file() and f not in seen:
+                    seen.add(f)
+                    yield f.resolve()
         elif arg == ".":
-            # Punkt: nuvarande katalog
             for f in Path(".").rglob("*"):
-                if f.suffix in supported_ext and f.is_file():
-                    files.add(f.resolve())
+                if f.suffix in supported_ext and f.is_file() and f not in seen:
+                    seen.add(f)
+                    yield f.resolve()
         elif path.is_file() and path.suffix in supported_ext:
-            files.add(path.resolve())
+            if path.resolve() not in seen:
+                seen.add(path.resolve())
+                yield path.resolve()
         else:
-            # Om inget hittas – prova fnmatch på hela filesystemet från current dir (undantagsvis)
             for f in Path(".").rglob("*"):
-                if fnmatch.fnmatch(f.name, arg) and f.suffix in supported_ext and f.is_file():
-                    files.add(f.resolve())
-    return sorted(files)
+                if fnmatch.fnmatch(f.name, arg) and f.suffix in supported_ext and f.is_file() and f not in seen:
+                    seen.add(f)
+                    yield f.resolve()
 
 
 def log_attempt_stats(image_path, attempts, used_attempt_idx, base_dir=None, log_name="attempt_stats.jsonl"):
@@ -586,9 +582,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
         {"model": "cnn", "upsample": 0, "highres": False},
         {"model": "cnn", "upsample": 0, "highres": True},
         {"model": "hog", "upsample": 1, "highres": True},
-        {"model": "cnn", "upsample": 1, "highres": True},
         {"model": "hog", "upsample": 2, "highres": True},
-        {"model": "cnn", "upsample": 2, "highres": False},
     ]
     max_down = config.get("max_downsample_px", 2500)
     max_full = config.get("max_fullres_px", 6000)
@@ -705,17 +699,11 @@ def main():
 
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
-    # Acceptera flera input
+
     input_paths = parse_inputs(sys.argv[1:], SUPPORTED_EXT)
-    if not input_paths:
-        print("Inga matchande bildfiler hittades.")
-        sys.exit(1)
-
-    # BASE_DIR för loggning etc
-    from xdg import xdg_data_home
-    BASE_DIR = xdg_data_home() / "faceid"
-
+    n_found = 0
     for path in input_paths:
+        n_found += 1
         if path.name in processed_files:
             print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
             continue
@@ -726,6 +714,10 @@ def main():
             processed_files.add(path.name)
             save_database(known_faces, ignored_faces, processed_files)
         # loggning sker redan i process_image/main_process_image_loop
+
+    if n_found == 0:
+        print("Inga matchande bildfiler hittades.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
