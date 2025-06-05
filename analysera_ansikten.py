@@ -16,10 +16,12 @@ def load_stats(logfile):
     return stats
 
 def analyze(stats):
-    # Vanliga counters
-    attempt_pathways = Counter()
+    # Counters och samlingar
+    attempt_success = Counter()
     attempt_info = defaultdict(lambda: {"used": 0, "faces": 0, "time": 0.0, "total": 0})
-    outcome_counts = Counter()
+    review_outcomes = Counter()
+    scale_stats = defaultdict(lambda: {"used": 0, "total": 0, "time": 0.0, "faces": 0})
+    upsample_stats = defaultdict(lambda: {"used": 0, "total": 0})
     label_stats = Counter()
     position_label_stats = defaultdict(Counter)
 
@@ -29,53 +31,93 @@ def analyze(stats):
         review_results = entry.get("review_results")
         labels_per_attempt = entry.get("labels_per_attempt")
 
-        # Analysera attempt-förlopp
+        # --- Attempt-användning ---
         if used is not None:
-            attempt_pathways[used] += 1
+            setting = attempts[used]
+            key = (
+                setting.get("model"),
+                setting.get("upsample"),
+                setting.get("scale_label"),
+                setting.get("scale_px"),
+            )
+            attempt_success[key] += 1
+            scale_stats[setting.get("scale_label")]["used"] += 1
+            upsample_stats[setting.get("upsample")]["used"] += 1
 
-        for idx, att in enumerate(attempts):
-            key = (att["model"], att["upsample"], att["highres"])
+        for att in attempts:
+            key = (
+                att.get("model"),
+                att.get("upsample"),
+                att.get("scale_label"),
+                att.get("scale_px"),
+            )
             attempt_info[key]["total"] += 1
-            if used == idx:
-                attempt_info[key]["used"] += 1
-                attempt_info[key]["faces"] += att["faces_found"]
-                attempt_info[key]["time"] += att["time_seconds"]
+            scale_stats[att.get("scale_label")]["total"] += 1
+            upsample_stats[att.get("upsample")]["total"] += 1
+        if used is not None:
+            setting = attempts[used]
+            key = (
+                setting.get("model"),
+                setting.get("upsample"),
+                setting.get("scale_label"),
+                setting.get("scale_px"),
+            )
+            attempt_info[key]["used"] += 1
+            attempt_info[key]["faces"] += setting.get("faces_found", 0)
+            attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
+            scale_stats[setting.get("scale_label")]["faces"] += setting.get("faces_found", 0)
+            scale_stats[setting.get("scale_label")]["time"] += setting.get("time_seconds", 0.0)
 
-        # Djupare analys på review_results och labels
+        # --- Outcomes och labels ---
         if review_results and labels_per_attempt:
             for i, (result, labels) in enumerate(zip(review_results, labels_per_attempt)):
-                outcome_counts[result] += 1
+                review_outcomes[result] += 1
                 for pos, label in enumerate(labels):
                     label_stats[label] += 1
                     position_label_stats[pos][label] += 1
 
-    # Skriv ut sammanfattning
-    print("=== Hur ofta användes varje attempt (index, i ordning)? ===")
-    total = sum(attempt_pathways.values())
-    for idx, count in sorted(attempt_pathways.items()):
-        percent = 100 * count / total if total else 0
-        print(f"  Försök #{idx+1}: {count} bilder ({percent:.1f}%) godkändes på detta steg")
+    # --- Presentation ---
+    print("=== Hur ofta valdes varje attempt (modell, upsample, skala) ===")
+    for key, count in attempt_success.most_common():
+        model, upsample, scale, px = key
+        print(f"  model={model}, upsample={upsample}, scale={scale} ({px}px): {count} gånger")
 
-    print("\n=== Outcome per försök (alla review_results) ===")
-    for res, count in outcome_counts.items():
-        print(f"  {res:>12}: {count}")
-
-    print("\n=== Detaljerad attempt-statistik ===")
+    print("\n=== Successrate per attempt-setup ===")
     for key, info in attempt_info.items():
+        model, upsample, scale, px = key
         n_used = info["used"]
         n_total = info["total"]
         mean_faces = info["faces"] / n_used if n_used else 0
         mean_time = info["time"] / n_used if n_used else 0
         print(
-            f"  {key}: valdes {n_used} gånger av {n_total} ({100 * n_used/n_total:.1f}%), "
-            f"snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
+            f"  model={model}, upsample={upsample}, scale={scale} ({px}px): "
+            f"{n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
         )
 
-    print("\n=== Label-statistik (hur ofta väljs olika etiketter på ansikten) ===")
+    print("\n=== Outcomes (review_results) ===")
+    for res, count in review_outcomes.items():
+        print(f"  {res:>12}: {count}")
+
+    print("\n=== Label-statistik (totalt) ===")
     for label, count in label_stats.most_common(20):
         print(f"  {label:>20}: {count}")
 
-    # (valfritt) Visa vanligaste etiketter på varje ansiktsposition (om många på bild)
+    print("\n=== Användning per skala ===")
+    for scale, info in scale_stats.items():
+        n_used = info["used"]
+        n_total = info["total"]
+        mean_faces = info["faces"] / n_used if n_used else 0
+        mean_time = info["time"] / n_used if n_used else 0
+        print(
+            f"  {scale}: {n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
+        )
+
+    print("\n=== Användning per upsample ===")
+    for upsample, info in upsample_stats.items():
+        print(
+            f"  upsample={upsample}: {info['used']} av {info['total']} ({100*info['used']/info['total']:.1f}%)"
+        )
+
     print("\n=== Vanligaste etikett per ansiktsposition ===")
     for pos in sorted(position_label_stats):
         most_common = position_label_stats[pos].most_common(1)
