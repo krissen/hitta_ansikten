@@ -213,32 +213,34 @@ def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_i
     ignore_thr = config.get("ignore_distance")
     margin = config.get("prefer_name_margin")
 
+    # Fall: båda nära, inom margin
     if (
         best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
         best_ignore_dist is not None and best_ignore_dist < ignore_thr and
         abs(best_name_dist - best_ignore_dist) < margin
     ):
-        # Osäkert, båda nära
         if best_name_dist < best_ignore_dist:
             return f"#%d\n{best_name} / ign" % (i + 1), "uncertain_name"
         else:
-            return f"#%d\ning / {best_name}" % (i + 1), "uncertain_ign"
+            return f"#%d\nign / {best_name}" % (i + 1), "uncertain_ign"
+
+    # Fall: namn vinner klart
     elif (
         best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
         (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
     ):
-        # Namn vinner klart
         return f"#%d\n{best_name}" % (i + 1), "name"
+
+    # Fall: ign vinner klart
     elif (
         best_ignore_dist is not None and best_ignore_dist < ignore_thr and
         (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
     ):
-        # Ignorerad vinner klart
         return f"#%d\ning" % (i + 1), "ign"
+
+    # Fall: *ingen* tillräckligt nära (okänt)
     else:
-        # Okänd, visa båda om möjligt
-        name_disp = best_name if best_name is not None else "?"
-        return f"#%d\n{name_disp} / ign" % (i + 1), "unknown"
+        return f"#%d\nOkänt" % (i + 1), "unknown"
 
 def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config):
     labels = []
@@ -251,6 +253,7 @@ def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, conf
         label, _ = get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
         labels.append(label)
     return labels
+
 
 def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
     labels = []
@@ -266,11 +269,15 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
         name_conf = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ign_conf = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
 
-        label, status = get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
+        # Få label (för bilden) + status (för prompt)
+        label, status = get_match_label(
+            i, best_name, best_name_dist, name_conf,
+            best_ignore, best_ignore_dist, ign_conf, config
+        )
 
-        # --- Osäkert: Båda nära, inom margin ---
+        # ---- 1. O-säkert fall: båda är ungefär lika nära (status == uncertain_name eller uncertain_ign) ----
         if status == "uncertain_name":
-            prompt_txt = (f"↪ Osäkert: {best_name} ({name_conf}%) / ign ({ign_conf}%)?\n"
+            prompt_txt = (f"↪ Osäkert: {best_name} ({name_conf}%) / ign ({ign_conf}%)\n"
                           "[Enter = bekräfta namn, i = ignorera, r = rätta, n = försök igen, x = skippa bild] › ")
             ans = safe_input(prompt_txt).strip().lower()
             if ans == "x":
@@ -280,7 +287,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                 break
             if ans == "i":
                 ignored_faces.append(encoding)
-                labels.append(label.replace(best_name, "ignorerad"))
+                labels.append(f"#{i+1}\nignorerad")
                 continue
             elif ans == "r":
                 name = input_name(list(known_faces.keys()))
@@ -291,7 +298,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                     break
                 if name == "i":
                     ignored_faces.append(encoding)
-                    labels.append(label.replace(best_name, "ignorerad"))
+                    labels.append(f"#{i+1}\nignorerad")
                     continue
                 all_ignored = False
             else:
@@ -299,7 +306,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                 all_ignored = False
 
         elif status == "uncertain_ign":
-            prompt_txt = (f"↪ Osäkert: ign ({ign_conf}%) / {best_name} ({name_conf}%)?\n"
+            prompt_txt = (f"↪ Osäkert: ign ({ign_conf}%) / {best_name} ({name_conf}%)\n"
                           "[Enter = bekräfta ignorera, n = försök igen, r = rätta, a = acceptera namn, x = skippa bild] › ")
             ans = safe_input(prompt_txt).strip().lower()
             if ans == "x":
@@ -319,14 +326,15 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                     break
                 if name == "i":
                     ignored_faces.append(encoding)
-                    labels.append(label.replace(best_name, "ignorerad"))
+                    labels.append(f"#{i+1}\nignorerad")
                     continue
                 all_ignored = False
             else:
                 ignored_faces.append(encoding)
-                labels.append(label.replace(best_name, "ignorerad"))
+                labels.append(f"#{i+1}\nignorerad")
                 continue
 
+        # ---- 2. Namn vinner tydligt ----
         elif status == "name":
             prompt_txt = f"↪ Föreslaget: {best_name} ({name_conf}%)\n[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, x = skippa bild] › "
             val = safe_input(prompt_txt).strip().lower()
@@ -340,7 +348,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                 all_ignored = False
             elif val == "i":
                 ignored_faces.append(encoding)
-                labels.append(label.replace(best_name, "ignorerad"))
+                labels.append(f"#{i+1}\nignorerad")
                 continue
             else:
                 name = input_name(list(known_faces.keys()))
@@ -351,10 +359,11 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                     break
                 if name == "i":
                     ignored_faces.append(encoding)
-                    labels.append(label.replace(best_name, "ignorerad"))
+                    labels.append(f"#{i+1}\nignorerad")
                     continue
                 all_ignored = False
 
+        # ---- 3. ign vinner tydligt ----
         elif status == "ign":
             prompt_txt = f"↪ Detta ansikte liknar ett tidigare ignorerat ({ign_conf}%). [Enter = bekräfta ignorera, r = rätta, n = försök igen, a = acceptera namn, x = skippa bild] › "
             ans = safe_input(prompt_txt).strip().lower()
@@ -364,7 +373,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                 retry_requested = True
                 break
             if ans == "a":
-                name = best_name if best_name else input_name(list(known_faces.keys()))
+                name = best_name
                 all_ignored = False
             elif ans == "r":
                 name = input_name(list(known_faces.keys()))
@@ -375,16 +384,17 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                     break
                 if name == "i":
                     ignored_faces.append(encoding)
-                    labels.append(label.replace(best_name, "ignorerad"))
+                    labels.append(f"#{i+1}\nignorerad")
                     continue
                 all_ignored = False
             else:
                 ignored_faces.append(encoding)
-                labels.append(label.replace(best_name, "ignorerad"))
+                labels.append(f"#{i+1}\nignorerad")
                 continue
 
+        # ---- 4. Okänt: inget alternativ under threshold ----
         elif status == "unknown":
-            prompt_txt = f"↪ Osäkert ansikte: {best_name} ({name_conf}%) / ign ({ign_conf}%)\n[Ange namn eller 'i' för ignorera, n = försök igen, x = skippa bild] › "
+            prompt_txt = "↪ Okänt ansikte.\n[Ange namn eller 'i' för ignorera, n = försök igen, x = skippa bild] › "
             name = input_name(list(known_faces.keys()), prompt_txt)
             if name.lower() == "x":
                 return "skipped", []
@@ -393,7 +403,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
                 break
             if name == "i":
                 ignored_faces.append(encoding)
-                labels.append(label.replace(best_name, "ignorerad"))
+                labels.append(f"#{i+1}\nignorerad")
                 continue
             all_ignored = False
 
@@ -401,14 +411,13 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config):
             if name not in known_faces:
                 known_faces[name] = []
             known_faces[name].append(encoding)
-            labels.append(f"#%d\n%s" % (i + 1, name))
+            labels.append(f"#{i+1}\n{name}")
 
     if retry_requested:
         return "retry", []
     if all_ignored:
         return "all_ignored", []
     return "ok", labels
-
 
 # === Funktion för att skapa tempbild med etiketter ===
 def create_labeled_image(rgb_image, face_locations, labels, config):
