@@ -521,7 +521,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                 if name.lower() == "n":
                     retry_requested = True
                     break
-                if name == "i":
+                if name.lower() == "i":
                     ignored_faces.append(encoding)
                     labels.append("#{}\nignorerad".format(i + 1))
                     break
@@ -530,7 +530,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
             if retry_requested:
                 break
 
-        if name is not None:
+        if name is not None and name.lower() not in {"i", "x", "n", "o"}:
             if name not in known_faces:
                 known_faces[name] = []
             known_faces[name].append(encoding)

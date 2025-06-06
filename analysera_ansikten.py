@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 import json
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-LOG_FILE = Path.home() / ".local" / "share" / "faceid" / "attempt_stats.jsonl"
+BASE_DIR = Path.home() / ".local" / "share" / "faceid"
+LOG_FILE = BASE_DIR / "attempt_stats.jsonl"
+ARCHIVE_DIR = BASE_DIR / "archive"
 
 def load_stats(logfile):
     stats = []
@@ -15,8 +18,32 @@ def load_stats(logfile):
                 pass
     return stats
 
-def analyze(stats):
-    # Counters och samlingar
+def load_multiple_stats(files):
+    stats = []
+    for f in files:
+        label = Path(f).stem
+        for line in open(f):
+            try:
+                entry = json.loads(line)
+                entry["__sourcefile"] = label
+                stats.append(entry)
+            except Exception:
+                pass
+    return stats
+
+def analyze(stats, group_by_source=False):
+    # Möjliggör jämförelse mellan olika databaser (per fil)
+    if group_by_source:
+        sources = defaultdict(list)
+        for entry in stats:
+            sources[entry.get("__sourcefile", "current")].append(entry)
+        for label, entries in sources.items():
+            print(f"\n##### Statistik för databas: {label} #####")
+            _analyze_single(entries)
+    else:
+        _analyze_single(stats)
+
+def _analyze_single(stats):
     attempt_success = Counter()
     attempt_info = defaultdict(lambda: {"used": 0, "faces": 0, "time": 0.0, "total": 0})
     review_outcomes = Counter()
@@ -31,7 +58,6 @@ def analyze(stats):
         review_results = entry.get("review_results")
         labels_per_attempt = entry.get("labels_per_attempt")
 
-        # --- Attempt-användning ---
         if used is not None:
             setting = attempts[used]
             key = (
@@ -68,7 +94,6 @@ def analyze(stats):
             scale_stats[setting.get("scale_label")]["faces"] += setting.get("faces_found", 0)
             scale_stats[setting.get("scale_label")]["time"] += setting.get("time_seconds", 0.0)
 
-        # --- Outcomes och labels ---
         if review_results and labels_per_attempt:
             for i, (result, labels) in enumerate(zip(review_results, labels_per_attempt)):
                 review_outcomes[result] += 1
@@ -76,7 +101,6 @@ def analyze(stats):
                     label_stats[label] += 1
                     position_label_stats[pos][label] += 1
 
-    # --- Presentation ---
     print("=== Hur ofta valdes varje attempt (modell, upsample, skala) ===")
     for key, count in attempt_success.most_common():
         model, upsample, scale, px = key
@@ -125,15 +149,43 @@ def analyze(stats):
             label, count = most_common[0]
             print(f"  Ansikte {pos+1}: {label} ({count} st)")
 
+def find_all_stats_files():
+    files = []
+    # Nuvarande
+    if LOG_FILE.exists():
+        files.append(LOG_FILE)
+    # Alla arkiv
+    if ARCHIVE_DIR.exists():
+        files += sorted(ARCHIVE_DIR.glob("attempt_stats*.jsonl"))
+    return files
+
 def main():
-    if not LOG_FILE.exists():
-        print(f"Ingen loggfil hittades: {LOG_FILE}")
-        return
-    stats = load_stats(LOG_FILE)
-    if not stats:
-        print("Inga loggar hittades.")
-        return
-    analyze(stats)
+    # Default: analysera nuvarande loggfil
+    if len(sys.argv) == 1:
+        if not LOG_FILE.exists():
+            print(f"Ingen loggfil hittades: {LOG_FILE}")
+            return
+        stats = load_stats(LOG_FILE)
+        if not stats:
+            print("Inga loggar hittades.")
+            return
+        analyze(stats)
+    # "all" => analysera alla arkiv + nuvarande
+    elif sys.argv[1] == "all":
+        files = find_all_stats_files()
+        if not files:
+            print("Inga statistikfiler hittades.")
+            return
+        print("Analyserar samtliga databaser:")
+        for f in files:
+            print("  -", f)
+        stats = load_multiple_stats(files)
+        analyze(stats, group_by_source=True)
+    # "file ..." => analysera angivna filer (eller paths)
+    else:
+        files = [Path(arg) for arg in sys.argv[1:]]
+        stats = load_multiple_stats(files)
+        analyze(stats, group_by_source=True)
 
 if __name__ == "__main__":
     main()
