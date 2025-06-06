@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import fnmatch
+import hashlib
 import json
 import math
 import os
@@ -26,12 +27,15 @@ from xdg import xdg_data_home
 
 # === Konstanter ===
 BASE_DIR = xdg_data_home() / "faceid"
+ARCHIVE_DIR = BASE_DIR / "archive"
+ATTEMPT_SETTINGS_SIG = BASE_DIR / "attempt_settings.sig"
+CONFIG_PATH = BASE_DIR / "config.json"
 ENCODING_PATH = BASE_DIR / "encodings.pkl"
 IGNORED_PATH = BASE_DIR / "ignored.pkl"
-PROCESSED_PATH = BASE_DIR / "processed.txt"
 METADATA_PATH = BASE_DIR / "metadata.json"
-CONFIG_PATH = BASE_DIR / "config.json"
+PROCESSED_PATH = BASE_DIR / "processed.txt"
 SUPPORTED_EXT = [".nef", ".NEF"]
+
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -89,6 +93,45 @@ def load_database():
 
     return known_faces, ignored_faces, processed_files
 
+def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full):
+    # All attempts i rätt ordning, parametriserat
+    return [
+        {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"], "rgb_img": rgb_down},
+        {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"],  "rgb_img": rgb_mid},
+        {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": config["max_downsample_px"], "rgb_img": rgb_down},
+        {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"], "rgb_img": rgb_full},
+        {"model": "cnn", "upsample": 1, "scale_label": "mid",  "scale_px": config["max_midsample_px"],  "rgb_img": rgb_mid},
+        {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": config["max_fullres_px"], "rgb_img": rgb_full},
+    ]
+
+def get_settings_signature(attempt_settings):
+    # Serialiserbar och ordningsoberoende
+    as_json = json.dumps([
+        {k: v for k, v in s.items() if k != "rgb_img"}
+        for s in attempt_settings
+    ], sort_keys=True)
+    return hashlib.md5(as_json.encode("utf-8")).hexdigest()
+
+def archive_stats_if_needed(current_sig, force=False):
+    sig_path = ATTEMPT_SETTINGS_SIG
+    log_path = BASE_DIR / "attempt_stats.jsonl"
+    if not log_path.exists():
+        sig_path.write_text(current_sig)
+        return
+
+    old_sig = sig_path.read_text().strip() if sig_path.exists() else None
+    if force or (old_sig != current_sig):
+        ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+        dt_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        archive_name = f"attempt_stats_{dt_str}_{old_sig or 'unknown'}.jsonl"
+        archive_path = ARCHIVE_DIR / archive_name
+        log_path.rename(archive_path)
+        print(f"[INFO] Arkiverade statistikfil till: {archive_path}")
+        sig_path.write_text(current_sig)
+    else:
+        # Skriv alltid signaturen för nuvarande settings
+        sig_path.write_text(current_sig)
+
 def export_and_show_original(image_path, config):
     """
     Exporterar NEF-filen till högupplöst JPG och skriver en statusfil för Bildvisare-appen.
@@ -120,7 +163,7 @@ def export_and_show_original(image_path, config):
         json.dump(status, f, indent=2)
 
     # Visa bilden (eller låt bildvisaren själv ladda in statusfilen)
-    os.system(f"open -a '{config.get('image_viewer_app', 'Bildvisare')}' '{export_path}'")
+    # os.system(f"open -a '{config.get('image_viewer_app', 'Bildvisare')}' '{export_path}'")
 
 
 def show_temp_image(preview_path, config, last_shown=[None]):
@@ -734,16 +777,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     rgb_down = load_and_resize_raw(image_path, max_down)
     rgb_mid = load_and_resize_raw(image_path, max_mid)
     rgb_full = load_and_resize_raw(image_path, max_full)
-
-    # Försöksinställningar i rätt ordning:
-    attempt_settings = [
-        {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": max_down, "rgb_img": rgb_down},
-        {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": max_mid,  "rgb_img": rgb_mid},
-        {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": max_down, "rgb_img": rgb_down},
-        {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": max_full, "rgb_img": rgb_full},
-        {"model": "cnn", "upsample": 1, "scale_label": "mid",  "scale_px": max_mid,  "rgb_img": rgb_mid},
-        {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": max_full, "rgb_img": rgb_full},
-    ]
+    attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
 
     shown_image = False
     attempt_idx = 0
@@ -874,9 +908,18 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # === Entry point ===
 def main():
-    if len(sys.argv) < 2:
-        print("Användning: python hitta_ansikten.py <fil/glob/katalog/…>")
-        sys.exit(1)
+    if len(sys.argv) >= 2 and sys.argv[1] == "--archive":
+        # Endast arkivera, avsluta
+        config = load_config()
+        # Vi måste skapa dummy-rgb för att få settings
+        rgb_down = np.zeros((config["max_downsample_px"], config["max_downsample_px"], 3), dtype=np.uint8)
+        rgb_mid = np.zeros((config["max_midsample_px"], config["max_midsample_px"], 3), dtype=np.uint8)
+        rgb_full = np.zeros((config["max_fullres_px"], config["max_fullres_px"], 3), dtype=np.uint8)
+        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+        current_sig = get_settings_signature(attempt_settings)
+        archive_stats_if_needed(current_sig, force=True)
+        print("Arkivering utförd.")
+        sys.exit(0)
 
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
