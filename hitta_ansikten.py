@@ -48,9 +48,9 @@ DEFAULT_CONFIG = {
   "label_bg_color": [0, 0, 0, 192],
   "label_text_color": [255, 255, 0],
   "match_threshold": 0.6,
-  "max_downsample_px": 3500,
+  "max_downsample_px": 2800,
   "max_fullres_px": 8000,
-  "max_midsample_px": 5000,
+  "max_midsample_px": 4500,
   "min_confidence": 0.4,
   "padding": 15,
   "prefer_name_margin": 0.10,  # Namn måste vara minst så här mycket bättre än ignore för att vinna automatiskt
@@ -184,7 +184,6 @@ def show_temp_image(preview_path, config, last_shown=[None]):
             else:
                 should_open = True
         except Exception as e:
-            print(f"    [DEBUG] Kunde inte läsa/parsea bildvisarens status.json: {e}")
             should_open = True
 
     if should_open:
@@ -768,7 +767,6 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
         print("\n⏹ Avbruten. Programmet avslutas.")
         sys.exit(0)
 
-
 def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     # Tre upplösningar: låg, mellan, hög
     max_down = config.get("max_downsample_px")
@@ -813,18 +811,21 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             "faces_found": len(face_encodings),
         })
 
-        preview_labels = label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config)
         if face_encodings:
             has_had_faces = True
+
+            # --- Visa alltid bildvisare med *preview*-labels FÖRE prompten ---
+            preview_labels = label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config)
             preview_path = create_labeled_image(
                 rgb, face_locations, preview_labels, config
             )
             show_temp_image(preview_path, config)
 
-
+            # --- Prompt och hantering ---
             review_result, labels = user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path)
 
-            # Logga attempt
+            # (valfritt: visa bild igen efter prompt, med labels om du vill – men vanligast är att bara ha preview här)
+
             review_results.append(review_result)
             labels_per_attempt.append(labels)
 
@@ -860,9 +861,6 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             review_results.append("no_faces")
             labels_per_attempt.append([])
 
-        # Endast fråga om fortsättning om:
-        # - Det är första gången i loopen
-        # - Inga ansikten har någonsin hittats hittills (has_had_faces == False)
         if not shown_image and not has_had_faces:
             temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
             show_temp_image(temp_path, config)
