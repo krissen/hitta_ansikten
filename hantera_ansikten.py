@@ -6,12 +6,8 @@ from pathlib import Path
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from faceid_db import (
-    load_attempt_log,
-    load_database,
-    load_processed_files,
-    save_database,
-)
+from faceid_db import (load_attempt_log, load_database, load_processed_files,
+                       save_database)
 
 # === Verktygsfunktioner ===
 
@@ -77,6 +73,8 @@ def undo_last_file(known, ignored, processed):
     removed = 0
     for labels in entry["labels_per_attempt"]:
         for label in labels:
+            if isinstance(label, dict):
+                label = label.get("label", "")
             parts = label.split("\n")
             if len(parts) == 2:
                 name = parts[1]
@@ -133,6 +131,8 @@ def undo_file_by_name(known, ignored, processed):
                 labels_per_attempt = entry.get("labels_per_attempt", [])
                 for labels in labels_per_attempt:
                     for label in labels:
+                        if isinstance(label, dict):
+                            label = label.get("label", "")
                         parts = label.split("\n")
                         if len(parts) == 2:
                             name = parts[1]

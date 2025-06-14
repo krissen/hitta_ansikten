@@ -211,17 +211,17 @@ def render_dashboard(stats):
     ignored, total, frac = calc_ignored_fraction(stats)
     ignored_panel = Panel(f"Ignorerade ansikten: {ignored}/{total} ({frac:.1%})", title="Andel ignorerade")
     pie_panel = Panel(pie_chart_attempts(stats), title="Fördelning av attempts (Pie-chart)")
-    latest_panel = Panel(latest_images_with_names(stats, n=5), title="Senaste 5 bilder (namn)")
+    latest_panel = Panel(latest_images_with_names(stats, n=3), title="Senaste 3 bilder (namn)")
     # Layout med ratio för allt utom ignored_panel
     outer = Layout()
     inner = Layout()
     outer.split_column(Layout(inner, ratio=1))
     inner.split(
         Layout(Panel(table, title="Attempt-statistik"), name="upper", ratio=2),
-        Layout(faces_panel, name="faces", ratio=2),
-        Layout(ignored_panel, name="ignored", size=2),
-        Layout(pie_panel, name="pie", ratio=2),
-        Layout(latest_panel, name="latest", ratio=2),
+        Layout(faces_panel, name="faces", ratio=1),
+        Layout(ignored_panel, name="ignored", ratio=1),
+        # Layout(pie_panel, name="pie", ratio=2),
+        Layout(latest_panel, name="latest", ratio=1),
     )
     return outer
 
