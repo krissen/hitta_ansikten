@@ -6,10 +6,12 @@ import json
 import math
 import os
 import pickle
+import re
 import signal
 import sys
 import tempfile
 import time
+import unicodedata
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -131,6 +133,10 @@ def archive_stats_if_needed(current_sig, force=False):
     else:
         # Skriv alltid signaturen för nuvarande settings
         sig_path.write_text(current_sig)
+
+def hash_encoding(enc):
+    return hashlib.sha1(enc.tobytes()).hexdigest()
+
 
 def export_and_show_original(image_path, config):
     """
@@ -378,7 +384,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                         break
                     if ans == "i":
                         ignored_faces.append(encoding)
-                        labels.append("#{}\nignorerad".format(i + 1))
+                        labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                         break
                     elif ans == "r":
                         name = input_name(list(known_faces.keys()))
@@ -389,7 +395,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                             break
                         if name == "i":
                             ignored_faces.append(encoding)
-                            labels.append("#{}\nignorerad".format(i + 1))
+                            labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                             break
                         all_ignored = False
                         break
@@ -416,13 +422,13 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                             break
                         if name == "i":
                             ignored_faces.append(encoding)
-                            labels.append("#{}\nignorerad".format(i + 1))
+                            labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                             break
                         all_ignored = False
                         break
                     else:
                         ignored_faces.append(encoding)
-                        labels.append("#{}\nignorerad".format(i + 1))
+                        labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                         break
             if retry_requested:
                 break
@@ -449,7 +455,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                     break
                 elif val == "i":
                     ignored_faces.append(encoding)
-                    labels.append("#{}\nignorerad".format(i + 1))
+                    labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                     break
                 elif val == "r":
                     name = input_name(list(known_faces.keys()))
@@ -460,7 +466,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                         break
                     if name == "i":
                         ignored_faces.append(encoding)
-                        labels.append("#{}\nignorerad".format(i + 1))
+                        labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                         break
                     all_ignored = False
                     break
@@ -496,13 +502,13 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                         break
                     if name == "i":
                         ignored_faces.append(encoding)
-                        labels.append("#{}\nignorerad".format(i + 1))
+                        labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                         break
                     all_ignored = False
                     break
                 else:
                     ignored_faces.append(encoding)
-                    labels.append("#{}\nignorerad".format(i + 1))
+                    labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                     break
             if retry_requested:
                 break
@@ -522,7 +528,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                     break
                 if name.lower() == "i":
                     ignored_faces.append(encoding)
-                    labels.append("#{}\nignorerad".format(i + 1))
+                    labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
                     break
                 all_ignored = False
                 break
@@ -533,7 +539,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
             if name not in known_faces:
                 known_faces[name] = []
             known_faces[name].append(encoding)
-            labels.append("#{}\n{}".format(i + 1, name))
+            labels.append({"label": "#{}\n{}".format(i + 1, name), "hash": hash_encoding(encoding)})
 
     if retry_requested:
         return "retry", []
@@ -767,6 +773,61 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
         print("\n⏹ Avbruten. Programmet avslutas.")
         sys.exit(0)
 
+def load_attempt_log():
+    log_path = BASE_DIR / "attempt_stats.jsonl"
+    if not log_path.exists():
+        return []
+    log = []
+    with open(log_path, "r") as f:
+        for line in f:
+            try:
+                entry = json.loads(line)
+                log.append(entry)
+            except Exception:
+                pass
+    return log
+
+def remove_encodings_for_file(known_faces, ignored_faces, filename):
+    """Tar bort ALLA encodings (via hash) som mappats från just denna fil."""
+    log = load_attempt_log()
+    hashes_to_remove = []
+    labels_by_hash = {}
+    # Samla hashar från alla labels_per_attempt för den här filen
+    for entry in log:
+        if Path(entry.get("filename", "")).name == filename:
+            for attempt in entry.get("labels_per_attempt", []):
+                for lbl in attempt:
+                    if isinstance(lbl, dict) and "hash" in lbl:
+                        hashes_to_remove.append(lbl["hash"])
+                        labelstr = lbl.get("label", "")
+                        namn = labelstr.split("\n")[1] if "\n" in labelstr else None
+                        labels_by_hash[lbl["hash"]] = namn
+    # Ta bort encodings från known_faces och ignored_faces (matcha via hash)
+    removed = 0
+    # Först ignore:
+    for hashval in hashes_to_remove:
+        idx_to_del = None
+        for idx, enc in enumerate(ignored_faces):
+            if hash_encoding(enc) == hashval:
+                idx_to_del = idx
+                break
+        if idx_to_del is not None:
+            del ignored_faces[idx_to_del]
+            removed += 1
+    # Sedan per namn:
+    for hashval, namn in labels_by_hash.items():
+        if namn and namn != "ignorerad" and namn in known_faces:
+            idx_to_del = None
+            for idx, enc in enumerate(known_faces[namn]):
+                if hash_encoding(enc) == hashval:
+                    idx_to_del = idx
+                    break
+            if idx_to_del is not None:
+                del known_faces[namn][idx_to_del]
+                removed += 1
+    return removed
+
+
 def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     # Tre upplösningar: låg, mellan, hög
     max_down = config.get("max_downsample_px")
@@ -895,21 +956,218 @@ def process_image(image_path, known_faces, ignored_faces, config):
     return main_process_image_loop(image_path, known_faces, ignored_faces, config)
 
 
+def extract_prefix_suffix(fname):
+    """
+    Returnera (prefix, suffix) där prefix = YYMMDD_HHMMSS eller YYMMDD_HHMMSS-2,
+    suffix = .NEF
+    """
+    m = re.match(r"^(\d{6}_\d{6}(?:-\d+)?)(?:_[^.]*)?(\.NEF)$", fname, re.IGNORECASE)
+    if not m:
+        return None, None
+    return m.group(1), m.group(2)
+
+def is_unrenamed(fname):
+    """Returnera True om filnamn är YYMMDD_HHMMSS.NEF eller YYMMDD_HHMMSS-1.NEF etc."""
+    prefix, suffix = extract_prefix_suffix(fname)
+    return bool(prefix and suffix)
+
+def collect_persons_for_files(filelist, known_faces):
+    """
+    Gå igenom processade stats och returnera en dict:
+    { filename: [namn, ...] }
+    """
+    log = load_attempt_log()
+    result = {}
+    # Gör om till map: filename → senaste 'labels_per_attempt' med review_result OK
+    stats_map = {}
+    for entry in log:
+        fn = Path(entry.get("filename", "")).name
+        # Sök efter "used_attempt" och review_results
+        if entry.get("used_attempt") is not None and entry.get("review_results"):
+            idx = entry["used_attempt"]
+            if idx < len(entry.get("labels_per_attempt", [])):
+                res = entry["review_results"][idx]
+                labels = entry["labels_per_attempt"][idx]
+                if res == "ok" and labels:
+                    stats_map[fn] = labels
+    for fname in filelist:
+        persons = []
+        labels = stats_map.get(Path(fname).name)
+        if labels:
+            for lbl in labels:
+                label = lbl["label"] if isinstance(lbl, dict) else lbl
+                # Plocka ut namn ur label: "#1\nNamn", etc
+                if "\n" in label:
+                    namn = label.split("\n", 1)[1]
+                    if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
+                        persons.append(namn)
+        result[Path(fname).name] = persons
+    return result
+
+def normalize_name(name):
+    # Tar bort diakritik och konverterar t.ex. Källa → Kalla, François → Francois
+    n = unicodedata.normalize('NFKD', name)
+    n = "".join(c for c in n if not unicodedata.combining(c))
+    # Om du vill: ta även bort andra icke-bokstäver (ej nödvändigt om du vill ha ÅÄÖ → AAOO, etc)
+    return n
+
+def split_fornamn_efternamn(namn):
+    # "Edvin Twedmark" => "Edvin", "Twedmark"
+    parts = namn.strip().split()
+    if len(parts) < 2:
+        return parts[0], ""
+    return parts[0], " ".join(parts[1:])
+
+def resolve_fornamn_dubletter(all_persons):
+    """
+    all_persons: lista av alla personnamn (kan förekomma flera gånger)
+    Returnerar dict namn → kortnamn (bara förnamn, eller förnamn+efternamnsbokstav om flera delar efternamn).
+    """
+    # Skapa map förnamn -> set av fulla namn (dvs. efternamn)
+    fornamn_map = {}
+    namn_map = {}
+    for namn in set(all_persons):
+        fornamn, efternamn = split_fornamn_efternamn(namn)
+        if fornamn not in fornamn_map:
+            fornamn_map[fornamn] = set()
+        fornamn_map[fornamn].add(efternamn)
+        namn_map[namn] = (fornamn, efternamn)
+    # Bestäm för varje namn: bara förnamn om unikt, annars förnamn+efternamnsbokstav(ar)
+    kortnamn = {}
+    for namn, (fornamn, efternamn) in namn_map.items():
+        efternamnset = fornamn_map[fornamn] - {""}
+        if len(efternamnset) <= 1:
+            # Endast ett efternamn för detta förnamn → endast förnamn behövs
+            kortnamn[namn] = fornamn
+        else:
+            # Flera olika efternamn: bygg så många tecken från efternamn som krävs
+            andra_efternamn = sorted(efternamnset - {efternamn})
+            prefixlen = 1
+            while any(efternamn[:prefixlen] == andra[:prefixlen] for andra in andra_efternamn):
+                prefixlen += 1
+            kortnamn[namn] = fornamn + (efternamn[:prefixlen] if efternamn else "")
+    return kortnamn
+
+def build_new_filename(fname, personer, namnmap):
+    prefix, suffix = extract_prefix_suffix(fname)
+    if not (prefix and suffix): return None
+    fornamn_lista = []
+    for namn in personer:
+        kort = namnmap.get(namn)
+        if kort:
+            fornamn_lista.append(normalize_name(kort))
+    if not fornamn_lista:
+        return None
+    namnstr = ",_".join(fornamn_lista)
+    return f"{prefix}_{namnstr}{suffix}"
+
+def rename_files(filelist, known_faces, processed_files, simulate=True, allow_renamed=False, only_processed=False):
+    # Filtrera enligt regler
+    out_files = []
+    for f in filelist:
+        fname = Path(f).name
+        # Endast tillåt filen om:
+        if only_processed and fname not in processed_files:
+            continue
+        if not allow_renamed and not is_unrenamed(fname):
+            continue
+        out_files.append(f)
+    if not out_files:
+        print("Inga filer att byta namn på enligt villkor.")
+        return
+    # Samla alla personer för alla filer
+    persons_per_file = collect_persons_for_files(out_files, known_faces)
+    all_persons = [namn for pers in persons_per_file.values() for namn in pers]
+    # Bygg förnamn/initialmap
+    namnmap = resolve_fornamn_dubletter(all_persons)
+    # För varje fil, bygg nytt namn
+    any_changes = False
+    for orig in out_files:
+        fname = Path(orig).name
+        personer = persons_per_file.get(fname, [])
+        if not personer:
+            print(f"Ingen person hittades för {fname}; hoppar över.")
+            continue
+        nytt = build_new_filename(fname, personer, namnmap)
+        if not nytt or nytt == fname:
+            print(f"{fname}: inget nytt namn att sätta.")
+            continue
+        # Sätt inte samma namn igen, inte heller om nytt redan finns
+        dest = str(Path(orig).parent / nytt)
+        if Path(dest).exists() and Path(dest) != Path(orig):
+            print(f"⚠️  {dest} finns redan, hoppar över!")
+            continue
+        any_changes = True
+        if simulate:
+            print(f"[SIMULATE] {os.path.basename(orig)} → {os.path.basename(dest)}")
+        else:
+            print(f"{os.path.basename(orig)} → {os.path.basename(dest)}")
+            os.rename((orig), dest)
+
+
 # === Graceful Exit ===
 def signal_handler(sig, frame):
     print("\n⏹ Avbruten. Programmet avslutas.")
     sys.exit(0)
 
+def print_help():
+    print(
+        f"""
+hitta_ansikten.py - Ansiktsigenkänning och filnamnsbatchning
 
+Användning:
+  hitta_ansikten.py [ALTERNATIV] [FILGLOBBER ELLER KATALOGER]
+
+Standardläge:
+  Processar angivna bilder och bygger/uppdaterar ansiktsdatabas.
+
+Flaggor:
+
+  -h, --help          Visa denna hjälptext och avsluta.
+
+  --archive           Arkivera och rotera statistiklogg.
+
+  --fix <GLOBB>       Ta bort tidigare ansiktsmappningar för filen/filerna och bearbeta om dem.
+
+  --rename, -r        Byt namn på filer enligt identifierade personer (kräver bearbetning först).
+  --simulate, -s      Simulera omdöpning, inga filer ändras på disk.
+  --rename-named      Tillåt omdöpning av redan omdöpta filer.
+  --processed         Endast omdöpning av redan processade filer (inga nya bearbetas).
+
+Exempel:
+
+  hitta_ansikten.py 250612*.NEF
+      Bearbetar alla NEF-bilder som matchar mönstret 250612*.
+
+  hitta_ansikten.py --rename 250612*.NEF
+      Bearbetar först ej processade bilder och döper sedan om alla matchande filer efter personnamn.
+
+  hitta_ansikten.py --rename --simulate 250612*.NEF
+      Visar vad som skulle döpas om – ändrar inget på disk.
+
+  hitta_ansikten.py --fix 250612_153040.NEF
+      Nollställer all mappning för filen, och bearbetar om den från början.
+
+Notera:  
+- Filnamnformat som förväntas: YYMMDD_HHMMSS[ev. -N][ev. _namn].NEF  
+- Personnamn extraheras från ansiktsdatabasen, och omdöpning utförs först när hela batchen är processad.
+
+"""
+    )
 signal.signal(signal.SIGINT, signal_handler)
 
 
 # === Entry point ===
 def main():
+    import glob
+
+    if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
+        print_help()
+        sys.exit(0)
+
     if len(sys.argv) >= 2 and sys.argv[1] == "--archive":
         # Endast arkivera, avsluta
         config = load_config()
-        # Vi måste skapa dummy-rgb för att få settings
         rgb_down = np.zeros((config["max_downsample_px"], config["max_downsample_px"], 3), dtype=np.uint8)
         rgb_mid = np.zeros((config["max_midsample_px"], config["max_midsample_px"], 3), dtype=np.uint8)
         rgb_full = np.zeros((config["max_fullres_px"], config["max_fullres_px"], 3), dtype=np.uint8)
@@ -919,10 +1177,102 @@ def main():
         print("Arkivering utförd.")
         sys.exit(0)
 
+    # Renamelogik
+    rename_mode = False
+    simulate = False
+    allow_renamed = False
+    only_processed = False
+
+    args = sys.argv[1:]
+    to_remove = []
+    if "--rename" in args or "-r" in args:
+        rename_mode = True
+        to_remove += ["--rename", "-r"]
+    if "--simulate" in args or "-s" in args:
+        simulate = True
+        to_remove += ["--simulate", "-s"]
+    if "--rename-named" in args:
+        allow_renamed = True
+        to_remove.append("--rename-named")
+    if "--processed" in args:
+        only_processed = True
+        to_remove.append("--processed")
+
+    for flag in to_remove:
+        if flag in args:
+            args.remove(flag)
+
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
 
-    input_paths = parse_inputs(sys.argv[1:], SUPPORTED_EXT)
+    # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
+    if rename_mode:
+        input_paths = list(parse_inputs(args, SUPPORTED_EXT))
+        if not input_paths:
+            print("Ingen fil att byta namn på!")
+            return
+
+        # 1. Processa alla som inte är processade än (alltid, om --processed ej anges)
+        to_process = []
+        if not only_processed:
+            for path in input_paths:
+                if path.name not in processed_files:
+                    to_process.append(path)
+            if to_process:
+                print(f"\nBearbetar {len(to_process)} nya filer innan omdöpning...")
+            for path in to_process:
+                print(f"\n=== Bearbetar: {path.name} ===")
+                result = process_image(path, known_faces, ignored_faces, config)
+                if result is True or result == "skipped":
+                    processed_files.add(path.name)
+                    save_database(known_faces, ignored_faces, processed_files)
+        else:
+            # Om only_processed: garantera att alla är processade
+            not_proc = [p for p in input_paths if p.name not in processed_files]
+            if not_proc:
+                print("⚠️  Dessa filer har ej processats än och kommer inte döpas om:")
+                for p in not_proc:
+                    print(f"  - {p.name}")
+            # Fortsätt ändå, men rename_files hanterar detta
+
+        # 2. Ladda om databasen och processed_files
+        known_faces, ignored_faces, processed_files = load_database()
+
+        # 3. Kör omdöpning på *alla* input_paths, nu med rätt och uppdaterad namnmap
+        rename_files(
+            input_paths, known_faces, processed_files,
+            simulate=simulate,
+            allow_renamed=allow_renamed,
+            only_processed=only_processed
+        )
+        return
+
+    # --------- HUVUDFALL: --fix ---------
+    fix_mode = len(args) >= 1 and args[0] == "--fix"
+    if fix_mode:
+        arglist = args[1:]
+        if not arglist:
+            print("Ange fil(er) att fixa, t.ex. --fix 2024*.NEF")
+            sys.exit(1)
+        input_paths = list(parse_inputs(arglist, SUPPORTED_EXT))
+        n_found = 0
+        for path in input_paths:
+            n_found += 1
+            print(f"\n=== FIXAR: {path.name} ===")
+            removed = remove_encodings_for_file(known_faces, ignored_faces, path.name)
+            if removed:
+                print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
+            result = process_image(path, known_faces, ignored_faces, config)
+            if result is True or result == "skipped":
+                processed_files.add(path.name)
+                save_database(known_faces, ignored_faces, processed_files)
+        if n_found == 0:
+            print("Inga matchande bildfiler hittades.")
+            sys.exit(1)
+        return
+
+    # --------- HUVUDFALL: BEARBETA ALLA EJ BEARBETADE ---------
+    input_paths = parse_inputs(args, SUPPORTED_EXT)
     n_found = 0
     for path in input_paths:
         n_found += 1
@@ -935,12 +1285,9 @@ def main():
         if result is True or result == "skipped":
             processed_files.add(path.name)
             save_database(known_faces, ignored_faces, processed_files)
-        # loggning sker redan i process_image/main_process_image_loop
-
     if n_found == 0:
         print("Inga matchande bildfiler hittades.")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
