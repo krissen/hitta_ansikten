@@ -35,7 +35,7 @@ CONFIG_PATH = BASE_DIR / "config.json"
 ENCODING_PATH = BASE_DIR / "encodings.pkl"
 IGNORED_PATH = BASE_DIR / "ignored.pkl"
 METADATA_PATH = BASE_DIR / "metadata.json"
-PROCESSED_PATH = BASE_DIR / "processed.txt"
+PROCESSED_PATH = BASE_DIR / "processed_files.jsonl"
 SUPPORTED_EXT = [".nef", ".NEF"]
 
 
@@ -75,6 +75,8 @@ def load_config():
 
 # === Ladda / initiera databaser ===
 def load_database():
+    import json
+
     if ENCODING_PATH.exists():
         with open(ENCODING_PATH, "rb") as f:
             known_faces = pickle.load(f)
@@ -87,11 +89,23 @@ def load_database():
     else:
         ignored_faces = []
 
+    processed_files = []
     if PROCESSED_PATH.exists():
         with open(PROCESSED_PATH, "r") as f:
-            processed_files = set(line.strip() for line in f)
-    else:
-        processed_files = set()
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                # Om raden är ett JSON-objekt
+                try:
+                    entry = json.loads(line)
+                    if isinstance(entry, dict) and "hash" in entry and "name" in entry:
+                        processed_files.append(entry)
+                        continue
+                except Exception:
+                    pass
+                # Om raden är gammalt format: bara filnamn
+                processed_files.append({"name": line, "hash": None})
 
     return known_faces, ignored_faces, processed_files
 
@@ -198,13 +212,23 @@ def show_temp_image(preview_path, config, last_shown=[None]):
     else:
         last_shown[0] = preview_path
 
+
 def save_database(known_faces, ignored_faces, processed_files):
+    import json
     with open(ENCODING_PATH, "wb") as f:
         pickle.dump(known_faces, f)
     with open(IGNORED_PATH, "wb") as f:
         pickle.dump(ignored_faces, f)
     with open(PROCESSED_PATH, "w") as f:
-        f.writelines(f"{name}\n" for name in sorted(processed_files))
+        for entry in processed_files:
+            # Alltid JSON-dict med name och hash (bakåtkompatibelt)
+            if isinstance(entry, dict):
+                # Skriv ut exakt som det ligger (om redan {name, hash})
+                f.write(json.dumps({"name": entry.get("name"), "hash": entry.get("hash")}, ensure_ascii=False) + "\n")
+            else:
+                # Legacy fallback: bara namn som sträng, hash saknas
+                f.write(json.dumps({"name": entry, "hash": None}, ensure_ascii=False) + "\n")
+
 
 def safe_input(prompt_text, completer=None):
     """
@@ -774,6 +798,11 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
         sys.exit(0)
 
 def load_attempt_log():
+    """
+    Laddar hela attempt-loggen (nuvarande fil).
+    Returnerar lista av loggposter (dict).
+    Förberedd för utbyggnad med hash per fil/post.
+    """
     log_path = BASE_DIR / "attempt_stats.jsonl"
     if not log_path.exists():
         return []
@@ -782,19 +811,36 @@ def load_attempt_log():
         for line in f:
             try:
                 entry = json.loads(line)
+                # Framtidssäkring: patcha in file_hash om det finns i entry eller kan räknas ut
+                if "filename" in entry and "file_hash" not in entry:
+                    # (Här kan man senare lägga in automatisk hashning av filen eller filnamnet)
+                    pass
                 log.append(entry)
             except Exception:
                 pass
     return log
 
-def remove_encodings_for_file(known_faces, ignored_faces, filename):
-    """Tar bort ALLA encodings (via hash) som mappats från just denna fil."""
+
+def remove_encodings_for_file(known_faces, ignored_faces, identifier):
+    """
+    Tar bort ALLA encodings (via hash) som mappats från just denna fil.
+    identifier kan vara filnamn (str), hash (str), eller lista av dessa.
+    Returnerar antal borttagna encodings.
+    """
     log = load_attempt_log()
     hashes_to_remove = []
     labels_by_hash = {}
-    # Samla hashar från alla labels_per_attempt för den här filen
+    # Stöd för flera identifierare
+    if isinstance(identifier, str):
+        identifiers = [identifier]
+    else:
+        identifiers = list(identifier)
+    # Samla hashar från alla labels_per_attempt för matchande entry
     for entry in log:
-        if Path(entry.get("filename", "")).name == filename:
+        entry_fname = Path(entry.get("filename", "")).name
+        entry_hash = entry.get("file_hash")  # För framtida utbyggnad, logga hash per entry!
+        match = entry_fname in identifiers or (entry_hash and entry_hash in identifiers)
+        if match:
             for attempt in entry.get("labels_per_attempt", []):
                 for lbl in attempt:
                     if isinstance(lbl, dict) and "hash" in lbl:
@@ -802,9 +848,8 @@ def remove_encodings_for_file(known_faces, ignored_faces, filename):
                         labelstr = lbl.get("label", "")
                         namn = labelstr.split("\n")[1] if "\n" in labelstr else None
                         labels_by_hash[lbl["hash"]] = namn
-    # Ta bort encodings från known_faces och ignored_faces (matcha via hash)
+    # Ta bort encodings från ignored_faces (matcha via hash)
     removed = 0
-    # Först ignore:
     for hashval in hashes_to_remove:
         idx_to_del = None
         for idx, enc in enumerate(ignored_faces):
@@ -814,7 +859,7 @@ def remove_encodings_for_file(known_faces, ignored_faces, filename):
         if idx_to_del is not None:
             del ignored_faces[idx_to_del]
             removed += 1
-    # Sedan per namn:
+    # Ta bort från known_faces
     for hashval, namn in labels_by_hash.items():
         if namn and namn != "ignorerad" and namn in known_faces:
             idx_to_del = None
@@ -1061,13 +1106,20 @@ def build_new_filename(fname, personer, namnmap):
     namnstr = ",_".join(fornamn_lista)
     return f"{prefix}_{namnstr}{suffix}"
 
+def is_file_processed(fname, processed_files):
+    """Returnerar True om fname (basename-sträng) eller hash finns i processed_files."""
+    for entry in processed_files:
+        if isinstance(entry, dict) and entry.get("name") == fname:
+            return True
+    return False
+
 def rename_files(filelist, known_faces, processed_files, simulate=True, allow_renamed=False, only_processed=False):
     # Filtrera enligt regler
     out_files = []
     for f in filelist:
         fname = Path(f).name
         # Endast tillåt filen om:
-        if only_processed and fname not in processed_files:
+        if only_processed and not is_file_processed(fname, processed_files):
             continue
         if not allow_renamed and not is_unrenamed(fname):
             continue
@@ -1102,8 +1154,7 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
             print(f"[SIMULATE] {os.path.basename(orig)} → {os.path.basename(dest)}")
         else:
             print(f"{os.path.basename(orig)} → {os.path.basename(dest)}")
-            os.rename((orig), dest)
-
+            os.rename(orig, dest)
 
 # === Graceful Exit ===
 def signal_handler(sig, frame):
@@ -1166,7 +1217,6 @@ def main():
         sys.exit(0)
 
     if len(sys.argv) >= 2 and sys.argv[1] == "--archive":
-        # Endast arkivera, avsluta
         config = load_config()
         rgb_down = np.zeros((config["max_downsample_px"], config["max_downsample_px"], 3), dtype=np.uint8)
         rgb_mid = np.zeros((config["max_midsample_px"], config["max_midsample_px"], 3), dtype=np.uint8)
@@ -1205,6 +1255,35 @@ def main():
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
 
+    def is_file_processed(path):
+        """Kolla om filen redan är processad, genom namn eller hash."""
+        path_name = path.name
+        path_hash = None
+        try:
+            with open(path, "rb") as f:
+                import hashlib
+                path_hash = hashlib.sha1(f.read()).hexdigest()
+        except Exception:
+            pass
+        for entry in processed_files:
+            ename = entry.get("name") if isinstance(entry, dict) else entry
+            ehash = entry.get("hash") if isinstance(entry, dict) else None
+            if path_hash and ehash and ehash == path_hash:
+                return True
+            if ename == path_name:
+                return True
+        return False
+
+    def add_to_processed_files(path):
+        """Lägg till en ny fil sist i listan, med både hash och namn."""
+        import hashlib
+        try:
+            with open(path, "rb") as f:
+                h = hashlib.sha1(f.read()).hexdigest()
+        except Exception:
+            h = None
+        processed_files.append({"name": path.name, "hash": h})
+
     # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
     if rename_mode:
         input_paths = list(parse_inputs(args, SUPPORTED_EXT))
@@ -1216,7 +1295,7 @@ def main():
         to_process = []
         if not only_processed:
             for path in input_paths:
-                if path.name not in processed_files:
+                if not is_file_processed(path):
                     to_process.append(path)
             if to_process:
                 print(f"\nBearbetar {len(to_process)} nya filer innan omdöpning...")
@@ -1224,11 +1303,10 @@ def main():
                 print(f"\n=== Bearbetar: {path.name} ===")
                 result = process_image(path, known_faces, ignored_faces, config)
                 if result is True or result == "skipped":
-                    processed_files.add(path.name)
+                    add_to_processed_files(path)
                     save_database(known_faces, ignored_faces, processed_files)
         else:
-            # Om only_processed: garantera att alla är processade
-            not_proc = [p for p in input_paths if p.name not in processed_files]
+            not_proc = [p for p in input_paths if not is_file_processed(p)]
             if not_proc:
                 print("⚠️  Dessa filer har ej processats än och kommer inte döpas om:")
                 for p in not_proc:
@@ -1264,7 +1342,7 @@ def main():
                 print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
             result = process_image(path, known_faces, ignored_faces, config)
             if result is True or result == "skipped":
-                processed_files.add(path.name)
+                add_to_processed_files(path)
                 save_database(known_faces, ignored_faces, processed_files)
         if n_found == 0:
             print("Inga matchande bildfiler hittades.")
@@ -1276,18 +1354,19 @@ def main():
     n_found = 0
     for path in input_paths:
         n_found += 1
-        if path.name in processed_files:
+        if is_file_processed(path):
             print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
             continue
 
         print(f"\n=== Bearbetar: {path.name} ===")
         result = process_image(path, known_faces, ignored_faces, config)
         if result is True or result == "skipped":
-            processed_files.add(path.name)
+            add_to_processed_files(path)
             save_database(known_faces, ignored_faces, processed_files)
     if n_found == 0:
         print("Inga matchande bildfiler hittades.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
