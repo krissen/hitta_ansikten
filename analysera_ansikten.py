@@ -124,20 +124,36 @@ def attempt_stats_table(stats):
 def faces_grid_panel(stats):
     from rich.panel import Panel
     from rich.table import Table
-    items = extract_face_counts_grid(stats, max_items=20)
-    table = Table(show_header=False, box=None, pad_edge=False)
+
     num_cols = 4
+    num_rows = 5
+    max_items = num_cols * num_rows
+    items = extract_face_counts_grid(stats, max_items=max_items)
+
+    # Fyll på så det blir alltid exakt max_items
+    while len(items) < max_items:
+        items.append(("", ""))
+
+    # Bygg kolumnvis: items[0], items[5], items[10], items[15] = kolumn 1
+    grid = []
+    for row in range(num_rows):
+        grid_row = []
+        for col in range(num_cols):
+            idx = col * num_rows + row
+            name, cnt = items[idx] if idx < len(items) else ("", "")
+            grid_row.append(f"{name} ({cnt})" if name else "")
+        grid.append(grid_row)
+
+    table = Table(show_header=False, box=None, pad_edge=False)
     for _ in range(num_cols):
         table.add_column(justify="left", ratio=1)
-    rows = [items[i:i+num_cols] for i in range(0, len(items), num_cols)]
-    for row in rows:
-        vals = [f"{name} ({cnt})" for name, cnt in row]
-        while len(vals) < num_cols:
-            vals.append("")
-        table.add_row(*vals)
-    if not items:
-        table.add_row("–", "–", "–")
-    return Panel(table, title="Vanligaste ansikten (topp 9)")
+    for grid_row in grid:
+        table.add_row(*grid_row)
+
+    if not any(name for name, cnt in items):
+        table.add_row(*["–"]*num_cols)
+
+    return Panel(table, title=f"Vanligaste ansikten (topp {max_items})")
 
 def latest_images_with_names(stats, n=5):
     lines = []
