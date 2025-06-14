@@ -5,7 +5,6 @@ import hashlib
 import json
 import math
 import os
-import pickle
 import re
 import signal
 import sys
@@ -20,18 +19,15 @@ from faceid_db import load_attempt_log, load_database, save_database
 
 warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
 import face_recognition
-import imageio
 import matplotlib.font_manager as fm
 import numpy as np
 import rawpy
 from PIL import Image, ImageDraw, ImageFont
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
-from xdg import xdg_data_home
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
-                       CONFIG_PATH, ENCODING_PATH, IGNORED_PATH, METADATA_PATH,
-                       PROCESSED_PATH, SUPPORTED_EXT)
+                       CONFIG_PATH, SUPPORTED_EXT)
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -116,7 +112,6 @@ def export_and_show_original(image_path, config):
     Visar bilden i bildvisaren (om du vill).
     """
     import json
-    import os
     import time
     from pathlib import Path
 
@@ -161,7 +156,7 @@ def show_temp_image(preview_path, config, last_shown=[None]):
                 should_open = True
             else:
                 should_open = True
-        except Exception as e:
+        except Exception:
             should_open = True
 
     if should_open:
@@ -283,11 +278,11 @@ def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_i
         best_ignore_dist is not None and best_ignore_dist < ignore_thr and
         (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
     ):
-        return f"#%d\nign" % (i + 1), "ign"
+        return "#%d\nign" % (i + 1), "ign"
 
     # Fall: *ingen* tillräckligt nära (okänt)
     else:
-        return f"#%d\nOkänt" % (i + 1), "unknown"
+        return "#%d\nOkänt" % (i + 1), "unknown"
 
 def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config):
     labels = []
@@ -515,11 +510,8 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
 
 # === Funktion för att skapa tempbild med etiketter ===
 def create_labeled_image(rgb_image, face_locations, labels, config):
-    import math
-    import tempfile
 
-    import matplotlib.font_manager as fm
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image
 
     font_size = max(10, rgb_image.shape[1] // config.get("font_size_factor"))
     font_path = fm.findfont(fm.FontProperties(family="DejaVu Sans"))
@@ -1081,7 +1073,7 @@ def signal_handler(sig, frame):
 
 def print_help():
     print(
-        f"""
+        """
 hitta_ansikten.py - Ansiktsigenkänning och filnamnsbatchning
 
 Användning:
@@ -1128,7 +1120,6 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # === Entry point ===
 def main():
-    import glob
 
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
         print_help()

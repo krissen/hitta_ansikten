@@ -4,7 +4,6 @@ import argparse
 import fnmatch
 import json
 import pickle
-from pathlib import Path
 
 import numpy as np
 from xdg import xdg_data_home

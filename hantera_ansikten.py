@@ -6,15 +6,21 @@ from pathlib import Path
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from faceid_db import (load_attempt_log, load_database, load_processed_files,
-                       save_database)
+from faceid_db import (
+    load_attempt_log,
+    load_database,
+    load_processed_files,
+    save_database,
+)
 
 # === Verktygsfunktioner ===
+
 
 def print_known(known):
     print("\nNuvarande namn i databasen:")
     for idx, name in enumerate(sorted(known), 1):
         print(f"  {idx:2d}. {name} ({len(known[name])} encodings)")
+
 
 def name_input(known, msg="Namn: "):
     names = sorted(known)
@@ -24,6 +30,7 @@ def name_input(known, msg="Namn: "):
     if ans.isdigit() and 1 <= int(ans) <= len(names):
         ans = names[int(ans) - 1]
     return ans
+
 
 def print_menu():
     print(
@@ -43,12 +50,14 @@ Meny:
 """
     )
 
+
 def list_recent_files(n=10):
     processed = load_processed_files()
     print("\nSenaste hanterade filer:")
     for i, entry in enumerate(reversed(processed[-n:]), 1):
         fname = entry["name"] if isinstance(entry, dict) else entry
         print(f"{i:2d}. {fname}")
+
 
 def undo_last_file(known, ignored, processed):
     log = load_attempt_log()
@@ -82,6 +91,7 @@ def undo_last_file(known, ignored, processed):
     print(f"Ångrade {removed} encodings för fil: {last_name}")
     processed = processed[:-1]
     return known, ignored, processed
+
 
 def undo_file_by_name(known, ignored, processed):
     pattern = input("Ange exakt filnamn eller glob (t.ex. 2024*.NEF): ").strip()
@@ -137,11 +147,13 @@ def undo_file_by_name(known, ignored, processed):
     print(f"Ångrade {removed_total} encodings för {len(matched_files)} filer.")
     return known, ignored, processed_new
 
+
 def print_mapping_counts(known, ignored):
     print("\nAntal mappningar per namn:")
     for idx, name in enumerate(sorted(known), 1):
         print(f"  {idx:2d}. {name} ({len(known[name])})")
     print(f"\nIgnorerade: {len(ignored)}")
+
 
 def purge_last_x_for_name(known, ignored):
     all_names = sorted(known) + ["ignore"]
@@ -175,7 +187,9 @@ def purge_last_x_for_name(known, ignored):
         print("Namn hittades ej.")
     return known, ignored
 
+
 # ===================================================
+
 
 def main():
     known, ignored, processed = load_database()
@@ -289,6 +303,6 @@ def main():
         else:
             print("Ogiltigt val.")
 
+
 if __name__ == "__main__":
     main()
-

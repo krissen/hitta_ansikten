@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 import json
 import os
-import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
 from faceid_db import ARCHIVE_DIR
 from faceid_db import ATTEMPT_LOG_PATH as LOG_FILE
-from faceid_db import (BASE_DIR, extract_face_labels, load_attempt_log,
-                       load_processed_files)
+from faceid_db import (extract_face_labels)
 
 # ================== Laddning och grundstatistik ====================
 
