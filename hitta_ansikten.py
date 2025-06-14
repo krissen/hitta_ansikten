@@ -1267,7 +1267,7 @@ def main():
 
         print(f"\n=== Bearbetar: {path.name} ===")
         result = process_image(path, known_faces, ignored_faces, config)
-        if result is True or result == "skipped":
+        if result in (True, "skipped", "no_faces"):
             add_to_processed_files(path)
             save_database(known_faces, ignored_faces, processed_files)
     if n_found == 0:
