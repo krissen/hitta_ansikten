@@ -69,6 +69,7 @@ def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full):
         {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"], "rgb_img": rgb_down},
         {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"],  "rgb_img": rgb_mid},
         {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": config["max_downsample_px"], "rgb_img": rgb_down},
+        {"model": "hog", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"], "rgb_img": rgb_full},
         {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"], "rgb_img": rgb_full},
         {"model": "cnn", "upsample": 1, "scale_label": "mid",  "scale_px": config["max_midsample_px"],  "rgb_img": rgb_mid},
         {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": config["max_fullres_px"], "rgb_img": rgb_full},
@@ -438,7 +439,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
             best_ignore_dist is not None and best_ignore_dist < ignore_thr and
             (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
         ):
-            prompt_txt = f"↪ Detta ansikte liknar ett tidigare ignorerat ({ignore_confidence}%). [Enter = bekräfta ignorera, r = rätta, n = försök igen, a = acceptera namn, o = öppna original, x = skippa bild] › "
+            prompt_txt = f"↪ Ansiktet liknar ett tidigare ignorerat ({ignore_confidence}%). [Enter = bekräfta ignorera, r = rätta, n = försök igen, a = acceptera namn, o = öppna original, x = skippa bild] › "
             while True:
                 ans = safe_input(prompt_txt).strip().lower()
                 if ans == "o" and image_path is not None:
@@ -686,7 +687,7 @@ def best_matches(encoding, known_faces, ignored_faces, config):
         if not encs:
             continue  # Skippa namn utan encodings
         dists = face_recognition.face_distance(encs, encoding)
-        min_dist = np.min(dists) <--- rad 687
+        min_dist = np.min(dists)
         if best_name_dist is None or min_dist < best_name_dist:
             best_name_dist = min_dist
             best_name = name
