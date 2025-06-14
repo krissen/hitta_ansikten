@@ -297,7 +297,7 @@ def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, conf
         labels.append(label)
     return labels
 
-def user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path=None):
+def user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path=None, preview_path=None):
     labels = []
     all_ignored = True
     retry_requested = False
@@ -334,6 +334,9 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
 
             while True:
                 ans = safe_input(prompt_txt).strip().lower()
+                if ans == "o" and preview_path is not None:
+                    show_temp_image(preview_path, config)
+                    continue
                 if ans == "o" and image_path is not None:
                     export_and_show_original(image_path, config)
                     continue
@@ -510,7 +513,7 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
 
 
 # === Funktion för att skapa tempbild med etiketter ===
-def create_labeled_image(rgb_image, face_locations, labels, config):
+def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
 
     from PIL import Image
 
@@ -665,10 +668,13 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
         label_cy = ly + p["text_height"] // 2
         draw.line([(face_cx, face_cy), (label_cx, label_cy)], fill="yellow", width=2)
 
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False):
-        temp_name = config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg")
-        canvas.save(temp_name, format="JPEG")
-        return temp_name
+    temp_dir = os.path.dirname(config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg"))
+    temp_prefix = "hitta_ansikten_preview"
+    temp_suffix = f"{suffix}.jpg" if suffix else ".jpg"
+
+    with tempfile.NamedTemporaryFile(prefix=temp_prefix, suffix=temp_suffix, dir=temp_dir, delete=False) as tmp:
+        canvas.save(tmp.name, format="JPEG")
+        return tmp.name
 
 # === Beräkna avstånd till kända encodings ===
 def best_matches(encoding, known_faces, ignored_faces, config):
@@ -785,9 +791,26 @@ def remove_encodings_for_file(known_faces, ignored_faces, identifier):
                 removed += 1
     return removed
 
+def preprocess_image(image_path, known_faces, ignored_faces, config):
+    """
+    Bearbetar en bild och returnerar en lista med
+    {
+        "attempt_index": ...,
+        "model": ...,
+        "upsample": ...,
+        "scale_label": ...,
+        "scale_px": ...,
+        "time_seconds": ...,
+        "faces_found": ...,
+        "face_locations": ...,
+        "face_encodings": ...,
+        "preview_labels": ...,
+        "preview_path": ...,
+    }
+    per attempt.
+    """
+    import time
 
-def main_process_image_loop(image_path, known_faces, ignored_faces, config):
-    # Tre upplösningar: låg, mellan, hög
     max_down = config.get("max_downsample_px")
     max_mid = config.get("max_midsample_px")
     max_full = config.get("max_fullres_px")
@@ -796,6 +819,41 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     rgb_full = load_and_resize_raw(image_path, max_full)
     attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
 
+    attempt_results = []
+    for attempt_idx, setting in enumerate(attempt_settings):
+        rgb = setting["rgb_img"]
+        t0 = time.time()
+        face_locations, face_encodings = face_detection_attempt(
+            rgb, setting["model"], setting["upsample"]
+        )
+        elapsed = time.time() - t0
+
+        preview_labels = label_preview_for_encodings(
+            face_encodings, known_faces, ignored_faces, config
+        )
+        preview_path = create_labeled_image(
+            rgb, face_locations, preview_labels, config, suffix=f"_preview_{attempt_idx}"
+        )
+
+        attempt_results.append({
+            "attempt_index": attempt_idx,
+            "model": setting["model"],
+            "upsample": setting["upsample"],
+            "scale_label": setting["scale_label"],
+            "scale_px": setting["scale_px"],
+            "time_seconds": round(elapsed, 3),
+            "faces_found": len(face_encodings),
+            "face_locations": face_locations,
+            "face_encodings": face_encodings,
+            "preview_labels": preview_labels,
+            "preview_path": preview_path,
+        })
+
+
+def main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results):
+    """
+    Review-loop för en redan preprocessad bild (med attempt_results).
+    """
     shown_image = False
     attempt_idx = 0
     attempts_stats = []
@@ -804,46 +862,42 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
     labels_per_attempt = []
     has_had_faces = False
 
-    while attempt_idx < len(attempt_settings):
-        setting = attempt_settings[attempt_idx]
-        rgb = setting["rgb_img"]
-        t0 = time.time()
+    while attempt_idx < len(attempt_results):
+        res = attempt_results[attempt_idx]
         print(
-            f"⚙️  Försök {attempt_idx + 1}: model={setting['model']}, upsample={setting['upsample']}, "
-            f"scale={setting['scale_label']} ({setting['scale_px']}px)"
+            f"⚙️  Försök {attempt_idx + 1}: model={res['model']}, upsample={res['upsample']}, "
+            f"scale={res['scale_label']} ({res['scale_px']}px)"
         )
-        face_locations, face_encodings = face_detection_attempt(
-            rgb, setting["model"], setting["upsample"]
-        )
-        elapsed = time.time() - t0
+        face_encodings = res["face_encodings"]
+        face_locations = res["face_locations"]
+        preview_path = res["preview_path"]
+        preview_labels = res["preview_labels"]
+        elapsed = res["time_seconds"]
+
         print(
-            f"    [DEBUG] Försök {attempt_idx + 1}: {setting['model']}, upsample={setting['upsample']}, "
-            f"scale={setting['scale_label']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
+            f"    [DEBUG] Försök {attempt_idx + 1}: {res['model']}, upsample={res['upsample']}, "
+            f"scale={res['scale_label']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
         )
         attempts_stats.append({
             "attempt_index": attempt_idx,
-            "model": setting["model"],
-            "upsample": setting["upsample"],
-            "scale_label": setting["scale_label"],
-            "scale_px": setting["scale_px"],
-            "time_seconds": round(elapsed, 3),
+            "model": res["model"],
+            "upsample": res["upsample"],
+            "scale_label": res["scale_label"],
+            "scale_px": res["scale_px"],
+            "time_seconds": elapsed,
             "faces_found": len(face_encodings),
         })
 
         if face_encodings:
             has_had_faces = True
 
-            # --- Visa alltid bildvisare med *preview*-labels FÖRE prompten ---
-            preview_labels = label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config)
-            preview_path = create_labeled_image(
-                rgb, face_locations, preview_labels, config
-            )
+            # Visa färdig preview-bild (skapades redan i preprocess_image)
             show_temp_image(preview_path, config)
 
-            # --- Prompt och hantering ---
-            review_result, labels = user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path)
-
-            # (valfritt: visa bild igen efter prompt, med labels om du vill – men vanligast är att bara ha preview här)
+            # Prompt och hantering
+            review_result, labels = user_review_encodings(
+                face_encodings, known_faces, ignored_faces, config, image_path
+            )
 
             review_results.append(review_result)
             labels_per_attempt.append(labels)
@@ -881,7 +935,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             labels_per_attempt.append([])
 
         if not shown_image and not has_had_faces:
-            temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
+            # Visa INGA ANSIKTEN-preview som redan genererats i preprocess_image
+            temp_path = res["preview_path"]  # Kan ev. vara nödvändigt att särskilja denna typ
             show_temp_image(temp_path, config)
             shown_image = True
             ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, x = hoppa över] › ").strip().lower()
@@ -1121,6 +1176,8 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # === Entry point ===
 def main():
+    import queue
+    import threading
 
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
         print_help()
@@ -1136,7 +1193,6 @@ def main():
         archive_stats_if_needed(current_sig, force=True)
         print("Arkivering utförd.")
         sys.exit(0)
-
     # Renamelogik
     rename_mode = False
     simulate = False
@@ -1260,19 +1316,53 @@ def main():
         return
 
     # --------- HUVUDFALL: BEARBETA ALLA EJ BEARBETADE ---------
-    input_paths = parse_inputs(args, SUPPORTED_EXT)
+    input_paths = list(parse_inputs(sys.argv[1:], SUPPORTED_EXT))
     n_found = 0
+    images_to_process = []
     for path in input_paths:
+        if not path.exists():
+            continue
         n_found += 1
         if is_file_processed(path):
             print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
             continue
+        images_to_process.append(path)
+    if n_found == 0 or not images_to_process:
+        print("Inga matchande bildfiler hittades.")
+        sys.exit(1)
 
+    # === STEG 1: Starta preprocess-kö i separat tråd ===
+    preprocessed_queue = queue.Queue(maxsize=2)  # Liten kö, lagom för "köad1"
+    preprocess_done = threading.Event()
+
+    def preprocess_worker():
+        try:
+            for path in images_to_process:
+                print(f"\n[PREPROCESS] {path.name}")
+                attempt_results = preprocess_image(path, known_faces, ignored_faces, config)
+                print("[PREPROCESS][RESULT]", attempt_results)
+                preprocessed_queue.put((path, attempt_results))
+            preprocess_done.set()
+        except Exception as e:
+            print(f"[PREPROCESS][ERROR] {e}")
+            import traceback; traceback.print_exc()
+
+    t = threading.Thread(target=preprocess_worker, daemon=True)
+    t.start()
+
+    # === STEG 2: Review-bearbeta, så fort en bild är klar ===
+    for _ in range(len(images_to_process)):
+        path, attempt_results = preprocessed_queue.get()  # Väntar tills preprocess klar för denna
         print(f"\n=== Bearbetar: {path.name} ===")
-        result = process_image(path, known_faces, ignored_faces, config)
+        result = main_process_image_loop(path, known_faces, ignored_faces, config, attempt_results)
         if result in (True, "skipped", "no_faces"):
             add_to_processed_files(path)
             save_database(known_faces, ignored_faces, processed_files)
+        preprocessed_queue.task_done()
+    preprocess_done.wait()  # Se till att preprocess är helt klart
+
+    print("✅ Alla bilder färdigbehandlade.")
+
     if n_found == 0:
         print("Inga matchande bildfiler hittades.")
         sys.exit(1)
