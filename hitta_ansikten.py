@@ -16,6 +16,8 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 
+from faceid_db import load_attempt_log, load_database, save_database
+
 warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
 import face_recognition
 import imageio
@@ -27,17 +29,9 @@ from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 from xdg import xdg_data_home
 
-# === Konstanter ===
-BASE_DIR = xdg_data_home() / "faceid"
-ARCHIVE_DIR = BASE_DIR / "archive"
-ATTEMPT_SETTINGS_SIG = BASE_DIR / "attempt_settings.sig"
-CONFIG_PATH = BASE_DIR / "config.json"
-ENCODING_PATH = BASE_DIR / "encodings.pkl"
-IGNORED_PATH = BASE_DIR / "ignored.pkl"
-METADATA_PATH = BASE_DIR / "metadata.json"
-PROCESSED_PATH = BASE_DIR / "processed_files.jsonl"
-SUPPORTED_EXT = [".nef", ".NEF"]
-
+from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
+                       CONFIG_PATH, ENCODING_PATH, IGNORED_PATH, METADATA_PATH,
+                       PROCESSED_PATH, SUPPORTED_EXT)
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -72,42 +66,6 @@ def load_config():
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG
 
-
-# === Ladda / initiera databaser ===
-def load_database():
-    import json
-
-    if ENCODING_PATH.exists():
-        with open(ENCODING_PATH, "rb") as f:
-            known_faces = pickle.load(f)
-    else:
-        known_faces = {}
-
-    if IGNORED_PATH.exists():
-        with open(IGNORED_PATH, "rb") as f:
-            ignored_faces = pickle.load(f)
-    else:
-        ignored_faces = []
-
-    processed_files = []
-    if PROCESSED_PATH.exists():
-        with open(PROCESSED_PATH, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                # Om raden är ett JSON-objekt
-                try:
-                    entry = json.loads(line)
-                    if isinstance(entry, dict) and "hash" in entry and "name" in entry:
-                        processed_files.append(entry)
-                        continue
-                except Exception:
-                    pass
-                # Om raden är gammalt format: bara filnamn
-                processed_files.append({"name": line, "hash": None})
-
-    return known_faces, ignored_faces, processed_files
 
 def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full):
     # All attempts i rätt ordning, parametriserat
@@ -211,23 +169,6 @@ def show_temp_image(preview_path, config, last_shown=[None]):
         last_shown[0] = preview_path
     else:
         last_shown[0] = preview_path
-
-
-def save_database(known_faces, ignored_faces, processed_files):
-    import json
-    with open(ENCODING_PATH, "wb") as f:
-        pickle.dump(known_faces, f)
-    with open(IGNORED_PATH, "wb") as f:
-        pickle.dump(ignored_faces, f)
-    with open(PROCESSED_PATH, "w") as f:
-        for entry in processed_files:
-            # Alltid JSON-dict med name och hash (bakåtkompatibelt)
-            if isinstance(entry, dict):
-                # Skriv ut exakt som det ligger (om redan {name, hash})
-                f.write(json.dumps({"name": entry.get("name"), "hash": entry.get("hash")}, ensure_ascii=False) + "\n")
-            else:
-                # Legacy fallback: bara namn som sträng, hash saknas
-                f.write(json.dumps({"name": entry, "hash": None}, ensure_ascii=False) + "\n")
 
 
 def safe_input(prompt_text, completer=None):
@@ -796,29 +737,6 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
     except (KeyboardInterrupt, EOFError):
         print("\n⏹ Avbruten. Programmet avslutas.")
         sys.exit(0)
-
-def load_attempt_log():
-    """
-    Laddar hela attempt-loggen (nuvarande fil).
-    Returnerar lista av loggposter (dict).
-    Förberedd för utbyggnad med hash per fil/post.
-    """
-    log_path = BASE_DIR / "attempt_stats.jsonl"
-    if not log_path.exists():
-        return []
-    log = []
-    with open(log_path, "r") as f:
-        for line in f:
-            try:
-                entry = json.loads(line)
-                # Framtidssäkring: patcha in file_hash om det finns i entry eller kan räknas ut
-                if "filename" in entry and "file_hash" not in entry:
-                    # (Här kan man senare lägga in automatisk hashning av filen eller filnamnet)
-                    pass
-                log.append(entry)
-            except Exception:
-                pass
-    return log
 
 
 def remove_encodings_for_file(known_faces, ignored_faces, identifier):

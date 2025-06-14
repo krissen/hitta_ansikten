@@ -6,9 +6,10 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-BASE_DIR = Path.home() / ".local" / "share" / "faceid"
-LOG_FILE = BASE_DIR / "attempt_stats.jsonl"
-ARCHIVE_DIR = BASE_DIR / "archive"
+from faceid_db import ARCHIVE_DIR
+from faceid_db import ATTEMPT_LOG_PATH as LOG_FILE
+from faceid_db import (BASE_DIR, extract_face_labels, load_attempt_log,
+                       load_processed_files)
 
 # ================== Laddning och grundstatistik ====================
 
@@ -53,14 +54,8 @@ def extract_face_counts_grid(stats, max_items=9):
         if not labels_per_attempt or used is None or used >= len(labels_per_attempt):
             continue
         labels = labels_per_attempt[used]
-        for label in labels:
-            if isinstance(label, dict):
-                label = label.get("label", "")
-            match = re.match(r"#\d+\n(.+)", label)
-            if match:
-                name = match.group(1).strip()
-                if name.lower() not in {"ignorerad", "okänt", "ign"}:
-                    face_counts[name] += 1
+        for name in extract_face_labels(labels):
+            face_counts[name] += 1
     return face_counts.most_common(max_items)
 
 def calc_ignored_fraction(stats):
@@ -129,8 +124,8 @@ def attempt_stats_table(stats):
     return table
 
 def faces_grid_panel(stats):
-    from rich.table import Table
     from rich.panel import Panel
+    from rich.table import Table
     items = extract_face_counts_grid(stats, max_items=9)
     table = Table(show_header=False, box=None, pad_edge=False)
     for _ in range(3):
@@ -153,15 +148,7 @@ def latest_images_with_names(stats, n=5):
         used = entry.get("used_attempt")
         labels_per_attempt = entry.get("labels_per_attempt")
         if used is not None and labels_per_attempt and used < len(labels_per_attempt):
-            names = []
-            for label in labels_per_attempt[used]:
-                if isinstance(label, dict):
-                    label = label.get("label", "")
-                m = re.match(r"#\d+\n(.+)", label)
-                if m:
-                    name = m.group(1).strip()
-                    if name.lower() not in {"ignorerad", "ign", "okänt"}:
-                        names.append(name)
+            names = extract_face_labels(labels_per_attempt[used])
             namestr = ", ".join(names) if names else "-"
         else:
             namestr = "-"
@@ -199,8 +186,10 @@ def pie_chart_attempts(stats):
 # ================== Rich Dashboard (Live) ====================
 
 def render_dashboard(stats):
-    from rich.panel import Panel
+
     from rich.layout import Layout
+    from rich.panel import Panel
+
     # Hämta paneler
     table = attempt_stats_table(stats)
     faces_panel = faces_grid_panel(stats)
