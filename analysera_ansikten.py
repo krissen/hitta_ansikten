@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import json
+import os
+import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -7,6 +9,8 @@ from pathlib import Path
 BASE_DIR = Path.home() / ".local" / "share" / "faceid"
 LOG_FILE = BASE_DIR / "attempt_stats.jsonl"
 ARCHIVE_DIR = BASE_DIR / "archive"
+
+# ================== Laddning och grundstatistik ====================
 
 def load_stats(logfile):
     stats = []
@@ -31,8 +35,223 @@ def load_multiple_stats(files):
                 pass
     return stats
 
+def find_all_stats_files():
+    files = []
+    if LOG_FILE.exists():
+        files.append(LOG_FILE)
+    if ARCHIVE_DIR.exists():
+        files += sorted(ARCHIVE_DIR.glob("attempt_stats*.jsonl"))
+    return files
+
+# ================== Statistik- och hjälpfunktioner ====================
+
+def extract_face_counts_grid(stats, max_items=9):
+    face_counts = Counter()
+    for entry in stats:
+        labels_per_attempt = entry.get("labels_per_attempt")
+        used = entry.get("used_attempt")
+        if not labels_per_attempt or used is None or used >= len(labels_per_attempt):
+            continue
+        labels = labels_per_attempt[used]
+        for label in labels:
+            if isinstance(label, dict):
+                label = label.get("label", "")
+            match = re.match(r"#\d+\n(.+)", label)
+            if match:
+                name = match.group(1).strip()
+                if name.lower() not in {"ignorerad", "okänt", "ign"}:
+                    face_counts[name] += 1
+    return face_counts.most_common(max_items)
+
+def calc_ignored_fraction(stats):
+    total = 0
+    ignored = 0
+    for entry in stats:
+        used = entry.get("used_attempt")
+        labels_per_attempt = entry.get("labels_per_attempt")
+        if used is not None and labels_per_attempt and used < len(labels_per_attempt):
+            for label in labels_per_attempt[used]:
+                if isinstance(label, dict):
+                    label = label.get("label", "")
+                total += 1
+                if label.strip().lower().endswith("ignorerad") or label.strip().lower() == "ign":
+                    ignored += 1
+    frac = (ignored / total) if total else 0
+    return ignored, total, frac
+
+def attempt_stats_table(stats):
+    attempt_info = defaultdict(lambda: {"used": 0, "faces": 0, "time": 0.0, "total": 0})
+    for entry in stats:
+        attempts = entry.get("attempts", [])
+        used = entry.get("used_attempt")
+        for att in attempts:
+            key = (
+                att.get("model"),
+                att.get("upsample"),
+                att.get("scale_label"),
+                att.get("scale_px"),
+            )
+            attempt_info[key]["total"] += 1
+        if used is not None and attempts and used < len(attempts):
+            setting = attempts[used]
+            key = (
+                setting.get("model"),
+                setting.get("upsample"),
+                setting.get("scale_label"),
+                setting.get("scale_px"),
+            )
+            attempt_info[key]["used"] += 1
+            attempt_info[key]["faces"] += setting.get("faces_found", 0)
+            attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
+    from rich.table import Table
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Försök (modell, upsample, skala)", min_width=28)
+    table.add_column("Använd", justify="right")
+    table.add_column("Total", justify="right")
+    table.add_column("Träff %", justify="right")
+    table.add_column("Snitt ansikten", justify="right")
+    table.add_column("Snitt tid", justify="right")
+    for key, info in attempt_info.items():
+        model, upsample, scale, px = key
+        n_used = info["used"]
+        n_total = info["total"]
+        mean_faces = info["faces"] / n_used if n_used else 0
+        mean_time = info["time"] / n_used if n_used else 0
+        hit_rate = 100 * n_used / n_total if n_total else 0
+        table.add_row(
+            f"{model}, up={upsample}, {scale}({px})",
+            str(n_used),
+            str(n_total),
+            f"{hit_rate:6.1f}%",
+            f"{mean_faces:>6.2f}",
+            f"{mean_time:>6.2f}s",
+        )
+    return table
+
+def faces_grid_panel(stats):
+    from rich.table import Table
+    from rich.panel import Panel
+    items = extract_face_counts_grid(stats, max_items=9)
+    table = Table(show_header=False, box=None, pad_edge=False)
+    for _ in range(3):
+        table.add_column(justify="left", ratio=1)
+    rows = [items[i:i+3] for i in range(0, len(items), 3)]
+    for row in rows:
+        vals = [f"{name} ({cnt})" for name, cnt in row]
+        while len(vals) < 3:
+            vals.append("")
+        table.add_row(*vals)
+    if not items:
+        table.add_row("–", "–", "–")
+    return Panel(table, title="Vanligaste ansikten (topp 9)")
+
+def latest_images_with_names(stats, n=5):
+    lines = []
+    last = sorted(stats, key=lambda x: x.get("timestamp", ""), reverse=True)[:n]
+    for entry in last:
+        fname = Path(entry.get("filename", "")).name
+        used = entry.get("used_attempt")
+        labels_per_attempt = entry.get("labels_per_attempt")
+        if used is not None and labels_per_attempt and used < len(labels_per_attempt):
+            names = []
+            for label in labels_per_attempt[used]:
+                if isinstance(label, dict):
+                    label = label.get("label", "")
+                m = re.match(r"#\d+\n(.+)", label)
+                if m:
+                    name = m.group(1).strip()
+                    if name.lower() not in {"ignorerad", "ign", "okänt"}:
+                        names.append(name)
+            namestr = ", ".join(names) if names else "-"
+        else:
+            namestr = "-"
+        lines.append(f"{fname:<35} {namestr}")
+    return "\n".join(lines)
+
+def pie_chart_attempts(stats):
+    from math import ceil
+    attempt_use = Counter()
+    total = 0
+    for entry in stats:
+        used = entry.get("used_attempt")
+        if used is not None:
+            attempt_use[used+1] += 1  # +1 för mänsklig numrering
+            total += 1
+    if total == 0:
+        return "Inga attempts."
+    chart = "Färg: attempt-index  |  #N: försök N\n"
+    chars = ["◼️", "◻️", "⬛", "🟩", "🟦", "🟨", "🟧", "🟥", "🟪", "🟫"]
+    sum_length = 24
+    for i, (k, v) in enumerate(sorted(attempt_use.items())):
+        length = ceil((v / total) * sum_length)
+        desc = ""
+        for entry in stats:
+            u = entry.get("used_attempt")
+            if u is not None and (u+1) == k:
+                attempts = entry.get("attempts", [])
+                if attempts and u < len(attempts):
+                    att = attempts[u]
+                    desc = f"{att.get('model')}, up={att.get('upsample')}, {att.get('scale_label')}({att.get('scale_px')})"
+                    break
+        chart += f"#{k}: {chars[i%len(chars)]*length} {v} ({v/total:.1%}) {desc}\n"
+    return chart
+
+# ================== Rich Dashboard (Live) ====================
+
+def render_dashboard(stats):
+    from rich.panel import Panel
+    from rich.layout import Layout
+    # Hämta paneler
+    table = attempt_stats_table(stats)
+    faces_panel = faces_grid_panel(stats)
+    ignored, total, frac = calc_ignored_fraction(stats)
+    ignored_panel = Panel(f"Ignorerade ansikten: {ignored}/{total} ({frac:.1%})", title="Andel ignorerade")
+    pie_panel = Panel(pie_chart_attempts(stats), title="Fördelning av attempts (Pie-chart)")
+    latest_panel = Panel(latest_images_with_names(stats, n=5), title="Senaste 5 bilder (namn)")
+    # Layout med ratio för allt utom ignored_panel
+    outer = Layout()
+    inner = Layout()
+    outer.split_column(Layout(inner, ratio=1))
+    inner.split(
+        Layout(Panel(table, title="Attempt-statistik"), name="upper", ratio=2),
+        Layout(faces_panel, name="faces", ratio=2),
+        Layout(ignored_panel, name="ignored", size=2),
+        Layout(pie_panel, name="pie", ratio=2),
+        Layout(latest_panel, name="latest", ratio=2),
+    )
+    return outer
+
+def dashboard_mode(log_file):
+    try:
+        from rich.console import Console
+        from rich.live import Live
+    except ImportError:
+        print("Du måste installera 'rich' för att köra dashboarden.")
+        return
+    import time
+
+    console = Console()
+    last_mtime = None
+    stats = []
+    with Live(render_dashboard(stats), refresh_per_second=2, console=console) as live:
+        while True:
+            try:
+                mtime = os.path.getmtime(log_file)
+                if last_mtime is None or mtime != last_mtime:
+                    last_mtime = mtime
+                    with open(log_file) as f:
+                        stats = [json.loads(line) for line in f]
+                    live.update(render_dashboard(stats))
+                time.sleep(2)
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                console.print(f"[röd]Fel i dashboard: {e}")
+                time.sleep(2)
+
+# ================== CLI Entry-point ====================
+
 def analyze(stats, group_by_source=False):
-    # Möjliggör jämförelse mellan olika databaser (per fil)
     if group_by_source:
         sources = defaultdict(list)
         for entry in stats:
@@ -149,17 +368,15 @@ def _analyze_single(stats):
             label, count = most_common[0]
             print(f"  Ansikte {pos+1}: {label} ({count} st)")
 
-def find_all_stats_files():
-    files = []
-    # Nuvarande
-    if LOG_FILE.exists():
-        files.append(LOG_FILE)
-    # Alla arkiv
-    if ARCHIVE_DIR.exists():
-        files += sorted(ARCHIVE_DIR.glob("attempt_stats*.jsonl"))
-    return files
+# ================== CLI Main ====================
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ["--dashboard", "dashboard"]:
+        try:
+            dashboard_mode(LOG_FILE)
+        except ImportError:
+            print("Du måste installera 'watchdog' och 'rich' för att använda dashboard.")
+        return
     # Default: analysera nuvarande loggfil
     if len(sys.argv) == 1:
         if not LOG_FILE.exists():
