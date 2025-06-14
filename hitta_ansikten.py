@@ -664,7 +664,7 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
         label_cy = ly + p["text_height"] // 2
         draw.line([(face_cx, face_cy), (label_cx, label_cy)], fill="yellow", width=2)
 
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False):
         temp_name = config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg")
         canvas.save(temp_name, format="JPEG")
         return temp_name
@@ -1043,7 +1043,6 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
     # Bygg förnamn/initialmap
     namnmap = resolve_fornamn_dubletter(all_persons)
     # För varje fil, bygg nytt namn
-    any_changes = False
     for orig in out_files:
         fname = Path(orig).name
         personer = persons_per_file.get(fname, [])
@@ -1059,7 +1058,6 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
         if Path(dest).exists() and Path(dest) != Path(orig):
             print(f"⚠️  {dest} finns redan, hoppar över!")
             continue
-        any_changes = True
         if simulate:
             print(f"[SIMULATE] {os.path.basename(orig)} → {os.path.basename(dest)}")
         else:
