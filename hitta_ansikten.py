@@ -683,8 +683,10 @@ def best_matches(encoding, known_faces, ignored_faces, config):
 
     # Namnmatch
     for name, encs in known_faces.items():
+        if not encs:
+            continue  # Skippa namn utan encodings
         dists = face_recognition.face_distance(encs, encoding)
-        min_dist = np.min(dists)
+        min_dist = np.min(dists) <--- rad 687
         if best_name_dist is None or min_dist < best_name_dist:
             best_name_dist = min_dist
             best_name = name
