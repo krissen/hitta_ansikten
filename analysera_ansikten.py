@@ -7,7 +7,7 @@ from pathlib import Path
 
 from faceid_db import ARCHIVE_DIR
 from faceid_db import ATTEMPT_LOG_PATH as LOG_FILE
-from faceid_db import (extract_face_labels)
+from faceid_db import extract_face_labels
 
 # ================== Laddning och grundstatistik ====================
 
@@ -124,14 +124,15 @@ def attempt_stats_table(stats):
 def faces_grid_panel(stats):
     from rich.panel import Panel
     from rich.table import Table
-    items = extract_face_counts_grid(stats, max_items=9)
+    items = extract_face_counts_grid(stats, max_items=20)
     table = Table(show_header=False, box=None, pad_edge=False)
-    for _ in range(3):
+    num_cols = 4
+    for _ in range(num_cols):
         table.add_column(justify="left", ratio=1)
-    rows = [items[i:i+3] for i in range(0, len(items), 3)]
+    rows = [items[i:i+num_cols] for i in range(0, len(items), num_cols)]
     for row in rows:
         vals = [f"{name} ({cnt})" for name, cnt in row]
-        while len(vals) < 3:
+        while len(vals) < num_cols:
             vals.append("")
         table.add_row(*vals)
     if not items:
