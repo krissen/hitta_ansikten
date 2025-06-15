@@ -42,6 +42,7 @@ logging.basicConfig(
 
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 3
+MAX_QUEUE = 10
 
 
 # === Standardkonfiguration ===
@@ -156,6 +157,7 @@ def export_and_show_original(image_path, config):
 
 
 def show_temp_image(preview_path, config, last_shown=[None]):
+    import subprocess
     viewer_app = config.get("image_viewer_app")
     status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "status.json"
     expected_path = str(Path(preview_path).resolve())
@@ -179,7 +181,7 @@ def show_temp_image(preview_path, config, last_shown=[None]):
 
     if should_open:
         logging.debug(f"[BILDVISARE] Öppnar bild i visare: {expected_path}")
-        os.system(f"open -a '{viewer_app}' '{preview_path}'")
+        subprocess.Popen(["open", "-a", viewer_app, preview_path])
         last_shown[0] = preview_path
     else:
         logging.debug(f"[BILDVISARE] Hoppar över open; rätt bild visas redan: {expected_path}")
@@ -742,11 +744,17 @@ def load_and_resize_raw(image_path, max_dim=None):
     return rgb
 
 def face_detection_attempt(rgb, model, upsample):
+    t0 = time.time()
+    logging.debug(f"[FACEDETECT] begins : model={model}, upsample={upsample}, time {t0}")
     face_locations = face_recognition.face_locations(
         rgb, model=model, number_of_times_to_upsample=upsample
     )
+    t1 = time.time()
     face_locations = sorted(face_locations, key=lambda loc: loc[3])
+    logging.debug(f"[FACEDETECT] Have locations at time {t1}")
     face_encodings = face_recognition.face_encodings(rgb, face_locations)
+    t2 = time.time()
+    logging.debug(f"[FACEDETECT] Have encodings at time {t2}")
     return face_locations, face_encodings
 
 def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › "):
@@ -949,11 +957,20 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                 )
                 return True
         else:
+            import shutil
+            ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
             # Om inga ansikten hittades i attempt – logga ändå
             review_results.append("no_faces")
             labels_per_attempt.append([])
 
             temp_path = res["preview_path"]
+
+            try:
+                shutil.copy(temp_path, ORDINARY_PREVIEW_PATH)
+            except Exception as e:
+                print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
+            show_temp_image(ORDINARY_PREVIEW_PATH, config)
+            shown_image = True
             show_temp_image(temp_path, config)
             ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över] › ").strip().lower()
             if ans == "x":
@@ -1238,6 +1255,7 @@ def main():
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
     max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
+    max_queue = config.get("max_queue", MAX_QUEUE)
 
 
     def is_file_processed(path):
@@ -1351,7 +1369,7 @@ def main():
         sys.exit(1)
 
     # === STEG 1: Starta preprocess-kö i separat tråd ===
-    preprocessed_queue = queue.Queue(maxsize=2)  # Liten kö, lagom för "köad1"
+    preprocessed_queue = queue.Queue(maxsize=max_queue)  # Liten kö, lagom för "köad1"
     preprocess_done = threading.Event()
 
     def preprocess_worker():
