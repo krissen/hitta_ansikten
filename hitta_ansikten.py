@@ -821,18 +821,23 @@ def remove_encodings_for_file(known_faces, ignored_faces, identifier):
 def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=3):
     logging.debug("preprocess_image: START")
 
-    max_down = config.get("max_downsample_px")
-    max_mid = config.get("max_midsample_px")
-    max_full = config.get("max_fullres_px")
-    logging.debug(" Före load_and_resize_raw: down")
-    rgb_down = load_and_resize_raw(image_path, max_down)
-    logging.debug(" Före load_and_resize_raw: mid")
-    rgb_mid = load_and_resize_raw(image_path, max_mid)
-    logging.debug(" Före load_and_resize_raw: full")
-    rgb_full = load_and_resize_raw(image_path, max_full)
-    logging.debug(" Före get_attempt_settings")
-    attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
-    logging.debug(" Efter get_attempt_settings")
+    try:
+        max_down = config.get("max_downsample_px")
+        max_mid = config.get("max_midsample_px")
+        max_full = config.get("max_fullres_px")
+        logging.debug(" Före load_and_resize_raw: down")
+        rgb_down = load_and_resize_raw(image_path, max_down)
+        logging.debug(" Före load_and_resize_raw: mid")
+        rgb_mid = load_and_resize_raw(image_path, max_mid)
+        logging.debug(" Före load_and_resize_raw: full")
+        rgb_full = load_and_resize_raw(image_path, max_full)
+
+        logging.debug(" Före get_attempt_settings")
+        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+        logging.debug(" Efter get_attempt_settings")
+    except Exception as e:
+        logging.warning(f"[RAWREAD][SKIP] Kunde inte öppna {image_path}: {e}")
+        return []   # eller returnera vad du vill (tom lista signalerar 'skip')
 
     attempt_results = []
     for attempt_idx, setting in enumerate(attempt_settings):
