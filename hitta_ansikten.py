@@ -870,15 +870,18 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
     """
     Review-loop för en redan preprocessad bild (med attempt_results).
     """
-    shown_image = False
     attempt_idx = 0
     attempts_stats = []
     used_attempt = None
     review_results = []
     labels_per_attempt = []
     has_had_faces = False
+    # Hårdkodad maxgräns om du vill
+    max_possible_attempts = config.get("max_attempts", 3)
 
     while attempt_idx < len(attempt_results):
+        logging.debug(f"[NLOOP] attempt_idx={attempt_idx}, len(attempt_results)={len(attempt_results)}")
+
         res = attempt_results[attempt_idx]
         print(
             f"⚙️  Försök {attempt_idx + 1}: model={res['model']}, upsample={res['upsample']}, "
@@ -907,7 +910,6 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
         if face_encodings:
             has_had_faces = True
 
-            # Kopiera preview-bild till ordinarie tempnamn före user review
             import shutil
             ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
             try:
@@ -916,7 +918,6 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                 print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
             show_temp_image(ORDINARY_PREVIEW_PATH, config)
 
-            # Prompt och hantering
             review_result, labels = user_review_encodings(
                 face_encodings, known_faces, ignored_faces, config, image_path
             )
@@ -925,21 +926,15 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
 
             if review_result == "skipped":
                 log_attempt_stats(
-                    image_path,
-                    attempts_stats,
-                    used_attempt,
-                    BASE_DIR,
-                    review_results=review_results,
-                    labels_per_attempt=labels_per_attempt
+                    image_path, attempts_stats, used_attempt, BASE_DIR,
+                    review_results=review_results, labels_per_attempt=labels_per_attempt
                 )
                 return "skipped"
             if review_result == "retry":
                 attempt_idx += 1
                 if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
                     new_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=attempt_idx+1)
-                    # Append endast nya attempt (endast den senaste attempten):
                     attempt_results.extend(new_results[len(attempt_results):])
-
                 continue
             if review_result == "all_ignored":
                 attempt_idx += 1
@@ -947,12 +942,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
             if review_result == "ok":
                 used_attempt = attempt_idx
                 log_attempt_stats(
-                    image_path,
-                    attempts_stats,
-                    used_attempt,
-                    BASE_DIR,
-                    review_results=review_results,
-                    labels_per_attempt=labels_per_attempt
+                    image_path, attempts_stats, used_attempt, BASE_DIR,
+                    review_results=review_results, labels_per_attempt=labels_per_attempt
                 )
                 return True
         else:
@@ -960,39 +951,36 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
             review_results.append("no_faces")
             labels_per_attempt.append([])
 
-        if not shown_image and not has_had_faces:
-            # Visa INGA ANSIKTEN-preview som redan genererats i preprocess_image
-            temp_path = res["preview_path"]  # Kan ev. vara nödvändigt att särskilja denna typ
+            temp_path = res["preview_path"]
             show_temp_image(temp_path, config)
-            shown_image = True
-            ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, x = hoppa över] › ").strip().lower()
+            ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över] › ").strip().lower()
             if ans == "x":
                 log_attempt_stats(
-                    image_path,
-                    attempts_stats,
-                    used_attempt,
-                    BASE_DIR,
-                    review_results=review_results,
-                    labels_per_attempt=labels_per_attempt
+                    image_path, attempts_stats, used_attempt, BASE_DIR,
+                    review_results=review_results, labels_per_attempt=labels_per_attempt
                 )
                 return "skipped"
+            elif ans == "n" or ans == "":
+                attempt_idx += 1
+                if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
+                    logging.debug(f"[NLOOP] Genererar nytt attempt, idx={attempt_idx}")
+                    new_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=attempt_idx+1)
+                    attempt_results.extend(new_results[len(attempt_results):])
+                continue
 
         attempt_idx += 1
 
     print("⏭ Inga ansikten kunde hittas i {} , hoppar över.".format(image_path.name))
     log_attempt_stats(
-        image_path,
-        attempts_stats,
-        None,
-        BASE_DIR,
-        review_results=review_results,
-        labels_per_attempt=labels_per_attempt
+        image_path, attempts_stats, None, BASE_DIR,
+        review_results=review_results, labels_per_attempt=labels_per_attempt
     )
     return "no_faces"
 
 
 def process_image(image_path, known_faces, ignored_faces, config):
-    attempt_results = preprocess_image(image_path, known_faces, ignored_faces, config)
+    attempt_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=1)
+
     return main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results)
 
 
