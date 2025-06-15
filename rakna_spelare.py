@@ -4,6 +4,7 @@
 import argparse
 import glob
 import os
+import re
 import sys
 from collections import Counter
 from datetime import datetime, timedelta
@@ -20,26 +21,29 @@ def parse_filename(fn):
     """
     base = os.path.basename(fn)
     name, ext = os.path.splitext(base)
-    # name exempel: "250601_110520-2_Elis" eller "250601_110205_Hampus"
-    delar = name.split("_", 2)
-    if len(delar) < 3:
+    # Hitta positionerna för de två första '_' i namnet
+    i1 = name.find("_")
+    i2 = name.find("_", i1 + 1)
+    if i1 == -1 or i2 == -1:
         return None, None
 
-    date_part = delar[0]  # "250601"
-    time_part_with_suffix = delar[1]  # "110520-2" eller "110205"
-    names_part = delar[2]  # "Elis" eller "Emil,_Edvin" etc.
+    # dt_full innehåller t.ex. "250601_110520-2"
+    dt_full = name[:i2]
+    # names_part innehåller t.ex. "Albin" eller "Emil,_Edvin"
+    names_part = name[i2 + 1 :]
 
-    # Ta bort "-N"-suffix om det finns i time_part
-    time_part = time_part_with_suffix.split("-", 1)[0]
-
-    dt_str = date_part + time_part  # bildstid i format YYMMDDHHMMSS
+    # Ta bort "-N"-suffix om det finns
+    dt_part = dt_full.split("-", 1)[0]  # "250601_110520"
+    # Ta bort underscore mellan datum och tid för strptime
+    dt_str = dt_part.replace("_", "")  # "250601110520"
     try:
         dt = datetime.strptime(dt_str, "%y%m%d%H%M%S")
     except ValueError:
         return None, None
 
-    # Dela listan av namn på ",_"
-    names = [n.strip() for n in names_part.split(",_") if n.strip()]
+    # Dela listan av namn på ",_" och ta bort ev "-N"-suffix på varje namn
+    raw_names = [n.strip() for n in names_part.split(",_") if n.strip()]
+    names = [re.sub(r"-\d+$", "", n) for n in raw_names]
     return dt, names
 
 
