@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import copy
 import fnmatch
 import hashlib
 import json
@@ -1355,6 +1356,9 @@ def main():
 
     def preprocess_worker():
         try:
+            # Skapa kopior av face-dictarna för bakgrundstråden
+            faces_copy = copy.deepcopy(known_faces)
+            ignored_copy = copy.deepcopy(ignored_faces)
             for path in images_to_process:
                 logging.debug(f"[PREPROCESS] Startar för {path.name}")
                 attempt_results = []
