@@ -39,6 +39,8 @@ logging.basicConfig(
     level=logging.DEBUG
 )
 
+ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
+
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -164,6 +166,8 @@ def show_temp_image(preview_path, config, last_shown=[None]):
                 status = json.load(f)
             if status.get("app_status") == "running" and os.path.samefile(status.get("file_path", ""), expected_path):
                 should_open = False  # Bildvisare kör redan och visar rätt fil
+                logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
+
             elif status.get("app_status") == "exited":
                 should_open = True
             else:
@@ -172,9 +176,11 @@ def show_temp_image(preview_path, config, last_shown=[None]):
             should_open = True
 
     if should_open:
+        logging.debug(f"[BILDVISARE] Öppnar bild i visare: {expected_path}")
         os.system(f"open -a '{viewer_app}' '{preview_path}'")
         last_shown[0] = preview_path
     else:
+        logging.debug(f"[BILDVISARE] Hoppar över open; rätt bild visas redan: {expected_path}")
         last_shown[0] = preview_path
 
 
@@ -901,14 +907,19 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
         if face_encodings:
             has_had_faces = True
 
-            # Visa färdig preview-bild (skapades redan i preprocess_image)
-            show_temp_image(preview_path, config)
+            # Kopiera preview-bild till ordinarie tempnamn före user review
+            import shutil
+            ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
+            try:
+                shutil.copy(preview_path, ORDINARY_PREVIEW_PATH)
+            except Exception as e:
+                print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
+            show_temp_image(ORDINARY_PREVIEW_PATH, config)
 
             # Prompt och hantering
             review_result, labels = user_review_encodings(
                 face_encodings, known_faces, ignored_faces, config, image_path
             )
-
             review_results.append(review_result)
             labels_per_attempt.append(labels)
 
