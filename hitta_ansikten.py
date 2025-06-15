@@ -992,7 +992,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
 
 
 def process_image(image_path, known_faces, ignored_faces, config):
-    return main_process_image_loop(image_path, known_faces, ignored_faces, config)
+    attempt_results = preprocess_image(image_path, known_faces, ignored_faces, config)
+    return main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results)
 
 
 def extract_prefix_suffix(fname):
