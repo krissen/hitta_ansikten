@@ -3,6 +3,7 @@
 import fnmatch
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -18,6 +19,8 @@ from pathlib import Path
 from faceid_db import load_attempt_log, load_database, save_database
 
 warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
+import logging
+
 import face_recognition
 import matplotlib.font_manager as fm
 import numpy as np
@@ -28,6 +31,14 @@ from prompt_toolkit.completion import WordCompleter
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
                        CONFIG_PATH, SUPPORTED_EXT)
+
+logging.basicConfig(
+    filename="/tmp/hitta_ansikten_debug.log",
+    filemode="a",
+    format="%(asctime)s %(levelname)s: %(message)s",
+    level=logging.DEBUG
+)
+
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -791,49 +802,42 @@ def remove_encodings_for_file(known_faces, ignored_faces, identifier):
                 removed += 1
     return removed
 
-def preprocess_image(image_path, known_faces, ignored_faces, config):
-    """
-    Bearbetar en bild och returnerar en lista med
-    {
-        "attempt_index": ...,
-        "model": ...,
-        "upsample": ...,
-        "scale_label": ...,
-        "scale_px": ...,
-        "time_seconds": ...,
-        "faces_found": ...,
-        "face_locations": ...,
-        "face_encodings": ...,
-        "preview_labels": ...,
-        "preview_path": ...,
-    }
-    per attempt.
-    """
+def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=3):
     import time
+    logging.debug("preprocess_image: START")
 
     max_down = config.get("max_downsample_px")
     max_mid = config.get("max_midsample_px")
     max_full = config.get("max_fullres_px")
+    logging.debug(" Före load_and_resize_raw: down")
     rgb_down = load_and_resize_raw(image_path, max_down)
+    logging.debug(" Före load_and_resize_raw: mid")
     rgb_mid = load_and_resize_raw(image_path, max_mid)
+    logging.debug(" Före load_and_resize_raw: full")
     rgb_full = load_and_resize_raw(image_path, max_full)
+    logging.debug(" Före get_attempt_settings")
     attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+    logging.debug(" Efter get_attempt_settings")
 
     attempt_results = []
     for attempt_idx, setting in enumerate(attempt_settings):
+        logging.debug(f" Attempt {attempt_idx}: start")
         rgb = setting["rgb_img"]
         t0 = time.time()
+        logging.debug(f" Attempt {attempt_idx}: face_detection_attempt")
         face_locations, face_encodings = face_detection_attempt(
             rgb, setting["model"], setting["upsample"]
         )
-        elapsed = time.time() - t0
-
+        logging.debug(f" Attempt {attempt_idx}: label_preview_for_encodings")
         preview_labels = label_preview_for_encodings(
             face_encodings, known_faces, ignored_faces, config
         )
+        logging.debug(f" Attempt {attempt_idx}: create_labeled_image")
         preview_path = create_labeled_image(
             rgb, face_locations, preview_labels, config, suffix=f"_preview_{attempt_idx}"
         )
+        elapsed = time.time() - t0
+        logging.debug(f" Attempt {attempt_idx}: done ({elapsed:.2f}s)")
 
         attempt_results.append({
             "attempt_index": attempt_idx,
@@ -848,6 +852,12 @@ def preprocess_image(image_path, known_faces, ignored_faces, config):
             "preview_labels": preview_labels,
             "preview_path": preview_path,
         })
+
+        if attempt_idx + 1 >= max_attempts:
+            break
+
+    logging.debug(" preprocess_image: END")
+    return attempt_results
 
 
 def main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results):
@@ -914,6 +924,11 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                 return "skipped"
             if review_result == "retry":
                 attempt_idx += 1
+                if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
+                    new_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=attempt_idx+1)
+                    # Append endast nya attempt (endast den senaste attempten):
+                    attempt_results.extend(new_results[len(attempt_results):])
+
                 continue
             if review_result == "all_ignored":
                 attempt_idx += 1
@@ -1338,13 +1353,15 @@ def main():
     def preprocess_worker():
         try:
             for path in images_to_process:
-                print(f"\n[PREPROCESS] {path.name}")
-                attempt_results = preprocess_image(path, known_faces, ignored_faces, config)
-                print("[PREPROCESS][RESULT]", attempt_results)
+                logging.debug(f"[PREPROCESS] {path.name}")
+                attempt_results = preprocess_image(path, known_faces, ignored_faces, config, max_attempts=1)
+                logging.debug(f"[PREPROCESS][RESULT] {attempt_results}")
+                logging.debug(f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} Antal attempts: {len(attempt_results)}")
                 preprocessed_queue.put((path, attempt_results))
+
             preprocess_done.set()
         except Exception as e:
-            print(f"[PREPROCESS][ERROR] {e}")
+            logging.debug(f"[PREPROCESS][ERROR] {e}")
             import traceback; traceback.print_exc()
 
     t = threading.Thread(target=preprocess_worker, daemon=True)
@@ -1353,6 +1370,7 @@ def main():
     # === STEG 2: Review-bearbeta, så fort en bild är klar ===
     for _ in range(len(images_to_process)):
         path, attempt_results = preprocessed_queue.get()  # Väntar tills preprocess klar för denna
+        logging.debug(f"[QUEUE GET] Hämtar från kö: {path.name} Antal attempts: {len(attempt_results)}")
         print(f"\n=== Bearbetar: {path.name} ===")
         result = main_process_image_loop(path, known_faces, ignored_faces, config, attempt_results)
         if result in (True, "skipped", "no_faces"):
