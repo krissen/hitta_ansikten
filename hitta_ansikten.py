@@ -40,6 +40,7 @@ logging.basicConfig(
 )
 
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
+MAX_ATTEMPTS = 3
 
 
 # === Standardkonfiguration ===
@@ -877,7 +878,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
     labels_per_attempt = []
     has_had_faces = False
     # Hårdkodad maxgräns om du vill
-    max_possible_attempts = config.get("max_attempts", 3)
+    max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
 
     while attempt_idx < len(attempt_results):
         logging.debug(f"[NLOOP] attempt_idx={attempt_idx}, len(attempt_results)={len(attempt_results)}")
@@ -1235,6 +1236,8 @@ def main():
 
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
+    max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
+
 
     def is_file_processed(path):
         """Kolla om filen redan är processad, genom namn eller hash."""
@@ -1353,16 +1356,35 @@ def main():
     def preprocess_worker():
         try:
             for path in images_to_process:
-                logging.debug(f"[PREPROCESS] {path.name}")
-                attempt_results = preprocess_image(path, known_faces, ignored_faces, config, max_attempts=1)
-                logging.debug(f"[PREPROCESS][RESULT] {attempt_results}")
-                logging.debug(f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} Antal attempts: {len(attempt_results)}")
+                logging.debug(f"[PREPROCESS] Startar för {path.name}")
+                attempt_results = []
+                for attempt_idx in range(1, max_possible_attempts + 1):
+                    # Hämta försök upp till attempt_idx (alltid inkluderar alla tidigare)
+                    partial_results = preprocess_image(
+                        path, known_faces, ignored_faces, config, max_attempts=attempt_idx
+                    )
+                    # Lägg endast till nya attempts (de som inte redan finns)
+                    new_attempts = partial_results[len(attempt_results):]
+                    attempt_results.extend(new_attempts)
+                    logging.debug(
+                        f"[PREPROCESS][ATTEMPT {attempt_idx}] För {path.name}: "
+                        f"nytt antal attempts: {len(attempt_results)}"
+                    )
+                    # Om senaste attempt gav ansikten, avbryt attempts för denna bild
+                    if new_attempts and new_attempts[-1]["faces_found"] > 0:
+                        break
+                logging.debug(
+                    f"[PREPROCESS][RESULT] {path.name}, total attempts: {len(attempt_results)}"
+                )
+                logging.debug(
+                    f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} Antal attempts: {len(attempt_results)}"
+                )
                 preprocessed_queue.put((path, attempt_results))
-
             preprocess_done.set()
         except Exception as e:
             logging.debug(f"[PREPROCESS][ERROR] {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+            traceback.print_exc()
 
     t = threading.Thread(target=preprocess_worker, daemon=True)
     t.start()
