@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import math
+import multiprocessing
 import os
 import re
 import signal
@@ -129,7 +130,6 @@ def export_and_show_original(image_path, config):
     Visar bilden i bildvisaren (om du vill).
     """
     import json
-    import time
     from pathlib import Path
 
     import rawpy
@@ -532,6 +532,28 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
         return "all_ignored", []
     return "ok", labels
 
+def box_overlaps_with_buffer(b1, b2, buffer=40):
+    l1, t1, r1, b1_ = b1
+    l2, t2, r2, b2_ = b2
+    return not (r1 + buffer <= l2 - buffer or
+                l1 - buffer >= r2 + buffer or
+                b1_ + buffer <= t2 - buffer or
+                t1 - buffer >= b2_ + buffer)
+
+def robust_word_wrap(label_text, max_label_width, draw, font):
+    lines = []
+    text = label_text
+    while text:
+        for cut in range(len(text), 0, -1):
+            trial = text[:cut]
+            bbox = draw.textbbox((0, 0), trial, font=font)
+            line_width = bbox[2] - bbox[0]
+            if line_width <= max_label_width or cut == 1:
+                lines.append(trial.strip())
+                text = text[cut:].lstrip()
+                break
+    return lines
+
 
 # === Funktion för att skapa tempbild med etiketter ===
 def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
@@ -550,28 +572,6 @@ def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
     buffer = 40  # px skyddszon runt alla lådor
 
     # Hjälpfunktioner
-    def box_overlaps_with_buffer(b1, b2, buffer=40):
-        l1, t1, r1, b1_ = b1
-        l2, t2, r2, b2_ = b2
-        return not (r1 + buffer <= l2 - buffer or
-                    l1 - buffer >= r2 + buffer or
-                    b1_ + buffer <= t2 - buffer or
-                    t1 - buffer >= b2_ + buffer)
-
-    def robust_word_wrap(label_text, max_label_width, draw, font):
-        lines = []
-        text = label_text
-        while text:
-            for cut in range(len(text), 0, -1):
-                trial = text[:cut]
-                bbox = draw.textbbox((0, 0), trial, font=font)
-                line_width = bbox[2] - bbox[0]
-                if line_width <= max_label_width or cut == 1:
-                    lines.append(trial.strip())
-                    text = text[cut:].lstrip()
-                    break
-        return lines
-
     # Dummy draw for measuring text size
     draw_temp = ImageDraw.Draw(Image.new("RGB", (orig_width, orig_height)), "RGBA")
     placements = []
@@ -819,7 +819,6 @@ def remove_encodings_for_file(known_faces, ignored_faces, identifier):
     return removed
 
 def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=3):
-    import time
     logging.debug("preprocess_image: START")
 
     max_down = config.get("max_downsample_px")
@@ -1208,11 +1207,77 @@ Notera:
 signal.signal(signal.SIGINT, signal_handler)
 
 
+def is_file_processed(path, processed_files):
+    """Kolla om filen redan är processad, genom namn eller hash."""
+    path_name = path.name
+    path_hash = None
+    try:
+        with open(path, "rb") as f:
+            import hashlib
+            path_hash = hashlib.sha1(f.read()).hexdigest()
+    except Exception:
+        pass
+    for entry in processed_files:
+        ename = entry.get("name") if isinstance(entry, dict) else entry
+        ehash = entry.get("hash") if isinstance(entry, dict) else None
+        if path_hash and ehash and ehash == path_hash:
+            return True
+        if ename == path_name:
+            return True
+    return False
+
+def add_to_processed_files(path, processed_files):
+    """Lägg till en ny fil sist i listan, med både hash och namn."""
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            h = hashlib.sha1(f.read()).hexdigest()
+    except Exception:
+        h = None
+    processed_files.append({"name": path.name, "hash": h})
+
+def preprocess_worker(
+    known_faces, ignored_faces, images_to_process,
+    config, max_possible_attempts,
+    preprocessed_queue, preprocess_done
+):
+    try:
+        # Skapa kopior av face-dictarna för bakgrundstråden
+        faces_copy = copy.deepcopy(known_faces)
+        ignored_copy = copy.deepcopy(ignored_faces)
+        for path in images_to_process:
+            logging.debug(f"[PREPROCESS] Startar för {path.name}")
+            attempt_results = []
+            for attempt_idx in range(1, max_possible_attempts + 1):
+                # Hämta försök upp till attempt_idx (alltid inkluderar alla tidigare)
+                partial_results = preprocess_image(
+                    path, known_faces, ignored_faces, config, max_attempts=attempt_idx
+                )
+                # Lägg endast till nya attempts (de som inte redan finns)
+                new_attempts = partial_results[len(attempt_results):]
+                attempt_results.extend(new_attempts)
+                logging.debug(
+                    f"[PREPROCESS][ATTEMPT {attempt_idx}] För {path.name}: "
+                    f"nytt antal attempts: {len(attempt_results)}"
+                )
+                # Om senaste attempt gav ansikten, avbryt attempts för denna bild
+                if new_attempts and new_attempts[-1]["faces_found"] > 0:
+                    break
+            logging.debug(
+                f"[PREPROCESS][RESULT] {path.name}, total attempts: {len(attempt_results)}"
+            )
+            logging.debug(
+                f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} Antal attempts: {len(attempt_results)}"
+            )
+            preprocessed_queue.put((path, attempt_results))
+        preprocess_done.set()
+    except Exception as e:
+        logging.debug(f"[PREPROCESS][ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+
 # === Entry point ===
 def main():
-    import queue
-    import threading
-
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
         print_help()
         sys.exit(0)
@@ -1258,34 +1323,6 @@ def main():
     max_queue = config.get("max_queue", MAX_QUEUE)
 
 
-    def is_file_processed(path):
-        """Kolla om filen redan är processad, genom namn eller hash."""
-        path_name = path.name
-        path_hash = None
-        try:
-            with open(path, "rb") as f:
-                import hashlib
-                path_hash = hashlib.sha1(f.read()).hexdigest()
-        except Exception:
-            pass
-        for entry in processed_files:
-            ename = entry.get("name") if isinstance(entry, dict) else entry
-            ehash = entry.get("hash") if isinstance(entry, dict) else None
-            if path_hash and ehash and ehash == path_hash:
-                return True
-            if ename == path_name:
-                return True
-        return False
-
-    def add_to_processed_files(path):
-        """Lägg till en ny fil sist i listan, med både hash och namn."""
-        import hashlib
-        try:
-            with open(path, "rb") as f:
-                h = hashlib.sha1(f.read()).hexdigest()
-        except Exception:
-            h = None
-        processed_files.append({"name": path.name, "hash": h})
 
     # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
     if rename_mode:
@@ -1298,7 +1335,7 @@ def main():
         to_process = []
         if not only_processed:
             for path in input_paths:
-                if not is_file_processed(path):
+                if not is_file_processed(path, processed_files):
                     to_process.append(path)
             if to_process:
                 print(f"\nBearbetar {len(to_process)} nya filer innan omdöpning...")
@@ -1306,10 +1343,10 @@ def main():
                 print(f"\n=== Bearbetar: {path.name} ===")
                 result = process_image(path, known_faces, ignored_faces, config)
                 if result is True or result == "skipped":
-                    add_to_processed_files(path)
+                    add_to_processed_files(path, processed_files)
                     save_database(known_faces, ignored_faces, processed_files)
         else:
-            not_proc = [p for p in input_paths if not is_file_processed(p)]
+            not_proc = [p for p in input_paths if not is_file_processed(p, processed_files)]
             if not_proc:
                 print("⚠️  Dessa filer har ej processats än och kommer inte döpas om:")
                 for p in not_proc:
@@ -1345,7 +1382,7 @@ def main():
                 print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
             result = process_image(path, known_faces, ignored_faces, config)
             if result is True or result == "skipped":
-                add_to_processed_files(path)
+                add_to_processed_files(path, processed_files)
                 save_database(known_faces, ignored_faces, processed_files)
         if n_found == 0:
             print("Inga matchande bildfiler hittades.")
@@ -1360,7 +1397,7 @@ def main():
         if not path.exists():
             continue
         n_found += 1
-        if is_file_processed(path):
+        if is_file_processed(path, processed_files):
             print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
             continue
         images_to_process.append(path)
@@ -1369,47 +1406,26 @@ def main():
         sys.exit(1)
 
     # === STEG 1: Starta preprocess-kö i separat tråd ===
-    preprocessed_queue = queue.Queue(maxsize=max_queue)  # Liten kö, lagom för "köad1"
-    preprocess_done = threading.Event()
+    preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)  # Liten kö, lagom för "köad1"
+    preprocess_done = multiprocessing.Event()
 
-    def preprocess_worker():
-        try:
-            # Skapa kopior av face-dictarna för bakgrundstråden
-            faces_copy = copy.deepcopy(known_faces)
-            ignored_copy = copy.deepcopy(ignored_faces)
-            for path in images_to_process:
-                logging.debug(f"[PREPROCESS] Startar för {path.name}")
-                attempt_results = []
-                for attempt_idx in range(1, max_possible_attempts + 1):
-                    # Hämta försök upp till attempt_idx (alltid inkluderar alla tidigare)
-                    partial_results = preprocess_image(
-                        path, known_faces, ignored_faces, config, max_attempts=attempt_idx
-                    )
-                    # Lägg endast till nya attempts (de som inte redan finns)
-                    new_attempts = partial_results[len(attempt_results):]
-                    attempt_results.extend(new_attempts)
-                    logging.debug(
-                        f"[PREPROCESS][ATTEMPT {attempt_idx}] För {path.name}: "
-                        f"nytt antal attempts: {len(attempt_results)}"
-                    )
-                    # Om senaste attempt gav ansikten, avbryt attempts för denna bild
-                    if new_attempts and new_attempts[-1]["faces_found"] > 0:
-                        break
-                logging.debug(
-                    f"[PREPROCESS][RESULT] {path.name}, total attempts: {len(attempt_results)}"
-                )
-                logging.debug(
-                    f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} Antal attempts: {len(attempt_results)}"
-                )
-                preprocessed_queue.put((path, attempt_results))
-            preprocess_done.set()
-        except Exception as e:
-            logging.debug(f"[PREPROCESS][ERROR] {e}")
-            import traceback
-            traceback.print_exc()
 
-    t = threading.Thread(target=preprocess_worker, daemon=True)
-    t.start()
+
+    # t = threading.Thread(target=preprocess_worker, daemon=True)
+    # t.start()
+    p = multiprocessing.Process(
+        target=preprocess_worker,
+        args=(
+            known_faces,
+            ignored_faces,
+            images_to_process,
+            config,
+            max_possible_attempts,
+            preprocessed_queue,
+            preprocess_done
+        )
+    )
+    p.start()
 
     # === STEG 2: Review-bearbeta, så fort en bild är klar ===
     for _ in range(len(images_to_process)):
@@ -1418,10 +1434,8 @@ def main():
         print(f"\n=== Bearbetar: {path.name} ===")
         result = main_process_image_loop(path, known_faces, ignored_faces, config, attempt_results)
         if result in (True, "skipped", "no_faces"):
-            add_to_processed_files(path)
+            add_to_processed_files(path, processed_files)
             save_database(known_faces, ignored_faces, processed_files)
-        preprocessed_queue.task_done()
-    preprocess_done.wait()  # Se till att preprocess är helt klart
 
     print("✅ Alla bilder färdigbehandlade.")
 
