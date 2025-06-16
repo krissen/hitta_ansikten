@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
+import copy
 import fnmatch
 import hashlib
 import json
+import logging
 import math
+import multiprocessing
 import os
 import re
 import signal
@@ -18,6 +21,8 @@ from pathlib import Path
 from faceid_db import load_attempt_log, load_database, save_database
 
 warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
+import logging
+
 import face_recognition
 import matplotlib.font_manager as fm
 import numpy as np
@@ -28,6 +33,18 @@ from prompt_toolkit.completion import WordCompleter
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
                        CONFIG_PATH, SUPPORTED_EXT)
+
+logging.basicConfig(
+    filename="/tmp/hitta_ansikten_debug.log",
+    filemode="a",
+    format="%(asctime)s %(levelname)s: %(message)s",
+    level=logging.DEBUG
+)
+
+ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
+MAX_ATTEMPTS = 3
+MAX_QUEUE = 10
+
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -113,7 +130,6 @@ def export_and_show_original(image_path, config):
     Visar bilden i bildvisaren (om du vill).
     """
     import json
-    import time
     from pathlib import Path
 
     import rawpy
@@ -141,6 +157,7 @@ def export_and_show_original(image_path, config):
 
 
 def show_temp_image(preview_path, config, last_shown=[None]):
+    import subprocess
     viewer_app = config.get("image_viewer_app")
     status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "status.json"
     expected_path = str(Path(preview_path).resolve())
@@ -153,6 +170,8 @@ def show_temp_image(preview_path, config, last_shown=[None]):
                 status = json.load(f)
             if status.get("app_status") == "running" and os.path.samefile(status.get("file_path", ""), expected_path):
                 should_open = False  # Bildvisare kör redan och visar rätt fil
+                logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
+
             elif status.get("app_status") == "exited":
                 should_open = True
             else:
@@ -161,9 +180,11 @@ def show_temp_image(preview_path, config, last_shown=[None]):
             should_open = True
 
     if should_open:
-        os.system(f"open -a '{viewer_app}' '{preview_path}'")
+        logging.debug(f"[BILDVISARE] Öppnar bild i visare: {expected_path}")
+        subprocess.Popen(["open", "-a", viewer_app, preview_path])
         last_shown[0] = preview_path
     else:
+        logging.debug(f"[BILDVISARE] Hoppar över open; rätt bild visas redan: {expected_path}")
         last_shown[0] = preview_path
 
 
@@ -297,7 +318,7 @@ def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, conf
         labels.append(label)
     return labels
 
-def user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path=None):
+def user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path=None, preview_path=None):
     labels = []
     all_ignored = True
     retry_requested = False
@@ -334,6 +355,9 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
 
             while True:
                 ans = safe_input(prompt_txt).strip().lower()
+                if ans == "o" and preview_path is not None:
+                    show_temp_image(preview_path, config)
+                    continue
                 if ans == "o" and image_path is not None:
                     export_and_show_original(image_path, config)
                     continue
@@ -508,9 +532,31 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
         return "all_ignored", []
     return "ok", labels
 
+def box_overlaps_with_buffer(b1, b2, buffer=40):
+    l1, t1, r1, b1_ = b1
+    l2, t2, r2, b2_ = b2
+    return not (r1 + buffer <= l2 - buffer or
+                l1 - buffer >= r2 + buffer or
+                b1_ + buffer <= t2 - buffer or
+                t1 - buffer >= b2_ + buffer)
+
+def robust_word_wrap(label_text, max_label_width, draw, font):
+    lines = []
+    text = label_text
+    while text:
+        for cut in range(len(text), 0, -1):
+            trial = text[:cut]
+            bbox = draw.textbbox((0, 0), trial, font=font)
+            line_width = bbox[2] - bbox[0]
+            if line_width <= max_label_width or cut == 1:
+                lines.append(trial.strip())
+                text = text[cut:].lstrip()
+                break
+    return lines
+
 
 # === Funktion för att skapa tempbild med etiketter ===
-def create_labeled_image(rgb_image, face_locations, labels, config):
+def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
 
     from PIL import Image
 
@@ -526,28 +572,6 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
     buffer = 40  # px skyddszon runt alla lådor
 
     # Hjälpfunktioner
-    def box_overlaps_with_buffer(b1, b2, buffer=40):
-        l1, t1, r1, b1_ = b1
-        l2, t2, r2, b2_ = b2
-        return not (r1 + buffer <= l2 - buffer or
-                    l1 - buffer >= r2 + buffer or
-                    b1_ + buffer <= t2 - buffer or
-                    t1 - buffer >= b2_ + buffer)
-
-    def robust_word_wrap(label_text, max_label_width, draw, font):
-        lines = []
-        text = label_text
-        while text:
-            for cut in range(len(text), 0, -1):
-                trial = text[:cut]
-                bbox = draw.textbbox((0, 0), trial, font=font)
-                line_width = bbox[2] - bbox[0]
-                if line_width <= max_label_width or cut == 1:
-                    lines.append(trial.strip())
-                    text = text[cut:].lstrip()
-                    break
-        return lines
-
     # Dummy draw for measuring text size
     draw_temp = ImageDraw.Draw(Image.new("RGB", (orig_width, orig_height)), "RGBA")
     placements = []
@@ -665,10 +689,13 @@ def create_labeled_image(rgb_image, face_locations, labels, config):
         label_cy = ly + p["text_height"] // 2
         draw.line([(face_cx, face_cy), (label_cx, label_cy)], fill="yellow", width=2)
 
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False):
-        temp_name = config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg")
-        canvas.save(temp_name, format="JPEG")
-        return temp_name
+    temp_dir = os.path.dirname(config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg"))
+    temp_prefix = "hitta_ansikten_preview"
+    temp_suffix = f"{suffix}.jpg" if suffix else ".jpg"
+
+    with tempfile.NamedTemporaryFile(prefix=temp_prefix, suffix=temp_suffix, dir=temp_dir, delete=False) as tmp:
+        canvas.save(tmp.name, format="JPEG")
+        return tmp.name
 
 # === Beräkna avstånd till kända encodings ===
 def best_matches(encoding, known_faces, ignored_faces, config):
@@ -717,11 +744,17 @@ def load_and_resize_raw(image_path, max_dim=None):
     return rgb
 
 def face_detection_attempt(rgb, model, upsample):
+    t0 = time.time()
+    logging.debug(f"[FACEDETECT] begins : model={model}, upsample={upsample}, time {t0}")
     face_locations = face_recognition.face_locations(
         rgb, model=model, number_of_times_to_upsample=upsample
     )
+    t1 = time.time()
     face_locations = sorted(face_locations, key=lambda loc: loc[3])
+    logging.debug(f"[FACEDETECT] Have locations at time {t1}")
     face_encodings = face_recognition.face_encodings(rgb, face_locations)
+    t2 = time.time()
+    logging.debug(f"[FACEDETECT] Have encodings at time {t2}")
     return face_locations, face_encodings
 
 def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › "):
@@ -785,42 +818,48 @@ def remove_encodings_for_file(known_faces, ignored_faces, identifier):
                 removed += 1
     return removed
 
+def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=3):
+    logging.debug("preprocess_image: START")
 
-def main_process_image_loop(image_path, known_faces, ignored_faces, config):
-    # Tre upplösningar: låg, mellan, hög
-    max_down = config.get("max_downsample_px")
-    max_mid = config.get("max_midsample_px")
-    max_full = config.get("max_fullres_px")
-    rgb_down = load_and_resize_raw(image_path, max_down)
-    rgb_mid = load_and_resize_raw(image_path, max_mid)
-    rgb_full = load_and_resize_raw(image_path, max_full)
-    attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+    try:
+        max_down = config.get("max_downsample_px")
+        max_mid = config.get("max_midsample_px")
+        max_full = config.get("max_fullres_px")
+        logging.debug(" Före load_and_resize_raw: down")
+        rgb_down = load_and_resize_raw(image_path, max_down)
+        logging.debug(" Före load_and_resize_raw: mid")
+        rgb_mid = load_and_resize_raw(image_path, max_mid)
+        logging.debug(" Före load_and_resize_raw: full")
+        rgb_full = load_and_resize_raw(image_path, max_full)
 
-    shown_image = False
-    attempt_idx = 0
-    attempts_stats = []
-    used_attempt = None
-    review_results = []
-    labels_per_attempt = []
-    has_had_faces = False
+        logging.debug(" Före get_attempt_settings")
+        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+        logging.debug(" Efter get_attempt_settings")
+    except Exception as e:
+        logging.warning(f"[RAWREAD][SKIP] Kunde inte öppna {image_path}: {e}")
+        return []   # eller returnera vad du vill (tom lista signalerar 'skip')
 
-    while attempt_idx < len(attempt_settings):
-        setting = attempt_settings[attempt_idx]
+    attempt_results = []
+    for attempt_idx, setting in enumerate(attempt_settings):
+        logging.debug(f" Attempt {attempt_idx}: start")
         rgb = setting["rgb_img"]
         t0 = time.time()
-        print(
-            f"⚙️  Försök {attempt_idx + 1}: model={setting['model']}, upsample={setting['upsample']}, "
-            f"scale={setting['scale_label']} ({setting['scale_px']}px)"
-        )
+        logging.debug(f" Attempt {attempt_idx}: face_detection_attempt")
         face_locations, face_encodings = face_detection_attempt(
             rgb, setting["model"], setting["upsample"]
         )
-        elapsed = time.time() - t0
-        print(
-            f"    [DEBUG] Försök {attempt_idx + 1}: {setting['model']}, upsample={setting['upsample']}, "
-            f"scale={setting['scale_label']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
+        logging.debug(f" Attempt {attempt_idx}: label_preview_for_encodings")
+        preview_labels = label_preview_for_encodings(
+            face_encodings, known_faces, ignored_faces, config
         )
-        attempts_stats.append({
+        logging.debug(f" Attempt {attempt_idx}: create_labeled_image")
+        preview_path = create_labeled_image(
+            rgb, face_locations, preview_labels, config, suffix=f"_preview_{attempt_idx}"
+        )
+        elapsed = time.time() - t0
+        logging.debug(f" Attempt {attempt_idx}: done ({elapsed:.2f}s)")
+
+        attempt_results.append({
             "attempt_index": attempt_idx,
             "model": setting["model"],
             "upsample": setting["upsample"],
@@ -828,38 +867,88 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             "scale_px": setting["scale_px"],
             "time_seconds": round(elapsed, 3),
             "faces_found": len(face_encodings),
+            "face_locations": face_locations,
+            "face_encodings": face_encodings,
+            "preview_labels": preview_labels,
+            "preview_path": preview_path,
+        })
+
+        if attempt_idx + 1 >= max_attempts:
+            break
+
+    logging.debug(" preprocess_image: END")
+    return attempt_results
+
+
+def main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results):
+    """
+    Review-loop för en redan preprocessad bild (med attempt_results).
+    """
+    attempt_idx = 0
+    attempts_stats = []
+    used_attempt = None
+    review_results = []
+    labels_per_attempt = []
+    has_had_faces = False
+    # Hårdkodad maxgräns om du vill
+    max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
+
+    while attempt_idx < len(attempt_results):
+        logging.debug(f"[NLOOP] attempt_idx={attempt_idx}, len(attempt_results)={len(attempt_results)}")
+
+        res = attempt_results[attempt_idx]
+        print(
+            f"⚙️  Försök {attempt_idx + 1}: model={res['model']}, upsample={res['upsample']}, "
+            f"scale={res['scale_label']} ({res['scale_px']}px)"
+        )
+        face_encodings = res["face_encodings"]
+        face_locations = res["face_locations"]
+        preview_path = res["preview_path"]
+        preview_labels = res["preview_labels"]
+        elapsed = res["time_seconds"]
+
+        print(
+            f"    [DEBUG] Försök {attempt_idx + 1}: {res['model']}, upsample={res['upsample']}, "
+            f"scale={res['scale_label']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
+        )
+        attempts_stats.append({
+            "attempt_index": attempt_idx,
+            "model": res["model"],
+            "upsample": res["upsample"],
+            "scale_label": res["scale_label"],
+            "scale_px": res["scale_px"],
+            "time_seconds": elapsed,
+            "faces_found": len(face_encodings),
         })
 
         if face_encodings:
             has_had_faces = True
 
-            # --- Visa alltid bildvisare med *preview*-labels FÖRE prompten ---
-            preview_labels = label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config)
-            preview_path = create_labeled_image(
-                rgb, face_locations, preview_labels, config
+            import shutil
+            ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
+            try:
+                shutil.copy(preview_path, ORDINARY_PREVIEW_PATH)
+            except Exception as e:
+                print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
+            show_temp_image(ORDINARY_PREVIEW_PATH, config)
+
+            review_result, labels = user_review_encodings(
+                face_encodings, known_faces, ignored_faces, config, image_path
             )
-            show_temp_image(preview_path, config)
-
-            # --- Prompt och hantering ---
-            review_result, labels = user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path)
-
-            # (valfritt: visa bild igen efter prompt, med labels om du vill – men vanligast är att bara ha preview här)
-
             review_results.append(review_result)
             labels_per_attempt.append(labels)
 
             if review_result == "skipped":
                 log_attempt_stats(
-                    image_path,
-                    attempts_stats,
-                    used_attempt,
-                    BASE_DIR,
-                    review_results=review_results,
-                    labels_per_attempt=labels_per_attempt
+                    image_path, attempts_stats, used_attempt, BASE_DIR,
+                    review_results=review_results, labels_per_attempt=labels_per_attempt
                 )
                 return "skipped"
             if review_result == "retry":
                 attempt_idx += 1
+                if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
+                    new_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=attempt_idx+1)
+                    attempt_results.extend(new_results[len(attempt_results):])
                 continue
             if review_result == "all_ignored":
                 attempt_idx += 1
@@ -867,51 +956,55 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config):
             if review_result == "ok":
                 used_attempt = attempt_idx
                 log_attempt_stats(
-                    image_path,
-                    attempts_stats,
-                    used_attempt,
-                    BASE_DIR,
-                    review_results=review_results,
-                    labels_per_attempt=labels_per_attempt
+                    image_path, attempts_stats, used_attempt, BASE_DIR,
+                    review_results=review_results, labels_per_attempt=labels_per_attempt
                 )
                 return True
         else:
+            import shutil
+            ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
             # Om inga ansikten hittades i attempt – logga ändå
             review_results.append("no_faces")
             labels_per_attempt.append([])
 
-        if not shown_image and not has_had_faces:
-            temp_path = create_labeled_image(rgb, [], ["INGA ANSIKTEN"], config)
-            show_temp_image(temp_path, config)
+            temp_path = res["preview_path"]
+
+            try:
+                shutil.copy(temp_path, ORDINARY_PREVIEW_PATH)
+            except Exception as e:
+                print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
+            show_temp_image(ORDINARY_PREVIEW_PATH, config)
             shown_image = True
-            ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, x = hoppa över] › ").strip().lower()
+            show_temp_image(temp_path, config)
+            ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över] › ").strip().lower()
             if ans == "x":
                 log_attempt_stats(
-                    image_path,
-                    attempts_stats,
-                    used_attempt,
-                    BASE_DIR,
-                    review_results=review_results,
-                    labels_per_attempt=labels_per_attempt
+                    image_path, attempts_stats, used_attempt, BASE_DIR,
+                    review_results=review_results, labels_per_attempt=labels_per_attempt
                 )
                 return "skipped"
+            elif ans == "n" or ans == "":
+                attempt_idx += 1
+                if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
+                    logging.debug(f"[NLOOP] Genererar nytt attempt, idx={attempt_idx}")
+                    new_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=attempt_idx+1)
+                    attempt_results.extend(new_results[len(attempt_results):])
+                continue
 
         attempt_idx += 1
 
     print("⏭ Inga ansikten kunde hittas i {} , hoppar över.".format(image_path.name))
     log_attempt_stats(
-        image_path,
-        attempts_stats,
-        None,
-        BASE_DIR,
-        review_results=review_results,
-        labels_per_attempt=labels_per_attempt
+        image_path, attempts_stats, None, BASE_DIR,
+        review_results=review_results, labels_per_attempt=labels_per_attempt
     )
     return "no_faces"
 
 
 def process_image(image_path, known_faces, ignored_faces, config):
-    return main_process_image_loop(image_path, known_faces, ignored_faces, config)
+    attempt_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=1)
+
+    return main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results)
 
 
 def extract_prefix_suffix(fname):
@@ -1119,9 +1212,77 @@ Notera:
 signal.signal(signal.SIGINT, signal_handler)
 
 
+def is_file_processed(path, processed_files):
+    """Kolla om filen redan är processad, genom namn eller hash."""
+    path_name = path.name
+    path_hash = None
+    try:
+        with open(path, "rb") as f:
+            import hashlib
+            path_hash = hashlib.sha1(f.read()).hexdigest()
+    except Exception:
+        pass
+    for entry in processed_files:
+        ename = entry.get("name") if isinstance(entry, dict) else entry
+        ehash = entry.get("hash") if isinstance(entry, dict) else None
+        if path_hash and ehash and ehash == path_hash:
+            return True
+        if ename == path_name:
+            return True
+    return False
+
+def add_to_processed_files(path, processed_files):
+    """Lägg till en ny fil sist i listan, med både hash och namn."""
+    import hashlib
+    try:
+        with open(path, "rb") as f:
+            h = hashlib.sha1(f.read()).hexdigest()
+    except Exception:
+        h = None
+    processed_files.append({"name": path.name, "hash": h})
+
+def preprocess_worker(
+    known_faces, ignored_faces, images_to_process,
+    config, max_possible_attempts,
+    preprocessed_queue, preprocess_done
+):
+    try:
+        # Skapa kopior av face-dictarna för bakgrundstråden
+        faces_copy = copy.deepcopy(known_faces)
+        ignored_copy = copy.deepcopy(ignored_faces)
+        for path in images_to_process:
+            logging.debug(f"[PREPROCESS] Startar för {path.name}")
+            attempt_results = []
+            for attempt_idx in range(1, max_possible_attempts + 1):
+                # Hämta försök upp till attempt_idx (alltid inkluderar alla tidigare)
+                partial_results = preprocess_image(
+                    path, known_faces, ignored_faces, config, max_attempts=attempt_idx
+                )
+                # Lägg endast till nya attempts (de som inte redan finns)
+                new_attempts = partial_results[len(attempt_results):]
+                attempt_results.extend(new_attempts)
+                logging.debug(
+                    f"[PREPROCESS][ATTEMPT {attempt_idx}] För {path.name}: "
+                    f"nytt antal attempts: {len(attempt_results)}"
+                )
+                # Om senaste attempt gav ansikten, avbryt attempts för denna bild
+                if new_attempts and new_attempts[-1]["faces_found"] > 0:
+                    break
+            logging.debug(
+                f"[PREPROCESS][RESULT] {path.name}, total attempts: {len(attempt_results)}"
+            )
+            logging.debug(
+                f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} Antal attempts: {len(attempt_results)}"
+            )
+            preprocessed_queue.put((path, attempt_results))
+        preprocess_done.set()
+    except Exception as e:
+        logging.debug(f"[PREPROCESS][ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+
 # === Entry point ===
 def main():
-
     if any(arg in ("-h", "--help") for arg in sys.argv[1:]):
         print_help()
         sys.exit(0)
@@ -1136,7 +1297,6 @@ def main():
         archive_stats_if_needed(current_sig, force=True)
         print("Arkivering utförd.")
         sys.exit(0)
-
     # Renamelogik
     rename_mode = False
     simulate = False
@@ -1164,35 +1324,10 @@ def main():
 
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
+    max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
+    max_queue = config.get("max_queue", MAX_QUEUE)
 
-    def is_file_processed(path):
-        """Kolla om filen redan är processad, genom namn eller hash."""
-        path_name = path.name
-        path_hash = None
-        try:
-            with open(path, "rb") as f:
-                import hashlib
-                path_hash = hashlib.sha1(f.read()).hexdigest()
-        except Exception:
-            pass
-        for entry in processed_files:
-            ename = entry.get("name") if isinstance(entry, dict) else entry
-            ehash = entry.get("hash") if isinstance(entry, dict) else None
-            if path_hash and ehash and ehash == path_hash:
-                return True
-            if ename == path_name:
-                return True
-        return False
 
-    def add_to_processed_files(path):
-        """Lägg till en ny fil sist i listan, med både hash och namn."""
-        import hashlib
-        try:
-            with open(path, "rb") as f:
-                h = hashlib.sha1(f.read()).hexdigest()
-        except Exception:
-            h = None
-        processed_files.append({"name": path.name, "hash": h})
 
     # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
     if rename_mode:
@@ -1205,7 +1340,7 @@ def main():
         to_process = []
         if not only_processed:
             for path in input_paths:
-                if not is_file_processed(path):
+                if not is_file_processed(path, processed_files):
                     to_process.append(path)
             if to_process:
                 print(f"\nBearbetar {len(to_process)} nya filer innan omdöpning...")
@@ -1213,10 +1348,10 @@ def main():
                 print(f"\n=== Bearbetar: {path.name} ===")
                 result = process_image(path, known_faces, ignored_faces, config)
                 if result is True or result == "skipped":
-                    add_to_processed_files(path)
+                    add_to_processed_files(path, processed_files)
                     save_database(known_faces, ignored_faces, processed_files)
         else:
-            not_proc = [p for p in input_paths if not is_file_processed(p)]
+            not_proc = [p for p in input_paths if not is_file_processed(p, processed_files)]
             if not_proc:
                 print("⚠️  Dessa filer har ej processats än och kommer inte döpas om:")
                 for p in not_proc:
@@ -1252,7 +1387,7 @@ def main():
                 print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
             result = process_image(path, known_faces, ignored_faces, config)
             if result is True or result == "skipped":
-                add_to_processed_files(path)
+                add_to_processed_files(path, processed_files)
                 save_database(known_faces, ignored_faces, processed_files)
         if n_found == 0:
             print("Inga matchande bildfiler hittades.")
@@ -1260,19 +1395,55 @@ def main():
         return
 
     # --------- HUVUDFALL: BEARBETA ALLA EJ BEARBETADE ---------
-    input_paths = parse_inputs(args, SUPPORTED_EXT)
+    input_paths = list(parse_inputs(sys.argv[1:], SUPPORTED_EXT))
     n_found = 0
+    images_to_process = []
     for path in input_paths:
+        if not path.exists():
+            continue
         n_found += 1
-        if is_file_processed(path):
+        if is_file_processed(path, processed_files):
             print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
             continue
+        images_to_process.append(path)
+    if n_found == 0 or not images_to_process:
+        print("Inga matchande bildfiler hittades.")
+        sys.exit(1)
 
+    # === STEG 1: Starta preprocess-kö i separat tråd ===
+    preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)  # Liten kö, lagom för "köad1"
+    preprocess_done = multiprocessing.Event()
+
+
+
+    # t = threading.Thread(target=preprocess_worker, daemon=True)
+    # t.start()
+    p = multiprocessing.Process(
+        target=preprocess_worker,
+        args=(
+            known_faces,
+            ignored_faces,
+            images_to_process,
+            config,
+            max_possible_attempts,
+            preprocessed_queue,
+            preprocess_done
+        )
+    )
+    p.start()
+
+    # === STEG 2: Review-bearbeta, så fort en bild är klar ===
+    for _ in range(len(images_to_process)):
+        path, attempt_results = preprocessed_queue.get()  # Väntar tills preprocess klar för denna
+        logging.debug(f"[QUEUE GET] Hämtar från kö: {path.name} Antal attempts: {len(attempt_results)}")
         print(f"\n=== Bearbetar: {path.name} ===")
-        result = process_image(path, known_faces, ignored_faces, config)
+        result = main_process_image_loop(path, known_faces, ignored_faces, config, attempt_results)
         if result in (True, "skipped", "no_faces"):
-            add_to_processed_files(path)
+            add_to_processed_files(path, processed_files)
             save_database(known_faces, ignored_faces, processed_files)
+
+    print("✅ Alla bilder färdigbehandlade.")
+
     if n_found == 0:
         print("Inga matchande bildfiler hittades.")
         sys.exit(1)
