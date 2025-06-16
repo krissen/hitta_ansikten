@@ -210,7 +210,7 @@ def render_dashboard(stats):
     faces_panel = faces_grid_panel(stats)
     ignored, total, frac = calc_ignored_fraction(stats)
     ignored_panel = Panel(f"Ignorerade ansikten: {ignored}/{total} ({frac:.1%})", title="Andel ignorerade")
-    pie_panel = Panel(pie_chart_attempts(stats), title="Fördelning av attempts (Pie-chart)")
+    Panel(pie_chart_attempts(stats), title="Fördelning av attempts (Pie-chart)")
     latest_panel = Panel(latest_images_with_names(stats, n=3), title="Senaste 3 bilder (namn)")
     # Layout med ratio för allt utom ignored_panel
     outer = Layout()

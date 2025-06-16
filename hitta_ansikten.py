@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+# ruff: noqa: E402
+
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
 
 import copy
 import fnmatch
@@ -14,14 +19,8 @@ import sys
 import tempfile
 import time
 import unicodedata
-import warnings
 from datetime import datetime
 from pathlib import Path
-
-from faceid_db import load_attempt_log, load_database, save_database
-
-warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
-import logging
 
 import face_recognition
 import matplotlib.font_manager as fm
@@ -32,15 +31,10 @@ from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
-                       CONFIG_PATH, SUPPORTED_EXT)
+                       CONFIG_PATH, SUPPORTED_EXT, load_attempt_log,
+                       load_database, save_database)
 
-logging.basicConfig(
-    filename="/tmp/hitta_ansikten_debug.log",
-    filemode="a",
-    format="%(asctime)s %(levelname)s: %(message)s",
-    level=logging.DEBUG
-)
-
+# === CONSTANTS === #
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 3
 MAX_QUEUE = 10
@@ -889,7 +883,6 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
     used_attempt = None
     review_results = []
     labels_per_attempt = []
-    has_had_faces = False
     # Hårdkodad maxgräns om du vill
     max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
 
@@ -904,7 +897,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
         face_encodings = res["face_encodings"]
         face_locations = res["face_locations"]
         preview_path = res["preview_path"]
-        preview_labels = res["preview_labels"]
+        res["preview_labels"]
         elapsed = res["time_seconds"]
 
         print(
@@ -922,7 +915,6 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
         })
 
         if face_encodings:
-            has_had_faces = True
 
             import shutil
             ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
@@ -974,7 +966,6 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
             except Exception as e:
                 print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
             show_temp_image(ORDINARY_PREVIEW_PATH, config)
-            shown_image = True
             show_temp_image(temp_path, config)
             ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över] › ").strip().lower()
             if ans == "x":
@@ -1101,7 +1092,8 @@ def resolve_fornamn_dubletter(all_persons):
 
 def build_new_filename(fname, personer, namnmap):
     prefix, suffix = extract_prefix_suffix(fname)
-    if not (prefix and suffix): return None
+    if not (prefix and suffix):
+        return None
     fornamn_lista = []
     for namn in personer:
         kort = namnmap.get(namn)
@@ -1112,10 +1104,22 @@ def build_new_filename(fname, personer, namnmap):
     namnstr = ",_".join(fornamn_lista)
     return f"{prefix}_{namnstr}{suffix}"
 
-def is_file_processed(fname, processed_files):
-    """Returnerar True om fname (basename-sträng) eller hash finns i processed_files."""
+def is_file_processed(path, processed_files):
+    """Kolla om filen redan är processad, genom namn eller hash."""
+    path_name = path.name
+    path_hash = None
+    try:
+        with open(path, "rb") as f:
+            import hashlib
+            path_hash = hashlib.sha1(f.read()).hexdigest()
+    except Exception:
+        pass
     for entry in processed_files:
-        if isinstance(entry, dict) and entry.get("name") == fname:
+        ename = entry.get("name") if isinstance(entry, dict) else entry
+        ehash = entry.get("hash") if isinstance(entry, dict) else None
+        if path_hash and ehash and ehash == path_hash:
+            return True
+        if ename == path_name:
             return True
     return False
 
@@ -1212,25 +1216,6 @@ Notera:
 signal.signal(signal.SIGINT, signal_handler)
 
 
-def is_file_processed(path, processed_files):
-    """Kolla om filen redan är processad, genom namn eller hash."""
-    path_name = path.name
-    path_hash = None
-    try:
-        with open(path, "rb") as f:
-            import hashlib
-            path_hash = hashlib.sha1(f.read()).hexdigest()
-    except Exception:
-        pass
-    for entry in processed_files:
-        ename = entry.get("name") if isinstance(entry, dict) else entry
-        ehash = entry.get("hash") if isinstance(entry, dict) else None
-        if path_hash and ehash and ehash == path_hash:
-            return True
-        if ename == path_name:
-            return True
-    return False
-
 def add_to_processed_files(path, processed_files):
     """Lägg till en ny fil sist i listan, med både hash och namn."""
     import hashlib
@@ -1248,8 +1233,8 @@ def preprocess_worker(
 ):
     try:
         # Skapa kopior av face-dictarna för bakgrundstråden
-        faces_copy = copy.deepcopy(known_faces)
-        ignored_copy = copy.deepcopy(ignored_faces)
+        copy.deepcopy(known_faces)
+        copy.deepcopy(ignored_faces)
         for path in images_to_process:
             logging.debug(f"[PREPROCESS] Startar för {path.name}")
             attempt_results = []

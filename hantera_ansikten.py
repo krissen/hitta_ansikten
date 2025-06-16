@@ -6,8 +6,12 @@ from pathlib import Path
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from faceid_db import (load_attempt_log, load_database, load_processed_files,
-                       save_database)
+from faceid_db import (
+    load_attempt_log,
+    load_database,
+    load_processed_files,
+    save_database,
+)
 
 # === Verktygsfunktioner ===
 
@@ -165,7 +169,7 @@ def purge_last_x_for_name(known, ignored):
     name = ans
     try:
         x = int(input("Hur många senaste encodings vill du ta bort? ").strip())
-    except:
+    except ValueError:
         print("Ogiltigt antal.")
         return known, ignored
     if x < 1:
@@ -270,7 +274,7 @@ def main():
             else:
                 try:
                     count = int(n)
-                except:
+                except ValueError:
                     print("Ogiltigt antal.")
                     continue
                 if count < 1 or count > len(ignored):
