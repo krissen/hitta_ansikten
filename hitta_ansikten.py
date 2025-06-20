@@ -350,14 +350,14 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, label
         labels.append(label_obj)
     return namn, label_obj
 
-def user_review_encodings(face_encodings, known_faces,
-                          ignored_faces, config, image_path=None,
-                          preview_path=None, file_hash=None):
+def user_review_encodings(
+    face_encodings, known_faces, ignored_faces, config,
+    image_path=None, preview_path=None, file_hash=None
+):
     """
-    Terminal-review av hittade ansikten 
+    Terminal-review av hittade ansikten
     """
 
-    # Hämta file_hash om ej satt, direkt från image_path om möjligt
     if file_hash is None and image_path is not None:
         file_hash = get_file_hash(image_path)
 
@@ -371,10 +371,7 @@ def user_review_encodings(face_encodings, known_faces,
     def handle_answer(ans, actions, default=None):
         if ans in ("", "enter"):
             return default
-        for key, action in actions.items():
-            if ans == key:
-                return action
-        return None
+        return actions.get(ans)
 
     for i, encoding in enumerate(face_encodings):
         name = None
@@ -439,13 +436,13 @@ def user_review_encodings(face_encodings, known_faces,
 
         while True:
             if default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte."):
-                # ALLTID använd autocomplete för okänt ansikte!
                 new_name = input_name(list(known_faces.keys()), prompt_txt)
                 ans = new_name.strip()
                 action = "edit" if ans else default_action
             else:
                 ans = safe_input(prompt_txt).strip().lower()
                 action = handle_answer(ans, actions, default=default_action)
+
             if action == "show_original":
                 if image_path is not None:
                     export_and_show_original(image_path, config)
@@ -461,7 +458,6 @@ def user_review_encodings(face_encodings, known_faces,
                 retry_requested = True
                 break
             elif action == "edit":
-                # new_name är redan satt för okänt ansikte, annars hämta som vanligt
                 if not (default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte.")):
                     new_name = input_name(list(known_faces.keys()))
                 if new_name.lower() == "x":
@@ -881,144 +877,117 @@ def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempt
 
 def main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results):
     """
-    Review-loop för en redan preprocessad bild (med attempt_results).
+    Review-loop för EN attempt (sista) för en redan preprocessad bild.
     """
-    attempt_idx = 0
+    attempt_idx = len(attempt_results) - 1
     attempts_stats = []
     used_attempt = None
     review_results = []
     labels_per_attempt = []
     file_hash = get_file_hash(image_path)
-    # Hårdkodad maxgräns om du vill
     max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
 
-    while attempt_idx < len(attempt_results):
-        logging.debug(f"[NLOOP] attempt_idx={attempt_idx}, len(attempt_results)={len(attempt_results)}")
-
-        res = attempt_results[attempt_idx]
-        print(
-            f"⚙️  Försök {attempt_idx + 1}: model={res['model']}, upsample={res['upsample']}, "
-            f"scale={res['scale_label']} ({res['scale_px']}px)"
-        )
-        face_encodings = res["face_encodings"]
-        face_locations = res["face_locations"]
-        preview_path = res["preview_path"]
-        res["preview_labels"]
-        elapsed = res["time_seconds"]
-
-        print(
-            f"    [DEBUG] Försök {attempt_idx + 1}: {res['model']}, upsample={res['upsample']}, "
-            f"scale={res['scale_label']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
-        )
-        attempts_stats.append({
-            "attempt_index": attempt_idx,
-            "model": res["model"],
-            "upsample": res["upsample"],
-            "scale_label": res["scale_label"],
-            "scale_px": res["scale_px"],
-            "time_seconds": elapsed,
-            "faces_found": len(face_encodings),
-        })
-
-        if face_encodings:
-
-            import shutil
-            ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
-            try:
-                shutil.copy(preview_path, ORDINARY_PREVIEW_PATH)
-            except Exception as e:
-                print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
-            show_temp_image(ORDINARY_PREVIEW_PATH, config)
-
-            review_result, labels = user_review_encodings(
-                face_encodings, known_faces, ignored_faces, config, image_path,
-                file_hash
-            )
-            review_results.append(review_result)
-            labels_per_attempt.append(labels)
-
-            if review_result == "skipped":
-                log_attempt_stats(
-                    image_path, attempts_stats, used_attempt, BASE_DIR,
-                    review_results=review_results, labels_per_attempt=labels_per_attempt,
-                    file_hash=file_hash
-                )
-                return "skipped"
-            if review_result == "retry":
-                attempt_idx += 1
-                if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
-                    new_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=attempt_idx+1)
-                    attempt_results.extend(new_results[len(attempt_results):])
-                continue
-            if review_result == "all_ignored":
-                attempt_idx += 1
-                continue
-            if review_result == "ok":
-                used_attempt = attempt_idx
-                log_attempt_stats(
-                    image_path, attempts_stats, used_attempt, BASE_DIR,
-                    review_results=review_results,
-                    labels_per_attempt=labels_per_attempt,
-                    file_hash=file_hash
-                )
-                return True
-        else:
-            import shutil
-            ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
-            # Om inga ansikten hittades i attempt – logga ändå
-            review_results.append("no_faces")
-            labels_per_attempt.append([])
-
-            temp_path = res["preview_path"]
-
-            try:
-                shutil.copy(temp_path, ORDINARY_PREVIEW_PATH)
-            except Exception as e:
-                print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
-            # show_temp_image(ORDINARY_PREVIEW_PATH, config)
-            show_temp_image(temp_path, config)
-            ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över, m = manuell tilldelning] › ").strip().lower()
-            if ans == "x":
-                log_attempt_stats(
-                    image_path, attempts_stats, used_attempt, BASE_DIR,
-                    review_results=review_results,
-                    labels_per_attempt=labels_per_attempt,
-                    file_hash=file_hash
-                )
-                return "skipped"
-            elif ans == "m":
-                namn, label_obj = handle_manual_add(known_faces, image_path, file_hash, input_name)
-                review_results.append("ok")
-                log_attempt_stats(
-                            image_path, attempts_stats, used_attempt, BASE_DIR,
-                            review_results=review_results,
-                            labels_per_attempt=labels_per_attempt,
-                            file_hash=file_hash
-                            )
-
-                known_faces, ignored_faces, processed_files = load_database()
-                add_to_processed_files(image_path, processed_files)
-                save_database(known_faces, ignored_faces, processed_files)
-                return "ok"
-            elif ans == "n" or ans == "":
-                attempt_idx += 1
-                if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
-                    logging.debug(f"[NLOOP] Genererar nytt attempt, idx={attempt_idx}")
-                    new_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=attempt_idx+1)
-                    attempt_results.extend(new_results[len(attempt_results):])
-                continue
-
-        attempt_idx += 1
-
-    print("⏭ Inga ansikten kunde hittas i {} , hoppar över.".format(image_path.name))
-    log_attempt_stats(
-        image_path, attempts_stats, None, BASE_DIR,
-        review_results=review_results,
-        labels_per_attempt=labels_per_attempt,
-        file_hash=file_hash
+    res = attempt_results[attempt_idx]
+    print(
+        f"⚙️  Försök {attempt_idx + 1}: model={res['model']}, upsample={res['upsample']}, "
+        f"scale={res['scale_label']} ({res['scale_px']}px)"
     )
-    return "no_faces"
+    face_encodings = res["face_encodings"]
+    face_locations = res["face_locations"]
+    preview_path = res["preview_path"]
+    elapsed = res["time_seconds"]
 
+    logging.debug(
+        f"[ATTEMPT] Försök {attempt_idx + 1}: {res['model']}, upsample={res['upsample']}, "
+        f"scale={res['scale_label']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
+    )
+    attempts_stats.append({
+        "attempt_index": attempt_idx,
+        "model": res["model"],
+        "upsample": res["upsample"],
+        "scale_label": res["scale_label"],
+        "scale_px": res["scale_px"],
+        "time_seconds": elapsed,
+        "faces_found": len(face_encodings),
+    })
+
+    import shutil
+    ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
+    try:
+        shutil.copy(preview_path, ORDINARY_PREVIEW_PATH)
+    except Exception as e:
+        print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
+    show_temp_image(ORDINARY_PREVIEW_PATH, config)
+
+    if face_encodings:
+        review_result, labels = user_review_encodings(
+            face_encodings, known_faces, ignored_faces, config, image_path,
+            file_hash
+        )
+        review_results.append(review_result)
+        labels_per_attempt.append(labels)
+
+        if review_result == "skipped":
+            log_attempt_stats(
+                image_path, attempts_stats, used_attempt, BASE_DIR,
+                review_results=review_results, labels_per_attempt=labels_per_attempt,
+                file_hash=file_hash
+            )
+            return "skipped"
+        if review_result == "retry":
+            # main() kommer anropa denna igen vid nästa attempt
+            return "retry"
+        if review_result == "all_ignored":
+            return "all_ignored"
+        if review_result == "ok":
+            used_attempt = attempt_idx
+            log_attempt_stats(
+                image_path, attempts_stats, used_attempt, BASE_DIR,
+                review_results=review_results,
+                labels_per_attempt=labels_per_attempt,
+                file_hash=file_hash
+            )
+            return True
+    else:
+        # Inga ansikten i detta försök
+        review_results.append("no_faces")
+        labels_per_attempt.append([])
+
+        ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över, m = manuell tilldelning] › ").strip().lower()
+        if ans == "x":
+            log_attempt_stats(
+                image_path, attempts_stats, used_attempt, BASE_DIR,
+                review_results=review_results,
+                labels_per_attempt=labels_per_attempt,
+                file_hash=file_hash
+            )
+            return "skipped"
+        elif ans == "m":
+            namn, label_obj = handle_manual_add(known_faces, image_path, file_hash, input_name)
+            review_results.append("ok")
+            log_attempt_stats(
+                image_path, attempts_stats, used_attempt, BASE_DIR,
+                review_results=review_results,
+                labels_per_attempt=labels_per_attempt,
+                file_hash=file_hash
+            )
+            # processed_files läggs till i main()
+            return "ok"
+        elif ans == "n" or ans == "":
+            # main() kommer anropa denna igen vid nästa attempt
+            return "retry"
+
+    # Om attempts är slut (main() kan tolka detta som "gå vidare")
+    if attempt_idx + 1 == max_possible_attempts:
+        print(f"⏭ Inga ansikten kunde hittas i {image_path.name} , hoppar över.")
+        log_attempt_stats(
+            image_path, attempts_stats, None, BASE_DIR,
+            review_results=review_results,
+            labels_per_attempt=labels_per_attempt,
+            file_hash=file_hash
+        )
+        return "no_faces"
+    return "retry"
 
 def process_image(image_path, known_faces, ignored_faces, config):
     attempt_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=1)
@@ -1318,32 +1287,29 @@ def preprocess_worker(
     preprocessed_queue, preprocess_done
 ):
     try:
-        # Skapa KOPIOR av face-dictarna FÖR ATT INTE riskera race conditions
         faces_copy = copy.deepcopy(known_faces)
         ignored_copy = copy.deepcopy(ignored_faces)
         for path in images_to_process:
             logging.debug(f"[PREPROCESS] Startar för {path.name}")
             attempt_results = []
             for attempt_idx in range(1, max_possible_attempts + 1):
-                # Alltid använda kopior!
                 partial_results = preprocess_image(
                     path, faces_copy, ignored_copy, config, max_attempts=attempt_idx
                 )
-                # Lägg endast till nya attempts (de som inte redan finns)
                 new_attempts = partial_results[len(attempt_results):]
                 attempt_results.extend(new_attempts)
                 logging.debug(
                     f"[PREPROCESS][ATTEMPT {attempt_idx}] För {path.name}: nytt antal attempts: {len(attempt_results)}"
                 )
+                # --- Skicka efter varje attempt ---
+                if attempt_results:
+                    logging.debug(
+                        f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} attempts: {len(attempt_results)}"
+                    )
+                    preprocessed_queue.put((path, attempt_results[:]))
+                # Om det senaste försöket hittade ansikten: avbryt fler försök
                 if new_attempts and new_attempts[-1]["faces_found"] > 0:
                     break
-            logging.debug(
-                f"[PREPROCESS][RESULT] {path.name}, total attempts: {len(attempt_results)}"
-            )
-            logging.debug(
-                f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} Antal attempts: {len(attempt_results)}"
-            )
-            preprocessed_queue.put((path, attempt_results))
         preprocess_done.set()
     except Exception as e:
         logging.debug(f"[PREPROCESS][ERROR] {e}")
@@ -1366,6 +1332,7 @@ def main():
         archive_stats_if_needed(current_sig, force=True)
         print("Arkivering utförd.")
         sys.exit(0)
+
     # Renamelogik
     rename_mode = False
     simulate = False
@@ -1395,8 +1362,6 @@ def main():
     known_faces, ignored_faces, processed_files = load_database()
     max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
     max_queue = config.get("max_queue", MAX_QUEUE)
-
-
 
     # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
     if rename_mode:
@@ -1479,14 +1444,10 @@ def main():
         print("Inga matchande bildfiler hittades.")
         sys.exit(1)
 
-    # === STEG 1: Starta preprocess-kö i separat tråd ===
-    preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)  # Liten kö, lagom för "köad1"
+    # === STEG 1: Starta preprocess-kö i separat process ===
+    preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)
     preprocess_done = multiprocessing.Event()
 
-
-
-    # t = threading.Thread(target=preprocess_worker, daemon=True)
-    # t.start()
     p = multiprocessing.Process(
         target=preprocess_worker,
         args=(
@@ -1501,17 +1462,34 @@ def main():
     )
     p.start()
 
-    # === STEG 2: Review-bearbeta, så fort en bild är klar ===
-    for _ in range(len(images_to_process)):
-        path, attempt_results = preprocessed_queue.get()  # Väntar tills preprocess klar för denna
-        logging.debug(f"[QUEUE GET] Hämtar från kö: {path.name} Antal attempts: {len(attempt_results)}")
-        print(f"\n=== Bearbetar: {path.name} ===")
-        result = main_process_image_loop(path, known_faces, ignored_faces, config, attempt_results)
-        if result in (True, "skipped", "no_faces"):
+    # === STEG 2: Review-bearbeta, så fort ett attempt är klar ===
+    # En bild kan få flera attempts i kön – håll reda på när varje bild är färdig!
+    done_images = set()
+    expected_attempts = len(images_to_process) * max_possible_attempts
+    received_attempts = 0
+
+    while received_attempts < expected_attempts:
+        path, attempt_results = preprocessed_queue.get()
+        received_attempts += 1
+
+        if path in done_images:
+            continue  # Bilden är redan klar
+
+        attempt_idx = len(attempt_results)
+        print(f"\n=== Bearbetar: {path.name} (försök {attempt_idx}) ===")
+        logging.debug(f"[QUEUE GET] Hämtar {path.name}, attempts: {attempt_idx}")
+
+        result = main_process_image_loop(
+            path, known_faces, ignored_faces, config, attempt_results
+        )
+
+        if result in (True, "ok", "manual", "skipped", "no_faces"):
             add_to_processed_files(path, processed_files)
             save_database(known_faces, ignored_faces, processed_files)
+            done_images.add(path)
+            # Hoppa över framtida attempts för denna bild
 
-    p.join()  # Vänta in processen om du vill vara noga med städning.
+    p.join()
     preprocessed_queue.close()
     preprocessed_queue.join_thread()
 
