@@ -3,7 +3,7 @@
 
 import warnings
 
-warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_moels")
+warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
 
 import copy
 import fnmatch
@@ -19,6 +19,7 @@ import signal
 import sys
 import tempfile
 import time
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -26,7 +27,6 @@ import face_recognition
 import matplotlib.font_manager as fm
 import numpy as np
 import rawpy
-import unicoedata
 from PIL import Image, ImageDraw, ImageFont
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
@@ -331,15 +331,31 @@ def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, conf
         labels.append(label)
     return labels
 
+def handle_manual_add(known_faces, image_path, file_hash, input_name_func, labels=None):
+    """
+    Lägg till manuell person – även med file och hash.
+    Om labels ges (lista), addera ett label-objekt, annars returnera namn och label.
+    """
+    namn = input_name_func(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
+    if namn and namn not in known_faces:
+        known_faces[namn] = []
+    # Spara dummy-encoding och korrekt hash+file
+    known_faces[namn].append({
+        "encoding": None,
+        "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
+        "hash": file_hash
+    })
+    label_obj = {"label": f"#manuell\n{namn}", "hash": None}
+    if labels is not None:
+        labels.append(label_obj)
+    return namn, label_obj
+
 def user_review_encodings(face_encodings, known_faces,
                           ignored_faces, config, image_path=None,
                           preview_path=None, file_hash=None):
     """
-    Terminal-review av hittade ansikten – DRY, framtidssäkrad, stöd för manuell tilldelning.
-    Sätter alltid hash till SHA1 för originalfilen, aldrig None (om möjligt).
+    Terminal-review av hittade ansikten 
     """
-    import hashlib
-    from pathlib import Path
 
     # Hämta file_hash om ej satt, direkt från image_path om möjligt
     if file_hash is None and image_path is not None:
@@ -351,19 +367,6 @@ def user_review_encodings(face_encodings, known_faces,
     margin = config["prefer_name_margin"]
     name_thr = config["match_threshold"]
     ignore_thr = config["ignore_distance"]
-
-    def handle_manual_add():
-        """Lägg till manuell person – nu även med file och hash."""
-        namn = input_name(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
-        if namn and namn not in known_faces:
-            known_faces[namn] = []
-        # Spara dummy-encoding och korrekt hash+file
-        known_faces[namn].append({
-            "encoding": None,    # ingen encoding alls
-            "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
-            "hash": file_hash
-        })
-        labels.append({"label": f"#manuell\n{namn}", "hash": None})
 
     def handle_answer(ans, actions, default=None):
         if ans in ("", "enter"):
@@ -450,7 +453,7 @@ def user_review_encodings(face_encodings, known_faces,
                     show_temp_image(preview_path, config)
                 continue
             elif action == "manual":
-                handle_manual_add()
+                handle_manual_add(known_faces, image_path, file_hash, input_name, labels)
                 continue
             elif action == "skip":
                 return "skipped", []
@@ -984,8 +987,19 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                 )
                 return "skipped"
             elif ans == "m":
-                handle_manual_add()
-                continue
+                namn, label_obj = handle_manual_add(known_faces, image_path, file_hash, input_name)
+                review_results.append("ok")
+                log_attempt_stats(
+                            image_path, attempts_stats, used_attempt, BASE_DIR,
+                            review_results=review_results,
+                            labels_per_attempt=labels_per_attempt,
+                            file_hash=file_hash
+                            )
+
+                known_faces, ignored_faces, processed_files = load_database()
+                add_to_processed_files(image_path, processed_files)
+                save_database(known_faces, ignored_faces, processed_files)
+                return "ok"
             elif ans == "n" or ans == "":
                 attempt_idx += 1
                 if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
