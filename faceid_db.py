@@ -17,6 +17,7 @@ METADATA_PATH = BASE_DIR / "metadata.json"
 PROCESSED_PATH = BASE_DIR / "processed_files.jsonl"
 SUPPORTED_EXT = [".nef", ".NEF"]
 ATTEMPT_LOG_PATH = BASE_DIR / "attempt_stats.jsonl"
+LOGGING_PATH = BASE_DIR / "hitta_ansikten.log"
 
 
 def load_database():

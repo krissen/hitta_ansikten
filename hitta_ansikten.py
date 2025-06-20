@@ -31,9 +31,24 @@ from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
-                       CONFIG_PATH, SUPPORTED_EXT, get_file_hash,
+                       CONFIG_PATH, LOGGING_PATH, SUPPORTED_EXT, get_file_hash,
                        load_attempt_log, load_database, save_database)
 
+
+def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH):
+    logger = logging.getLogger()
+    logger.setLevel(level)
+    # Ta bort eventuella gamla handlers (viktigt vid utveckling/omstart)
+    logger.handlers.clear()
+    handler = logging.FileHandler(logfile, mode="a", encoding="utf-8")
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+init_logging()
+ 
 # === CONSTANTS === #
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 3
