@@ -31,8 +31,8 @@ from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
-                       CONFIG_PATH, SUPPORTED_EXT, load_attempt_log,
-                       load_database, save_database)
+                       CONFIG_PATH, SUPPORTED_EXT, get_file_hash,
+                       load_attempt_log, load_database, save_database)
 
 # === CONSTANTS === #
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
@@ -235,7 +235,8 @@ def log_attempt_stats(
     base_dir=None,
     log_name="attempt_stats.jsonl",
     review_results=None,
-    labels_per_attempt=None
+    labels_per_attempt=None,
+    file_hash=None,
 ):
     """
     Spara attempts-statistik för en bild till en JSONL-fil i base_dir.
@@ -246,6 +247,7 @@ def log_attempt_stats(
     :param log_name: Filnamn på loggfilen.
     :param review_results: Lista med user_review_encodings-resultat per attempt, t.ex. ["ok", "retry", ...]
     :param labels_per_attempt: Lista av etikettlistor (labels från varje attempt).
+    :param file_hash: (str, optional) SHA1-hash av filen som behandlas.
     """
     from pathlib import Path
     if base_dir is None:
@@ -253,6 +255,7 @@ def log_attempt_stats(
     log_entry = {
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "filename": str(image_path),
+        "file_hash": file_hash,
         "attempts": attempts,
         "used_attempt": used_attempt_idx
     }
@@ -338,6 +341,8 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
             if ans == key:
                 return action
         return None
+
+    file_hash = get_file_hash(image_path) if image_path else None
 
     for i, encoding in enumerate(face_encodings):
         name = None
@@ -457,7 +462,11 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
         if name is not None and name.lower() not in {"i", "x", "n", "o"}:
             if name not in known_faces:
                 known_faces[name] = []
-            known_faces[name].append(encoding)
+            known_faces[name].append({
+                "encoding": encoding,
+                "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
+                "hash": file_hash
+            })
             labels.append({"label": f"#{i+1}\n{name}", "hash": hash_encoding(encoding)})
 
     if retry_requested:
@@ -637,14 +646,28 @@ def best_matches(encoding, known_faces, ignored_faces, config):
     Returnerar:
         (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
     där dist är lägre = bättre.
+    Stödjer både nya och gamla format på entries (dict med 'encoding' och/eller ren ndarray).
     """
+    import numpy as np
+    import face_recognition
+
     best_name = None
     best_name_dist = None
     best_ignore = None
     best_ignore_dist = None
 
-    # Namnmatch
-    for name, encs in known_faces.items():
+    # Namnmatch – iterera alla personer
+    for name, entries in known_faces.items():
+        # Samla alla numpy-arrayer för encodings
+        encs = []
+        for entry in entries:
+            if isinstance(entry, dict) and "encoding" in entry:
+                enc = entry["encoding"]
+                if isinstance(enc, np.ndarray):
+                    encs.append(enc)
+            elif isinstance(entry, np.ndarray):
+                encs.append(entry)
+            # annars ignoreras entry (ex: manuell post, gamla/trasiga poster)
         if not encs:
             continue  # Skippa namn utan encodings
         dists = face_recognition.face_distance(encs, encoding)
@@ -654,14 +677,27 @@ def best_matches(encoding, known_faces, ignored_faces, config):
             best_name = name
 
     # Ignore-match
-    for idx, ignored in enumerate(ignored_faces):
-        d = face_recognition.face_distance([ignored], encoding)[0]
-        if best_ignore_dist is None or d < best_ignore_dist:
-            best_ignore_dist = d
-            best_ignore = idx
+    ignored_encs = []
+    for entry in ignored_faces:
+        if isinstance(entry, dict) and "encoding" in entry:
+            enc = entry["encoding"]
+            if isinstance(enc, np.ndarray):
+                ignored_encs.append(enc)
+        elif isinstance(entry, np.ndarray):
+            ignored_encs.append(entry)
+        # annars ignorera
 
-    return (best_name, best_name_dist), (best_ignore, best_ignore_dist)
+    best_ignore_idx = None
+    if ignored_encs:
+        dists = face_recognition.face_distance(ignored_encs, encoding)
+        min_dist = np.min(dists)
+        best_ignore_dist = min_dist
+        best_ignore_idx = int(np.argmin(dists))
+    else:
+        best_ignore_dist = None
+        best_ignore_idx = None
 
+    return (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
 
 def load_and_resize_raw(image_path, max_dim=None):
     """
@@ -718,7 +754,7 @@ def remove_encodings_for_file(known_faces, ignored_faces, identifier):
     # Samla hashar från alla labels_per_attempt för matchande entry
     for entry in log:
         entry_fname = Path(entry.get("filename", "")).name
-        entry_hash = entry.get("file_hash")  # För framtida utbyggnad, logga hash per entry!
+        entry_hash = entry.get("file_hash")
         match = entry_fname in identifiers or (entry_hash and entry_hash in identifiers)
         if match:
             for attempt in entry.get("labels_per_attempt", []):
@@ -823,6 +859,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
     used_attempt = None
     review_results = []
     labels_per_attempt = []
+    file_hash = get_file_hash(image_path)
     # Hårdkodad maxgräns om du vill
     max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
 
@@ -873,7 +910,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
             if review_result == "skipped":
                 log_attempt_stats(
                     image_path, attempts_stats, used_attempt, BASE_DIR,
-                    review_results=review_results, labels_per_attempt=labels_per_attempt
+                    review_results=review_results, labels_per_attempt=labels_per_attempt,
+                    file_hash=file_hash
                 )
                 return "skipped"
             if review_result == "retry":
@@ -889,7 +927,9 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                 used_attempt = attempt_idx
                 log_attempt_stats(
                     image_path, attempts_stats, used_attempt, BASE_DIR,
-                    review_results=review_results, labels_per_attempt=labels_per_attempt
+                    review_results=review_results,
+                    labels_per_attempt=labels_per_attempt,
+                    file_hash=file_hash
                 )
                 return True
         else:
@@ -911,7 +951,9 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
             if ans == "x":
                 log_attempt_stats(
                     image_path, attempts_stats, used_attempt, BASE_DIR,
-                    review_results=review_results, labels_per_attempt=labels_per_attempt
+                    review_results=review_results,
+                    labels_per_attempt=labels_per_attempt,
+                    file_hash=file_hash
                 )
                 return "skipped"
             elif ans == "n" or ans == "":
@@ -927,7 +969,9 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
     print("⏭ Inga ansikten kunde hittas i {} , hoppar över.".format(image_path.name))
     log_attempt_stats(
         image_path, attempts_stats, None, BASE_DIR,
-        review_results=review_results, labels_per_attempt=labels_per_attempt
+        review_results=review_results,
+        labels_per_attempt=labels_per_attempt,
+        file_hash=file_hash
     )
     return "no_faces"
 

@@ -102,3 +102,10 @@ def extract_face_labels(labels):
             if name.lower() not in {"ignorerad", "okänt", "ign"}:
                 persons.append(name)
     return persons
+
+def get_file_hash(path):
+    try:
+        with open(path, "rb") as f:
+            return hashlib.sha1(f.read()).hexdigest()
+    except Exception:
+        return None
