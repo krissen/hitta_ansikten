@@ -315,10 +315,20 @@ def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, conf
         labels.append(label)
     return labels
 
-def user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path=None, preview_path=None):
+def user_review_encodings(face_encodings, known_faces,
+                          ignored_faces, config, image_path=None,
+                          preview_path=None, file_hash=None):
     """
     Terminal-review av hittade ansikten – DRY, framtidssäkrad, stöd för manuell tilldelning.
+    Sätter alltid hash till SHA1 för originalfilen, aldrig None (om möjligt).
     """
+    import hashlib
+    from pathlib import Path
+
+    # Hämta file_hash om ej satt, direkt från image_path om möjligt
+    if file_hash is None and image_path is not None:
+        file_hash = get_file_hash(image_path)
+
     labels = []
     all_ignored = True
     retry_requested = False
@@ -327,22 +337,25 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
     ignore_thr = config["ignore_distance"]
 
     def handle_manual_add():
-        """Lägg till manuell person."""
+        """Lägg till manuell person – nu även med file och hash."""
         namn = input_name(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
         if namn and namn not in known_faces:
             known_faces[namn] = []
+        # Spara dummy-encoding och korrekt hash+file
+        known_faces[namn].append({
+            "encoding": None,    # ingen encoding alls
+            "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
+            "hash": file_hash
+        })
         labels.append({"label": f"#manuell\n{namn}", "hash": None})
 
     def handle_answer(ans, actions, default=None):
-        """Returnerar action beroende på svar och tillåtna actions."""
         if ans in ("", "enter"):
             return default
         for key, action in actions.items():
             if ans == key:
                 return action
         return None
-
-    file_hash = get_file_hash(image_path) if image_path else None
 
     for i, encoding in enumerate(face_encodings):
         name = None
@@ -353,7 +366,6 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
         name_confidence = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ignore_confidence = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
 
-        # Standardalternativ som alltid finns
         base_actions = {
             "o": "show_original",
             "m": "manual",
@@ -361,7 +373,6 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
             "n": "retry",
         }
 
-        # Fall 1: Osäkert
         if (
             best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
             best_ignore_dist is not None and best_ignore_dist < ignore_thr and
@@ -375,7 +386,6 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
             actions = {**base_actions, "i": "ignore", "r": "edit"}
             default_action = "name"
 
-        # Fall 2: Namn vinner klart
         elif (
             best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
             (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
@@ -388,7 +398,6 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
             actions = {**base_actions, "r": "edit", "i": "ignore"}
             default_action = "name"
 
-        # Fall 3: IGN vinner klart
         elif (
             best_ignore_dist is not None and best_ignore_dist < ignore_thr and
             (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
@@ -401,7 +410,6 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
             actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
             default_action = "ignore"
 
-        # Fall 4: Okänd
         else:
             prompt_txt = (
                 "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, n = försök igen, "
@@ -429,7 +437,6 @@ def user_review_encodings(face_encodings, known_faces, ignored_faces, config, im
                 retry_requested = True
                 break
             elif action == "edit":
-                # Vid okänt ansikte, använd prompt_txt som prompt för autocomplete
                 if default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte."):
                     new_name = input_name(list(known_faces.keys()), prompt_txt)
                 else:
@@ -648,8 +655,8 @@ def best_matches(encoding, known_faces, ignored_faces, config):
     där dist är lägre = bättre.
     Stödjer både nya och gamla format på entries (dict med 'encoding' och/eller ren ndarray).
     """
-    import numpy as np
     import face_recognition
+    import numpy as np
 
     best_name = None
     best_name_dist = None
@@ -902,7 +909,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
             show_temp_image(ORDINARY_PREVIEW_PATH, config)
 
             review_result, labels = user_review_encodings(
-                face_encodings, known_faces, ignored_faces, config, image_path
+                face_encodings, known_faces, ignored_faces, config, image_path,
+                file_hash
             )
             review_results.append(review_result)
             labels_per_attempt.append(labels)
@@ -997,37 +1005,84 @@ def is_unrenamed(fname):
     prefix, suffix = extract_prefix_suffix(fname)
     return bool(prefix and suffix)
 
-def collect_persons_for_files(filelist, known_faces):
+def collect_persons_for_files(filelist, known_faces, processed_files=None, attempt_log=None):
     """
-    Gå igenom processade stats och returnera en dict:
-    { filename: [namn, ...] }
+    Returnera dict: { filename: [namn, ...] }
+    1) Primärt: encodings.pkl – direkt filmatchning (och/eller hash om fil ej hittas)
+    2) Sekundärt: encodings.pkl – hashmatchning
+    3) Tertiärt: attempt_stats – som fallback
     """
-    log = load_attempt_log()
-    result = {}
-    # Gör om till map: filename → senaste 'labels_per_attempt' med review_result OK
+    import hashlib
+    from pathlib import Path
+
+    # --- Bygg index för encodings.pkl: filnamn→namn, hash→namn ---
+    file_to_persons = {}    # filnamn (basename) → [namn, ...]
+    hash_to_persons = {}    # hash → [namn, ...]
+
+    # Först, indexera encodings.pkl på både 'file' och 'hash'
+    for name, entries in known_faces.items():
+        for entry in entries:
+            if isinstance(entry, dict):
+                f = entry.get("file")
+                h = entry.get("hash")
+                if f:
+                    f = Path(f).name  # endast basename
+                    file_to_persons.setdefault(f, []).append(name)
+                if h:
+                    hash_to_persons.setdefault(h, []).append(name)
+            # gamla formatet (np.ndarray) kan ej kopplas
+
+    # --- Bygg hash-mapp för aktuella filer ---
+    filehash_map = {}  # fname (basename) → hash
+    for f in filelist:
+        fpath = Path(f)
+        h = get_file_hash(fpath)
+        filehash_map[fpath.name] = h
+
+    # --- Index för processed_files (kan ge extra säkerhet) ---
+    if processed_files is None:
+        processed_files = []
+    processed_name_to_hash = {Path(x['name']).name: x.get('hash') for x in processed_files if isinstance(x, dict) and x.get('name')}
+
+    # --- Ladda attempts-logg för fallback ---
+    if attempt_log is None:
+        attempt_log = load_attempt_log()
+
+    # --- Ladda attempts som fallback: filename→labels ---
     stats_map = {}
-    for entry in log:
+    for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
-        # Sök efter "used_attempt" och review_results
         if entry.get("used_attempt") is not None and entry.get("review_results"):
             idx = entry["used_attempt"]
             if idx < len(entry.get("labels_per_attempt", [])):
                 res = entry["review_results"][idx]
                 labels = entry["labels_per_attempt"][idx]
                 if res == "ok" and labels:
-                    stats_map[fn] = labels
-    for fname in filelist:
-        persons = []
-        labels = stats_map.get(Path(fname).name)
-        if labels:
-            for lbl in labels:
-                label = lbl["label"] if isinstance(lbl, dict) else lbl
-                # Plocka ut namn ur label: "#1\nNamn", etc
-                if "\n" in label:
-                    namn = label.split("\n", 1)[1]
-                    if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
-                        persons.append(namn)
-        result[Path(fname).name] = persons
+                    # Personnamn ur label: "#1\nNamn"
+                    persons = []
+                    for lbl in labels:
+                        label = lbl["label"] if isinstance(lbl, dict) else lbl
+                        if "\n" in label:
+                            namn = label.split("\n", 1)[1]
+                            if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
+                                persons.append(namn)
+                    if persons:
+                        stats_map[fn] = persons
+
+    # --- Samla personer för varje fil ---
+    result = {}
+    for f in filelist:
+        fname = Path(f).name
+        h = filehash_map.get(fname) or processed_name_to_hash.get(fname)
+        # 1. Försök filnamn (encodings.pkl)
+        persons = file_to_persons.get(fname, [])
+        # 2. Annars försök hash (encodings.pkl)
+        if not persons and h:
+            persons = hash_to_persons.get(h, [])
+        # 3. Annars försök attempts-logg (fallback)
+        if not persons:
+            persons = stats_map.get(fname, [])
+        result[fname] = persons
     return result
 
 def normalize_name(name):

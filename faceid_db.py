@@ -1,3 +1,4 @@
+import hashlib
 import json
 import pickle
 import re
@@ -103,9 +104,15 @@ def extract_face_labels(labels):
                 persons.append(name)
     return persons
 
+
 def get_file_hash(path):
     try:
-        with open(path, "rb") as f:
-            return hashlib.sha1(f.read()).hexdigest()
-    except Exception:
+        if hasattr(path, "read_bytes"):
+            # Path-objekt
+            return hashlib.sha1(path.read_bytes()).hexdigest()
+        else:
+            with open(path, "rb") as f:
+                return hashlib.sha1(f.read()).hexdigest()
+    except Exception as e:
+        print(f"[WARN] Kunde inte läsa hash för {path}: {e}")
         return None
