@@ -3,10 +3,11 @@
 
 import warnings
 
-warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
+warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_moels")
 
 import copy
 import fnmatch
+import glob
 import hashlib
 import json
 import logging
@@ -18,7 +19,6 @@ import signal
 import sys
 import tempfile
 import time
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -26,6 +26,7 @@ import face_recognition
 import matplotlib.font_manager as fm
 import numpy as np
 import rawpy
+import unicoedata
 from PIL import Image, ImageDraw, ImageFont
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
@@ -434,9 +435,14 @@ def user_review_encodings(face_encodings, known_faces,
             default_action = "edit"
 
         while True:
-            ans = safe_input(prompt_txt).strip().lower()
-            action = handle_answer(ans, actions, default=default_action)
-
+            if default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte."):
+                # ALLTID använd autocomplete för okänt ansikte!
+                new_name = input_name(list(known_faces.keys()), prompt_txt)
+                ans = new_name.strip()
+                action = "edit" if ans else default_action
+            else:
+                ans = safe_input(prompt_txt).strip().lower()
+                action = handle_answer(ans, actions, default=default_action)
             if action == "show_original":
                 if image_path is not None:
                     export_and_show_original(image_path, config)
@@ -452,9 +458,8 @@ def user_review_encodings(face_encodings, known_faces,
                 retry_requested = True
                 break
             elif action == "edit":
-                if default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte."):
-                    new_name = input_name(list(known_faces.keys()), prompt_txt)
-                else:
+                # new_name är redan satt för okänt ansikte, annars hämta som vanligt
+                if not (default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte.")):
                     new_name = input_name(list(known_faces.keys()))
                 if new_name.lower() == "x":
                     return "skipped", []
@@ -469,7 +474,6 @@ def user_review_encodings(face_encodings, known_faces,
                     name = new_name
                     all_ignored = False
                     break
-
             elif action == "ignore":
                 ignored_faces.append(encoding)
                 labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
@@ -970,7 +974,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                 print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
             # show_temp_image(ORDINARY_PREVIEW_PATH, config)
             show_temp_image(temp_path, config)
-            ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över] › ").strip().lower()
+            ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över, m = manuell tilldelning] › ").strip().lower()
             if ans == "x":
                 log_attempt_stats(
                     image_path, attempts_stats, used_attempt, BASE_DIR,
@@ -979,6 +983,9 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                     file_hash=file_hash
                 )
                 return "skipped"
+            elif ans == "m":
+                handle_manual_add()
+                continue
             elif ans == "n" or ans == "":
                 attempt_idx += 1
                 if attempt_idx >= len(attempt_results) and attempt_idx < max_possible_attempts:
@@ -1221,9 +1228,17 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
             print(f"{os.path.basename(orig)} → {os.path.basename(dest)}")
             os.rename(orig, dest)
 
+def cleanup_tmp_previews():
+    for path in glob.glob("/tmp/hitta_ansikten_*"):
+        try:
+            os.remove(path)
+        except Exception:
+            pass  # Ignorera ev. misslyckanden
+
 # === Graceful Exit ===
 def signal_handler(sig, frame):
     print("\n⏹ Avbruten. Programmet avslutas.")
+    cleanup_tmp_previews()
     sys.exit(0)
 
 def print_help():
@@ -1487,6 +1502,7 @@ def main():
     preprocessed_queue.join_thread()
 
     print("✅ Alla bilder färdigbehandlade.")
+    cleanup_tmp_previews()
 
 
 if __name__ == "__main__":
