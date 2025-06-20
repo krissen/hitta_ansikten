@@ -313,212 +313,152 @@ def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, conf
     return labels
 
 def user_review_encodings(face_encodings, known_faces, ignored_faces, config, image_path=None, preview_path=None):
+    """
+    Terminal-review av hittade ansikten – DRY, framtidssäkrad, stöd för manuell tilldelning.
+    """
     labels = []
     all_ignored = True
     retry_requested = False
-
     margin = config["prefer_name_margin"]
     name_thr = config["match_threshold"]
     ignore_thr = config["ignore_distance"]
 
+    def handle_manual_add():
+        """Lägg till manuell person."""
+        namn = input_name(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
+        if namn and namn not in known_faces:
+            known_faces[namn] = []
+        labels.append({"label": f"#manuell\n{namn}", "hash": None})
+
+    def handle_answer(ans, actions, default=None):
+        """Returnerar action beroende på svar och tillåtna actions."""
+        if ans in ("", "enter"):
+            return default
+        for key, action in actions.items():
+            if ans == key:
+                return action
+        return None
+
     for i, encoding in enumerate(face_encodings):
         name = None
-        print("\nAnsikte #{}:".format(i + 1))
+        print(f"\nAnsikte #{i + 1}:")
         (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches(
             encoding, known_faces, ignored_faces, config
         )
         name_confidence = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ignore_confidence = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
 
-        # --- 1. Osäkert: Båda nära, inom margin ---
+        # Standardalternativ som alltid finns
+        base_actions = {
+            "o": "show_original",
+            "m": "manual",
+            "x": "skip",
+            "n": "retry",
+        }
+
+        # Fall 1: Osäkert
         if (
             best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
             best_ignore_dist is not None and best_ignore_dist < ignore_thr and
             abs(best_name_dist - best_ignore_dist) < margin
         ):
-            if best_name_dist < best_ignore_dist:
-                # Namn är snäppet närmare
-                prompt_txt = (f"↪ Osäkert: {best_name} ({name_confidence}%) / ign ({ignore_confidence}%)\n"
-                              "[Enter = bekräfta namn, i = ignorera, r = rätta, n = försök igen, o = öppna original, x = skippa bild] › ")
-                default_action = "name"
-            else:
-                # IGN är snäppet närmare
-                prompt_txt = (f"↪ Osäkert: ign ({ignore_confidence}%) / {best_name} ({name_confidence}%)\n"
-                              "[Enter = bekräfta ignorera, n = försök igen, r = rätta, a = acceptera namn, o = öppna original, x = skippa bild] › ")
-                default_action = "ign"
+            prompt_txt = (
+                f"↪ Osäkert: {best_name} ({name_confidence}%) / ign ({ignore_confidence}%)\n"
+                "[Enter = bekräfta namn, i = ignorera, r = rätta, n = försök igen, "
+                "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
+            )
+            actions = {**base_actions, "i": "ignore", "r": "edit"}
+            default_action = "name"
 
-            while True:
-                ans = safe_input(prompt_txt).strip().lower()
-                if ans == "o" and preview_path is not None:
-                    show_temp_image(preview_path, config)
-                    continue
-                if ans == "o" and image_path is not None:
-                    export_and_show_original(image_path, config)
-                    continue
-                if default_action == "name":
-                    if ans == "x":
-                        return "skipped", []
-                    if ans == "n":
-                        retry_requested = True
-                        break
-                    if ans == "i":
-                        ignored_faces.append(encoding)
-                        labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
-                        break
-                    elif ans == "r":
-                        name = input_name(list(known_faces.keys()))
-                        if name.lower() == "x":
-                            return "skipped", []
-                        if name.lower() == "n":
-                            retry_requested = True
-                            break
-                        if name == "i":
-                            ignored_faces.append(encoding)
-                            labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
-                            break
-                        all_ignored = False
-                        break
-                    else:
-                        name = best_name
-                        all_ignored = False
-                        break
-                else:
-                    if ans == "x":
-                        return "skipped", []
-                    if ans == "n":
-                        retry_requested = True
-                        break
-                    if ans == "a":
-                        name = best_name
-                        all_ignored = False
-                        break
-                    elif ans == "r":
-                        name = input_name(list(known_faces.keys()))
-                        if name.lower() == "x":
-                            return "skipped", []
-                        if name.lower() == "n":
-                            retry_requested = True
-                            break
-                        if name == "i":
-                            ignored_faces.append(encoding)
-                            labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
-                            break
-                        all_ignored = False
-                        break
-                    else:
-                        ignored_faces.append(encoding)
-                        labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
-                        break
-            if retry_requested:
-                break
-
-        # --- 2. Namn vinner klart ---
+        # Fall 2: Namn vinner klart
         elif (
             best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
             (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
         ):
-            prompt_txt = f"↪ Föreslaget: {best_name} ({name_confidence}%)\n[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, o = öppna original, x = skippa bild] › "
-            while True:
-                val = safe_input(prompt_txt).strip().lower()
-                if val == "o" and image_path is not None:
-                    export_and_show_original(image_path, config)
-                    continue
-                if val == "x":
-                    return "skipped", []
-                if val == "n":
-                    retry_requested = True
-                    break
-                if val == "":
-                    name = best_name
-                    all_ignored = False
-                    break
-                elif val == "i":
-                    ignored_faces.append(encoding)
-                    labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
-                    break
-                elif val == "r":
-                    name = input_name(list(known_faces.keys()))
-                    if name.lower() == "x":
-                        return "skipped", []
-                    if name.lower() == "n":
-                        retry_requested = True
-                        break
-                    if name == "i":
-                        ignored_faces.append(encoding)
-                        labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
-                        break
-                    all_ignored = False
-                    break
-            if retry_requested:
-                break
+            prompt_txt = (
+                f"↪ Föreslaget: {best_name} ({name_confidence}%)\n"
+                "[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, "
+                "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
+            )
+            actions = {**base_actions, "r": "edit", "i": "ignore"}
+            default_action = "name"
 
-        # --- 3. IGN vinner klart ---
+        # Fall 3: IGN vinner klart
         elif (
             best_ignore_dist is not None and best_ignore_dist < ignore_thr and
             (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
         ):
-            prompt_txt = f"↪ Ansiktet liknar ett tidigare ignorerat ({ignore_confidence}%). [Enter = bekräfta ignorera, r = rätta, n = försök igen, a = acceptera namn, o = öppna original, x = skippa bild] › "
-            while True:
-                ans = safe_input(prompt_txt).strip().lower()
-                if ans == "o" and image_path is not None:
-                    export_and_show_original(image_path, config)
-                    continue
-                if ans == "x":
-                    return "skipped", []
-                if ans == "n":
-                    retry_requested = True
-                    break
-                if ans == "a":
-                    name = best_name if best_name else input_name(list(known_faces.keys()))
-                    all_ignored = False
-                    break
-                elif ans == "r":
-                    name = input_name(list(known_faces.keys()))
-                    if name.lower() == "x":
-                        return "skipped", []
-                    if name.lower() == "n":
-                        retry_requested = True
-                        break
-                    if name == "i":
-                        ignored_faces.append(encoding)
-                        labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
-                        break
-                    all_ignored = False
-                    break
-                else:
-                    ignored_faces.append(encoding)
-                    labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
-                    break
-            if retry_requested:
-                break
+            prompt_txt = (
+                f"↪ Ansiktet liknar ett tidigare ignorerat ({ignore_confidence}%).\n"
+                "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
+                "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
+            )
+            actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
+            default_action = "ignore"
 
-        # --- 4. Okänd ---
+        # Fall 4: Okänd
         else:
-            prompt_txt = "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, n = försök igen, o = öppna original, x = skippa bild) › "
-            while True:
-                name = input_name(list(known_faces.keys()), prompt_txt)
-                if name.lower() == "o" and image_path is not None:
+            prompt_txt = (
+                "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, n = försök igen, "
+                "m = manuell tilldelning, o = öppna original, x = skippa bild) › "
+            )
+            actions = {**base_actions, "i": "ignore"}
+            default_action = "edit"
+
+        while True:
+            ans = safe_input(prompt_txt).strip().lower()
+            action = handle_answer(ans, actions, default=default_action)
+
+            if action == "show_original":
+                if image_path is not None:
                     export_and_show_original(image_path, config)
-                    continue
-                if name.lower() == "x":
+                elif preview_path is not None:
+                    show_temp_image(preview_path, config)
+                continue
+            elif action == "manual":
+                handle_manual_add()
+                continue
+            elif action == "skip":
+                return "skipped", []
+            elif action == "retry":
+                retry_requested = True
+                break
+            elif action == "edit":
+                # Vid okänt ansikte, använd prompt_txt som prompt för autocomplete
+                if default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte."):
+                    new_name = input_name(list(known_faces.keys()), prompt_txt)
+                else:
+                    new_name = input_name(list(known_faces.keys()))
+                if new_name.lower() == "x":
                     return "skipped", []
-                if name.lower() == "n":
+                if new_name.lower() == "n":
                     retry_requested = True
                     break
-                if name.lower() == "i":
+                if new_name.lower() == "i":
                     ignored_faces.append(encoding)
-                    labels.append({"label": "#{}\nignorerad".format(i + 1), "hash": hash_encoding(encoding)})
+                    labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
                     break
+                if new_name:
+                    name = new_name
+                    all_ignored = False
+                    break
+
+            elif action == "ignore":
+                ignored_faces.append(encoding)
+                labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
+                break
+            elif action == "name":
+                name = best_name if best_name else input_name(list(known_faces.keys()))
                 all_ignored = False
                 break
-            if retry_requested:
-                break
 
+        if retry_requested:
+            break
         if name is not None and name.lower() not in {"i", "x", "n", "o"}:
             if name not in known_faces:
                 known_faces[name] = []
             known_faces[name].append(encoding)
-            labels.append({"label": "#{}\n{}".format(i + 1, name), "hash": hash_encoding(encoding)})
+            labels.append({"label": f"#{i+1}\n{name}", "hash": hash_encoding(encoding)})
 
     if retry_requested:
         return "retry", []
@@ -965,7 +905,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                 shutil.copy(temp_path, ORDINARY_PREVIEW_PATH)
             except Exception as e:
                 print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
-            show_temp_image(ORDINARY_PREVIEW_PATH, config)
+            # show_temp_image(ORDINARY_PREVIEW_PATH, config)
             show_temp_image(temp_path, config)
             ans = safe_input("⚠️  Fortsätta försöka? [Enter = ja, n = försök nästa nivå, x = hoppa över] › ").strip().lower()
             if ans == "x":
@@ -1105,32 +1045,36 @@ def build_new_filename(fname, personer, namnmap):
     return f"{prefix}_{namnstr}{suffix}"
 
 def is_file_processed(path, processed_files):
-    """Kolla om filen redan är processad, genom namn eller hash."""
-    path_name = path.name
+    """Kolla om filen redan är processad, via namn ELLER hash."""
+    path_name = Path(path).name if not isinstance(path, str) else path
     path_hash = None
+    # Snabbt: finns namn redan?
+    for entry in processed_files:
+        ename = entry.get("name") if isinstance(entry, dict) else entry
+        if ename == path_name:
+            return True
+    # Kolla mot hash om inte namn matchade
     try:
         with open(path, "rb") as f:
             import hashlib
             path_hash = hashlib.sha1(f.read()).hexdigest()
     except Exception:
         pass
-    for entry in processed_files:
-        ename = entry.get("name") if isinstance(entry, dict) else entry
-        ehash = entry.get("hash") if isinstance(entry, dict) else None
-        if path_hash and ehash and ehash == path_hash:
-            return True
-        if ename == path_name:
-            return True
+    if path_hash:
+        for entry in processed_files:
+            ehash = entry.get("hash") if isinstance(entry, dict) else None
+            if ehash and ehash == path_hash:
+                return True
     return False
 
 def rename_files(filelist, known_faces, processed_files, simulate=True, allow_renamed=False, only_processed=False):
     # Filtrera enligt regler
     out_files = []
     for f in filelist:
-        fname = Path(f).name
-        # Endast tillåt filen om:
-        if only_processed and not is_file_processed(fname, processed_files):
+        # Här: använd alltid path, inte bara namn!
+        if only_processed and not is_file_processed(f, processed_files):
             continue
+        fname = Path(f).name
         if not allow_renamed and not is_unrenamed(fname):
             continue
         out_files.append(f)
@@ -1153,7 +1097,6 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
         if not nytt or nytt == fname:
             print(f"{fname}: inget nytt namn att sätta.")
             continue
-        # Sätt inte samma namn igen, inte heller om nytt redan finns
         dest = str(Path(orig).parent / nytt)
         if Path(dest).exists() and Path(dest) != Path(orig):
             print(f"⚠️  {dest} finns redan, hoppar över!")
@@ -1232,25 +1175,23 @@ def preprocess_worker(
     preprocessed_queue, preprocess_done
 ):
     try:
-        # Skapa kopior av face-dictarna för bakgrundstråden
-        copy.deepcopy(known_faces)
-        copy.deepcopy(ignored_faces)
+        # Skapa KOPIOR av face-dictarna FÖR ATT INTE riskera race conditions
+        faces_copy = copy.deepcopy(known_faces)
+        ignored_copy = copy.deepcopy(ignored_faces)
         for path in images_to_process:
             logging.debug(f"[PREPROCESS] Startar för {path.name}")
             attempt_results = []
             for attempt_idx in range(1, max_possible_attempts + 1):
-                # Hämta försök upp till attempt_idx (alltid inkluderar alla tidigare)
+                # Alltid använda kopior!
                 partial_results = preprocess_image(
-                    path, known_faces, ignored_faces, config, max_attempts=attempt_idx
+                    path, faces_copy, ignored_copy, config, max_attempts=attempt_idx
                 )
                 # Lägg endast till nya attempts (de som inte redan finns)
                 new_attempts = partial_results[len(attempt_results):]
                 attempt_results.extend(new_attempts)
                 logging.debug(
-                    f"[PREPROCESS][ATTEMPT {attempt_idx}] För {path.name}: "
-                    f"nytt antal attempts: {len(attempt_results)}"
+                    f"[PREPROCESS][ATTEMPT {attempt_idx}] För {path.name}: nytt antal attempts: {len(attempt_results)}"
                 )
-                # Om senaste attempt gav ansikten, avbryt attempts för denna bild
                 if new_attempts and new_attempts[-1]["faces_found"] > 0:
                     break
             logging.debug(
@@ -1427,11 +1368,11 @@ def main():
             add_to_processed_files(path, processed_files)
             save_database(known_faces, ignored_faces, processed_files)
 
-    print("✅ Alla bilder färdigbehandlade.")
+    p.join()  # Vänta in processen om du vill vara noga med städning.
+    preprocessed_queue.close()
+    preprocessed_queue.join_thread()
 
-    if n_found == 0:
-        print("Inga matchande bildfiler hittades.")
-        sys.exit(1)
+    print("✅ Alla bilder färdigbehandlade.")
 
 
 if __name__ == "__main__":
