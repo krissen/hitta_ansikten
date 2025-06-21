@@ -181,16 +181,16 @@ def show_temp_image(preview_path, config, last_shown=[None]):
             app_status = status.get("app_status", "unknown")
             if app_status == "running" and os.path.samefile(status.get("file_path", ""), expected_path):
                 should_open = False  # Bildvisare kör redan och visar rätt fil
-                logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil")
+                logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
 
             elif app_status == "exited":
-                logging.debug(f"[BILDVISARE] Bildvisaren har avslutats, öppnar bild")
+                logging.debug(f"[BILDVISARE] Bildvisaren har avslutats, kommer öppna bild")
                 should_open = True
             else:
-                logging.debug(f"[BILDVISARE] Bildvisar-status: {app_status} inte behandlad, öppnar bild")
+                logging.debug(f"[BILDVISARE] Bildvisar-status: {app_status} inte behandlad, kommer öppna bild")
                 should_open = True
         except Exception:
-            logging.debug(f"[BILDVISARE] Misslyckades läsa statusfilen: {status_path}, öppnar bild")
+            logging.debug(f"[BILDVISARE] Misslyckades läsa statusfilen: {status_path}, kommer öppna bild")
             should_open = True
 
     if should_open:
