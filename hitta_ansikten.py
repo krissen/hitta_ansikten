@@ -52,7 +52,7 @@ init_logging()
  
 # === CONSTANTS === #
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = 2
 MAX_QUEUE = 10
 
 
@@ -178,15 +178,19 @@ def show_temp_image(preview_path, config, last_shown=[None]):
         try:
             with open(status_path, "r") as f:
                 status = json.load(f)
-            if status.get("app_status") == "running" and os.path.samefile(status.get("file_path", ""), expected_path):
+            app_status = status.get("app_status", "unknown")
+            if app_status == "running" and os.path.samefile(status.get("file_path", ""), expected_path):
                 should_open = False  # Bildvisare kör redan och visar rätt fil
-                logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
+                logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil")
 
-            elif status.get("app_status") == "exited":
+            elif app_status == "exited":
+                logging.debug(f"[BILDVISARE] Bildvisaren har avslutats, öppnar bild")
                 should_open = True
             else:
+                logging.debug(f"[BILDVISARE] Bildvisar-status: {app_status} inte behandlad, öppnar bild")
                 should_open = True
         except Exception:
+            logging.debug(f"[BILDVISARE] Misslyckades läsa statusfilen: {status_path}, öppnar bild")
             should_open = True
 
     if should_open:
@@ -194,7 +198,7 @@ def show_temp_image(preview_path, config, last_shown=[None]):
         subprocess.Popen(["open", "-a", viewer_app, preview_path])
         last_shown[0] = preview_path
     else:
-        logging.debug(f"[BILDVISARE] Hoppar över open; rätt bild visas redan: {expected_path}")
+        logging.debug(f"[BILDVISARE] Hoppar över open")
         last_shown[0] = preview_path
 
 
@@ -451,6 +455,7 @@ def user_review_encodings(
                 continue
             elif action == "manual":
                 handle_manual_add(known_faces, image_path, file_hash, input_name, labels)
+                all_ignored = False
                 continue
             elif action == "skip":
                 return "skipped", []
@@ -814,25 +819,25 @@ def remove_encodings_for_file(known_faces, ignored_faces, identifier):
     return removed
 
 def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=3):
-    logging.debug("preprocess_image: START")
+    logging.debug(f"[PREPROCESS image] start: {image_path}")
 
     try:
         max_down = config.get("max_downsample_px")
         max_mid = config.get("max_midsample_px")
         max_full = config.get("max_fullres_px")
-        logging.debug(" Före load_and_resize_raw: down")
+        # logging.debug(" Före load_and_resize_raw: down")
         rgb_down = load_and_resize_raw(image_path, max_down)
-        logging.debug(" Före load_and_resize_raw: mid")
+        # logging.debug(" Före load_and_resize_raw: mid")
         rgb_mid = load_and_resize_raw(image_path, max_mid)
-        logging.debug(" Före load_and_resize_raw: full")
+        # logging.debug(" Före load_and_resize_raw: full")
         rgb_full = load_and_resize_raw(image_path, max_full)
 
-        logging.debug(" Före get_attempt_settings")
+        # logging.debug(" Före get_attempt_settings")
         attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
-        logging.debug(" Efter get_attempt_settings")
+        # logging.debug(" Efter get_attempt_settings")
     except Exception as e:
         logging.warning(f"[RAWREAD][SKIP] Kunde inte öppna {image_path}: {e}")
-        return []   # eller returnera vad du vill (tom lista signalerar 'skip')
+        return []
 
     attempt_results = []
     for attempt_idx, setting in enumerate(attempt_settings):
@@ -871,7 +876,7 @@ def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempt
         if attempt_idx + 1 >= max_attempts:
             break
 
-    logging.debug(" preprocess_image: END")
+    logging.debug("[PREPROCESS image]: end")
     return attempt_results
 
 
@@ -1290,7 +1295,7 @@ def preprocess_worker(
         faces_copy = copy.deepcopy(known_faces)
         ignored_copy = copy.deepcopy(ignored_faces)
         for path in images_to_process:
-            logging.debug(f"[PREPROCESS] Startar för {path.name}")
+            logging.debug(f"[PREPROCESS worker] Startar för {path.name}")
             attempt_results = []
             for attempt_idx in range(1, max_possible_attempts + 1):
                 partial_results = preprocess_image(
@@ -1299,12 +1304,12 @@ def preprocess_worker(
                 new_attempts = partial_results[len(attempt_results):]
                 attempt_results.extend(new_attempts)
                 logging.debug(
-                    f"[PREPROCESS][ATTEMPT {attempt_idx}] För {path.name}: nytt antal attempts: {len(attempt_results)}"
+                    f"[PREPROCESS worker][ATTEMPT {attempt_idx}] För {path.name}: nytt antal attempts: {len(attempt_results)}"
                 )
                 # --- Skicka efter varje attempt ---
                 if attempt_results:
                     logging.debug(
-                        f"[PREPROCESS][QUEUE PUT] Lägger till i kö: {path.name} attempts: {len(attempt_results)}"
+                        f"[PREPROCESS worker][QUEUE PUT] Lägger till i kö: {path.name} attempts: {len(attempt_results)}"
                     )
                     preprocessed_queue.put((path, attempt_results[:]))
                 # Om det senaste försöket hittade ansikten: avbryt fler försök
@@ -1312,7 +1317,7 @@ def preprocess_worker(
                     break
         preprocess_done.set()
     except Exception as e:
-        logging.debug(f"[PREPROCESS][ERROR] {e}")
+        logging.debug(f"[PREPROCESS worker][ERROR] {e}")
         import traceback
         traceback.print_exc()
 
