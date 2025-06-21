@@ -1449,7 +1449,7 @@ def main():
         print("Inga matchande bildfiler hittades.")
         sys.exit(1)
 
-    # === STEG 1: Starta preprocess-kö i separat process ===
+    # === STEG 1: Starta worker-processen ===
     preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)
     preprocess_done = multiprocessing.Event()
 
@@ -1467,32 +1467,106 @@ def main():
     )
     p.start()
 
-    # === STEG 2: Review-bearbeta, så fort ett attempt är klar ===
-    # En bild kan få flera attempts i kön – håll reda på när varje bild är färdig!
+    # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()
-    expected_attempts = len(images_to_process) * max_possible_attempts
-    received_attempts = 0
+    for path in images_to_process:
+        path_key = str(path)
+        attempt_idx = 0
+        attempts_so_far = []
+        worker_wait_msg_printed = False
 
-    while received_attempts < expected_attempts:
-        path, attempt_results = preprocessed_queue.get()
-        received_attempts += 1
+        while attempt_idx < max_possible_attempts:
+            # === Hämta attempts från kön om möjligt ===
+            if len(attempts_so_far) < attempt_idx + 1:
+                fetched = False
+                # Visa endast "väntar på nästa nivå" för nivå > 1
+                if attempt_idx > 0 and not worker_wait_msg_printed:
+                    print(f"(⏳ Väntar på nivå {attempt_idx+1} för {path.name}...)", flush=True)
+                    worker_wait_msg_printed = True
 
-        if path in done_images:
-            continue  # Bilden är redan klar
+                while not fetched:
+                    logging.debug(f"[MAIN] Väntar på attempt {attempt_idx+1} för {path.name}")
+                    qpath, attempt_results = preprocessed_queue.get()
+                    if str(qpath) != path_key:
+                        preprocessed_queue.put((qpath, attempt_results))
+                        continue
+                    attempts_so_far = attempt_results
+                    fetched = True
 
-        attempt_idx = len(attempt_results)
-        print(f"\n=== Bearbetar: {path.name} (försök {attempt_idx}) ===")
-        logging.debug(f"[QUEUE GET] Hämtar {path.name}, attempts: {attempt_idx}")
+                logging.debug(f"[MAIN] Mottagit {len(attempts_so_far)} attempts för {path.name}")
+                if attempt_idx > 0:
+                    print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
+                worker_wait_msg_printed = False  # Återställ för ev. fler nivåer
 
-        result = main_process_image_loop(
-            path, known_faces, ignored_faces, config, attempt_results
-        )
+            print(f"\n=== Bearbetar: {path.name} (försök {attempt_idx+1}) ===")
+            logging.debug(f"[QUEUE GET] Hämtar {path.name}, attempts: {attempt_idx+1}")
 
-        if result in (True, "ok", "manual", "skipped", "no_faces"):
-            add_to_processed_files(path, processed_files)
-            save_database(known_faces, ignored_faces, processed_files)
-            done_images.add(path)
-            # Hoppa över framtida attempts för denna bild
+            result = main_process_image_loop(
+                path, known_faces, ignored_faces, config, attempts_so_far
+            )
+
+            if result == "retry":
+                attempt_idx += 1
+                if attempt_idx >= max_possible_attempts:
+                    print(f"⏭ Inga fler försök möjliga för {path.name}, hoppar över.")
+                    add_to_processed_files(path, processed_files)
+                    save_database(known_faces, ignored_faces, processed_files)
+                    done_images.add(path)
+                    break
+                # --- Vänta på worker om det är sannolikt att attempt är på gång ---
+                max_wait = 10  # sekunder
+                waited = 0
+                got_new_attempt = False
+                if len(attempts_so_far) < attempt_idx + 1:
+                    if not worker_wait_msg_printed:
+                        print(f"(⏳ Väntar på nivå {attempt_idx+1} för {path.name}...)", flush=True)
+                        worker_wait_msg_printed = True
+                    import time
+                    while waited < max_wait:
+                        if not preprocessed_queue.empty():
+                            qpath, attempt_results = preprocessed_queue.get()
+                            if str(qpath) == path_key:
+                                attempts_so_far = attempt_results
+                                got_new_attempt = True
+                                print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
+                                worker_wait_msg_printed = False
+                                break
+                            else:
+                                preprocessed_queue.put((qpath, attempt_results))
+                        time.sleep(1)
+                        waited += 1
+                    # Om worker ändå inte levererat: skapa nytt attempt manuellt
+                    if not got_new_attempt:
+                        logging.debug(f"[MAIN] Skapar manuellt nytt attempt {attempt_idx+1} för {path.name}")
+                        print(f"(⚙️  Förbereder extra nivå {attempt_idx+1} för {path.name})", flush=True)
+                        extra_attempts = preprocess_image(
+                            path, known_faces, ignored_faces, config, max_attempts=attempt_idx + 1
+                        )
+                        if len(extra_attempts) > attempt_idx:
+                            attempts_so_far = extra_attempts
+                            print(f"(✔️  Extra nivå {attempt_idx+1} klar för {path.name})", flush=True)
+                            worker_wait_msg_printed = False
+                            continue  # Kör review-loop direkt på det!
+                        else:
+                            print(f"⏭ Inga fler försök möjliga för {path.name}, hoppar över.")
+                            add_to_processed_files(path, processed_files)
+                            save_database(known_faces, ignored_faces, processed_files)
+                            done_images.add(path)
+                            break
+                    else:
+                        continue  # Vi fick ett nytt attempt från worker, kör vidare
+                else:
+                    continue  # Allt redan klart, kör vidare
+
+            # Bilden är klar
+            if result in (True, "ok", "manual", "skipped", "no_faces", "all_ignored"):
+                add_to_processed_files(path, processed_files)
+                save_database(known_faces, ignored_faces, processed_files)
+                done_images.add(path)
+                break
+
+            # Annars: next attempt (failsafe, ska ej nås)
+            attempt_idx += 1
 
     p.join()
     preprocessed_queue.close()
