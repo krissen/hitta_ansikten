@@ -835,46 +835,60 @@ def remove_encodings_for_file(known_faces, ignored_faces, identifier):
                 removed += 1
     return removed
 
-def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=3):
-    logging.debug(f"[PREPROCESS image] start: {image_path}")
+def preprocess_image(
+    image_path,
+    known_faces,
+    ignored_faces,
+    config,
+    max_attempts=3,
+    attempts_so_far=None
+):
+    """
+    Förbehandlar en bild och returnerar en lista av attempt-resultat.
+    Om attempts_so_far anges (lista), används befintliga attempts och endast saknade attempts (index >= len(attempts_so_far)) körs.
+    """
+    fname = str(image_path)
+    logging.debug(f"[PREPROCESS image][{fname}] start")
 
     try:
         max_down = config.get("max_downsample_px")
         max_mid = config.get("max_midsample_px")
         max_full = config.get("max_fullres_px")
-        # logging.debug(" Före load_and_resize_raw: down")
         rgb_down = load_and_resize_raw(image_path, max_down)
-        # logging.debug(" Före load_and_resize_raw: mid")
         rgb_mid = load_and_resize_raw(image_path, max_mid)
-        # logging.debug(" Före load_and_resize_raw: full")
         rgb_full = load_and_resize_raw(image_path, max_full)
 
-        # logging.debug(" Före get_attempt_settings")
         attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
-        # logging.debug(" Efter get_attempt_settings")
     except Exception as e:
-        logging.warning(f"[RAWREAD][SKIP] Kunde inte öppna {image_path}: {e}")
+        logging.warning(f"[RAWREAD][SKIP][{fname}] Kunde inte öppna {fname}: {e}")
         return []
 
-    attempt_results = []
-    for attempt_idx, setting in enumerate(attempt_settings):
-        logging.debug(f" Attempt {attempt_idx}: start")
+    if attempts_so_far is None:
+        attempts_so_far = []
+
+    attempt_results = list(attempts_so_far)  # Kopiera så vi inte muterar input
+    start_idx = len(attempt_results)
+    total_attempts = min(max_attempts, len(attempt_settings))
+
+    for attempt_idx in range(start_idx, total_attempts):
+        setting = attempt_settings[attempt_idx]
         rgb = setting["rgb_img"]
         t0 = time.time()
-        logging.debug(f" Attempt {attempt_idx}: face_detection_attempt")
+        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: start")
+        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: face_detection_attempt")
         face_locations, face_encodings = face_detection_attempt(
             rgb, setting["model"], setting["upsample"]
         )
-        logging.debug(f" Attempt {attempt_idx}: label_preview_for_encodings")
+        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: label_preview_for_encodings")
         preview_labels = label_preview_for_encodings(
             face_encodings, known_faces, ignored_faces, config
         )
-        logging.debug(f" Attempt {attempt_idx}: create_labeled_image")
+        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: create_labeled_image")
         preview_path = create_labeled_image(
             rgb, face_locations, preview_labels, config, suffix=f"_preview_{attempt_idx}"
         )
         elapsed = time.time() - t0
-        logging.debug(f" Attempt {attempt_idx}: done ({elapsed:.2f}s)")
+        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: done ({elapsed:.2f}s)")
 
         attempt_results.append({
             "attempt_index": attempt_idx,
@@ -893,7 +907,7 @@ def preprocess_image(image_path, known_faces, ignored_faces, config, max_attempt
         if attempt_idx + 1 >= max_attempts:
             break
 
-    logging.debug("[PREPROCESS image]: end")
+    logging.debug(f"[PREPROCESS image][{fname}]: end")
     return attempt_results
 
 
@@ -1558,7 +1572,9 @@ def main():
                         logging.debug(f"[MAIN] Skapar manuellt nytt attempt {attempt_idx+1} för {path.name}")
                         # print(f"(⚙️  Förbereder extra nivå {attempt_idx+1} för {path.name})", flush=True)
                         extra_attempts = preprocess_image(
-                            path, known_faces, ignored_faces, config, max_attempts=attempt_idx + 1
+                            path, known_faces, ignored_faces, config,
+                            max_attempts=attempt_idx + 1,
+                            attempts_so_far=attempts_so_far
                         )
                         if len(extra_attempts) > attempt_idx:
                             attempts_so_far = extra_attempts
