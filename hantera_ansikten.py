@@ -196,7 +196,7 @@ def purge_last_x_for_name(known, ignored):
 
 
 def main():
-    known, ignored, processed = load_database()
+    known, ignored, hard_negatives, processed = load_database()
     while True:
         print_menu()
         val = input("Välj åtgärd: ").strip()
@@ -215,7 +215,7 @@ def main():
                 continue
             known[new_name] = known.pop(name)
             print(f"{name} → {new_name}")
-            save_database(known, ignored, processed)
+            save_database(known, ignored, hard_negatives, processed)
         elif val == "2":
             print_known(known)
             name1 = name_input(known, "Första namn att slå ihop (namn eller nummer): ")
@@ -244,7 +244,7 @@ def main():
                 if n != target and n in known:
                     del known[n]
             print(f"{name1} + {name2} → {target}")
-            save_database(known, ignored, processed)
+            save_database(known, ignored, hard_negatives, processed)
         elif val == "3":
             print_known(known)
             name = name_input(known, "Ta bort vilket namn? (namn eller nummer): ")
@@ -253,7 +253,7 @@ def main():
                 continue
             del known[name]
             print(f"{name} togs bort.")
-            save_database(known, ignored, processed)
+            save_database(known, ignored, hard_negatives, processed)
         elif val == "4":
             print_known(known)
             name = name_input(
@@ -265,7 +265,7 @@ def main():
             ignored.extend(known[name])
             del known[name]
             print(f"{name} flyttades till ignorerade ansikten.")
-            save_database(known, ignored, processed)
+            save_database(known, ignored, hard_negatives, processed)
         elif val == "5":
             print(f"Antal encodings i ignore: {len(ignored)}")
             n = input("Hur många flyttas? (1/all): ").strip()
@@ -287,20 +287,20 @@ def main():
             known[new_name] = known.get(new_name, []) + ignored[:count]
             ignored = ignored[count:]
             print(f"{count} encodings flyttades till '{new_name}'")
-            save_database(known, ignored, processed)
+            save_database(known, ignored, hard_negatives, processed)
         elif val == "6":
             print_mapping_counts(known, ignored)
         elif val == "7":
             list_recent_files(10)
         elif val == "8":
             known, ignored, processed = undo_last_file(known, ignored, processed)
-            save_database(known, ignored, processed)
+            save_database(known, ignored, hard_negatives, processed)
         elif val == "9":
             known, ignored = purge_last_x_for_name(known, ignored)
-            save_database(known, ignored, processed)
+            save_database(known, ignored, hard_negatives, processed)
         elif val == "10":
             known, ignored, processed = undo_file_by_name(known, ignored, processed)
-            save_database(known, ignored, processed)
+            save_database(known, ignored, hard_negatives, processed)
         elif val == "0":
             print("Avslutar!")
             break
