@@ -90,7 +90,7 @@ def attempt_stats_table(stats):
             attempt_info[key]["faces"] += setting.get("faces_found", 0)
             attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
     from rich.table import Table
-    table = Table(show_header=True, header_style="bold magenta")
+    table = Table(show_header=True, header_style="bold")
     table.add_column("Försök (modell, upsample, skala)", min_width=28)
     table.add_column("Använd", justify="right")
     table.add_column("Total", justify="right")
@@ -117,12 +117,15 @@ def attempt_stats_table(stats):
 def faces_grid_panel(stats=None):
     from rich.panel import Panel
     from rich.table import Table
+
+    block_title_style = "bold green3"
     num_cols = 4
     num_rows = 5
     max_items = num_cols * num_rows
     face_counts = count_faces_per_name()
     ignored, total, frac = calc_ignored_fraction(stats)
     ignored_str = f"Ignored ({ignored}/{total}, {frac:.1%})" if total else "Ignored (0)"
+
     # Bygg lista av namn + count (sorterad fallande)
     items = sorted(face_counts.items(), key=lambda x: -x[1])[:max_items-1]
     while len(items) < max_items-1:
@@ -143,7 +146,13 @@ def faces_grid_panel(stats=None):
         table.add_row(*grid_row)
     if not any(name for name, cnt in items):
         table.add_row(*["–"]*num_cols)
-    return Panel(table, title=f"Vanligaste ansikten (topp {max_items-1} + Ignored)")
+    return Panel(
+        table,
+        title=f"Vanligaste ansikten (topp {max_items-1} + Ignored)",
+        title_align="left",
+        border_style=block_title_style,
+    )
+
 
 def latest_images_with_names(stats, n=5):
     lines = []
@@ -203,17 +212,34 @@ def render_dashboard(stats):
     from rich.panel import Panel
     from rich.text import Text
 
+    block_title_style = "bold green3"
     table = attempt_stats_table(stats)
     faces_panel = faces_grid_panel(stats)
-    latest_panel = Panel(Text(latest_images_with_names(stats, n=3), style="", overflow="ellipsis"), title="Senaste 3 bilder (namn)")
-    log_panel = Panel(Text(get_recent_log_lines(), style="", overflow="ellipsis"), title="Senaste rader från loggen")
+    latest_panel = Panel(
+        Text(latest_images_with_names(stats, n=3), style="", overflow="ellipsis"),
+        title="Senaste 3 bilder (namn)",
+        title_align="left",
+        border_style=block_title_style,
+    )
+    log_panel = Panel(
+        Text(get_recent_log_lines(), style="", overflow="ellipsis"),
+        title="Senaste rader från loggen",
+        title_align="left",
+        border_style=block_title_style,
+    )
 
     outer = Layout()
     inner = Layout()
     outer.split_column(Layout(inner, ratio=1))
     inner.split(
-        Layout(Panel(table, title="Attempt-statistik"), name="upper", ratio=2),
-        Layout(faces_panel, name="faces", ratio=1),
+        Layout(
+            Panel(table, title="Attempt-statistik", title_align="left", border_style=block_title_style),
+            name="upper", ratio=2
+        ),
+        Layout(
+            faces_panel if hasattr(faces_panel, 'border_style') else Panel(faces_panel.renderable, title=faces_panel.title, title_align="left", border_style=block_title_style),
+            name="faces", ratio=1
+        ),
         Layout(latest_panel, name="latest", ratio=1),
         Layout(log_panel, name="log", ratio=1),
     )
