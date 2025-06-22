@@ -8,7 +8,7 @@ from pathlib import Path
 from faceid_db import ARCHIVE_DIR
 from faceid_db import ATTEMPT_LOG_PATH as ATTEMPT_FILE
 from faceid_db import LOGGING_PATH as LOG_FILE
-from faceid_db import extract_face_labels
+from faceid_db import extract_face_labels, load_database
 
 # ================== Laddning och grundstatistik ====================
 
@@ -45,17 +45,9 @@ def find_all_stats_files():
 
 # ================== Statistik- och hjälpfunktioner ====================
 
-def extract_face_counts_grid(stats, max_items=9):
-    face_counts = Counter()
-    for entry in stats:
-        labels_per_attempt = entry.get("labels_per_attempt")
-        used = entry.get("used_attempt")
-        if not labels_per_attempt or used is None or used >= len(labels_per_attempt):
-            continue
-        labels = labels_per_attempt[used]
-        for name in extract_face_labels(labels):
-            face_counts[name] += 1
-    return face_counts.most_common(max_items)
+def count_faces_per_name():
+    known_faces, _, _ = load_database()
+    return {name: len(entries) for name, entries in known_faces.items()}
 
 def calc_ignored_fraction(stats):
     total = 0
@@ -122,25 +114,20 @@ def attempt_stats_table(stats):
         )
     return table
 
-def faces_grid_panel(stats):
+def faces_grid_panel(stats=None):
     from rich.panel import Panel
     from rich.table import Table
-
     num_cols = 4
     num_rows = 5
     max_items = num_cols * num_rows
-    items = extract_face_counts_grid(stats, max_items=max_items - 1)  # 19 namn, 1 till ignored
-
-    # Beräkna ignored-info
+    face_counts = count_faces_per_name()
     ignored, total, frac = calc_ignored_fraction(stats)
     ignored_str = f"Ignored ({ignored}/{total}, {frac:.1%})" if total else "Ignored (0)"
-
-    # Fyll upp
-    while len(items) < max_items - 1:
+    # Bygg lista av namn + count (sorterad fallande)
+    items = sorted(face_counts.items(), key=lambda x: -x[1])[:max_items-1]
+    while len(items) < max_items-1:
         items.append(("", ""))
     items.append(("Ignored", ignored_str))  # Sista rutan
-
-    # Bygg kolumnvis
     grid = []
     for row in range(num_rows):
         grid_row = []
@@ -149,7 +136,6 @@ def faces_grid_panel(stats):
             name, cnt = items[idx] if idx < len(items) else ("", "")
             grid_row.append(f"{name} ({cnt})" if name and name != "Ignored" else cnt if name == "Ignored" else "")
         grid.append(grid_row)
-
     table = Table(show_header=False, box=None, pad_edge=False)
     for _ in range(num_cols):
         table.add_column(justify="left", ratio=1)
@@ -157,7 +143,6 @@ def faces_grid_panel(stats):
         table.add_row(*grid_row)
     if not any(name for name, cnt in items):
         table.add_row(*["–"]*num_cols)
-
     return Panel(table, title=f"Vanligaste ansikten (topp {max_items-1} + Ignored)")
 
 def latest_images_with_names(stats, n=5):
