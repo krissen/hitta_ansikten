@@ -63,19 +63,19 @@ DEFAULT_CONFIG = {
   "auto_ignore_on_fix": True,
   "detection_model": "hog",
   "font_size_factor": 45,
-  "ignore_distance": 0.5,
   "image_viewer_app": "Bildvisare",
-  "label_bg_color": [0, 0, 0, 192],
-  "label_text_color": [255, 255, 0],
-  "match_threshold": 0.6,
   "max_downsample_px": 2800,
   "max_fullres_px": 8000,
   "max_midsample_px": 4500,
-  "min_confidence": 0.4,
-  "padding": 15,
-  "prefer_name_margin": 0.10,  # Namn måste vara minst så här mycket bättre än ignore för att vinna automatiskt
-  "rectangle_thickness": 6,
   "temp_image_path": "/tmp/hitta_ansikten_preview.jpg",
+  "label_bg_color": [0, 0, 0, 192],
+  "label_text_color": [255, 255, 0],
+  "padding": 15,
+  "rectangle_thickness": 6,
+  "match_threshold": 0.6,
+  "min_confidence": 0.4,
+  "ignore_distance": 0.5,
+  "prefer_name_margin": 0.10,
 }
 
 def load_config():
@@ -307,38 +307,7 @@ def log_attempt_stats(
 
 
 def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config):
-    name_thr = config.get("match_threshold")
-    ignore_thr = config.get("ignore_distance")
-    margin = config.get("prefer_name_margin")
-
-    # Fall: båda nära, inom margin
-    if (
-        best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
-        best_ignore_dist is not None and best_ignore_dist < ignore_thr and
-        abs(best_name_dist - best_ignore_dist) < margin
-    ):
-        if best_name_dist < best_ignore_dist:
-            return f"#%d\n{best_name} / ign" % (i + 1), "uncertain_name"
-        else:
-            return f"#%d\nign / {best_name}" % (i + 1), "uncertain_ign"
-
-    # Fall: namn vinner klart
-    elif (
-        best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
-        (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
-    ):
-        return f"#%d\n{best_name}" % (i + 1), "name"
-
-    # Fall: ign vinner klart
-    elif (
-        best_ignore_dist is not None and best_ignore_dist < ignore_thr and
-        (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
-    ):
-        return "#%d\nign" % (i + 1), "ign"
-
-    # Fall: *ingen* tillräckligt nära (okänt)
-    else:
-        return "#%d\nOkänt" % (i + 1), "unknown"
+    return get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
 
 def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config):
     labels = []
@@ -370,6 +339,49 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, label
     if labels is not None:
         labels.append(label_obj)
     return namn, label_obj
+
+def get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config):
+    name_thr = config.get("match_threshold", 0.6)
+    ignore_thr = config.get("ignore_distance", 0.5)
+    margin = config.get("prefer_name_margin", 0.10)
+    min_conf = config.get("min_confidence", 0.4)
+
+    # Confidence-filter
+    if (
+        (name_conf is not None and name_conf / 100 < min_conf) and
+        (ign_conf is not None and ign_conf / 100 < min_conf)
+    ):
+        return "#%d\nOkänt" % (i + 1), "unknown"
+
+    # Osäker mellan namn och ignore
+    if (
+        best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
+        best_ignore_dist is not None and best_ignore_dist < ignore_thr and
+        abs(best_name_dist - best_ignore_dist) < margin
+    ):
+        if best_name_dist < best_ignore_dist:
+            return f"#%d\n{best_name} / ign" % (i + 1), "uncertain_name"
+        else:
+            return f"#%d\nign / {best_name}" % (i + 1), "uncertain_ign"
+
+    # Namn vinner klart
+    elif (
+        best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
+        (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
+    ):
+        return f"#%d\n{best_name}" % (i + 1), "name"
+
+    # Ign vinner klart
+    elif (
+        best_ignore_dist is not None and best_ignore_dist < ignore_thr and
+        (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
+    ):
+        return "#%d\nign" % (i + 1), "ign"
+
+    # Ingen tillräckligt nära
+    else:
+        return "#%d\nOkänt" % (i + 1), "unknown"
+
 
 def user_review_encodings(
     face_encodings, known_faces, ignored_faces, config,
@@ -410,11 +422,13 @@ def user_review_encodings(
             "n": "retry",
         }
 
-        if (
-            best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
-            best_ignore_dist is not None and best_ignore_dist < ignore_thr and
-            abs(best_name_dist - best_ignore_dist) < margin
-        ):
+        # Centraliserad logik
+        label_txt, case = get_face_match_status(
+            i, best_name, best_name_dist, name_confidence,
+            best_ignore, best_ignore_dist, ignore_confidence, config
+        )
+
+        if case == "uncertain_name":
             prompt_txt = (
                 f"↪ Osäkert: {best_name} ({name_confidence}%) / ign ({ignore_confidence}%)\n"
                 "[Enter = bekräfta namn, i = ignorera, r = rätta, n = försök igen, "
@@ -423,10 +437,16 @@ def user_review_encodings(
             actions = {**base_actions, "i": "ignore", "r": "edit"}
             default_action = "name"
 
-        elif (
-            best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
-            (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
-        ):
+        elif case == "uncertain_ign":
+            prompt_txt = (
+                f"↪ Osäkert: ign ({ignore_confidence}%) / {best_name} ({name_confidence}%)\n"
+                "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
+                "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
+            )
+            actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
+            default_action = "ignore"
+
+        elif case == "name":
             prompt_txt = (
                 f"↪ Föreslaget: {best_name} ({name_confidence}%)\n"
                 "[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, "
@@ -435,10 +455,7 @@ def user_review_encodings(
             actions = {**base_actions, "r": "edit", "i": "ignore"}
             default_action = "name"
 
-        elif (
-            best_ignore_dist is not None and best_ignore_dist < ignore_thr and
-            (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
-        ):
+        elif case == "ign":
             prompt_txt = (
                 f"↪ Ansiktet liknar ett tidigare ignorerat ({ignore_confidence}%).\n"
                 "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
@@ -447,7 +464,7 @@ def user_review_encodings(
             actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
             default_action = "ignore"
 
-        else:
+        else:  # "unknown"
             prompt_txt = (
                 "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, n = försök igen, "
                 "m = manuell tilldelning, o = öppna original, x = skippa bild) › "
