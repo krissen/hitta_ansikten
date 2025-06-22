@@ -59,23 +59,49 @@ MAX_QUEUE = 10
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
-  "auto_ignore": False,
-  "auto_ignore_on_fix": True,
-  "detection_model": "hog",
-  "font_size_factor": 45,
-  "image_viewer_app": "Bildvisare",
-  "max_downsample_px": 2800,
-  "max_fullres_px": 8000,
-  "max_midsample_px": 4500,
-  "temp_image_path": "/tmp/hitta_ansikten_preview.jpg",
-  "label_bg_color": [0, 0, 0, 192],
-  "label_text_color": [255, 255, 0],
-  "padding": 15,
-  "rectangle_thickness": 6,
-  "match_threshold": 0.6,
-  "min_confidence": 0.4,
-  "ignore_distance": 0.5,
-  "prefer_name_margin": 0.10,
+    # === Automatiska åtgärder & flöden ===
+    # Ignorera ej identifierade ansikten automatiskt (manuell review krävs)
+    "auto_ignore": False,
+    # Vid --fix: ignoreras ansikten under tröskeln automatiskt
+    "auto_ignore_on_fix": True,
+
+    # === Modell & detektering ===
+    # Modell för ansiktsdetektion: "hog" (snabb, CPU) eller "cnn" (noggrann, GPU)
+    "detection_model": "hog",
+
+    # === Bildskalor och prestanda ===
+    # Max-bredd/höjd för lågupplöst försök (snabb men mindre detaljer)
+    "max_downsample_px": 2800,
+    # Max-bredd/höjd för mellanupplöst försök
+    "max_midsample_px": 4500,
+    # Max-bredd/höjd för fullupplöst försök (sista chans, långsamt)
+    "max_fullres_px": 8000,
+
+    # === Utseende: etiketter & fönster ===
+    # Skalningsfaktor för etikett-textstorlek
+    "font_size_factor": 45,
+    # App som används för att visa bilder, t.ex. "Bildvisare" eller "feh"
+    "image_viewer_app": "Bildvisare",
+    # Sökväg för temporär förhandsvisningsbild
+    "temp_image_path": "/tmp/hitta_ansikten_preview.jpg",
+    # Bakgrundsfärg för etiketter i RGBA
+    "label_bg_color": [0, 0, 0, 192],
+    # Textfärg för etiketter i RGB
+    "label_text_color": [255, 255, 0],
+    # Marginal kring ansiktsrutor (pixlar)
+    "padding": 15,
+    # Linjetjocklek för markeringsruta (pixlar)
+    "rectangle_thickness": 6,
+
+    # === Matchningsparametrar (justera för träffsäkerhet) ===
+    # Max-avstånd för att godkänna namn-match (lägre = striktare)
+    "match_threshold": 0.54,
+    # Minsta "confidence" för att visa namn (0.0–1.0, högre = striktare)
+    "min_confidence": 0.5,
+    # Max-avstånd för att automatiskt föreslå ignorering ("ign")
+    "ignore_distance": 0.48,
+    # Namn måste vara så här mycket bättre än ignore för att vinna automatiskt
+    "prefer_name_margin": 0.15,
 }
 
 def load_config():
