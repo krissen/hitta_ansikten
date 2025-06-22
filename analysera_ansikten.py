@@ -6,7 +6,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from faceid_db import ARCHIVE_DIR
-from faceid_db import ATTEMPT_LOG_PATH as LOG_FILE
+from faceid_db import ATTEMPT_LOG_PATH as ATTEMPT_FILE
+from faceid_db import LOGGING_PATH as LOG_FILE
 from faceid_db import extract_face_labels
 
 # ================== Laddning och grundstatistik ====================
@@ -36,8 +37,8 @@ def load_multiple_stats(files):
 
 def find_all_stats_files():
     files = []
-    if LOG_FILE.exists():
-        files.append(LOG_FILE)
+    if ATTEMPT_FILE.exists():
+        files.append(ATTEMPT_FILE)
     if ARCHIVE_DIR.exists():
         files += sorted(ARCHIVE_DIR.glob("attempt_stats*.jsonl"))
     return files
@@ -128,20 +129,25 @@ def faces_grid_panel(stats):
     num_cols = 4
     num_rows = 5
     max_items = num_cols * num_rows
-    items = extract_face_counts_grid(stats, max_items=max_items)
+    items = extract_face_counts_grid(stats, max_items=max_items - 1)  # 19 namn, 1 till ignored
 
-    # Fyll på så det blir alltid exakt max_items
-    while len(items) < max_items:
+    # Beräkna ignored-info
+    ignored, total, frac = calc_ignored_fraction(stats)
+    ignored_str = f"Ignored ({ignored}/{total}, {frac:.1%})" if total else "Ignored (0)"
+
+    # Fyll upp
+    while len(items) < max_items - 1:
         items.append(("", ""))
+    items.append(("Ignored", ignored_str))  # Sista rutan
 
-    # Bygg kolumnvis: items[0], items[5], items[10], items[15] = kolumn 1
+    # Bygg kolumnvis
     grid = []
     for row in range(num_rows):
         grid_row = []
         for col in range(num_cols):
             idx = col * num_rows + row
             name, cnt = items[idx] if idx < len(items) else ("", "")
-            grid_row.append(f"{name} ({cnt})" if name else "")
+            grid_row.append(f"{name} ({cnt})" if name and name != "Ignored" else cnt if name == "Ignored" else "")
         grid.append(grid_row)
 
     table = Table(show_header=False, box=None, pad_edge=False)
@@ -149,11 +155,10 @@ def faces_grid_panel(stats):
         table.add_column(justify="left", ratio=1)
     for grid_row in grid:
         table.add_row(*grid_row)
-
     if not any(name for name, cnt in items):
         table.add_row(*["–"]*num_cols)
 
-    return Panel(table, title=f"Vanligaste ansikten (topp {max_items})")
+    return Panel(table, title=f"Vanligaste ansikten (topp {max_items-1} + Ignored)")
 
 def latest_images_with_names(stats, n=5):
     lines = []
@@ -199,29 +204,33 @@ def pie_chart_attempts(stats):
     return chart
 
 # ================== Rich Dashboard (Live) ====================
+def get_recent_log_lines(n=3, logfile=LOG_FILE):
+    # Byt till rätt sökväg om nödvändigt
+    try:
+        with open(logfile, "r") as f:
+            lines = f.readlines()
+        return "".join(lines[-n:]).strip()
+    except Exception:
+        return "(Kunde inte läsa loggfilen)"
 
 def render_dashboard(stats):
-
     from rich.layout import Layout
     from rich.panel import Panel
+    from rich.text import Text
 
-    # Hämta paneler
     table = attempt_stats_table(stats)
     faces_panel = faces_grid_panel(stats)
-    ignored, total, frac = calc_ignored_fraction(stats)
-    ignored_panel = Panel(f"Ignorerade ansikten: {ignored}/{total} ({frac:.1%})", title="Andel ignorerade")
-    Panel(pie_chart_attempts(stats), title="Fördelning av attempts (Pie-chart)")
-    latest_panel = Panel(latest_images_with_names(stats, n=3), title="Senaste 3 bilder (namn)")
-    # Layout med ratio för allt utom ignored_panel
+    latest_panel = Panel(Text(latest_images_with_names(stats, n=3), style="", overflow="ellipsis"), title="Senaste 3 bilder (namn)")
+    log_panel = Panel(Text(get_recent_log_lines(), style="", overflow="ellipsis"), title="Senaste rader från loggen")
+
     outer = Layout()
     inner = Layout()
     outer.split_column(Layout(inner, ratio=1))
     inner.split(
         Layout(Panel(table, title="Attempt-statistik"), name="upper", ratio=2),
         Layout(faces_panel, name="faces", ratio=1),
-        Layout(ignored_panel, name="ignored", ratio=1),
-        # Layout(pie_panel, name="pie", ratio=2),
         Layout(latest_panel, name="latest", ratio=1),
+        Layout(log_panel, name="log", ratio=1),
     )
     return outer
 
@@ -377,16 +386,16 @@ def _analyze_single(stats):
 def main():
     if len(sys.argv) == 2 and sys.argv[1] in ["--dashboard", "dashboard"]:
         try:
-            dashboard_mode(LOG_FILE)
+            dashboard_mode(ATTEMPT_FILE)
         except ImportError:
             print("Du måste installera 'watchdog' och 'rich' för att använda dashboard.")
         return
     # Default: analysera nuvarande loggfil
     if len(sys.argv) == 1:
-        if not LOG_FILE.exists():
-            print(f"Ingen loggfil hittades: {LOG_FILE}")
+        if not ATTEMPT_FILE.exists():
+            print(f"Ingen loggfil hittades: {ATTEMPT_FILE}")
             return
-        stats = load_stats(LOG_FILE)
+        stats = load_stats(ATTEMPT_FILE)
         if not stats:
             print("Inga loggar hittades.")
             return
