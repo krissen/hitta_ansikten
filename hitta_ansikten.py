@@ -202,7 +202,8 @@ def export_and_show_original(image_path, config):
     status = {
         "timestamp": time.time(),
         "source_nef": str(image_path),
-        "exported_jpg": str(export_path)
+        "exported_jpg": str(export_path),
+        "exported": "true"
     }
     with open(status_path, "w") as f:
         json.dump(status, f, indent=2)
@@ -211,13 +212,26 @@ def export_and_show_original(image_path, config):
     # os.system(f"open -a '{config.get('image_viewer_app', 'Bildvisare')}' '{export_path}'")
 
 
-def show_temp_image(preview_path, config, last_shown=[None]):
+def show_temp_image(preview_path, config, image_path=None, last_shown=[None]):
     import subprocess
     viewer_app = config.get("image_viewer_app")
     status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "status.json"
     expected_path = str(Path(preview_path).resolve())
 
     should_open = True  # Default: öppna om osäkert
+
+    # Använd image_path om det finns, annars preview_path
+    orig_path = str(image_path) if image_path else str(preview_path)
+    status_origjson_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
+    status_origjson = {
+        "timestamp": time.time(),
+        "source_nef": orig_path,
+        "exported_jpg": None,
+        "exported": "false"
+    }
+    with open(status_origjson_path, "w") as f:
+        json.dump(status_origjson, f, indent=2)
+
 
     if status_path.exists():
         try:
@@ -524,7 +538,7 @@ def user_review_encodings(
                 if image_path is not None:
                     export_and_show_original(image_path, config)
                 elif preview_path is not None:
-                    show_temp_image(preview_path, config)
+                    show_temp_image(preview_path, config, image_path)
                 continue
             elif action == "manual":
                 handle_manual_add(known_faces, image_path, file_hash, input_name, labels)
@@ -1038,7 +1052,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
         shutil.copy(preview_path, ORDINARY_PREVIEW_PATH)
     except Exception as e:
         print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
-    show_temp_image(ORDINARY_PREVIEW_PATH, config)
+    show_temp_image(ORDINARY_PREVIEW_PATH, config, image_path)
 
     if face_encodings:
         review_result, labels = user_review_encodings(
