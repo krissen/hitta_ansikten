@@ -46,7 +46,7 @@ def find_all_stats_files():
 # ================== Statistik- och hjälpfunktioner ====================
 
 def count_faces_per_name():
-    known_faces, _, _ = load_database()
+    known_faces, _, _, _ = load_database()
     return {name: len(entries) for name, entries in known_faces.items()}
 
 def calc_ignored_fraction(stats):
@@ -245,7 +245,7 @@ def render_dashboard(stats):
     )
     return outer
 
-def dashboard_mode(log_file):
+def dashboard_mode(attempt_file):
     try:
         from rich.console import Console
         from rich.live import Live
@@ -254,19 +254,25 @@ def dashboard_mode(log_file):
         return
     import time
 
+    from faceid_db import ENCODING_PATH, LOGGING_PATH
+
     console = Console()
-    last_mtime = None
+    last_mtimes = {"attempt": None, "db": None, "log": None}
     stats = []
     with Live(render_dashboard(stats), refresh_per_second=2, console=console) as live:
         while True:
             try:
-                mtime = os.path.getmtime(log_file)
-                if last_mtime is None or mtime != last_mtime:
-                    last_mtime = mtime
-                    with open(log_file) as f:
+                mtimes = {
+                    "attempt": os.path.getmtime(attempt_file) if os.path.exists(attempt_file) else None,
+                    "db": os.path.getmtime(ENCODING_PATH) if ENCODING_PATH.exists() else None,
+                    "log": os.path.getmtime(LOGGING_PATH) if LOGGING_PATH.exists() else None,
+                }
+                if any(last_mtimes[key] != mtimes[key] for key in mtimes):
+                    last_mtimes = mtimes
+                    with open(attempt_file) as f:
                         stats = [json.loads(line) for line in f]
                     live.update(render_dashboard(stats))
-                time.sleep(2)
+                time.sleep(0.5)
             except KeyboardInterrupt:
                 break
             except Exception as e:
