@@ -13,6 +13,7 @@ ATTEMPT_SETTINGS_SIG = BASE_DIR / "attempt_settings.sig"
 CONFIG_PATH = BASE_DIR / "config.json"
 ENCODING_PATH = BASE_DIR / "encodings.pkl"
 IGNORED_PATH = BASE_DIR / "ignored.pkl"
+HARDNEG_PATH = BASE_DIR / "hardneg.pkl"
 METADATA_PATH = BASE_DIR / "metadata.json"
 PROCESSED_PATH = BASE_DIR / "processed_files.jsonl"
 SUPPORTED_EXT = [".nef", ".NEF"]
@@ -21,18 +22,28 @@ LOGGING_PATH = BASE_DIR / "hitta_ansikten.log"
 
 
 def load_database():
+    # Ladda known faces
     if ENCODING_PATH.exists():
         with open(ENCODING_PATH, "rb") as f:
             known_faces = pickle.load(f)
     else:
         known_faces = {}
 
+    # Ladda ignored faces
     if IGNORED_PATH.exists():
         with open(IGNORED_PATH, "rb") as f:
             ignored_faces = pickle.load(f)
     else:
         ignored_faces = []
 
+    # Ladda hard negatives
+    if HARDNEG_PATH.exists():
+        with open(HARDNEG_PATH, "rb") as f:
+            hard_negatives = pickle.load(f)
+    else:
+        hard_negatives = {}
+
+    # Ladda processed_files
     processed_files = []
     if PROCESSED_PATH.exists():
         with open(PROCESSED_PATH, "r") as f:
@@ -49,14 +60,16 @@ def load_database():
                     pass
                 # fallback legacy
                 processed_files.append({"name": line, "hash": None})
-    return known_faces, ignored_faces, processed_files
+    return known_faces, ignored_faces, hard_negatives, processed_files
 
 
-def save_database(known_faces, ignored_faces, processed_files):
+def save_database(known_faces, ignored_faces, hard_negatives, processed_files):
     with open(ENCODING_PATH, "wb") as f:
         pickle.dump(known_faces, f)
     with open(IGNORED_PATH, "wb") as f:
         pickle.dump(ignored_faces, f)
+    with open(HARDNEG_PATH, "wb") as f:
+        pickle.dump(hard_negatives, f)
     with open(PROCESSED_PATH, "w") as f:
         for entry in processed_files:
             if isinstance(entry, dict):

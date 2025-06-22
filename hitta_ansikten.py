@@ -335,11 +335,12 @@ def log_attempt_stats(
 def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config):
     return get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
 
-def label_preview_for_encodings(face_encodings, known_faces, ignored_faces, config):
+def label_preview_for_encodings(face_encodings, known_faces,
+                                ignored_faces, hard_negatives, config):
     labels = []
     for i, encoding in enumerate(face_encodings):
         (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches(
-            encoding, known_faces, ignored_faces, config
+            encoding, known_faces, ignored_faces, hard_negatives, config
         )
         name_conf = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ign_conf = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
@@ -408,9 +409,13 @@ def get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, 
     else:
         return "#%d\nOkänt" % (i + 1), "unknown"
 
+def add_hard_negative(hard_negatives, person, encoding):
+    if person not in hard_negatives:
+        hard_negatives[person] = []
+    hard_negatives[person].append(encoding)
 
 def user_review_encodings(
-    face_encodings, known_faces, ignored_faces, config,
+    face_encodings, known_faces, ignored_faces, hard_negatives, config,
     image_path=None, preview_path=None, file_hash=None
 ):
     """
@@ -436,7 +441,7 @@ def user_review_encodings(
         name = None
         print(f"\nAnsikte #{i + 1}:")
         (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches(
-            encoding, known_faces, ignored_faces, config
+            encoding, known_faces, ignored_faces, hard_negatives, config
         )
         name_confidence = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ignore_confidence = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
@@ -543,6 +548,9 @@ def user_review_encodings(
                 if new_name:
                     name = new_name
                     all_ignored = False
+                    # --- Hard negative: Spara encoding som hard negative för best_name om den felaktigt föreslogs! ---
+                    if best_name and name != best_name:
+                        add_hard_negative(hard_negatives, best_name, encoding)
                     break
             elif action == "ignore":
                 ignored_faces.append(encoding)
@@ -740,12 +748,12 @@ def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
         return tmp.name
 
 # === Beräkna avstånd till kända encodings ===
-def best_matches(encoding, known_faces, ignored_faces, config):
+def best_matches(encoding, known_faces, ignored_faces, hard_negatives, config):
     """
     Returnerar:
         (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
-    där dist är lägre = bättre.
-    Stödjer både nya och gamla format på entries (dict med 'encoding' och/eller ren ndarray).
+    Nu med stöd för hard negatives per person – om encoding ligger nära en hard negative för ett namn,
+    ska det inte föreslås det namnet (eller ges mycket dåligt score).
     """
     import face_recognition
     import numpy as np
@@ -755,7 +763,10 @@ def best_matches(encoding, known_faces, ignored_faces, config):
     best_ignore = None
     best_ignore_dist = None
 
-    # Namnmatch – iterera alla personer
+    name_thr = config.get("match_threshold", 0.6)
+    # Om encoding ligger närmare en hard negative än en vanlig encoding, skippa detta namn.
+    hard_negative_thr = config.get("hard_negative_distance", 0.45)  # justerbar, gärna < ignore_thr
+
     for name, entries in known_faces.items():
         # Samla alla numpy-arrayer för encodings
         encs = []
@@ -766,16 +777,36 @@ def best_matches(encoding, known_faces, ignored_faces, config):
                     encs.append(enc)
             elif isinstance(entry, np.ndarray):
                 encs.append(entry)
-            # annars ignoreras entry (ex: manuell post, gamla/trasiga poster)
         if not encs:
             continue  # Skippa namn utan encodings
+
+        # Kolla mot personens hard negatives – om encoding ligger för nära någon, ignorera
+        hard_negs = []
+        if hard_negatives and name in hard_negatives:
+            for neg in hard_negatives[name]:
+                if isinstance(neg, dict) and "encoding" in neg:
+                    neg_enc = neg["encoding"]
+                else:
+                    neg_enc = neg
+                if isinstance(neg_enc, np.ndarray):
+                    hard_negs.append(neg_enc)
+        # Om någon hard negative är nära: ignorera denna person helt
+        is_hard_negative = False
+        if hard_negs:
+            neg_dists = face_recognition.face_distance(np.array(hard_negs), encoding)
+            if np.min(neg_dists) < hard_negative_thr:
+                is_hard_negative = True
+
+        if is_hard_negative:
+            continue
+
         dists = face_recognition.face_distance(encs, encoding)
         min_dist = np.min(dists)
         if best_name_dist is None or min_dist < best_name_dist:
             best_name_dist = min_dist
             best_name = name
 
-    # Ignore-match
+    # Ignore-match (oförändrad)
     ignored_encs = []
     for entry in ignored_faces:
         if isinstance(entry, dict) and "encoding" in entry:
@@ -784,8 +815,6 @@ def best_matches(encoding, known_faces, ignored_faces, config):
                 ignored_encs.append(enc)
         elif isinstance(entry, np.ndarray):
             ignored_encs.append(entry)
-        # annars ignorera
-
     best_ignore_idx = None
     if ignored_encs:
         dists = face_recognition.face_distance(ignored_encs, encoding)
@@ -836,7 +865,7 @@ def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = 
         sys.exit(0)
 
 
-def remove_encodings_for_file(known_faces, ignored_faces, identifier):
+def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identifier):
     """
     Tar bort ALLA encodings (via hash) som mappats från just denna fil.
     identifier kan vara filnamn (str), hash (str), eller lista av dessa.
@@ -891,6 +920,7 @@ def preprocess_image(
     image_path,
     known_faces,
     ignored_faces,
+    hard_negatives,
     config,
     max_attempts=3,
     attempts_so_far=None
@@ -933,7 +963,7 @@ def preprocess_image(
         )
         logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: label_preview_for_encodings")
         preview_labels = label_preview_for_encodings(
-            face_encodings, known_faces, ignored_faces, config
+            face_encodings, known_faces, ignored_faces, hard_negatives, config
         )
         logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: create_labeled_image")
         preview_path = create_labeled_image(
@@ -963,7 +993,8 @@ def preprocess_image(
     return attempt_results
 
 
-def main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results):
+def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negatives,
+                            config, attempt_results):
     """
     Review-loop för EN attempt (sista) för en redan preprocessad bild.
     """
@@ -1009,7 +1040,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
 
     if face_encodings:
         review_result, labels = user_review_encodings(
-            face_encodings, known_faces, ignored_faces, config, image_path,
+            face_encodings, known_faces, ignored_faces, hard_negatives, config, image_path,
             preview_path, file_hash
         )
         review_results.append(review_result)
@@ -1077,10 +1108,12 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
         return "no_faces"
     return "retry"
 
-def process_image(image_path, known_faces, ignored_faces, config):
-    attempt_results = preprocess_image(image_path, known_faces, ignored_faces, config, max_attempts=1)
+def process_image(image_path, known_faces, ignored_faces, hard_negatives, config):
+    attempt_results = preprocess_image(image_path, known_faces, ignored_faces,
+                                       hard_negatives, config, max_attempts=1)
 
-    return main_process_image_loop(image_path, known_faces, ignored_faces, config, attempt_results)
+    return main_process_image_loop(image_path, known_faces, ignored_faces, hard_negatives,
+                                   config, attempt_results)
 
 
 def extract_prefix_suffix(fname):
@@ -1370,19 +1403,21 @@ def add_to_processed_files(path, processed_files):
     processed_files.append({"name": path.name, "hash": h})
 
 def preprocess_worker(
-    known_faces, ignored_faces, images_to_process,
+    known_faces, ignored_faces, hard_negatives, images_to_process,
     config, max_possible_attempts,
     preprocessed_queue, preprocess_done
 ):
     try:
         faces_copy = copy.deepcopy(known_faces)
         ignored_copy = copy.deepcopy(ignored_faces)
+        hard_negatives_copy = copy.deepcopy(hard_negatives)
         for path in images_to_process:
             logging.debug(f"[PREPROCESS worker] Startar för {path.name}")
             attempt_results = []
             for attempt_idx in range(1, max_possible_attempts + 1):
                 partial_results = preprocess_image(
-                    path, faces_copy, ignored_copy, config, max_attempts=attempt_idx
+                    path, faces_copy, ignored_copy, hard_negatives_copy,
+                    config, max_attempts=attempt_idx
                 )
                 new_attempts = partial_results[len(attempt_results):]
                 attempt_results.extend(new_attempts)
@@ -1447,7 +1482,7 @@ def main():
             args.remove(flag)
 
     config = load_config()
-    known_faces, ignored_faces, processed_files = load_database()
+    known_faces, ignored_faces, hard_negatives, processed_files = load_database()
     max_auto_attempts = config.get("max_attempts", MAX_ATTEMPTS)
     max_possible_attempts = get_max_possible_attempts(config)
     max_queue = config.get("max_queue", MAX_QUEUE)
@@ -1469,10 +1504,11 @@ def main():
                 print(f"\nBearbetar {len(to_process)} nya filer innan omdöpning...")
             for path in to_process:
                 print(f"\n=== Bearbetar: {path.name} ===")
-                result = process_image(path, known_faces, ignored_faces, config)
+                result = process_image(path, known_faces, ignored_faces, hard_negatives, config)
                 if result is True or result == "skipped":
                     add_to_processed_files(path, processed_files)
-                    save_database(known_faces, ignored_faces, processed_files)
+                    save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+
         else:
             not_proc = [p for p in input_paths if not is_file_processed(p, processed_files)]
             if not_proc:
@@ -1482,7 +1518,7 @@ def main():
             # Fortsätt ändå, men rename_files hanterar detta
 
         # 2. Ladda om databasen och processed_files
-        known_faces, ignored_faces, processed_files = load_database()
+        known_faces, ignored_faces, hard_negatives, processed_files = load_database()
 
         # 3. Kör omdöpning på *alla* input_paths, nu med rätt och uppdaterad namnmap
         rename_files(
@@ -1505,13 +1541,13 @@ def main():
         for path in input_paths:
             n_found += 1
             print(f"\n=== FIXAR: {path.name} ===")
-            removed = remove_encodings_for_file(known_faces, ignored_faces, path.name)
+            removed = remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, path.name)
             if removed:
                 print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
-            result = process_image(path, known_faces, ignored_faces, config)
+            result = process_image(path, known_faces, ignored_faces, hard_negatives, config)
             if result is True or result == "skipped":
                 add_to_processed_files(path, processed_files)
-                save_database(known_faces, ignored_faces, processed_files)
+                save_database(known_faces, ignored_faces, hard_negatives, processed_files)
         if n_found == 0:
             print("Inga matchande bildfiler hittades.")
             sys.exit(1)
@@ -1542,6 +1578,7 @@ def main():
         args=(
             known_faces,
             ignored_faces,
+            hard_negatives,
             images_to_process,
             config,
             max_auto_attempts,
@@ -1588,7 +1625,7 @@ def main():
             logging.debug(f"[MAIN][QUEUE GET] {path.name}: hämtar attempt {attempt_idx+1}")
 
             result = main_process_image_loop(
-                path, known_faces, ignored_faces, config, attempts_so_far
+                path, known_faces, ignored_faces, hard_negatives, config, attempts_so_far
             )
 
             logging.debug(f"[MAIN] {path.name}: resultat från review-loop: {result}")
@@ -1598,7 +1635,7 @@ def main():
                 if attempt_idx >= max_possible_attempts:
                     print(f"⏭ Inga fler försök möjliga för {path.name}, hoppar över.")
                     add_to_processed_files(path, processed_files)
-                    save_database(known_faces, ignored_faces, processed_files)
+                    save_database(known_faces, ignored_faces, hard_negatives, processed_files)
                     done_images.add(path)
                     break
                 # --- Vänta på worker om det är sannolikt att attempt är på gång ---
@@ -1627,7 +1664,7 @@ def main():
                     if not got_new_attempt:
                         logging.debug(f"[MAIN] {path.name}: skapar manuellt nytt attempt {attempt_idx+1}")
                         extra_attempts = preprocess_image(
-                            path, known_faces, ignored_faces, config,
+                            path, known_faces, ignored_faces, hard_negatives, config,
                             max_attempts=attempt_idx + 1,
                             attempts_so_far=attempts_so_far
                         )
@@ -1639,7 +1676,7 @@ def main():
                         else:
                             print(f"⏭ Inga fler försök möjliga för {path.name}, hoppar över.")
                             add_to_processed_files(path, processed_files)
-                            save_database(known_faces, ignored_faces, processed_files)
+                            save_database(known_faces, ignored_faces, hard_negatives, processed_files)
                             done_images.add(path)
                             break
                     else:
@@ -1651,7 +1688,7 @@ def main():
             if result in (True, "ok", "manual", "skipped", "no_faces", "all_ignored"):
                 logging.debug(f"[MAIN] SLUTresultat för {path.name}: {result}")
                 add_to_processed_files(path, processed_files)
-                save_database(known_faces, ignored_faces, processed_files)
+                save_database(known_faces, ignored_faces, hard_negatives, processed_files)
                 done_images.add(path)
                 break
             else:
