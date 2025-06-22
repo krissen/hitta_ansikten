@@ -38,6 +38,7 @@ from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
 
 def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH):
     logger = logging.getLogger()
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
     logger.setLevel(level)
     # Ta bort eventuella gamla handlers (viktigt vid utveckling/omstart)
     logger.handlers.clear()
