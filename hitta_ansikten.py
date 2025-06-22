@@ -1511,12 +1511,15 @@ def main():
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()
     for path in images_to_process:
+        logging.debug(f"[MAIN][STEG2] Bearbetar {path.name}...")
         path_key = str(path)
         attempt_idx = 0
         attempts_so_far = []
         worker_wait_msg_printed = False
 
         while attempt_idx < max_possible_attempts:
+            logging.debug(f"[MAIN] {path.name}: försök {attempt_idx + 1}...")
+            print(f"\n=== Bearbetar: {path.name} (försök {attempt_idx+1}) ===")
             # === Hämta attempts från kön om möjligt ===
             if len(attempts_so_far) < attempt_idx + 1:
                 fetched = False
@@ -1534,17 +1537,18 @@ def main():
                     attempts_so_far = attempt_results
                     fetched = True
 
-                logging.debug(f"[MAIN] Mottagit {len(attempts_so_far)} attempts för {path.name}")
+                logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
                     print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
                 worker_wait_msg_printed = False  # Återställ för ev. fler nivåer
 
-            print(f"\n=== Bearbetar: {path.name} (försök {attempt_idx+1}) ===")
-            logging.debug(f"[QUEUE GET] Hämtar {path.name}, attempts: {attempt_idx+1}")
+            logging.debug(f"[MAIN][QUEUE GET] {path.name}: hämtar attempt {attempt_idx+1}")
 
             result = main_process_image_loop(
                 path, known_faces, ignored_faces, config, attempts_so_far
             )
+
+            logging.debug(f"[MAIN] {path.name}: resultat från review-loop: {result}")
 
             if result == "retry":
                 attempt_idx += 1
@@ -1578,8 +1582,7 @@ def main():
                         waited += 1
                     # Om worker ändå inte levererat: skapa nytt attempt manuellt
                     if not got_new_attempt:
-                        logging.debug(f"[MAIN] Skapar manuellt nytt attempt {attempt_idx+1} för {path.name}")
-                        # print(f"(⚙️  Förbereder extra nivå {attempt_idx+1} för {path.name})", flush=True)
+                        logging.debug(f"[MAIN] {path.name}: skapar manuellt nytt attempt {attempt_idx+1}")
                         extra_attempts = preprocess_image(
                             path, known_faces, ignored_faces, config,
                             max_attempts=attempt_idx + 1,
@@ -1609,11 +1612,12 @@ def main():
                 done_images.add(path)
                 break
             else:
-                logging.debug(f"[MAIN] DELresultat för {path.name}: {result} (försök {attempt_idx+1})")
+                logging.debug(f"[MAIN] {path.name}: DELresultat: {result} (försök {attempt_idx+1})")
 
             # Annars: next attempt (failsafe, ska ej nås)
             attempt_idx += 1
 
+        logging.debug(f"[MAIN] {path.name}: FÄRDIG, {len(attempts_so_far)} försök totalt")
     p.join()
     preprocessed_queue.close()
     preprocessed_queue.join_thread()
