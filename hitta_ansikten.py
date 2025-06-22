@@ -174,8 +174,10 @@ def archive_stats_if_needed(current_sig, force=False):
         sig_path.write_text(current_sig)
 
 def hash_encoding(enc):
+    # Hantera både dict och ndarray
+    if isinstance(enc, dict) and "encoding" in enc:
+        enc = enc["encoding"]
     return hashlib.sha1(enc.tobytes()).hexdigest()
-
 
 def export_and_show_original(image_path, config):
     """
@@ -1529,7 +1531,7 @@ def main():
         )
         return
 
-    # --------- HUVUDFALL: --fix ---------
+# --------- HUVUDFALL: --fix ---------
     fix_mode = len(args) >= 1 and args[0] == "--fix"
     if fix_mode:
         arglist = args[1:]
@@ -1544,8 +1546,41 @@ def main():
             removed = remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, path.name)
             if removed:
                 print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
-            result = process_image(path, known_faces, ignored_faces, hard_negatives, config)
-            if result is True or result == "skipped":
+
+            # NYTT: Kör attempts-loop precis som i batch-läget
+            max_possible_attempts = get_max_possible_attempts(config)
+            attempts_so_far = []
+            attempt_idx = 0
+            result = None
+            while attempt_idx < max_possible_attempts:
+                if attempt_idx == 0:
+                    # Kör första attempt
+                    attempts_so_far = preprocess_image(
+                        path, known_faces, ignored_faces, hard_negatives, config,
+                        max_attempts=1, attempts_so_far=[]
+                    )
+                else:
+                    # Lägg till ett till attempt
+                    attempts_so_far = preprocess_image(
+                        path, known_faces, ignored_faces, hard_negatives, config,
+                        max_attempts=attempt_idx+1, attempts_so_far=attempts_so_far
+                    )
+                result = main_process_image_loop(
+                    path, known_faces, ignored_faces, hard_negatives, config, attempts_so_far
+                )
+                if result == "retry":
+                    attempt_idx += 1
+                    continue
+                elif result in (True, "ok", "manual", "skipped", "no_faces", "all_ignored"):
+                    add_to_processed_files(path, processed_files)
+                    save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+                    break
+                else:
+                    # Okänd return, bryt
+                    break
+            else:
+                # Om attempts tar slut utan att vi bryter, skriv ut det
+                print(f"⏭ Inga fler försök möjliga för {path.name}, hoppar över.")
                 add_to_processed_files(path, processed_files)
                 save_database(known_faces, ignored_faces, hard_negatives, processed_files)
         if n_found == 0:
