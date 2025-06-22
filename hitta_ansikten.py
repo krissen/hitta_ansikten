@@ -90,18 +90,34 @@ def load_config():
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG
 
+def get_attempt_setting_defs(config):
+    # Returnerar alla settings utan rgb_img
+    return [
+        {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
+        {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
+        {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": config["max_downsample_px"]},
+        {"model": "hog", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
+        {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
+        {"model": "cnn", "upsample": 1, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
+        {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": config["max_fullres_px"]},
+    ]
 
 def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full):
-    # All attempts i rätt ordning, parametriserat
-    return [
-        {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"], "rgb_img": rgb_down},
-        {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"],  "rgb_img": rgb_mid},
-        {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": config["max_downsample_px"], "rgb_img": rgb_down},
-        {"model": "hog", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"], "rgb_img": rgb_full},
-        {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"], "rgb_img": rgb_full},
-        {"model": "cnn", "upsample": 1, "scale_label": "mid",  "scale_px": config["max_midsample_px"],  "rgb_img": rgb_mid},
-        {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": config["max_fullres_px"], "rgb_img": rgb_full},
-    ]
+    # Kopplar rgb_img enligt scale_label
+    arr_map = {
+        "down": rgb_down,
+        "mid": rgb_mid,
+        "full": rgb_full,
+    }
+    settings = []
+    for item in get_attempt_setting_defs(config):
+        item_with_img = dict(item)  # kopiera!
+        item_with_img["rgb_img"] = arr_map[item["scale_label"]]
+        settings.append(item_with_img)
+    return settings
+
+def get_max_possible_attempts(config):
+    return len(get_attempt_setting_defs(config))
 
 def get_settings_signature(attempt_settings):
     # Serialiserbar och ordningsoberoende
@@ -1366,7 +1382,8 @@ def main():
 
     config = load_config()
     known_faces, ignored_faces, processed_files = load_database()
-    max_possible_attempts = config.get("max_attempts", MAX_ATTEMPTS)
+    max_auto_attempts = config.get("max_attempts", MAX_ATTEMPTS)
+    max_possible_attempts = get_max_possible_attempts(config)
     max_queue = config.get("max_queue", MAX_QUEUE)
 
     # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
@@ -1461,7 +1478,7 @@ def main():
             ignored_faces,
             images_to_process,
             config,
-            max_possible_attempts,
+            max_auto_attempts,
             preprocessed_queue,
             preprocess_done
         )
@@ -1486,7 +1503,7 @@ def main():
                     worker_wait_msg_printed = True
 
                 while not fetched:
-                    logging.debug(f"[MAIN] Väntar på attempt {attempt_idx+1} för {path.name}")
+                    # logging.debug(f"[MAIN] Väntar på attempt {attempt_idx+1} för {path.name}")
                     qpath, attempt_results = preprocessed_queue.get()
                     if str(qpath) != path_key:
                         preprocessed_queue.put((qpath, attempt_results))
@@ -1515,7 +1532,7 @@ def main():
                     done_images.add(path)
                     break
                 # --- Vänta på worker om det är sannolikt att attempt är på gång ---
-                max_wait = 10  # sekunder
+                max_wait = 90  # sekunder
                 waited = 0
                 got_new_attempt = False
                 if len(attempts_so_far) < attempt_idx + 1:
@@ -1539,7 +1556,7 @@ def main():
                     # Om worker ändå inte levererat: skapa nytt attempt manuellt
                     if not got_new_attempt:
                         logging.debug(f"[MAIN] Skapar manuellt nytt attempt {attempt_idx+1} för {path.name}")
-                        print(f"(⚙️  Förbereder extra nivå {attempt_idx+1} för {path.name})", flush=True)
+                        # print(f"(⚙️  Förbereder extra nivå {attempt_idx+1} för {path.name})", flush=True)
                         extra_attempts = preprocess_image(
                             path, known_faces, ignored_faces, config, max_attempts=attempt_idx + 1
                         )
