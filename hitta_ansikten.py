@@ -459,7 +459,13 @@ def user_review_encodings(
             if default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte."):
                 new_name = input_name(list(known_faces.keys()), prompt_txt)
                 ans = new_name.strip()
-                action = "edit" if ans else default_action
+                # Om användaren skrivit en specialaction istället för namn:
+                if ans.lower() in actions:
+                    action = actions[ans.lower()]
+                elif ans:
+                    action = "edit"
+                else:
+                    action = default_action
             else:
                 ans = safe_input(prompt_txt).strip().lower()
                 action = handle_answer(ans, actions, default=default_action)
@@ -517,9 +523,12 @@ def user_review_encodings(
             labels.append({"label": f"#{i+1}\n{name}", "hash": hash_encoding(encoding)})
 
     if retry_requested:
+        logging.debug(f"[REVIEW] Retry ombett, återgår till anropare")
         return "retry", []
     if all_ignored:
+        logging.debug(f"[REVIEW] Alla ansikten ignorerade; returnerar 'all_ignored'.")
         return "all_ignored", []
+    logging.debug(f"[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
     return "ok", labels
 
 def box_overlaps_with_buffer(b1, b2, buffer=40):
@@ -958,7 +967,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
     if face_encodings:
         review_result, labels = user_review_encodings(
             face_encodings, known_faces, ignored_faces, config, image_path,
-            file_hash
+            preview_path, file_hash
         )
         review_results.append(review_result)
         labels_per_attempt.append(labels)
@@ -983,7 +992,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, config, atte
                 labels_per_attempt=labels_per_attempt,
                 file_hash=file_hash
             )
-            return True
+            return "ok"
     else:
         # Inga ansikten i detta försök
         review_results.append("no_faces")
@@ -1594,10 +1603,13 @@ def main():
 
             # Bilden är klar
             if result in (True, "ok", "manual", "skipped", "no_faces", "all_ignored"):
+                logging.debug(f"[MAIN] SLUTresultat för {path.name}: {result}")
                 add_to_processed_files(path, processed_files)
                 save_database(known_faces, ignored_faces, processed_files)
                 done_images.add(path)
                 break
+            else:
+                logging.debug(f"[MAIN] DELresultat för {path.name}: {result} (försök {attempt_idx+1})")
 
             # Annars: next attempt (failsafe, ska ej nås)
             attempt_idx += 1
