@@ -5,7 +5,6 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
 
-import copy
 import fnmatch
 import glob
 import hashlib
@@ -13,6 +12,7 @@ import json
 import logging
 import math
 import multiprocessing
+import queue
 import os
 import re
 import signal
@@ -76,6 +76,10 @@ DEFAULT_CONFIG = {
     "max_midsample_px": 4500,
     # Max-bredd/höjd för fullupplöst försök (sista chans, långsamt)
     "max_fullres_px": 8000,
+    # Antal worker-processer för förbehandling
+    "num_workers": 1,
+    # Maxlängd på kön mellan workers och huvudtråd
+    "max_queue": MAX_QUEUE,
 
     # === Utseende: etiketter & fönster ===
     # Skalningsfaktor för etikett-textstorlek
@@ -1423,31 +1427,35 @@ def preprocess_worker(
     config, max_possible_attempts,
     preprocessed_queue, preprocess_done
 ):
+    """Preprocessa bilder och lägg varje nytt attempt i kön."""
     try:
-        faces_copy = copy.deepcopy(known_faces)
-        ignored_copy = copy.deepcopy(ignored_faces)
-        hard_negatives_copy = copy.deepcopy(hard_negatives)
+        # Argumenten picklas redan till processen, så ingen ytterligare deepcopy
+        faces_copy = known_faces
+        ignored_copy = ignored_faces
+        hard_negatives_copy = hard_negatives
+
         for path in images_to_process:
             logging.debug(f"[PREPROCESS worker] Startar för {path.name}")
             attempt_results = []
             for attempt_idx in range(1, max_possible_attempts + 1):
                 partial_results = preprocess_image(
-                    path, faces_copy, ignored_copy, hard_negatives_copy,
-                    config, max_attempts=attempt_idx
+                    path,
+                    faces_copy,
+                    ignored_copy,
+                    hard_negatives_copy,
+                    config,
+                    max_attempts=attempt_idx,
+                    attempts_so_far=attempt_results,
                 )
-                new_attempts = partial_results[len(attempt_results):]
-                attempt_results.extend(new_attempts)
+                if not partial_results or len(partial_results) <= len(attempt_results):
+                    break
+                new_attempt = partial_results[-1]
+                attempt_results.append(new_attempt)
                 logging.debug(
-                    f"[PREPROCESS worker][ATTEMPT {attempt_idx}] För {path.name}: nytt antal attempts: {len(attempt_results)}"
+                    f"[PREPROCESS worker][ATTEMPT {attempt_idx}] För {path.name}: nytt attempt"
                 )
-                # --- Skicka efter varje attempt ---
-                if attempt_results:
-                    logging.debug(
-                        f"[PREPROCESS worker][QUEUE PUT] Lägger till i kö: {path.name} attempts: {len(attempt_results)}"
-                    )
-                    preprocessed_queue.put((path, attempt_results[:]))
-                # Om det senaste försöket hittade ansikten: avbryt fler försök
-                if new_attempts and new_attempts[-1]["faces_found"] > 0:
+                preprocessed_queue.put((path, attempt_idx - 1, new_attempt))
+                if new_attempt.get("faces_found", 0) > 0:
                     break
         preprocess_done.set()
     except Exception as e:
@@ -1502,6 +1510,7 @@ def main():
     max_auto_attempts = config.get("max_attempts", MAX_ATTEMPTS)
     max_possible_attempts = get_max_possible_attempts(config)
     max_queue = config.get("max_queue", MAX_QUEUE)
+    num_workers = max(1, int(config.get("num_workers", 1)))
 
     # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
     if rename_mode:
@@ -1622,20 +1631,28 @@ def main():
     preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)
     preprocess_done = multiprocessing.Event()
 
-    p = multiprocessing.Process(
-        target=preprocess_worker,
-        args=(
-            known_faces,
-            ignored_faces,
-            hard_negatives,
-            images_to_process,
-            config,
-            max_auto_attempts,
-            preprocessed_queue,
-            preprocess_done
+    workers = []
+    chunk_size = max(1, math.ceil(len(images_to_process) / num_workers))
+    for i in range(num_workers):
+        chunk = images_to_process[i * chunk_size:(i + 1) * chunk_size]
+        if not chunk:
+            continue
+        p = multiprocessing.Process(
+            target=preprocess_worker,
+            args=(
+                known_faces,
+                ignored_faces,
+                hard_negatives,
+                chunk,
+                config,
+                max_auto_attempts,
+                preprocessed_queue,
+                preprocess_done,
+            ),
         )
-    )
-    p.start()
+        p.daemon = True
+        p.start()
+        workers.append(p)
 
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()
@@ -1652,24 +1669,25 @@ def main():
             # === Hämta attempts från kön om möjligt ===
             if len(attempts_so_far) < attempt_idx + 1:
                 fetched = False
-                # Visa endast "väntar på nästa nivå" för nivå > 1
                 if attempt_idx > 0 and not worker_wait_msg_printed:
                     print(f"(⏳ Väntar på nivå {attempt_idx+1} för {path.name}...)", flush=True)
                     worker_wait_msg_printed = True
 
                 while not fetched:
-                    # logging.debug(f"[MAIN] Väntar på attempt {attempt_idx+1} för {path.name}")
-                    qpath, attempt_results = preprocessed_queue.get()
-                    if str(qpath) != path_key:
-                        preprocessed_queue.put((qpath, attempt_results))
+                    try:
+                        qpath, qidx, attempt_res = preprocessed_queue.get(timeout=1)
+                    except queue.Empty:
                         continue
-                    attempts_so_far = attempt_results
+                    if str(qpath) != path_key or qidx != len(attempts_so_far):
+                        preprocessed_queue.put((qpath, qidx, attempt_res))
+                        continue
+                    attempts_so_far.append(attempt_res)
                     fetched = True
 
                 logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
                     print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
-                worker_wait_msg_printed = False  # Återställ för ev. fler nivåer
+                worker_wait_msg_printed = False
 
             logging.debug(f"[MAIN][QUEUE GET] {path.name}: hämtar attempt {attempt_idx+1}")
 
@@ -1695,20 +1713,20 @@ def main():
                     if not worker_wait_msg_printed:
                         print(f"(⏳ Väntar på nivå {attempt_idx+1} för {path.name}...)", flush=True)
                         worker_wait_msg_printed = True
-                    import time
                     while waited < max_wait:
-                        if not preprocessed_queue.empty():
-                            qpath, attempt_results = preprocessed_queue.get()
-                            if str(qpath) == path_key:
-                                attempts_so_far = attempt_results
-                                got_new_attempt = True
-                                print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
-                                worker_wait_msg_printed = False
-                                break
-                            else:
-                                preprocessed_queue.put((qpath, attempt_results))
-                        time.sleep(1)
-                        waited += 1
+                        try:
+                            qpath, qidx, attempt_res = preprocessed_queue.get(timeout=1)
+                        except queue.Empty:
+                            waited += 1
+                            continue
+                        if str(qpath) == path_key and qidx == len(attempts_so_far):
+                            attempts_so_far.append(attempt_res)
+                            got_new_attempt = True
+                            print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
+                            worker_wait_msg_printed = False
+                            break
+                        else:
+                            preprocessed_queue.put((qpath, qidx, attempt_res))
                     # Om worker ändå inte levererat: skapa nytt attempt manuellt
                     if not got_new_attempt:
                         logging.debug(f"[MAIN] {path.name}: skapar manuellt nytt attempt {attempt_idx+1}")
@@ -1747,7 +1765,8 @@ def main():
             attempt_idx += 1
 
         logging.debug(f"[MAIN] {path.name}: FÄRDIG, {len(attempts_so_far)} försök totalt")
-    p.join()
+    for p in workers:
+        p.join()
     preprocessed_queue.close()
     preprocessed_queue.join_thread()
 
