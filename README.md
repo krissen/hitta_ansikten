@@ -68,6 +68,17 @@ known_faces = {
 # ...
 }```
 
+## Installation
+
+Python 3.9 or newer is required.
+
+Install all dependencies with:
+
+```sh
+pip install -r requirements.txt
+```
+
+Make sure you have Python development headers installed, as some libraries (such as dlib/face_recognition) require compilation.
 
 ## Companion app för bildvisning
 
