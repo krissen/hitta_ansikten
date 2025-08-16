@@ -11,10 +11,12 @@ import glob
 import hashlib
 import json
 import logging
+import pickle
 import math
 import multiprocessing
 import os
 import re
+import shutil
 import signal
 import sys
 import tempfile
@@ -56,7 +58,12 @@ ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 2
 # 0 = unlimited size so the worker never blocks on queue.put
 MAX_QUEUE = 0
+CACHE_DIR = Path("preprocessed_cache")
 
+
+# Global references for graceful shutdown
+worker_process = None
+preprocessed_queue_ref = None
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -274,8 +281,7 @@ def safe_input(prompt_text, completer=None):
         else:
             return input(prompt_text)
     except KeyboardInterrupt:
-        print("\n⏹ Avbruten. Programmet avslutas.")
-        sys.exit(0)
+        graceful_exit()
 
 def parse_inputs(args, supported_ext):
     seen = set()  # för att undvika dubbletter
@@ -1047,7 +1053,6 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
         "faces_found": len(face_encodings),
     })
 
-    import shutil
     ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
     try:
         shutil.copy(preview_path, ORDINARY_PREVIEW_PATH)
@@ -1357,10 +1362,23 @@ def cleanup_tmp_previews():
             pass  # Ignorera ev. misslyckanden
 
 # === Graceful Exit ===
-def signal_handler(sig, frame):
+def graceful_exit():
     print("\n⏹ Avbruten. Programmet avslutas.")
+    if worker_process and worker_process.is_alive():
+        worker_process.terminate()
+        worker_process.join(timeout=1)
+    if preprocessed_queue_ref is not None:
+        try:
+            preprocessed_queue_ref.close()
+            preprocessed_queue_ref.join_thread()
+        except Exception:
+            pass
     cleanup_tmp_previews()
-    sys.exit(0)
+    os._exit(0)
+
+
+def signal_handler(sig, frame):
+    graceful_exit()
 
 def print_help():
     print(
@@ -1419,6 +1437,61 @@ def add_to_processed_files(path, processed_files):
         h = None
     processed_files.append({"name": path.name, "hash": h})
 
+
+def _cache_file(path):
+    """Return the cache file path for a given image path."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    h = hashlib.sha1(str(path).encode()).hexdigest()
+    return CACHE_DIR / f"{h}.pkl"
+
+
+def save_preprocessed_cache(path, attempt_results):
+    """Persist preprocessing results so a run can resume after restart.
+
+    Preview images are copied to the cache directory so they exist on restart.
+    Returns a list with updated preview paths suitable for queuing.
+    """
+    cache_path = _cache_file(path)
+    h = hashlib.sha1(str(path).encode()).hexdigest()
+    cached = []
+    for res in attempt_results:
+        entry = res.copy()
+        prev = entry.get("preview_path")
+        if prev and Path(prev).exists():
+            dest = CACHE_DIR / f"{h}_a{entry['attempt_index']}.jpg"
+            shutil.copy(prev, dest)
+            entry["preview_path"] = str(dest)
+        cached.append(entry)
+    with open(cache_path, "wb") as f:
+        pickle.dump((str(path), cached), f)
+    return cached
+
+
+def load_preprocessed_cache(queue):
+    """Load any cached preprocessing results into the queue."""
+    if not CACHE_DIR.exists():
+        return
+    for file in CACHE_DIR.glob("*.pkl"):
+        try:
+            with open(file, "rb") as f:
+                path, attempt_results = pickle.load(f)
+            queue.put((Path(path), attempt_results))
+        except Exception:
+            logging.debug(f"[CACHE] Failed to load {file}")
+
+
+def remove_preprocessed_cache(path):
+    """Remove cached preprocessing data for a path."""
+    cache_path = _cache_file(path)
+    if cache_path.exists():
+        cache_path.unlink()
+    h = hashlib.sha1(str(path).encode()).hexdigest()
+    for img in CACHE_DIR.glob(f"{h}_a*.jpg"):
+        try:
+            img.unlink()
+        except Exception:
+            pass
+
 def preprocess_worker(
     known_faces, ignored_faces, hard_negatives, images_to_process,
     config, max_possible_attempts,
@@ -1450,13 +1523,14 @@ def preprocess_worker(
                     attempts_so_far=current_attempts,
                 )
                 if len(partial_results) > len(current_attempts):
-                    attempt_map[path] = partial_results
+                    cached = save_preprocessed_cache(path, partial_results)
+                    attempt_map[path] = cached
                     logging.debug(
-                        f"[PREPROCESS worker][QUEUE PUT] {path.name}: attempts {len(partial_results)}"
+                        f"[PREPROCESS worker][QUEUE PUT] {path.name}: attempts {len(cached)}"
                     )
-                    preprocessed_queue.put((path, partial_results[:]))
+                    preprocessed_queue.put((path, cached[:]))
                     # Stop processing this image if faces were found
-                    if partial_results[-1]["faces_found"] > 0:
+                    if cached[-1]["faces_found"] > 0:
                         active_paths.remove(path)
         preprocess_done.set()
     except Exception as e:
@@ -1629,9 +1703,12 @@ def main():
 
     # === STEG 1: Starta worker-processen ===
     preprocessed_queue = multiprocessing.Queue(maxsize=max_queue or 0)
+    load_preprocessed_cache(preprocessed_queue)  # Reload cached queue entries
     preprocess_done = multiprocessing.Event()
 
-    p = multiprocessing.Process(
+    global worker_process, preprocessed_queue_ref
+    preprocessed_queue_ref = preprocessed_queue
+    worker_process = multiprocessing.Process(
         target=preprocess_worker,
         args=(
             known_faces,
@@ -1644,7 +1721,7 @@ def main():
             preprocess_done
         )
     )
-    p.start()
+    worker_process.start()
 
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()
@@ -1674,6 +1751,7 @@ def main():
                         continue
                     attempts_so_far = attempt_results
                     fetched = True
+                    remove_preprocessed_cache(qpath)
 
                 logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
@@ -1713,6 +1791,7 @@ def main():
                                 got_new_attempt = True
                                 print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
                                 worker_wait_msg_printed = False
+                                remove_preprocessed_cache(qpath)
                                 break
                             else:
                                 preprocessed_queue.put((qpath, attempt_results))
@@ -1756,9 +1835,11 @@ def main():
             attempt_idx += 1
 
         logging.debug(f"[MAIN] {path.name}: FÄRDIG, {len(attempts_so_far)} försök totalt")
-    p.join()
+    worker_process.join()
     preprocessed_queue.close()
     preprocessed_queue.join_thread()
+    worker_process = None
+    preprocessed_queue_ref = None
 
     print("✅ Alla bilder färdigbehandlade.")
     cleanup_tmp_previews()
