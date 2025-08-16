@@ -1751,7 +1751,6 @@ def main():
                         continue
                     attempts_so_far = attempt_results
                     fetched = True
-                    remove_preprocessed_cache(qpath)
 
                 logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
@@ -1791,7 +1790,6 @@ def main():
                                 got_new_attempt = True
                                 print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
                                 worker_wait_msg_printed = False
-                                remove_preprocessed_cache(qpath)
                                 break
                             else:
                                 preprocessed_queue.put((qpath, attempt_results))
@@ -1835,6 +1833,8 @@ def main():
             attempt_idx += 1
 
         logging.debug(f"[MAIN] {path.name}: FÄRDIG, {len(attempts_so_far)} försök totalt")
+        # Cached preprocessing data is no longer needed once an image is processed
+        remove_preprocessed_cache(path)
     worker_process.join()
     preprocessed_queue.close()
     preprocessed_queue.join_thread()
