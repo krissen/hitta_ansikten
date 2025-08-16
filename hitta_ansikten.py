@@ -54,7 +54,8 @@ init_logging()
 # === CONSTANTS === #
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 2
-MAX_QUEUE = 10
+# 0 = unlimited size so the worker never blocks on queue.put
+MAX_QUEUE = 0
 
 
 # === Standardkonfiguration ===
@@ -1427,28 +1428,36 @@ def preprocess_worker(
         faces_copy = copy.deepcopy(known_faces)
         ignored_copy = copy.deepcopy(ignored_faces)
         hard_negatives_copy = copy.deepcopy(hard_negatives)
-        for path in images_to_process:
-            logging.debug(f"[PREPROCESS worker] Startar för {path.name}")
-            attempt_results = []
-            for attempt_idx in range(1, max_possible_attempts + 1):
+
+        # Track attempts per image and keep processing order deterministic
+        attempt_map = {path: [] for path in images_to_process}
+        active_paths = list(images_to_process)
+
+        # Breadth-first processing: handle attempt 1 for all images, then attempt 2, etc.
+        for attempt_idx in range(1, max_possible_attempts + 1):
+            if not active_paths:
+                break
+            for path in active_paths[:]:
+                logging.debug(f"[PREPROCESS worker] Attempt {attempt_idx} for {path.name}")
+                current_attempts = attempt_map[path]
                 partial_results = preprocess_image(
-                    path, faces_copy, ignored_copy, hard_negatives_copy,
-                    config, max_attempts=attempt_idx
+                    path,
+                    faces_copy,
+                    ignored_copy,
+                    hard_negatives_copy,
+                    config,
+                    max_attempts=attempt_idx,
+                    attempts_so_far=current_attempts,
                 )
-                new_attempts = partial_results[len(attempt_results):]
-                attempt_results.extend(new_attempts)
-                logging.debug(
-                    f"[PREPROCESS worker][ATTEMPT {attempt_idx}] För {path.name}: nytt antal attempts: {len(attempt_results)}"
-                )
-                # --- Skicka efter varje attempt ---
-                if attempt_results:
+                if len(partial_results) > len(current_attempts):
+                    attempt_map[path] = partial_results
                     logging.debug(
-                        f"[PREPROCESS worker][QUEUE PUT] Lägger till i kö: {path.name} attempts: {len(attempt_results)}"
+                        f"[PREPROCESS worker][QUEUE PUT] {path.name}: attempts {len(partial_results)}"
                     )
-                    preprocessed_queue.put((path, attempt_results[:]))
-                # Om det senaste försöket hittade ansikten: avbryt fler försök
-                if new_attempts and new_attempts[-1]["faces_found"] > 0:
-                    break
+                    preprocessed_queue.put((path, partial_results[:]))
+                    # Stop processing this image if faces were found
+                    if partial_results[-1]["faces_found"] > 0:
+                        active_paths.remove(path)
         preprocess_done.set()
     except Exception as e:
         logging.debug(f"[PREPROCESS worker][ERROR] {e}")
@@ -1619,7 +1628,7 @@ def main():
         sys.exit(1)
 
     # === STEG 1: Starta worker-processen ===
-    preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)
+    preprocessed_queue = multiprocessing.Queue(maxsize=max_queue or 0)
     preprocess_done = multiprocessing.Event()
 
     p = multiprocessing.Process(
