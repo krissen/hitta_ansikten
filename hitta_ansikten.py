@@ -120,7 +120,7 @@ def load_config():
 def get_attempt_setting_defs(config):
     # Returnerar alla settings utan rgb_img
     return [
-        {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
+        # {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
         {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
         {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": config["max_downsample_px"]},
         {"model": "hog", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
