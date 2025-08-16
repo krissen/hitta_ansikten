@@ -11,6 +11,7 @@ import glob
 import hashlib
 import json
 import logging
+import pickle
 import math
 import multiprocessing
 import os
@@ -56,6 +57,7 @@ ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 2
 # 0 = unlimited size so the worker never blocks on queue.put
 MAX_QUEUE = 0
+CACHE_DIR = Path("preprocessed_cache")
 
 
 # === Standardkonfiguration ===
@@ -1419,6 +1421,40 @@ def add_to_processed_files(path, processed_files):
         h = None
     processed_files.append({"name": path.name, "hash": h})
 
+
+def _cache_file(path):
+    """Return the cache file path for a given image path."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    h = hashlib.sha1(str(path).encode()).hexdigest()
+    return CACHE_DIR / f"{h}.pkl"
+
+
+def save_preprocessed_cache(path, attempt_results):
+    """Persist preprocessing results so a run can resume after restart."""
+    cache_path = _cache_file(path)
+    with open(cache_path, "wb") as f:
+        pickle.dump((path, attempt_results), f)
+
+
+def load_preprocessed_cache(queue):
+    """Load any cached preprocessing results into the queue."""
+    if not CACHE_DIR.exists():
+        return
+    for file in CACHE_DIR.glob("*.pkl"):
+        try:
+            with open(file, "rb") as f:
+                path, attempt_results = pickle.load(f)
+            queue.put((Path(path), attempt_results))
+        except Exception:
+            logging.debug(f"[CACHE] Failed to load {file}")
+
+
+def remove_preprocessed_cache(path):
+    """Remove cached preprocessing data for a path."""
+    cache_path = _cache_file(path)
+    if cache_path.exists():
+        cache_path.unlink()
+
 def preprocess_worker(
     known_faces, ignored_faces, hard_negatives, images_to_process,
     config, max_possible_attempts,
@@ -1455,6 +1491,7 @@ def preprocess_worker(
                         f"[PREPROCESS worker][QUEUE PUT] {path.name}: attempts {len(partial_results)}"
                     )
                     preprocessed_queue.put((path, partial_results[:]))
+                    save_preprocessed_cache(path, partial_results[:])  # Cache to disk
                     # Stop processing this image if faces were found
                     if partial_results[-1]["faces_found"] > 0:
                         active_paths.remove(path)
@@ -1629,6 +1666,7 @@ def main():
 
     # === STEG 1: Starta worker-processen ===
     preprocessed_queue = multiprocessing.Queue(maxsize=max_queue or 0)
+    load_preprocessed_cache(preprocessed_queue)  # Reload cached queue entries
     preprocess_done = multiprocessing.Event()
 
     p = multiprocessing.Process(
@@ -1674,6 +1712,7 @@ def main():
                         continue
                     attempts_so_far = attempt_results
                     fetched = True
+                    remove_preprocessed_cache(qpath)
 
                 logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
@@ -1713,6 +1752,7 @@ def main():
                                 got_new_attempt = True
                                 print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
                                 worker_wait_msg_printed = False
+                                remove_preprocessed_cache(qpath)
                                 break
                             else:
                                 preprocessed_queue.put((qpath, attempt_results))
