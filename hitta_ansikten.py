@@ -1374,7 +1374,7 @@ def graceful_exit():
         except Exception:
             pass
     cleanup_tmp_previews()
-    os._exit(0)
+    sys.exit(0)
 
 
 def signal_handler(sig, frame):
@@ -1463,7 +1463,11 @@ def save_preprocessed_cache(path, attempt_results):
             entry["preview_path"] = str(dest)
         cached.append(entry)
     with open(cache_path, "wb") as f:
-        pickle.dump((str(path), cached), f)
+    try:
+        with open(cache_path, "wb") as f:
+            pickle.dump((str(path), cached), f)
+    except Exception as e:
+        logging.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
     return cached
 
 
@@ -1475,8 +1479,8 @@ def load_preprocessed_cache(queue):
         try:
             with open(file, "rb") as f:
                 path, attempt_results = pickle.load(f)
-            queue.put((Path(path), attempt_results))
-        except Exception:
+            queue.put((path, attempt_results))
+        except (FileNotFoundError, pickle.UnpicklingError, OSError):
             logging.debug(f"[CACHE] Failed to load {file}")
 
 
