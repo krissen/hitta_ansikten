@@ -1463,11 +1463,11 @@ def save_preprocessed_cache(path, attempt_results):
             entry["preview_path"] = str(dest)
         cached.append(entry)
     with open(cache_path, "wb") as f:
-    try:
-        with open(cache_path, "wb") as f:
-            pickle.dump((str(path), cached), f)
-    except Exception as e:
-        logging.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
+        try:
+            with open(cache_path, "wb") as f:
+                pickle.dump((str(path), cached), f)
+        except Exception as e:
+            logging.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
     return cached
 
 
