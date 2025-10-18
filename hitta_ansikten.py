@@ -380,7 +380,14 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, label
     Lägg till manuell person – även med file och hash.
     Om labels ges (lista), addera ett label-objekt, annars returnera namn och label.
     """
-    namn = input_name_func(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
+    while True:
+        namn = input_name_func(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
+        # Validera att namnet inte är ett reserverat kommando
+        if namn and namn.lower() in RESERVED_COMMANDS:
+            print(f"⚠️  '{namn}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+            continue
+        break
+    
     if namn and namn not in known_faces:
         known_faces[namn] = []
     # Spara dummy-encoding och korrekt hash+file
