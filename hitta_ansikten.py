@@ -15,6 +15,7 @@ import pickle
 import math
 import multiprocessing
 import os
+import queue
 import re
 import shutil
 import signal
@@ -1749,12 +1750,28 @@ def main():
 
                 while not fetched:
                     # logging.debug(f"[MAIN] Väntar på attempt {attempt_idx+1} för {path.name}")
-                    qpath, attempt_results = preprocessed_queue.get()
-                    if str(qpath) != path_key:
-                        preprocessed_queue.put((qpath, attempt_results))
-                        continue
-                    attempts_so_far = attempt_results
-                    fetched = True
+                    try:
+                        qpath, attempt_results = preprocessed_queue.get(timeout=1)
+                        if str(qpath) != path_key:
+                            preprocessed_queue.put((qpath, attempt_results))
+                            continue
+                        attempts_so_far = attempt_results
+                        fetched = True
+                    except queue.Empty:
+                        # Check if worker is done - if so, we won't get any more results
+                        if preprocess_done.is_set():
+                            logging.debug(f"[MAIN] Worker finished but no attempt {attempt_idx+1} for {path.name}")
+                            # No more preprocessing will happen, break out
+                            fetched = True
+                            # We need to generate this attempt ourselves
+                            if len(attempts_so_far) < attempt_idx + 1:
+                                logging.debug(f"[MAIN] Generating attempt {attempt_idx+1} manually for {path.name}")
+                                attempts_so_far = preprocess_image(
+                                    path, known_faces, ignored_faces, hard_negatives, config,
+                                    max_attempts=attempt_idx + 1,
+                                    attempts_so_far=attempts_so_far
+                                )
+                        # Otherwise, keep waiting
 
                 logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
@@ -1787,8 +1804,8 @@ def main():
                         worker_wait_msg_printed = True
                     import time
                     while waited < max_wait:
-                        if not preprocessed_queue.empty():
-                            qpath, attempt_results = preprocessed_queue.get()
+                        try:
+                            qpath, attempt_results = preprocessed_queue.get(timeout=1)
                             if str(qpath) == path_key:
                                 attempts_so_far = attempt_results
                                 got_new_attempt = True
@@ -1797,7 +1814,11 @@ def main():
                                 break
                             else:
                                 preprocessed_queue.put((qpath, attempt_results))
-                        time.sleep(1)
+                        except queue.Empty:
+                            # Check if worker is done
+                            if preprocess_done.is_set():
+                                logging.debug(f"[MAIN] Worker finished, no more attempts coming for {path.name}")
+                                break
                         waited += 1
                     # Om worker ändå inte levererat: skapa nytt attempt manuellt
                     if not got_new_attempt:
