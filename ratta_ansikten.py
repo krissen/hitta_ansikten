@@ -6,10 +6,10 @@ import json
 import pickle
 
 import numpy as np
-from xdg import xdg_data_home
+from xdg.BaseDirectory import xdg_data_home
 
 # === Konstanter ===
-BASE_DIR = xdg_data_home() / "faceid"
+BASE_DIR = Path(xdg_data_home) / "faceid"
 IGNORED_PATH = BASE_DIR / "ignored.pkl"
 
 

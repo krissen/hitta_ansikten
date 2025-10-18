@@ -1,0 +1,8 @@
+face_recognition
+numpy
+pillow
+rawpy
+prompt_toolkit
+rich
+pyxdg
+matplotlib

@@ -4,10 +4,10 @@ import pickle
 import re
 from pathlib import Path
 
-from xdg import xdg_data_home
+from xdg.BaseDirectory import xdg_data_home
 
 # === Konstanter ===
-BASE_DIR = xdg_data_home() / "faceid"
+BASE_DIR = Path(xdg_data_home) / "faceid"
 ARCHIVE_DIR = BASE_DIR / "archive"
 ATTEMPT_SETTINGS_SIG = BASE_DIR / "attempt_settings.sig"
 CONFIG_PATH = BASE_DIR / "config.json"
