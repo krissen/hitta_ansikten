@@ -61,6 +61,9 @@ MAX_ATTEMPTS = 2
 MAX_QUEUE = 0
 CACHE_DIR = Path("preprocessed_cache")
 
+# Reserved command shortcuts that cannot be used as person names
+RESERVED_COMMANDS = {"i", "a", "r", "n", "o", "m", "x"}
+
 
 # Global references for graceful shutdown
 worker_process = None
@@ -470,11 +473,16 @@ def user_review_encodings(
         name_confidence = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ignore_confidence = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
 
+        # Alla kommandon är alltid tillgängliga (base_actions)
+        # Vi håller koll på vilka som är *relevanta* för att ge felmeddelanden
         base_actions = {
+            "i": "ignore",
+            "a": "accept_suggestion",
+            "r": "edit",
+            "n": "retry",
             "o": "show_original",
             "m": "manual",
             "x": "skip",
-            "n": "retry",
         }
 
         # Centraliserad logik
@@ -483,48 +491,49 @@ def user_review_encodings(
             best_ignore, best_ignore_dist, ignore_confidence, config
         )
 
+        # Bestäm vilka actions som är relevanta för detta case
         if case == "uncertain_name":
             prompt_txt = (
                 f"↪ Osäkert: {best_name} ({name_confidence}%) / ign ({ignore_confidence}%)\n"
-                "[Enter = bekräfta namn, i = ignorera, r = rätta, n = försök igen, "
+                "[Enter = bekräfta namn, i = ignorera, a = acceptera förslag, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            actions = {**base_actions, "i": "ignore", "r": "edit"}
+            relevant_actions = {"i", "a", "r", "n", "o", "m", "x"}
             default_action = "name"
 
         elif case == "uncertain_ign":
             prompt_txt = (
                 f"↪ Osäkert: ign ({ignore_confidence}%) / {best_name} ({name_confidence}%)\n"
-                "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
+                "[Enter = bekräfta ignorera, a = acceptera namn, i = ignorera, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
+            relevant_actions = {"i", "a", "r", "n", "o", "m", "x"}
             default_action = "ignore"
 
         elif case == "name":
             prompt_txt = (
                 f"↪ Föreslaget: {best_name} ({name_confidence}%)\n"
-                "[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, "
+                "[Enter = bekräfta, a = acceptera förslag, r = rätta, n = försök igen, i = ignorera, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            actions = {**base_actions, "r": "edit", "i": "ignore"}
+            relevant_actions = {"a", "r", "n", "i", "o", "m", "x"}
             default_action = "name"
 
         elif case == "ign":
             prompt_txt = (
                 f"↪ Ansiktet liknar ett tidigare ignorerat ({ignore_confidence}%).\n"
-                "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
+                "[Enter = bekräfta ignorera, a = acceptera namn, i = ignorera, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
+            relevant_actions = {"a", "r", "n", "i", "o", "m", "x"}
             default_action = "ignore"
 
         else:  # "unknown"
             prompt_txt = (
-                "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, n = försök igen, "
+                "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, a = acceptera förslag, r = rätta, n = försök igen, "
                 "m = manuell tilldelning, o = öppna original, x = skippa bild) › "
             )
-            actions = {**base_actions, "i": "ignore"}
+            relevant_actions = {"i", "r", "n", "o", "m", "x", "a"}  # 'a' ger felmeddelande
             default_action = "edit"
 
         while True:
@@ -532,15 +541,35 @@ def user_review_encodings(
                 new_name = input_name(list(known_faces.keys()), prompt_txt)
                 ans = new_name.strip()
                 # Om användaren skrivit en specialaction istället för namn:
-                if ans.lower() in actions:
-                    action = actions[ans.lower()]
+                if ans.lower() in base_actions:
+                    action = base_actions[ans.lower()]
+                    # Kolla om kommandot är relevant för detta case
+                    if ans.lower() not in relevant_actions or (ans.lower() == "a" and not best_name):
+                        # Visa felmeddelande
+                        if ans.lower() == "a" and not best_name:
+                            print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
+                        else:
+                            print(f"⚠️  Kommandot '{ans.lower()}' är inte tillgängligt i detta läge.")
+                        continue
                 elif ans:
+                    # Kolla om namnet är ett reserverat kommando
+                    if ans.lower() in RESERVED_COMMANDS:
+                        print(f"⚠️  '{ans}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                        continue
                     action = "edit"
                 else:
                     action = default_action
             else:
                 ans = safe_input(prompt_txt).strip().lower()
-                action = handle_answer(ans, actions, default=default_action)
+                action = handle_answer(ans, base_actions, default=default_action)
+
+            # Validera att kommandot är relevant (om det inte är None/default)
+            if action and ans and ans != "" and ans.lower() in base_actions:
+                # Kontrollera om kommandot är relevant
+                if ans.lower() == "a" and action == "accept_suggestion":
+                    if not best_name:
+                        print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
+                        continue
 
             if action == "show_original":
                 if image_path is not None:
@@ -557,18 +586,45 @@ def user_review_encodings(
             elif action == "retry":
                 retry_requested = True
                 break
+            elif action == "accept_suggestion":
+                # 'a' kommandot - acceptera best_name om det finns
+                if best_name:
+                    name = best_name
+                    all_ignored = False
+                    break
+                else:
+                    print("⚠️  Det finns inget förslag att acceptera.")
+                    continue
             elif action == "edit":
                 if not (default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte.")):
                     new_name = input_name(list(known_faces.keys()))
-                if new_name.lower() == "x":
-                    return "skipped", []
-                if new_name.lower() == "n":
-                    retry_requested = True
-                    break
-                if new_name.lower() == "i":
-                    ignored_faces.append(encoding)
-                    labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
-                    break
+                # Hantera kommandon som angetts när namnet efterfrågades
+                if new_name.lower() in base_actions:
+                    # Rekursiv hantering av kommandot
+                    action = base_actions[new_name.lower()]
+                    if action == "skip":
+                        return "skipped", []
+                    elif action == "retry":
+                        retry_requested = True
+                        break
+                    elif action == "ignore":
+                        ignored_faces.append(encoding)
+                        labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
+                        break
+                    elif action == "accept_suggestion":
+                        if best_name:
+                            name = best_name
+                            all_ignored = False
+                            break
+                        else:
+                            print("⚠️  Det finns inget förslag att acceptera.")
+                            continue
+                    # För andra kommandon, fortsätt loopen
+                    continue
+                # Kontrollera om namnet är ett reserverat kommando
+                if new_name.lower() in RESERVED_COMMANDS:
+                    print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                    continue
                 if new_name:
                     name = new_name
                     all_ignored = False
@@ -582,12 +638,16 @@ def user_review_encodings(
                 break
             elif action == "name":
                 name = best_name if best_name else input_name(list(known_faces.keys()))
+                # Kontrollera om namnet är ett reserverat kommando
+                if name and name.lower() in RESERVED_COMMANDS:
+                    print(f"⚠️  '{name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                    continue
                 all_ignored = False
                 break
 
         if retry_requested:
             break
-        if name is not None and name.lower() not in {"i", "x", "n", "o"}:
+        if name is not None and name.lower() not in RESERVED_COMMANDS:
             if name not in known_faces:
                 known_faces[name] = []
             known_faces[name].append({
@@ -880,6 +940,10 @@ def face_detection_attempt(rgb, model, upsample):
     return face_locations, face_encodings
 
 def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › "):
+    """
+    Ber användaren om ett namn med autocomplete.
+    Reserverade kommandon (i, a, r, n, o, m, x) returneras som är för vidare hantering.
+    """
     completer = WordCompleter(sorted(known_names), ignore_case=True, sentence=True)
     try:
         name = prompt(prompt_txt, completer=completer)
