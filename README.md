@@ -68,7 +68,22 @@ known_faces = {
 # ...
 }```
 
+## Installation
+
+Python 3.9 or newer is required.
+
+Install all dependencies with:
+
+```sh
+pip install -r requirements.txt
+```
+
+Make sure you have Python development headers installed, as some libraries (such as dlib/face_recognition) require compilation.
 
 ## Companion app för bildvisning
 
 App som används för att visa bild, taggat med labels på ansikten, är som förval kompanjon-appen [Bildvisare](https://github.com/krissen/bildvisare). Detta kan justeras i inställningar.
+
+## Preprocessed cache
+
+Intermediate preprocessing results are written as pickled files under `preprocessed_cache/` with their labeled preview images. The program reloads any cached entries into the preprocessing queue on startup so an interrupted run can resume. Cache files and previews are deleted once the main loop consumes an entry.
