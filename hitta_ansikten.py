@@ -1027,6 +1027,11 @@ def preprocess_image(
     fname = str(image_path)
     logging.debug(f"[PREPROCESS image][{fname}] start")
 
+    # Check if file exists before preprocessing
+    if not Path(image_path).exists():
+        logging.warning(f"[PREPROCESS image][SKIP][{fname}] File does not exist, skipping")
+        return []
+
     try:
         max_down = config.get("max_downsample_px")
         max_mid = config.get("max_midsample_px")
@@ -1093,6 +1098,11 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
     """
     Review-loop för EN attempt (sista) för en redan preprocessad bild.
     """
+    # Check if file exists before review
+    if not Path(image_path).exists():
+        logging.warning(f"[REVIEW][SKIP][{image_path}] File does not exist, skipping review")
+        return "skipped"
+    
     attempt_idx = len(attempt_results) - 1
     attempts_stats = []
     used_attempt = None
@@ -1551,6 +1561,18 @@ def load_preprocessed_cache(queue):
         try:
             with open(file, "rb") as f:
                 path, attempt_results = pickle.load(f)
+            # Check if the original image file still exists before loading into queue
+            if not Path(path).exists():
+                logging.warning(f"[CACHE] File {path} no longer exists, removing cache")
+                # Remove the cache file and associated preview images
+                file.unlink()
+                h = hashlib.sha1(str(path).encode()).hexdigest()
+                for img in CACHE_DIR.glob(f"{h}_a*.jpg"):
+                    try:
+                        img.unlink()
+                    except Exception:
+                        pass
+                continue
             queue.put((path, attempt_results))
         except (FileNotFoundError, pickle.UnpicklingError, OSError):
             logging.debug(f"[CACHE] Failed to load {file}")
@@ -1587,6 +1609,14 @@ def preprocess_worker(
             if not active_paths:
                 break
             for path in active_paths[:]:
+                # Check if file still exists before processing
+                if not Path(path).exists():
+                    logging.warning(f"[PREPROCESS worker][SKIP][{path.name}] File no longer exists, removing from queue")
+                    active_paths.remove(path)
+                    if path in attempt_map:
+                        del attempt_map[path]
+                    continue
+                
                 logging.debug(f"[PREPROCESS worker] Attempt {attempt_idx} for {path.name}")
                 current_attempts = attempt_map[path]
                 partial_results = preprocess_image(
@@ -1714,6 +1744,12 @@ def main():
         input_paths = list(parse_inputs(arglist, SUPPORTED_EXT))
         n_found = 0
         for path in input_paths:
+            # Check if file exists before fixing
+            if not path.exists():
+                logging.warning(f"[FIX][SKIP][{path}] File does not exist")
+                print(f"⏭ Hoppar över {path.name} (filen finns inte längre)")
+                continue
+            
             n_found += 1
             print(f"\n=== FIXAR: {path.name} ===")
             removed = remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, path.name)
@@ -1726,6 +1762,12 @@ def main():
             attempt_idx = 0
             result = None
             while attempt_idx < max_possible_attempts:
+                # Check file existence before each attempt
+                if not path.exists():
+                    logging.warning(f"[FIX][SKIP][{path.name}] File no longer exists during processing")
+                    print(f"⏭ {path.name} togs bort under bearbetning, hoppar över")
+                    break
+                
                 if attempt_idx == 0:
                     # Kör första attempt
                     attempts_so_far = preprocess_image(
@@ -1767,6 +1809,7 @@ def main():
     images_to_process = []
     for path in input_paths:
         if not path.exists():
+            logging.warning(f"[MAIN][SKIP][{path}] File does not exist")
             continue
         n_found += 1
         if is_file_processed(path, processed_files):
@@ -1802,6 +1845,13 @@ def main():
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()
     for path in images_to_process:
+        # Check if file still exists before processing
+        if not path.exists():
+            logging.warning(f"[MAIN][SKIP][{path.name}] File no longer exists, skipping")
+            done_images.add(path)
+            remove_preprocessed_cache(path)
+            continue
+        
         logging.debug(f"[MAIN][STEG2] Bearbetar {path.name}...")
         path_key = str(path)
         attempt_idx = 0
