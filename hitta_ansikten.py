@@ -1541,15 +1541,18 @@ def save_preprocessed_cache(path, attempt_results):
         prev = entry.get("preview_path")
         if prev and Path(prev).exists():
             dest = CACHE_DIR / f"{h}_a{entry['attempt_index']}.jpg"
-            shutil.copy(prev, dest)
+            # Only copy if source and destination are different files
+            prev_path = Path(prev).resolve()
+            dest_path = dest.resolve()
+            if prev_path != dest_path:
+                shutil.copy(prev, dest)
             entry["preview_path"] = str(dest)
         cached.append(entry)
-    with open(cache_path, "wb") as f:
-        try:
-            with open(cache_path, "wb") as f:
-                pickle.dump((str(path), cached), f)
-        except Exception as e:
-            logging.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
+    try:
+        with open(cache_path, "wb") as f:
+            pickle.dump((str(path), cached), f)
+    except Exception as e:
+        logging.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
     return cached
 
 
