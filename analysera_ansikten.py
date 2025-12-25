@@ -71,8 +71,10 @@ def attempt_stats_table(stats):
         attempts = entry.get("attempts", [])
         used = entry.get("used_attempt")
         for att in attempts:
+            # Use backend as model name (fall back to model field for legacy logs)
+            backend = att.get("backend", att.get("model", "unknown"))
             key = (
-                att.get("model"),
+                backend,
                 att.get("upsample"),
                 att.get("scale_label"),
                 att.get("scale_px"),
@@ -80,8 +82,9 @@ def attempt_stats_table(stats):
             attempt_info[key]["total"] += 1
         if used is not None and attempts and used < len(attempts):
             setting = attempts[used]
+            backend = setting.get("backend", setting.get("model", "unknown"))
             key = (
-                setting.get("model"),
+                backend,
                 setting.get("upsample"),
                 setting.get("scale_label"),
                 setting.get("scale_px"),
@@ -91,21 +94,26 @@ def attempt_stats_table(stats):
             attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
     from rich.table import Table
     table = Table(show_header=True, header_style="bold")
-    table.add_column("Försök (modell, upsample, skala)", min_width=28)
+    table.add_column("Backend & inställningar", min_width=28)
     table.add_column("Använd", justify="right")
     table.add_column("Total", justify="right")
     table.add_column("Träff %", justify="right")
     table.add_column("Snitt ansikten", justify="right")
     table.add_column("Snitt tid", justify="right")
     for key, info in attempt_info.items():
-        model, upsample, scale, px = key
+        backend, upsample, scale, px = key
         n_used = info["used"]
         n_total = info["total"]
         mean_faces = info["faces"] / n_used if n_used else 0
         mean_time = info["time"] / n_used if n_used else 0
         hit_rate = 100 * n_used / n_total if n_total else 0
+        # Show upsample only for dlib (ignored for insightface)
+        if backend == "dlib":
+            display = f"{backend}, up={upsample}, {scale}({px})"
+        else:
+            display = f"{backend}, {scale}({px})"
         table.add_row(
-            f"{model}, up={upsample}, {scale}({px})",
+            display,
             str(n_used),
             str(n_total),
             f"{hit_rate:6.1f}%",
@@ -192,7 +200,11 @@ def pie_chart_attempts(stats):
                 attempts = entry.get("attempts", [])
                 if attempts and u < len(attempts):
                     att = attempts[u]
-                    desc = f"{att.get('model')}, up={att.get('upsample')}, {att.get('scale_label')}({att.get('scale_px')})"
+                    backend = att.get("backend", att.get("model", "unknown"))
+                    if backend == "dlib":
+                        desc = f"{backend}, up={att.get('upsample')}, {att.get('scale_label')}({att.get('scale_px')})"
+                    else:
+                        desc = f"{backend}, {att.get('scale_label')}({att.get('scale_px')})"
                     break
         chart += f"#{k}: {chars[i%len(chars)]*length} {v} ({v/total:.1%}) {desc}\n"
     return chart
@@ -298,6 +310,7 @@ def _analyze_single(stats):
     review_outcomes = Counter()
     scale_stats = defaultdict(lambda: {"used": 0, "total": 0, "time": 0.0, "faces": 0})
     upsample_stats = defaultdict(lambda: {"used": 0, "total": 0})
+    backend_stats = defaultdict(lambda: {"used": 0, "total": 0, "time": 0.0, "faces": 0})
     label_stats = Counter()
     position_label_stats = defaultdict(Counter)
 
@@ -309,8 +322,9 @@ def _analyze_single(stats):
 
         if used is not None:
             setting = attempts[used]
+            backend = setting.get("backend", setting.get("model", "unknown"))
             key = (
-                setting.get("model"),
+                backend,
                 setting.get("upsample"),
                 setting.get("scale_label"),
                 setting.get("scale_px"),
@@ -318,10 +332,12 @@ def _analyze_single(stats):
             attempt_success[key] += 1
             scale_stats[setting.get("scale_label")]["used"] += 1
             upsample_stats[setting.get("upsample")]["used"] += 1
+            backend_stats[backend]["used"] += 1
 
         for att in attempts:
+            backend = att.get("backend", att.get("model", "unknown"))
             key = (
-                att.get("model"),
+                backend,
                 att.get("upsample"),
                 att.get("scale_label"),
                 att.get("scale_px"),
@@ -329,10 +345,12 @@ def _analyze_single(stats):
             attempt_info[key]["total"] += 1
             scale_stats[att.get("scale_label")]["total"] += 1
             upsample_stats[att.get("upsample")]["total"] += 1
+            backend_stats[backend]["total"] += 1
         if used is not None:
             setting = attempts[used]
+            backend = setting.get("backend", setting.get("model", "unknown"))
             key = (
-                setting.get("model"),
+                backend,
                 setting.get("upsample"),
                 setting.get("scale_label"),
                 setting.get("scale_px"),
@@ -342,6 +360,8 @@ def _analyze_single(stats):
             attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
             scale_stats[setting.get("scale_label")]["faces"] += setting.get("faces_found", 0)
             scale_stats[setting.get("scale_label")]["time"] += setting.get("time_seconds", 0.0)
+            backend_stats[backend]["faces"] += setting.get("faces_found", 0)
+            backend_stats[backend]["time"] += setting.get("time_seconds", 0.0)
 
         if review_results and labels_per_attempt:
             for i, (result, labels) in enumerate(zip(review_results, labels_per_attempt)):
@@ -350,22 +370,31 @@ def _analyze_single(stats):
                     label_stats[label] += 1
                     position_label_stats[pos][label] += 1
 
-    print("=== Hur ofta valdes varje attempt (modell, upsample, skala) ===")
+    print("=== Hur ofta valdes varje attempt (backend, upsample, skala) ===")
     for key, count in attempt_success.most_common():
-        model, upsample, scale, px = key
-        print(f"  model={model}, upsample={upsample}, scale={scale} ({px}px): {count} gånger")
+        backend, upsample, scale, px = key
+        if backend == "dlib":
+            print(f"  {backend}, upsample={upsample}, scale={scale} ({px}px): {count} gånger")
+        else:
+            print(f"  {backend}, scale={scale} ({px}px): {count} gånger")
 
     print("\n=== Successrate per attempt-setup ===")
     for key, info in attempt_info.items():
-        model, upsample, scale, px = key
+        backend, upsample, scale, px = key
         n_used = info["used"]
         n_total = info["total"]
         mean_faces = info["faces"] / n_used if n_used else 0
         mean_time = info["time"] / n_used if n_used else 0
-        print(
-            f"  model={model}, upsample={upsample}, scale={scale} ({px}px): "
-            f"{n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
-        )
+        if backend == "dlib":
+            print(
+                f"  {backend}, upsample={upsample}, scale={scale} ({px}px): "
+                f"{n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
+            )
+        else:
+            print(
+                f"  {backend}, scale={scale} ({px}px): "
+                f"{n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
+            )
 
     print("\n=== Outcomes (review_results) ===")
     for res, count in review_outcomes.items():
@@ -389,6 +418,16 @@ def _analyze_single(stats):
     for upsample, info in upsample_stats.items():
         print(
             f"  upsample={upsample}: {info['used']} av {info['total']} ({100*info['used']/info['total']:.1f}%)"
+        )
+
+    print("\n=== Användning per backend ===")
+    for backend, info in backend_stats.items():
+        n_used = info["used"]
+        n_total = info["total"]
+        mean_faces = info["faces"] / n_used if n_used else 0
+        mean_time = info["time"] / n_used if n_used else 0
+        print(
+            f"  {backend}: {n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
         )
 
     print("\n=== Vanligaste etikett per ansiktsposition ===")

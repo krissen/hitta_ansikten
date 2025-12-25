@@ -1240,6 +1240,8 @@ def preprocess_image(
         attempt_results.append({
             "attempt_index": attempt_idx,
             "model": setting["model"],
+            "backend": backend.backend_name,
+            "backend_version": backend.get_model_info().get('model', 'unknown'),
             "upsample": setting["upsample"],
             "scale_label": setting["scale_label"],
             "scale_px": setting["scale_px"],
@@ -1296,6 +1298,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
     attempts_stats.append({
         "attempt_index": attempt_idx,
         "model": res["model"],
+        "backend": backend.backend_name,
+        "backend_version": backend.get_model_info().get('model', 'unknown'),
         "upsample": res["upsample"],
         "scale_label": res["scale_label"],
         "scale_px": res["scale_px"],
