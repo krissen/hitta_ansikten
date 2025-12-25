@@ -6,3 +6,7 @@ prompt_toolkit
 rich
 pyxdg
 matplotlib
+
+# Optional: for InsightFace backend
+insightface>=0.7
+onnxruntime>=1.15
