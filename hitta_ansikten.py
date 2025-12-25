@@ -245,9 +245,13 @@ def archive_stats_if_needed(current_sig, force=False):
         sig_path.write_text(current_sig)
 
 def hash_encoding(enc):
+    """Hash an encoding, handling both dict and ndarray formats."""
     # Hantera både dict och ndarray
     if isinstance(enc, dict) and "encoding" in enc:
         enc = enc["encoding"]
+    # Handle None encodings (corrupted or missing data)
+    if enc is None:
+        return None
     return hashlib.sha1(enc.tobytes()).hexdigest()
 
 def export_and_show_original(image_path, config):
@@ -1150,7 +1154,9 @@ def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identi
     for hashval in hashes_to_remove:
         idx_to_del = None
         for idx, enc in enumerate(ignored_faces):
-            if hash_encoding(enc) == hashval:
+            enc_hash = hash_encoding(enc)
+            # Skip corrupted encodings (None hash)
+            if enc_hash is not None and enc_hash == hashval:
                 idx_to_del = idx
                 break
         if idx_to_del is not None:
@@ -1161,7 +1167,9 @@ def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identi
         if namn and namn != "ignorerad" and namn in known_faces:
             idx_to_del = None
             for idx, enc in enumerate(known_faces[namn]):
-                if hash_encoding(enc) == hashval:
+                enc_hash = hash_encoding(enc)
+                # Skip corrupted encodings (None hash)
+                if enc_hash is not None and enc_hash == hashval:
                     idx_to_del = idx
                     break
             if idx_to_del is not None:
