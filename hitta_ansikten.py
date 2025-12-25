@@ -525,7 +525,7 @@ def add_hard_negative(hard_negatives, person, encoding, backend, image_path=None
         "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
     })
 
-def validate_action(action: str, ans: str, relevant_actions: set, best_name: str) -> tuple[bool, str | None]:
+def validate_action(action: str, ans: str, relevant_actions: set, best_name: str | None) -> tuple[bool, str | None]:
     """
     Validate if an action is allowed in the current context.
 
@@ -560,7 +560,7 @@ def get_validated_user_input(
     base_actions: dict,
     relevant_actions: set,
     default_action: str,
-    best_name: str,
+    best_name: str | None,
     known_faces: dict
 ) -> tuple[str, str, str | None]:
     """
@@ -717,17 +717,23 @@ def user_review_encodings(
             relevant_actions = {"i", "r", "n", "o", "m", "x", "a"}  # 'a' ger felmeddelande
             default_action = "edit"
 
+        # Initialize action as None to get user input on first iteration
+        action = None
+        ans = None
+        new_name = None
+
         while True:
-            # Get validated user input (centralized, no duplication)
-            action, ans, new_name = get_validated_user_input(
-                prompt_txt=prompt_txt,
-                case=case,
-                base_actions=base_actions,
-                relevant_actions=relevant_actions,
-                default_action=default_action,
-                best_name=best_name,
-                known_faces=known_faces
-            )
+            # Get validated user input (skip if we have a pending action from nested handler)
+            if action is None:
+                action, ans, new_name = get_validated_user_input(
+                    prompt_txt=prompt_txt,
+                    case=case,
+                    base_actions=base_actions,
+                    relevant_actions=relevant_actions,
+                    default_action=default_action,
+                    best_name=best_name,
+                    known_faces=known_faces
+                )
 
             # Execute action (clean separation of concerns)
             if action == "show_original":
@@ -735,10 +741,12 @@ def user_review_encodings(
                     export_and_show_original(image_path, config)
                 elif preview_path is not None:
                     show_temp_image(preview_path, config, image_path)
+                action = None  # Reset to get new input on next iteration
                 continue
             elif action == "manual":
                 handle_manual_add(known_faces, image_path, file_hash, input_name, backend, labels)
                 all_ignored = False
+                action = None  # Reset to get new input on next iteration
                 continue
             elif action == "skip":
                 return "skipped", []
@@ -755,62 +763,31 @@ def user_review_encodings(
                 # We need to prompt for the corrected name
                 if new_name is None:
                     new_name = input_name(list(known_faces.keys()))
+
                     # Handle if user entered a command instead of a name
-                    # Execute the command immediately rather than continuing the loop
                     if new_name.lower() in base_actions:
                         cmd_action = base_actions[new_name.lower()]
 
-                        # Execute command immediately
-                        if cmd_action == "show_original":
-                            if image_path is not None:
-                                export_and_show_original(image_path, config)
-                            elif preview_path is not None:
-                                show_temp_image(preview_path, config, image_path)
+                        # Validate the command (reuse centralized validation)
+                        is_valid, error_msg = validate_action(cmd_action, new_name.lower(), relevant_actions, best_name)
+                        if not is_valid:
+                            print(f"⚠️  {error_msg}")
+                            action = None  # Reset to prompt for name again
+                            new_name = None
                             continue
-                        elif cmd_action == "manual":
-                            handle_manual_add(known_faces, image_path, file_hash, input_name, backend, labels)
-                            all_ignored = False
-                            continue
-                        elif cmd_action == "skip":
-                            return "skipped", []
-                        elif cmd_action == "retry":
-                            retry_requested = True
-                            break
-                        elif cmd_action == "ignore":
-                            normalized_encoding = backend.normalize_encoding(encoding)
-                            ignored_faces.append({
-                                "encoding": normalized_encoding,
-                                "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path),
-                                "hash": file_hash,
-                                "backend": backend.backend_name,
-                                "backend_version": backend.get_model_info().get('model', 'unknown'),
-                                "created_at": datetime.now().isoformat(),
-                                "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
-                            })
-                            labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
-                            break
-                        elif cmd_action == "accept_suggestion":
-                            if best_name:
-                                name = best_name
-                                all_ignored = False
-                                break
-                            else:
-                                print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
-                                continue
-                        elif cmd_action == "name":
-                            name = best_name if best_name else input_name(list(known_faces.keys()))
-                            if name and name.lower() in RESERVED_COMMANDS:
-                                print(f"⚠️  '{name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-                                continue
-                            all_ignored = False
-                            break
-                        else:
-                            # Unknown command, continue prompting
-                            continue
+
+                        # Valid command - execute by looping back to main handler
+                        # This avoids duplicating all the action execution logic
+                        action = cmd_action
+                        ans = new_name.lower()
+                        new_name = None
+                        continue  # Loop back to execute this action via main handler above
 
                     # Check for reserved commands
                     if new_name.lower() in RESERVED_COMMANDS:
                         print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                        action = None  # Reset to prompt for name again
+                        new_name = None
                         continue
 
                 # Now we have a valid name
@@ -839,6 +816,7 @@ def user_review_encodings(
                 # Kontrollera om namnet är ett reserverat kommando
                 if name and name.lower() in RESERVED_COMMANDS:
                     print(f"⚠️  '{name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                    action = None  # Reset to get new input on next iteration
                     continue
                 all_ignored = False
                 break
