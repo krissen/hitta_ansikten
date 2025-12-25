@@ -44,6 +44,12 @@ def normalize_encoding_entry(entry, default_backend="dlib"):
 
     if isinstance(entry, np.ndarray):
         # Legacy format: bare array
+        try:
+            encoding_hash = hashlib.sha1(entry.tobytes()).hexdigest()
+        except (AttributeError, ValueError) as e:
+            logging.warning(f"Failed to hash encoding: {e}")
+            encoding_hash = None
+
         return {
             "encoding": entry,
             "file": None,
@@ -51,7 +57,7 @@ def normalize_encoding_entry(entry, default_backend="dlib"):
             "backend": default_backend,
             "backend_version": "unknown",
             "created_at": None,
-            "encoding_hash": hashlib.sha1(entry.tobytes()).hexdigest()
+            "encoding_hash": encoding_hash
         }
     elif isinstance(entry, dict):
         # Ensure all required fields exist
@@ -62,10 +68,20 @@ def normalize_encoding_entry(entry, default_backend="dlib"):
         if "created_at" not in entry:
             entry["created_at"] = None
         if "encoding_hash" not in entry and entry.get("encoding") is not None:
-            entry["encoding_hash"] = hashlib.sha1(entry["encoding"].tobytes()).hexdigest()
+            try:
+                enc = entry["encoding"]
+                if hasattr(enc, 'tobytes'):
+                    entry["encoding_hash"] = hashlib.sha1(enc.tobytes()).hexdigest()
+                else:
+                    entry["encoding_hash"] = None
+            except (AttributeError, ValueError) as e:
+                logging.warning(f"Failed to hash encoding: {e}")
+                entry["encoding_hash"] = None
         return entry
     else:
-        raise ValueError(f"Invalid encoding entry type: {type(entry)}")
+        # Log warning and return None for invalid types (graceful degradation)
+        logging.warning(f"Invalid encoding entry type: {type(entry)}, skipping")
+        return None
 
 
 def load_database():
@@ -117,23 +133,35 @@ def load_database():
 
     # Normalize known_faces
     for name in known_faces:
-        for i, entry in enumerate(known_faces[name]):
-            if isinstance(entry, np.ndarray) or "backend" not in entry:
+        normalized = []
+        for entry in known_faces[name]:
+            if isinstance(entry, np.ndarray) or (isinstance(entry, dict) and "backend" not in entry):
                 migration_stats['known_faces_migrated'] += 1
-            known_faces[name][i] = normalize_encoding_entry(entry)
+            norm_entry = normalize_encoding_entry(entry)
+            if norm_entry is not None:  # Skip corrupted entries
+                normalized.append(norm_entry)
+        known_faces[name] = normalized
 
     # Normalize ignored_faces
-    for i, entry in enumerate(ignored_faces):
+    normalized = []
+    for entry in ignored_faces:
         if isinstance(entry, np.ndarray) or (isinstance(entry, dict) and "backend" not in entry):
             migration_stats['ignored_faces_migrated'] += 1
-        ignored_faces[i] = normalize_encoding_entry(entry)
+        norm_entry = normalize_encoding_entry(entry)
+        if norm_entry is not None:  # Skip corrupted entries
+            normalized.append(norm_entry)
+    ignored_faces = normalized
 
     # Normalize hard_negatives
     for name in hard_negatives:
-        for i, entry in enumerate(hard_negatives[name]):
+        normalized = []
+        for entry in hard_negatives[name]:
             if isinstance(entry, np.ndarray) or (isinstance(entry, dict) and "backend" not in entry):
                 migration_stats['hard_negatives_migrated'] += 1
-            hard_negatives[name][i] = normalize_encoding_entry(entry)
+            norm_entry = normalize_encoding_entry(entry)
+            if norm_entry is not None:  # Skip corrupted entries
+                normalized.append(norm_entry)
+        hard_negatives[name] = normalized
 
     # Log migration statistics if any migration occurred
     total_migrated = sum(migration_stats.values())
@@ -182,7 +210,7 @@ def load_attempt_log(all_files=False):
 
 def load_processed_files():
     """Returnerar lista av dicts {"name":..., "hash":...}"""
-    _, _, processed_files = load_database()
+    _, _, _, processed_files = load_database()
     if processed_files and isinstance(processed_files[0], str):
         return [{"name": pf, "hash": None} for pf in processed_files]
     return processed_files

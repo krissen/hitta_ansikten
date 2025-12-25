@@ -1826,11 +1826,14 @@ def preprocess_worker(
                     # Stop processing this image if faces were found
                     if cached[-1]["faces_found"] > 0:
                         active_paths.remove(path)
-        preprocess_done.set()
     except Exception as e:
-        logging.debug(f"[PREPROCESS worker][ERROR] {e}")
+        logging.error(f"[PREPROCESS worker][ERROR] {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        # Always signal completion, even on error, to unblock main loop
+        preprocess_done.set()
+        logging.debug("[PREPROCESS worker] Done")
 
 # === Entry point ===
 def main():
