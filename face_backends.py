@@ -170,7 +170,10 @@ class InsightFaceBackend(FaceBackend):
         """
         try:
             import os
+            import sys
             import warnings
+            from contextlib import redirect_stderr, redirect_stdout
+            from io import StringIO
 
             # Suppress verbose ONNX runtime messages (must be set before importing)
             os.environ['ORT_LOGGING_LEVEL'] = '3'  # 3 = ERROR, 2 = WARNING, 1 = INFO, 0 = VERBOSE
@@ -185,9 +188,6 @@ class InsightFaceBackend(FaceBackend):
             # Suppress CUDA provider warning on systems without GPU
             warnings.filterwarnings('ignore', message='.*CUDAExecutionProvider.*')
 
-            import insightface
-            from insightface.app import FaceAnalysis
-
             logging.info(f"[InsightFaceBackend] Initializing with model={model_name}, ctx_id={ctx_id}, det_size={det_size}")
 
             # Determine optimal providers for this platform
@@ -198,12 +198,22 @@ class InsightFaceBackend(FaceBackend):
             else:
                 providers = ['CPUExecutionProvider']
 
-            self.app = FaceAnalysis(
-                name=model_name,
-                allowed_modules=['detection', 'recognition'],
-                providers=providers
-            )
-            self.app.prepare(ctx_id=ctx_id, det_size=det_size)
+            # Suppress verbose output during InsightFace initialization
+            # ONNX prints directly to stdout/stderr from C++ layer
+            stdout_buffer = StringIO()
+            stderr_buffer = StringIO()
+
+            with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
+                import insightface
+                from insightface.app import FaceAnalysis
+
+                self.app = FaceAnalysis(
+                    name=model_name,
+                    allowed_modules=['detection', 'recognition'],
+                    providers=providers
+                )
+                self.app.prepare(ctx_id=ctx_id, det_size=det_size)
+
             self.model_name = model_name
             self.ctx_id = ctx_id
             self.det_size = det_size
