@@ -5,19 +5,16 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
 
-import copy
 import fnmatch
 import glob
 import hashlib
 import json
 import logging
-import pickle
 import math
 import multiprocessing
-import os
 import queue
+import os
 import re
-import shutil
 import signal
 import sys
 import tempfile
@@ -57,17 +54,8 @@ init_logging()
 # === CONSTANTS === #
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 2
-# 0 = unlimited size so the worker never blocks on queue.put
-MAX_QUEUE = 0
-CACHE_DIR = Path("preprocessed_cache")
+MAX_QUEUE = 10
 
-# Reserved command shortcuts that cannot be used as person names
-RESERVED_COMMANDS = {"i", "a", "r", "n", "o", "m", "x"}
-
-
-# Global references for graceful shutdown
-worker_process = None
-preprocessed_queue_ref = None
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -88,6 +76,10 @@ DEFAULT_CONFIG = {
     "max_midsample_px": 4500,
     # Max-bredd/höjd för fullupplöst försök (sista chans, långsamt)
     "max_fullres_px": 8000,
+    # Antal worker-processer för förbehandling
+    "num_workers": 1,
+    # Maxlängd på kön mellan workers och huvudtråd
+    "max_queue": MAX_QUEUE,
 
     # === Utseende: etiketter & fönster ===
     # Skalningsfaktor för etikett-textstorlek
@@ -131,7 +123,7 @@ def load_config():
 def get_attempt_setting_defs(config):
     # Returnerar alla settings utan rgb_img
     return [
-        # {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
+        {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
         {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
         {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": config["max_downsample_px"]},
         {"model": "hog", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
@@ -285,7 +277,8 @@ def safe_input(prompt_text, completer=None):
         else:
             return input(prompt_text)
     except KeyboardInterrupt:
-        graceful_exit()
+        print("\n⏹ Avbruten. Programmet avslutas.")
+        sys.exit(0)
 
 def parse_inputs(args, supported_ext):
     seen = set()  # för att undvika dubbletter
@@ -380,14 +373,7 @@ def handle_manual_add(known_faces, image_path, file_hash, input_name_func, label
     Lägg till manuell person – även med file och hash.
     Om labels ges (lista), addera ett label-objekt, annars returnera namn och label.
     """
-    while True:
-        namn = input_name_func(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
-        # Validera att namnet inte är ett reserverat kommando
-        if namn and namn.lower() in RESERVED_COMMANDS:
-            print(f"⚠️  '{namn}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-            continue
-        break
-    
+    namn = input_name_func(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
     if namn and namn not in known_faces:
         known_faces[namn] = []
     # Spara dummy-encoding och korrekt hash+file
@@ -480,16 +466,11 @@ def user_review_encodings(
         name_confidence = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ignore_confidence = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
 
-        # Alla kommandon är alltid tillgängliga (base_actions)
-        # Vi håller koll på vilka som är *relevanta* för att ge felmeddelanden
         base_actions = {
-            "i": "ignore",
-            "a": "accept_suggestion",
-            "r": "edit",
-            "n": "retry",
             "o": "show_original",
             "m": "manual",
             "x": "skip",
+            "n": "retry",
         }
 
         # Centraliserad logik
@@ -498,49 +479,48 @@ def user_review_encodings(
             best_ignore, best_ignore_dist, ignore_confidence, config
         )
 
-        # Bestäm vilka actions som är relevanta för detta case
         if case == "uncertain_name":
             prompt_txt = (
                 f"↪ Osäkert: {best_name} ({name_confidence}%) / ign ({ignore_confidence}%)\n"
-                "[Enter = bekräfta namn, i = ignorera, a = acceptera förslag, r = rätta, n = försök igen, "
+                "[Enter = bekräfta namn, i = ignorera, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            relevant_actions = {"i", "a", "r", "n", "o", "m", "x"}
+            actions = {**base_actions, "i": "ignore", "r": "edit"}
             default_action = "name"
 
         elif case == "uncertain_ign":
             prompt_txt = (
                 f"↪ Osäkert: ign ({ignore_confidence}%) / {best_name} ({name_confidence}%)\n"
-                "[Enter = bekräfta ignorera, a = acceptera namn, i = ignorera, r = rätta, n = försök igen, "
+                "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            relevant_actions = {"i", "a", "r", "n", "o", "m", "x"}
+            actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
             default_action = "ignore"
 
         elif case == "name":
             prompt_txt = (
                 f"↪ Föreslaget: {best_name} ({name_confidence}%)\n"
-                "[Enter = bekräfta, a = acceptera förslag, r = rätta, n = försök igen, i = ignorera, "
+                "[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            relevant_actions = {"a", "r", "n", "i", "o", "m", "x"}
+            actions = {**base_actions, "r": "edit", "i": "ignore"}
             default_action = "name"
 
         elif case == "ign":
             prompt_txt = (
                 f"↪ Ansiktet liknar ett tidigare ignorerat ({ignore_confidence}%).\n"
-                "[Enter = bekräfta ignorera, a = acceptera namn, i = ignorera, r = rätta, n = försök igen, "
+                "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            relevant_actions = {"a", "r", "n", "i", "o", "m", "x"}
+            actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
             default_action = "ignore"
 
         else:  # "unknown"
             prompt_txt = (
-                "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, a = acceptera förslag, r = rätta, n = försök igen, "
+                "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, n = försök igen, "
                 "m = manuell tilldelning, o = öppna original, x = skippa bild) › "
             )
-            relevant_actions = {"i", "r", "n", "o", "m", "x", "a"}  # 'a' ger felmeddelande
+            actions = {**base_actions, "i": "ignore"}
             default_action = "edit"
 
         while True:
@@ -548,35 +528,15 @@ def user_review_encodings(
                 new_name = input_name(list(known_faces.keys()), prompt_txt)
                 ans = new_name.strip()
                 # Om användaren skrivit en specialaction istället för namn:
-                if ans.lower() in base_actions:
-                    action = base_actions[ans.lower()]
-                    # Kolla om kommandot är relevant för detta case
-                    if ans.lower() not in relevant_actions or (ans.lower() == "a" and not best_name):
-                        # Visa felmeddelande
-                        if ans.lower() == "a" and not best_name:
-                            print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
-                        else:
-                            print(f"⚠️  Kommandot '{ans.lower()}' är inte tillgängligt i detta läge.")
-                        continue
+                if ans.lower() in actions:
+                    action = actions[ans.lower()]
                 elif ans:
-                    # Kolla om namnet är ett reserverat kommando
-                    if ans.lower() in RESERVED_COMMANDS:
-                        print(f"⚠️  '{ans}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-                        continue
                     action = "edit"
                 else:
                     action = default_action
             else:
                 ans = safe_input(prompt_txt).strip().lower()
-                action = handle_answer(ans, base_actions, default=default_action)
-
-            # Validera att kommandot är relevant (om det inte är None/default)
-            if action and ans and ans != "" and ans.lower() in base_actions:
-                # Kontrollera om kommandot är relevant
-                if ans.lower() == "a" and action == "accept_suggestion":
-                    if not best_name:
-                        print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
-                        continue
+                action = handle_answer(ans, actions, default=default_action)
 
             if action == "show_original":
                 if image_path is not None:
@@ -593,45 +553,18 @@ def user_review_encodings(
             elif action == "retry":
                 retry_requested = True
                 break
-            elif action == "accept_suggestion":
-                # 'a' kommandot - acceptera best_name om det finns
-                if best_name:
-                    name = best_name
-                    all_ignored = False
-                    break
-                else:
-                    print("⚠️  Det finns inget förslag att acceptera.")
-                    continue
             elif action == "edit":
                 if not (default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte.")):
                     new_name = input_name(list(known_faces.keys()))
-                # Hantera kommandon som angetts när namnet efterfrågades
-                if new_name.lower() in base_actions:
-                    # Rekursiv hantering av kommandot
-                    action = base_actions[new_name.lower()]
-                    if action == "skip":
-                        return "skipped", []
-                    elif action == "retry":
-                        retry_requested = True
-                        break
-                    elif action == "ignore":
-                        ignored_faces.append(encoding)
-                        labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
-                        break
-                    elif action == "accept_suggestion":
-                        if best_name:
-                            name = best_name
-                            all_ignored = False
-                            break
-                        else:
-                            print("⚠️  Det finns inget förslag att acceptera.")
-                            continue
-                    # För andra kommandon, fortsätt loopen
-                    continue
-                # Kontrollera om namnet är ett reserverat kommando
-                if new_name.lower() in RESERVED_COMMANDS:
-                    print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-                    continue
+                if new_name.lower() == "x":
+                    return "skipped", []
+                if new_name.lower() == "n":
+                    retry_requested = True
+                    break
+                if new_name.lower() == "i":
+                    ignored_faces.append(encoding)
+                    labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
+                    break
                 if new_name:
                     name = new_name
                     all_ignored = False
@@ -645,16 +578,12 @@ def user_review_encodings(
                 break
             elif action == "name":
                 name = best_name if best_name else input_name(list(known_faces.keys()))
-                # Kontrollera om namnet är ett reserverat kommando
-                if name and name.lower() in RESERVED_COMMANDS:
-                    print(f"⚠️  '{name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-                    continue
                 all_ignored = False
                 break
 
         if retry_requested:
             break
-        if name is not None and name.lower() not in RESERVED_COMMANDS:
+        if name is not None and name.lower() not in {"i", "x", "n", "o"}:
             if name not in known_faces:
                 known_faces[name] = []
             known_faces[name].append({
@@ -947,10 +876,6 @@ def face_detection_attempt(rgb, model, upsample):
     return face_locations, face_encodings
 
 def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › "):
-    """
-    Ber användaren om ett namn med autocomplete.
-    Reserverade kommandon (i, a, r, n, o, m, x) returneras som är för vidare hantering.
-    """
     completer = WordCompleter(sorted(known_names), ignore_case=True, sentence=True)
     try:
         name = prompt(prompt_txt, completer=completer)
@@ -1027,11 +952,6 @@ def preprocess_image(
     fname = str(image_path)
     logging.debug(f"[PREPROCESS image][{fname}] start")
 
-    # Check if file exists before preprocessing
-    if not Path(image_path).exists():
-        logging.warning(f"[PREPROCESS image][SKIP][{fname}] File does not exist, skipping")
-        return []
-
     try:
         max_down = config.get("max_downsample_px")
         max_mid = config.get("max_midsample_px")
@@ -1098,11 +1018,6 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
     """
     Review-loop för EN attempt (sista) för en redan preprocessad bild.
     """
-    # Check if file exists before review
-    if not Path(image_path).exists():
-        logging.warning(f"[REVIEW][SKIP][{image_path}] File does not exist, skipping review")
-        return "skipped"
-    
     attempt_idx = len(attempt_results) - 1
     attempts_stats = []
     used_attempt = None
@@ -1135,6 +1050,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
         "faces_found": len(face_encodings),
     })
 
+    import shutil
     ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
     try:
         shutil.copy(preview_path, ORDINARY_PREVIEW_PATH)
@@ -1444,23 +1360,10 @@ def cleanup_tmp_previews():
             pass  # Ignorera ev. misslyckanden
 
 # === Graceful Exit ===
-def graceful_exit():
+def signal_handler(sig, frame):
     print("\n⏹ Avbruten. Programmet avslutas.")
-    if worker_process and worker_process.is_alive():
-        worker_process.terminate()
-        worker_process.join(timeout=1)
-    if preprocessed_queue_ref is not None:
-        try:
-            preprocessed_queue_ref.close()
-            preprocessed_queue_ref.join_thread()
-        except Exception:
-            pass
     cleanup_tmp_previews()
     sys.exit(0)
-
-
-def signal_handler(sig, frame):
-    graceful_exit()
 
 def print_help():
     print(
@@ -1519,109 +1422,22 @@ def add_to_processed_files(path, processed_files):
         h = None
     processed_files.append({"name": path.name, "hash": h})
 
-
-def _cache_file(path):
-    """Return the cache file path for a given image path."""
-    CACHE_DIR.mkdir(exist_ok=True)
-    h = hashlib.sha1(str(path).encode()).hexdigest()
-    return CACHE_DIR / f"{h}.pkl"
-
-
-def save_preprocessed_cache(path, attempt_results):
-    """Persist preprocessing results so a run can resume after restart.
-
-    Preview images are copied to the cache directory so they exist on restart.
-    Returns a list with updated preview paths suitable for queuing.
-    """
-    cache_path = _cache_file(path)
-    h = hashlib.sha1(str(path).encode()).hexdigest()
-    cached = []
-    for res in attempt_results:
-        entry = res.copy()
-        prev = entry.get("preview_path")
-        if prev and Path(prev).exists():
-            dest = CACHE_DIR / f"{h}_a{entry['attempt_index']}.jpg"
-            # Only copy if source and destination are different files
-            prev_path = Path(prev).resolve()
-            dest_path = dest.resolve()
-            if prev_path != dest_path:
-                shutil.copy(prev, dest)
-            entry["preview_path"] = str(dest)
-        cached.append(entry)
-    try:
-        with open(cache_path, "wb") as f:
-            pickle.dump((str(path), cached), f)
-    except Exception as e:
-        logging.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
-    return cached
-
-
-def load_preprocessed_cache(queue):
-    """Load any cached preprocessing results into the queue."""
-    if not CACHE_DIR.exists():
-        return
-    for file in CACHE_DIR.glob("*.pkl"):
-        try:
-            with open(file, "rb") as f:
-                path, attempt_results = pickle.load(f)
-            # Check if the original image file still exists before loading into queue
-            if not Path(path).exists():
-                logging.warning(f"[CACHE] File {path} no longer exists, removing cache")
-                # Remove the cache file and associated preview images
-                file.unlink()
-                h = hashlib.sha1(str(path).encode()).hexdigest()
-                for img in CACHE_DIR.glob(f"{h}_a*.jpg"):
-                    try:
-                        img.unlink()
-                    except Exception:
-                        pass
-                continue
-            queue.put((path, attempt_results))
-        except (FileNotFoundError, pickle.UnpicklingError, OSError):
-            logging.debug(f"[CACHE] Failed to load {file}")
-
-
-def remove_preprocessed_cache(path):
-    """Remove cached preprocessing data for a path."""
-    cache_path = _cache_file(path)
-    if cache_path.exists():
-        cache_path.unlink()
-    h = hashlib.sha1(str(path).encode()).hexdigest()
-    for img in CACHE_DIR.glob(f"{h}_a*.jpg"):
-        try:
-            img.unlink()
-        except Exception:
-            pass
-
 def preprocess_worker(
     known_faces, ignored_faces, hard_negatives, images_to_process,
     config, max_possible_attempts,
     preprocessed_queue, preprocess_done
 ):
+    """Preprocessa bilder och lägg varje nytt attempt i kön."""
     try:
-        faces_copy = copy.deepcopy(known_faces)
-        ignored_copy = copy.deepcopy(ignored_faces)
-        hard_negatives_copy = copy.deepcopy(hard_negatives)
+        # Argumenten picklas redan till processen, så ingen ytterligare deepcopy
+        faces_copy = known_faces
+        ignored_copy = ignored_faces
+        hard_negatives_copy = hard_negatives
 
-        # Track attempts per image and keep processing order deterministic
-        attempt_map = {path: [] for path in images_to_process}
-        active_paths = list(images_to_process)
-
-        # Breadth-first processing: handle attempt 1 for all images, then attempt 2, etc.
-        for attempt_idx in range(1, max_possible_attempts + 1):
-            if not active_paths:
-                break
-            for path in active_paths[:]:
-                # Check if file still exists before processing
-                if not Path(path).exists():
-                    logging.warning(f"[PREPROCESS worker][SKIP][{path.name}] File no longer exists, removing from queue")
-                    active_paths.remove(path)
-                    if path in attempt_map:
-                        del attempt_map[path]
-                    continue
-                
-                logging.debug(f"[PREPROCESS worker] Attempt {attempt_idx} for {path.name}")
-                current_attempts = attempt_map[path]
+        for path in images_to_process:
+            logging.debug(f"[PREPROCESS worker] Startar för {path.name}")
+            attempt_results = []
+            for attempt_idx in range(1, max_possible_attempts + 1):
                 partial_results = preprocess_image(
                     path,
                     faces_copy,
@@ -1629,18 +1445,18 @@ def preprocess_worker(
                     hard_negatives_copy,
                     config,
                     max_attempts=attempt_idx,
-                    attempts_so_far=current_attempts,
+                    attempts_so_far=attempt_results,
                 )
-                if len(partial_results) > len(current_attempts):
-                    cached = save_preprocessed_cache(path, partial_results)
-                    attempt_map[path] = cached
-                    logging.debug(
-                        f"[PREPROCESS worker][QUEUE PUT] {path.name}: attempts {len(cached)}"
-                    )
-                    preprocessed_queue.put((path, cached[:]))
-                    # Stop processing this image if faces were found
-                    if cached[-1]["faces_found"] > 0:
-                        active_paths.remove(path)
+                if not partial_results or len(partial_results) <= len(attempt_results):
+                    break
+                new_attempt = partial_results[-1]
+                attempt_results.append(new_attempt)
+                logging.debug(
+                    f"[PREPROCESS worker][ATTEMPT {attempt_idx}] För {path.name}: nytt attempt"
+                )
+                preprocessed_queue.put((path, attempt_idx - 1, new_attempt))
+                if new_attempt.get("faces_found", 0) > 0:
+                    break
         preprocess_done.set()
     except Exception as e:
         logging.debug(f"[PREPROCESS worker][ERROR] {e}")
@@ -1694,6 +1510,7 @@ def main():
     max_auto_attempts = config.get("max_attempts", MAX_ATTEMPTS)
     max_possible_attempts = get_max_possible_attempts(config)
     max_queue = config.get("max_queue", MAX_QUEUE)
+    num_workers = max(1, int(config.get("num_workers", 1)))
 
     # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
     if rename_mode:
@@ -1747,12 +1564,6 @@ def main():
         input_paths = list(parse_inputs(arglist, SUPPORTED_EXT))
         n_found = 0
         for path in input_paths:
-            # Check if file exists before fixing
-            if not path.exists():
-                logging.warning(f"[FIX][SKIP][{path}] File does not exist")
-                print(f"⏭ Hoppar över {path.name} (filen finns inte längre)")
-                continue
-            
             n_found += 1
             print(f"\n=== FIXAR: {path.name} ===")
             removed = remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, path.name)
@@ -1765,12 +1576,6 @@ def main():
             attempt_idx = 0
             result = None
             while attempt_idx < max_possible_attempts:
-                # Check file existence before each attempt
-                if not path.exists():
-                    logging.warning(f"[FIX][SKIP][{path.name}] File no longer exists during processing")
-                    print(f"⏭ {path.name} togs bort under bearbetning, hoppar över")
-                    break
-                
                 if attempt_idx == 0:
                     # Kör första attempt
                     attempts_so_far = preprocess_image(
@@ -1812,7 +1617,6 @@ def main():
     images_to_process = []
     for path in input_paths:
         if not path.exists():
-            logging.warning(f"[MAIN][SKIP][{path}] File does not exist")
             continue
         n_found += 1
         if is_file_processed(path, processed_files):
@@ -1824,37 +1628,35 @@ def main():
         sys.exit(1)
 
     # === STEG 1: Starta worker-processen ===
-    preprocessed_queue = multiprocessing.Queue(maxsize=max_queue or 0)
-    load_preprocessed_cache(preprocessed_queue)  # Reload cached queue entries
+    preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)
     preprocess_done = multiprocessing.Event()
 
-    global worker_process, preprocessed_queue_ref
-    preprocessed_queue_ref = preprocessed_queue
-    worker_process = multiprocessing.Process(
-        target=preprocess_worker,
-        args=(
-            known_faces,
-            ignored_faces,
-            hard_negatives,
-            images_to_process,
-            config,
-            max_auto_attempts,
-            preprocessed_queue,
-            preprocess_done
+    workers = []
+    chunk_size = max(1, math.ceil(len(images_to_process) / num_workers))
+    for i in range(num_workers):
+        chunk = images_to_process[i * chunk_size:(i + 1) * chunk_size]
+        if not chunk:
+            continue
+        p = multiprocessing.Process(
+            target=preprocess_worker,
+            args=(
+                known_faces,
+                ignored_faces,
+                hard_negatives,
+                chunk,
+                config,
+                max_auto_attempts,
+                preprocessed_queue,
+                preprocess_done,
+            ),
         )
-    )
-    worker_process.start()
+        p.daemon = True
+        p.start()
+        workers.append(p)
 
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()
     for path in images_to_process:
-        # Check if file still exists before processing
-        if not path.exists():
-            logging.warning(f"[MAIN][SKIP][{path.name}] File no longer exists, skipping")
-            done_images.add(path)
-            remove_preprocessed_cache(path)
-            continue
-        
         logging.debug(f"[MAIN][STEG2] Bearbetar {path.name}...")
         path_key = str(path)
         attempt_idx = 0
@@ -1867,40 +1669,25 @@ def main():
             # === Hämta attempts från kön om möjligt ===
             if len(attempts_so_far) < attempt_idx + 1:
                 fetched = False
-                # Visa endast "väntar på nästa nivå" för nivå > 1
                 if attempt_idx > 0 and not worker_wait_msg_printed:
                     print(f"(⏳ Väntar på nivå {attempt_idx+1} för {path.name}...)", flush=True)
                     worker_wait_msg_printed = True
 
                 while not fetched:
-                    # logging.debug(f"[MAIN] Väntar på attempt {attempt_idx+1} för {path.name}")
                     try:
-                        qpath, attempt_results = preprocessed_queue.get(timeout=1)
-                        if str(qpath) != path_key:
-                            preprocessed_queue.put((qpath, attempt_results))
-                            continue
-                        attempts_so_far = attempt_results
-                        fetched = True
+                        qpath, qidx, attempt_res = preprocessed_queue.get(timeout=1)
                     except queue.Empty:
-                        # Check if worker is done - if so, we won't get any more results
-                        if preprocess_done.is_set():
-                            logging.debug(f"[MAIN] Worker finished but no attempt {attempt_idx+1} for {path.name}")
-                            # No more preprocessing will happen, break out
-                            fetched = True
-                            # We need to generate this attempt ourselves
-                            if len(attempts_so_far) < attempt_idx + 1:
-                                logging.debug(f"[MAIN] Generating attempt {attempt_idx+1} manually for {path.name}")
-                                attempts_so_far = preprocess_image(
-                                    path, known_faces, ignored_faces, hard_negatives, config,
-                                    max_attempts=attempt_idx + 1,
-                                    attempts_so_far=attempts_so_far
-                                )
-                        # Otherwise, keep waiting
+                        continue
+                    if str(qpath) != path_key or qidx != len(attempts_so_far):
+                        preprocessed_queue.put((qpath, qidx, attempt_res))
+                        continue
+                    attempts_so_far.append(attempt_res)
+                    fetched = True
 
                 logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
                     print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
-                worker_wait_msg_printed = False  # Återställ för ev. fler nivåer
+                worker_wait_msg_printed = False
 
             logging.debug(f"[MAIN][QUEUE GET] {path.name}: hämtar attempt {attempt_idx+1}")
 
@@ -1926,24 +1713,20 @@ def main():
                     if not worker_wait_msg_printed:
                         print(f"(⏳ Väntar på nivå {attempt_idx+1} för {path.name}...)", flush=True)
                         worker_wait_msg_printed = True
-                    import time
                     while waited < max_wait:
                         try:
-                            qpath, attempt_results = preprocessed_queue.get(timeout=1)
-                            if str(qpath) == path_key:
-                                attempts_so_far = attempt_results
-                                got_new_attempt = True
-                                print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
-                                worker_wait_msg_printed = False
-                                break
-                            else:
-                                preprocessed_queue.put((qpath, attempt_results))
+                            qpath, qidx, attempt_res = preprocessed_queue.get(timeout=1)
                         except queue.Empty:
-                            # Check if worker is done
-                            if preprocess_done.is_set():
-                                logging.debug(f"[MAIN] Worker finished, no more attempts coming for {path.name}")
-                                break
-                        waited += 1
+                            waited += 1
+                            continue
+                        if str(qpath) == path_key and qidx == len(attempts_so_far):
+                            attempts_so_far.append(attempt_res)
+                            got_new_attempt = True
+                            print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
+                            worker_wait_msg_printed = False
+                            break
+                        else:
+                            preprocessed_queue.put((qpath, qidx, attempt_res))
                     # Om worker ändå inte levererat: skapa nytt attempt manuellt
                     if not got_new_attempt:
                         logging.debug(f"[MAIN] {path.name}: skapar manuellt nytt attempt {attempt_idx+1}")
@@ -1982,13 +1765,10 @@ def main():
             attempt_idx += 1
 
         logging.debug(f"[MAIN] {path.name}: FÄRDIG, {len(attempts_so_far)} försök totalt")
-        # Cached preprocessing data is no longer needed once an image is processed
-        remove_preprocessed_cache(path)
-    worker_process.join()
+    for p in workers:
+        p.join()
     preprocessed_queue.close()
     preprocessed_queue.join_thread()
-    worker_process = None
-    preprocessed_queue_ref = None
 
     print("✅ Alla bilder färdigbehandlade.")
     cleanup_tmp_previews()
