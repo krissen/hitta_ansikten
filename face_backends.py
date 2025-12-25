@@ -169,11 +169,13 @@ class InsightFaceBackend(FaceBackend):
             det_size: Detection size (width, height) tuple, e.g. (640, 640)
         """
         try:
-            import insightface
-            from insightface.app import FaceAnalysis
+            import os
             import warnings
 
-            # Suppress verbose ONNX runtime messages
+            # Suppress verbose ONNX runtime messages (must be set before importing)
+            os.environ['ORT_LOGGING_LEVEL'] = '3'  # 3 = ERROR, 2 = WARNING, 1 = INFO, 0 = VERBOSE
+
+            # Suppress Python logging from onnxruntime
             import logging as base_logging
             base_logging.getLogger('onnxruntime').setLevel(base_logging.ERROR)
 
@@ -182,6 +184,9 @@ class InsightFaceBackend(FaceBackend):
 
             # Suppress CUDA provider warning on systems without GPU
             warnings.filterwarnings('ignore', message='.*CUDAExecutionProvider.*')
+
+            import insightface
+            from insightface.app import FaceAnalysis
 
             logging.info(f"[InsightFaceBackend] Initializing with model={model_name}, ctx_id={ctx_id}, det_size={det_size}")
 
