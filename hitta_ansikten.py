@@ -606,7 +606,11 @@ def get_validated_user_input(
                 new_name = None
         else:
             ans = safe_input(prompt_txt).strip().lower()
-            action = handle_answer(ans, base_actions, default=default_action)
+            # Handle answer: empty/enter -> default, otherwise lookup in base_actions
+            if ans in ("", "enter"):
+                action = default_action
+            else:
+                action = base_actions.get(ans, default_action)
             new_name = None
 
         # Validate the action
