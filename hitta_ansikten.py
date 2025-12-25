@@ -544,17 +544,15 @@ def validate_action(action: str, ans: str, relevant_actions: set, best_name: str
     if action not in VALID_ACTIONS:
         return False, f"Internt fel: Okänd action '{action}'"
 
-    # Check if action is relevant for this case
+    # Validate accept_suggestion requires best_name (do this before relevance check for better error message)
+    if action == "accept_suggestion" and not best_name:
+        cmd_name = f"'{ans.lower()}'" if ans else "acceptera förslag"
+        return False, f"Kommandot {cmd_name} kan inte användas - det finns inget förslag."
+
+    # Check if command is relevant for this case
     if ans and ans.lower() in RESERVED_COMMANDS:
         if ans.lower() not in relevant_actions:
-            # Special message for 'accept_suggestion' when no suggestion exists
-            if ans.lower() == "a" and not best_name:
-                return False, "Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag."
             return False, f"Kommandot '{ans.lower()}' är inte tillgängligt i detta läge."
-
-    # Validate accept_suggestion specifically
-    if action == "accept_suggestion" and not best_name:
-        return False, "Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag."
 
     return True, None
 
@@ -586,6 +584,10 @@ def get_validated_user_input(
         - raw_answer: User's raw input (for logging)
         - new_name: New name if action is "edit", otherwise None
     """
+    # Validate case parameter (depends on categorization in user_review_encodings)
+    VALID_CASES = {"name", "ign", "uncertain_name", "uncertain_ign", "unknown"}
+    assert case in VALID_CASES, f"Unexpected case '{case}'. Expected one of: {sorted(VALID_CASES)}"
+
     while True:
         # Determine input method based on case (more robust than string matching)
         is_name_input = (case == "unknown")
@@ -593,14 +595,11 @@ def get_validated_user_input(
         if is_name_input:
             ans = input_name(list(known_faces.keys()), prompt_txt).strip()
 
-            # User entered a command instead of a name
+            # User entered something that matches a base command
+            # (validation of relevance happens later in validate_action)
             if ans.lower() in base_actions:
                 action = base_actions[ans.lower()]
                 new_name = None
-            # User entered a reserved command as name (invalid)
-            elif ans.lower() in RESERVED_COMMANDS:
-                print(f"⚠️  '{ans}' är ett reserverat kommando och kan inte användas som namn.")
-                continue
             # User entered a new name
             elif ans:
                 action = "edit"
@@ -789,13 +788,7 @@ def user_review_encodings(
                             new_name = None
                             break  # Break out of name input loop to execute command
 
-                        # Check for reserved commands
-                        if new_name.lower() in RESERVED_COMMANDS:
-                            print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-                            # Stay in name correction context - re-prompt for name
-                            continue
-
-                        # Valid name entered - break out of loop
+                        # Valid name entered (reserved commands already handled above in base_actions check)
                         break
 
                     # If a command was entered (action changed), execute it via main handler
@@ -803,7 +796,7 @@ def user_review_encodings(
                         continue  # Loop back to main handler to execute the command
 
                 # Now we have a valid name
-                if new_name:
+                if new_name is not None:
                     name = new_name
                     all_ignored = False
                     # Hard negative: Save encoding as hard negative for best_name if incorrectly suggested
