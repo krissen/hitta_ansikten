@@ -539,8 +539,13 @@ def validate_action(action: str, ans: str, relevant_actions: set, best_name: str
         (is_valid: bool, error_message: str | None)
         error_message is None if valid
     """
+    # Validate that action is a known action
+    VALID_ACTIONS = {"ignore", "accept_suggestion", "edit", "retry", "show_original", "manual", "skip", "name"}
+    if action not in VALID_ACTIONS:
+        return False, f"Internt fel: Okänd action '{action}'"
+
     # Check if action is relevant for this case
-    if ans and ans.lower() in {"i", "a", "r", "n", "o", "m", "x"}:
+    if ans and ans.lower() in RESERVED_COMMANDS:
         if ans.lower() not in relevant_actions:
             # Special message for 'accept_suggestion' when no suggestion exists
             if ans.lower() == "a" and not best_name:
@@ -606,8 +611,8 @@ def get_validated_user_input(
                 continue
         else:
             ans = safe_input(prompt_txt).strip().lower()
-            # Handle answer: empty/enter -> default, otherwise lookup in base_actions
-            if ans in ("", "enter"):
+            # Handle answer: empty -> default, otherwise lookup in base_actions
+            if ans == "":
                 action = default_action
             else:
                 action = base_actions.get(ans, default_action)
@@ -762,33 +767,40 @@ def user_review_encodings(
                 # If new_name is None, user pressed 'r' (edit) from a non-edit case
                 # We need to prompt for the corrected name
                 if new_name is None:
-                    new_name = input_name(list(known_faces.keys()))
+                    # Keep prompting until we get a valid name or valid command
+                    # This maintains the name correction context instead of jumping back to main prompt
+                    while True:
+                        new_name = input_name(list(known_faces.keys()))
 
-                    # Handle if user entered a command instead of a name
-                    if new_name.lower() in base_actions:
-                        cmd_action = base_actions[new_name.lower()]
+                        # Handle if user entered a command instead of a name
+                        if new_name.lower() in base_actions:
+                            cmd_action = base_actions[new_name.lower()]
 
-                        # Validate the command (reuse centralized validation)
-                        is_valid, error_msg = validate_action(cmd_action, new_name.lower(), relevant_actions, best_name)
-                        if not is_valid:
-                            print(f"⚠️  {error_msg}")
-                            action = None  # Reset to prompt for name again
+                            # Validate the command (reuse centralized validation)
+                            is_valid, error_msg = validate_action(cmd_action, new_name.lower(), relevant_actions, best_name)
+                            if not is_valid:
+                                print(f"⚠️  {error_msg}")
+                                # Stay in name correction context - re-prompt for name
+                                continue
+
+                            # Valid command - execute by looping back to main handler
+                            # This avoids duplicating all the action execution logic
+                            action = cmd_action
                             new_name = None
+                            break  # Break out of name input loop to execute command
+
+                        # Check for reserved commands
+                        if new_name.lower() in RESERVED_COMMANDS:
+                            print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                            # Stay in name correction context - re-prompt for name
                             continue
 
-                        # Valid command - execute by looping back to main handler
-                        # This avoids duplicating all the action execution logic
-                        action = cmd_action
-                        ans = new_name.lower()
-                        new_name = None
-                        continue  # Loop back to execute this action via main handler above
+                        # Valid name entered - break out of loop
+                        break
 
-                    # Check for reserved commands
-                    if new_name.lower() in RESERVED_COMMANDS:
-                        print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-                        action = None  # Reset to prompt for name again
-                        new_name = None
-                        continue
+                    # If a command was entered (action changed), execute it via main handler
+                    if action != "edit":
+                        continue  # Loop back to main handler to execute the command
 
                 # Now we have a valid name
                 if new_name:
@@ -817,6 +829,7 @@ def user_review_encodings(
                 if name and name.lower() in RESERVED_COMMANDS:
                     print(f"⚠️  '{name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
                     action = None  # Reset to get new input on next iteration
+                    name = None  # Reset name to avoid keeping an invalid reserved command
                     continue
                 all_ignored = False
                 break
