@@ -12,8 +12,8 @@ import json
 import logging
 import math
 import multiprocessing
-import queue
 import os
+import queue
 import re
 import signal
 import sys
@@ -23,7 +23,6 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-import face_recognition
 import matplotlib.font_manager as fm
 import numpy as np
 import rawpy
@@ -34,6 +33,7 @@ from prompt_toolkit.completion import WordCompleter
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
                        CONFIG_PATH, LOGGING_PATH, SUPPORTED_EXT, get_file_hash,
                        load_attempt_log, load_database, save_database)
+from face_backends import create_backend, FaceBackend
 
 
 def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH):
@@ -55,6 +55,9 @@ init_logging()
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 2
 MAX_QUEUE = 10
+
+# Reserved command shortcuts that cannot be used as person names
+RESERVED_COMMANDS = {"i", "a", "r", "n", "o", "m", "x"}
 
 
 # === Standardkonfiguration ===
@@ -106,6 +109,37 @@ DEFAULT_CONFIG = {
     "ignore_distance": 0.48,
     # Namn måste vara så här mycket bättre än ignore för att vinna automatiskt
     "prefer_name_margin": 0.15,
+
+    # === Backend configuration (face recognition engine) ===
+    "backend": {
+        "type": "dlib",  # Backend to use: "dlib" or "insightface"
+        "dlib": {
+            "model": "large"  # Currently unused by DlibBackend; kept for compatibility/future use
+        },
+        "insightface": {
+            "model_name": "buffalo_l",  # Model: buffalo_s (fast), buffalo_m, buffalo_l (accurate)
+            "ctx_id": -1,  # -1 = CPU, 0+ = GPU device ID
+            "det_size": [640, 640]  # Detection input size
+        }
+    },
+
+    # Threshold mode: "auto" uses match_threshold/ignore_distance for active backend
+    # "manual" uses backend-specific thresholds below
+    "threshold_mode": "auto",
+
+    # Backend-specific distance thresholds (used if threshold_mode="manual")
+    "backend_thresholds": {
+        "dlib": {
+            "match_threshold": 0.54,  # Euclidean distance threshold
+            "ignore_distance": 0.48,
+            "hard_negative_distance": 0.45
+        },
+        "insightface": {
+            "match_threshold": 0.4,  # Cosine distance threshold (typically lower)
+            "ignore_distance": 0.35,
+            "hard_negative_distance": 0.32
+        }
+    },
 }
 
 def load_config():
@@ -120,8 +154,29 @@ def load_config():
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG
 
-def get_attempt_setting_defs(config):
-    # Returnerar alla settings utan rgb_img
+def get_attempt_setting_defs(config, backend=None):
+    """
+    Returnerar alla attempt settings utan rgb_img.
+
+    Args:
+        config: Configuration dict
+        backend: FaceBackend instance (optional, för backend-specifika nivåer)
+
+    Returns:
+        List of attempt setting dicts
+    """
+    # InsightFace: Enklare nivåer (model/upsample ignoreras ändå)
+    # Bara variera upplösning - InsightFace är bra nog att klara de flesta fall
+    if backend and backend.backend_name == 'insightface':
+        # Use actual model name from backend for clarity in logs/stats
+        model_name = backend.get_model_info().get('model', 'buffalo_l')
+        return [
+            {"model": model_name, "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
+            {"model": model_name, "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
+            {"model": model_name, "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
+        ]
+
+    # Dlib: Behåll alla variationer med model och upsample
     return [
         {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
         {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
@@ -132,22 +187,30 @@ def get_attempt_setting_defs(config):
         {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": config["max_fullres_px"]},
     ]
 
-def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full):
-    # Kopplar rgb_img enligt scale_label
+def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend=None):
+    """
+    Kopplar rgb_img enligt scale_label.
+
+    Args:
+        config: Configuration dict
+        rgb_down, rgb_mid, rgb_full: Preprocessed images at different resolutions
+        backend: FaceBackend instance (optional, för backend-specifika nivåer)
+    """
     arr_map = {
         "down": rgb_down,
         "mid": rgb_mid,
         "full": rgb_full,
     }
     settings = []
-    for item in get_attempt_setting_defs(config):
+    for item in get_attempt_setting_defs(config, backend):
         item_with_img = dict(item)  # kopiera!
         item_with_img["rgb_img"] = arr_map[item["scale_label"]]
         settings.append(item_with_img)
     return settings
 
-def get_max_possible_attempts(config):
-    return len(get_attempt_setting_defs(config))
+def get_max_possible_attempts(config, backend=None):
+    """Returns max number of attempts for current backend."""
+    return len(get_attempt_setting_defs(config, backend))
 
 def get_settings_signature(attempt_settings):
     # Serialiserbar och ordningsoberoende
@@ -178,9 +241,13 @@ def archive_stats_if_needed(current_sig, force=False):
         sig_path.write_text(current_sig)
 
 def hash_encoding(enc):
+    """Hash an encoding, handling both dict and ndarray formats."""
     # Hantera både dict och ndarray
     if isinstance(enc, dict) and "encoding" in enc:
         enc = enc["encoding"]
+    # Handle None encodings (corrupted or missing data)
+    if enc is None:
+        return None
     return hashlib.sha1(enc.tobytes()).hexdigest()
 
 def export_and_show_original(image_path, config):
@@ -356,11 +423,11 @@ def get_match_label(i, best_name, best_name_dist, name_conf, best_ignore, best_i
     return get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, best_ignore_dist, ign_conf, config)
 
 def label_preview_for_encodings(face_encodings, known_faces,
-                                ignored_faces, hard_negatives, config):
+                                ignored_faces, hard_negatives, config, backend):
     labels = []
     for i, encoding in enumerate(face_encodings):
         (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches(
-            encoding, known_faces, ignored_faces, hard_negatives, config
+            encoding, known_faces, ignored_faces, hard_negatives, config, backend
         )
         name_conf = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ign_conf = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
@@ -368,19 +435,33 @@ def label_preview_for_encodings(face_encodings, known_faces,
         labels.append(label)
     return labels
 
-def handle_manual_add(known_faces, image_path, file_hash, input_name_func, labels=None):
+def handle_manual_add(known_faces, image_path, file_hash, input_name_func, backend, labels=None):
     """
     Lägg till manuell person – även med file och hash.
     Om labels ges (lista), addera ett label-objekt, annars returnera namn och label.
+
+    Args:
+        backend: FaceBackend instance (for metadata, even though encoding is None)
     """
-    namn = input_name_func(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
+    while True:
+        namn = input_name_func(list(known_faces.keys()), "Manuellt tillägg – ange namn: ")
+        # Validera att namnet inte är ett reserverat kommando
+        if namn and namn.lower() in RESERVED_COMMANDS:
+            print(f"⚠️  '{namn}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+            continue
+        break
+
     if namn and namn not in known_faces:
         known_faces[namn] = []
-    # Spara dummy-encoding och korrekt hash+file
+    # Spara dummy-encoding med backend metadata
     known_faces[namn].append({
         "encoding": None,
         "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
-        "hash": file_hash
+        "hash": file_hash,
+        "backend": backend.backend_name,
+        "backend_version": backend.get_model_info().get('model', 'unknown'),
+        "created_at": datetime.now().isoformat(),
+        "encoding_hash": None  # No encoding for manual add
     })
     label_obj = {"label": f"#manuell\n{namn}", "hash": None}
     if labels is not None:
@@ -429,13 +510,23 @@ def get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, 
     else:
         return "#%d\nOkänt" % (i + 1), "unknown"
 
-def add_hard_negative(hard_negatives, person, encoding):
+def add_hard_negative(hard_negatives, person, encoding, backend, image_path=None, file_hash=None):
+    """Add a hard negative example for a person with full metadata."""
     if person not in hard_negatives:
         hard_negatives[person] = []
-    hard_negatives[person].append(encoding)
+    normalized_encoding = backend.normalize_encoding(encoding)
+    hard_negatives[person].append({
+        "encoding": normalized_encoding,
+        "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path) if image_path else None,
+        "hash": file_hash,
+        "backend": backend.backend_name,
+        "backend_version": backend.get_model_info().get('model', 'unknown'),
+        "created_at": datetime.now().isoformat(),
+        "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
+    })
 
 def user_review_encodings(
-    face_encodings, known_faces, ignored_faces, hard_negatives, config,
+    face_encodings, known_faces, ignored_faces, hard_negatives, config, backend,
     image_path=None, preview_path=None, file_hash=None
 ):
     """
@@ -461,16 +552,21 @@ def user_review_encodings(
         name = None
         print(f"\nAnsikte #{i + 1}:")
         (best_name, best_name_dist), (best_ignore, best_ignore_dist) = best_matches(
-            encoding, known_faces, ignored_faces, hard_negatives, config
+            encoding, known_faces, ignored_faces, hard_negatives, config, backend
         )
         name_confidence = int((1 - best_name_dist) * 100) if best_name_dist is not None else None
         ignore_confidence = int((1 - best_ignore_dist) * 100) if best_ignore_dist is not None else None
 
+        # Alla kommandon är alltid tillgängliga (base_actions)
+        # Vi håller koll på vilka som är *relevanta* för att ge felmeddelanden
         base_actions = {
+            "i": "ignore",
+            "a": "accept_suggestion",
+            "r": "edit",
+            "n": "retry",
             "o": "show_original",
             "m": "manual",
             "x": "skip",
-            "n": "retry",
         }
 
         # Centraliserad logik
@@ -479,48 +575,49 @@ def user_review_encodings(
             best_ignore, best_ignore_dist, ignore_confidence, config
         )
 
+        # Bestäm vilka actions som är relevanta för detta case
         if case == "uncertain_name":
             prompt_txt = (
                 f"↪ Osäkert: {best_name} ({name_confidence}%) / ign ({ignore_confidence}%)\n"
-                "[Enter = bekräfta namn, i = ignorera, r = rätta, n = försök igen, "
+                "[Enter/a = bekräfta namn, i = ignorera, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            actions = {**base_actions, "i": "ignore", "r": "edit"}
+            relevant_actions = {"i", "a", "r", "n", "o", "m", "x"}
             default_action = "name"
 
         elif case == "uncertain_ign":
             prompt_txt = (
                 f"↪ Osäkert: ign ({ignore_confidence}%) / {best_name} ({name_confidence}%)\n"
-                "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
+                "[Enter = bekräfta ignorera, a = acceptera namn, i = ignorera, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
+            relevant_actions = {"i", "a", "r", "n", "o", "m", "x"}
             default_action = "ignore"
 
         elif case == "name":
             prompt_txt = (
                 f"↪ Föreslaget: {best_name} ({name_confidence}%)\n"
-                "[Enter = bekräfta, r = rätta, n = försök igen, i = ignorera, "
+                "[Enter = bekräfta, a = acceptera förslag, r = rätta, n = försök igen, i = ignorera, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            actions = {**base_actions, "r": "edit", "i": "ignore"}
+            relevant_actions = {"a", "r", "n", "i", "o", "m", "x"}
             default_action = "name"
 
         elif case == "ign":
             prompt_txt = (
                 f"↪ Ansiktet liknar ett tidigare ignorerat ({ignore_confidence}%).\n"
-                "[Enter = bekräfta ignorera, a = acceptera namn, r = rätta, n = försök igen, "
+                "[Enter = bekräfta ignorera, a = acceptera namn, i = ignorera, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
-            actions = {**base_actions, "a": "name", "r": "edit", "i": "ignore"}
+            relevant_actions = {"a", "r", "n", "i", "o", "m", "x"}
             default_action = "ignore"
 
         else:  # "unknown"
             prompt_txt = (
-                "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, n = försök igen, "
+                "↪ Okänt ansikte. Ange namn (eller 'i' för ignorera, a = acceptera förslag, r = rätta, n = försök igen, "
                 "m = manuell tilldelning, o = öppna original, x = skippa bild) › "
             )
-            actions = {**base_actions, "i": "ignore"}
+            relevant_actions = {"i", "r", "n", "o", "m", "x", "a"}  # 'a' ger felmeddelande
             default_action = "edit"
 
         while True:
@@ -528,15 +625,35 @@ def user_review_encodings(
                 new_name = input_name(list(known_faces.keys()), prompt_txt)
                 ans = new_name.strip()
                 # Om användaren skrivit en specialaction istället för namn:
-                if ans.lower() in actions:
-                    action = actions[ans.lower()]
+                if ans.lower() in base_actions:
+                    action = base_actions[ans.lower()]
+                    # Kolla om kommandot är relevant för detta case
+                    if ans.lower() not in relevant_actions or (ans.lower() == "a" and not best_name):
+                        # Visa felmeddelande
+                        if ans.lower() == "a" and not best_name:
+                            print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
+                        else:
+                            print(f"⚠️  Kommandot '{ans.lower()}' är inte tillgängligt i detta läge.")
+                        continue
                 elif ans:
+                    # Kolla om namnet är ett reserverat kommando
+                    if ans.lower() in RESERVED_COMMANDS:
+                        print(f"⚠️  '{ans}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                        continue
                     action = "edit"
                 else:
                     action = default_action
             else:
                 ans = safe_input(prompt_txt).strip().lower()
-                action = handle_answer(ans, actions, default=default_action)
+                action = handle_answer(ans, base_actions, default=default_action)
+
+            # Validera att kommandot är relevant (om det inte är None/default)
+            if action and ans and ans != "" and ans.lower() in base_actions:
+                # Kontrollera om kommandot är relevant
+                if ans.lower() == "a" and action == "accept_suggestion":
+                    if not best_name:
+                        print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
+                        continue
 
             if action == "show_original":
                 if image_path is not None:
@@ -545,7 +662,7 @@ def user_review_encodings(
                     show_temp_image(preview_path, config, image_path)
                 continue
             elif action == "manual":
-                handle_manual_add(known_faces, image_path, file_hash, input_name, labels)
+                handle_manual_add(known_faces, image_path, file_hash, input_name, backend, labels)
                 all_ignored = False
                 continue
             elif action == "skip":
@@ -553,45 +670,99 @@ def user_review_encodings(
             elif action == "retry":
                 retry_requested = True
                 break
+            elif action == "accept_suggestion":
+                # 'a' kommandot - acceptera best_name om det finns
+                if best_name:
+                    name = best_name
+                    all_ignored = False
+                    break
+                else:
+                    print("⚠️  Det finns inget förslag att acceptera.")
+                    continue
             elif action == "edit":
                 if not (default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte.")):
                     new_name = input_name(list(known_faces.keys()))
-                if new_name.lower() == "x":
-                    return "skipped", []
-                if new_name.lower() == "n":
-                    retry_requested = True
-                    break
-                if new_name.lower() == "i":
-                    ignored_faces.append(encoding)
-                    labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
-                    break
+                # Hantera kommandon som angetts när namnet efterfrågades
+                if new_name.lower() in base_actions:
+                    # Rekursiv hantering av kommandot
+                    action = base_actions[new_name.lower()]
+                    if action == "skip":
+                        return "skipped", []
+                    elif action == "retry":
+                        retry_requested = True
+                        break
+                    elif action == "ignore":
+                        normalized_encoding = backend.normalize_encoding(encoding)
+                        ignored_faces.append({
+                            "encoding": normalized_encoding,
+                            "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path),
+                            "hash": file_hash,
+                            "backend": backend.backend_name,
+                            "backend_version": backend.get_model_info().get('model', 'unknown'),
+                            "created_at": datetime.now().isoformat(),
+                            "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
+                        })
+                        labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
+                        break
+                    elif action == "accept_suggestion":
+                        if best_name:
+                            name = best_name
+                            all_ignored = False
+                            break
+                        else:
+                            print("⚠️  Det finns inget förslag att acceptera.")
+                            continue
+                    # För andra kommandon, fortsätt loopen
+                    continue
+                # Kontrollera om namnet är ett reserverat kommando
+                if new_name.lower() in RESERVED_COMMANDS:
+                    print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                    continue
                 if new_name:
                     name = new_name
                     all_ignored = False
                     # --- Hard negative: Spara encoding som hard negative för best_name om den felaktigt föreslogs! ---
                     if best_name and name != best_name:
-                        add_hard_negative(hard_negatives, best_name, encoding)
+                        add_hard_negative(hard_negatives, best_name, encoding, backend, image_path, file_hash)
                     break
             elif action == "ignore":
-                ignored_faces.append(encoding)
-                labels.append({"label": f"#{i+1}\nignorerad", "hash": hash_encoding(encoding)})
+                normalized_encoding = backend.normalize_encoding(encoding)
+                ignored_faces.append({
+                    "encoding": normalized_encoding,
+                    "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path),
+                    "hash": file_hash,
+                    "backend": backend.backend_name,
+                    "backend_version": backend.get_model_info().get('model', 'unknown'),
+                    "created_at": datetime.now().isoformat(),
+                    "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
+                })
+                labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
                 break
             elif action == "name":
                 name = best_name if best_name else input_name(list(known_faces.keys()))
+                # Kontrollera om namnet är ett reserverat kommando
+                if name and name.lower() in RESERVED_COMMANDS:
+                    print(f"⚠️  '{name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                    continue
                 all_ignored = False
                 break
 
         if retry_requested:
             break
-        if name is not None and name.lower() not in {"i", "x", "n", "o"}:
+        if name is not None and name.lower() not in RESERVED_COMMANDS:
             if name not in known_faces:
                 known_faces[name] = []
+            normalized_encoding = backend.normalize_encoding(encoding)
             known_faces[name].append({
-                "encoding": encoding,
+                "encoding": normalized_encoding,
                 "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
-                "hash": file_hash
+                "hash": file_hash,
+                "backend": backend.backend_name,
+                "backend_version": backend.get_model_info().get('model', 'unknown'),
+                "created_at": datetime.now().isoformat(),
+                "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
             })
-            labels.append({"label": f"#{i+1}\n{name}", "hash": hash_encoding(encoding)})
+            labels.append({"label": f"#{i+1}\n{name}", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
 
     if retry_requested:
         logging.debug(f"[REVIEW] Retry ombett, återgår till anropare")
@@ -767,77 +938,162 @@ def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
         canvas.save(tmp.name, format="JPEG")
         return tmp.name
 
+# === Backend threshold helper ===
+def _get_backend_thresholds(config, backend):
+    """
+    Get appropriate thresholds for current backend.
+
+    Args:
+        config: Full config dict
+        backend: FaceBackend instance
+
+    Returns:
+        Dict with 'match_threshold', 'ignore_distance', 'hard_negative_distance'
+    """
+    threshold_mode = config.get('threshold_mode', 'auto')
+
+    if threshold_mode == 'manual':
+        # Use backend-specific thresholds when available
+        backend_thresholds = config.get('backend_thresholds', {})
+        if backend.backend_name in backend_thresholds:
+            return backend_thresholds[backend.backend_name]
+
+        # Fallback: log warning and use top-level config values
+        logging.warning(
+            f"Manual threshold mode: no thresholds configured for backend '{backend.backend_name}'; "
+            f"falling back to top-level threshold values which may not match this "
+            f"backend's distance metric."
+        )
+        return {
+            'match_threshold': config.get('match_threshold', 0.6),
+            'ignore_distance': config.get('ignore_distance', 0.5),
+            'hard_negative_distance': config.get('hard_negative_distance', 0.45)
+        }
+    else:
+        # Auto mode: prefer backend-specific thresholds, then adjust by distance metric
+        backend_thresholds = config.get('backend_thresholds', {})
+        backend_specific = backend_thresholds.get(backend.backend_name)
+        if backend_specific is not None:
+            return backend_specific
+
+        # Fallback based on backend distance metric
+        distance_metric = getattr(backend, 'distance_metric', 'euclidean')
+
+        # Default thresholds for Euclidean-like metrics (preserves existing behavior)
+        default_match = 0.6
+        default_ignore = 0.5
+        default_hard_negative = 0.45
+
+        # For cosine distance, typical thresholds are lower (e.g. ~0.4)
+        if isinstance(distance_metric, str) and 'cos' in distance_metric.lower():
+            default_match = 0.4
+            default_ignore = 0.35
+            default_hard_negative = 0.32
+
+        return {
+            'match_threshold': config.get('match_threshold', default_match),
+            'ignore_distance': config.get('ignore_distance', default_ignore),
+            'hard_negative_distance': config.get('hard_negative_distance', default_hard_negative)
+        }
+
+
 # === Beräkna avstånd till kända encodings ===
-def best_matches(encoding, known_faces, ignored_faces, hard_negatives, config):
+def best_matches(encoding, known_faces, ignored_faces, hard_negatives, config, backend: FaceBackend):
     """
-    Returnerar:
+    Find best matching person and ignore candidate using backend.
+
+    Args:
+        encoding: Face encoding to match
+        known_faces: Dict of {name: [encoding_entries]}
+        ignored_faces: List of ignored encoding entries
+        hard_negatives: Dict of {name: [hard_negative_entries]}
+        config: Config dict
+        backend: FaceBackend instance
+
+    Returns:
         (best_name, best_name_dist), (best_ignore_idx, best_ignore_dist)
-    Nu med stöd för hard negatives per person – om encoding ligger nära en hard negative för ett namn,
-    ska det inte föreslås det namnet (eller ges mycket dåligt score).
     """
-    import face_recognition
     import numpy as np
 
     best_name = None
     best_name_dist = None
-    best_ignore = None
+    best_ignore_idx = None
     best_ignore_dist = None
 
-    name_thr = config.get("match_threshold", 0.6)
-    # Om encoding ligger närmare en hard negative än en vanlig encoding, skippa detta namn.
-    hard_negative_thr = config.get("hard_negative_distance", 0.45)  # justerbar, gärna < ignore_thr
+    # Get backend-appropriate thresholds
+    thresholds = _get_backend_thresholds(config, backend)
+    hard_negative_thr = thresholds.get('hard_negative_distance', 0.45)
 
+    # Match against known faces (with backend filtering)
     for name, entries in known_faces.items():
-        # Samla alla numpy-arrayer för encodings
+        # Filter encodings by backend
         encs = []
         for entry in entries:
-            if isinstance(entry, dict) and "encoding" in entry:
-                enc = entry["encoding"]
-                if isinstance(enc, np.ndarray):
-                    encs.append(enc)
-            elif isinstance(entry, np.ndarray):
-                encs.append(entry)
-        if not encs:
-            continue  # Skippa namn utan encodings
+            if isinstance(entry, dict):
+                entry_enc = entry.get("encoding")
+                entry_backend = entry.get("backend", "dlib")
+            else:
+                # Legacy numpy array
+                entry_enc = entry
+                entry_backend = "dlib"
 
-        # Kolla mot personens hard negatives – om encoding ligger för nära någon, ignorera
+            # Only match against same backend
+            if entry_enc is not None and entry_backend == backend.backend_name:
+                if isinstance(entry_enc, np.ndarray):
+                    encs.append(entry_enc)
+
+        if not encs:
+            continue  # No encodings for this backend
+
+        # Check hard negatives (same backend filtering)
         hard_negs = []
         if hard_negatives and name in hard_negatives:
             for neg in hard_negatives[name]:
-                if isinstance(neg, dict) and "encoding" in neg:
-                    neg_enc = neg["encoding"]
+                if isinstance(neg, dict):
+                    neg_enc = neg.get("encoding")
+                    neg_backend = neg.get("backend", "dlib")
                 else:
                     neg_enc = neg
-                if isinstance(neg_enc, np.ndarray):
-                    hard_negs.append(neg_enc)
-        # Om någon hard negative är nära: ignorera denna person helt
+                    neg_backend = "dlib"
+
+                if neg_enc is not None and neg_backend == backend.backend_name:
+                    if isinstance(neg_enc, np.ndarray):
+                        hard_negs.append(neg_enc)
+
+        # Check if encoding matches hard negatives
         is_hard_negative = False
         if hard_negs:
-            neg_dists = face_recognition.face_distance(np.array(hard_negs), encoding)
+            neg_dists = backend.compute_distances(np.array(hard_negs), encoding)
             if np.min(neg_dists) < hard_negative_thr:
                 is_hard_negative = True
 
         if is_hard_negative:
-            continue
+            continue  # Skip this person
 
-        dists = face_recognition.face_distance(encs, encoding)
+        # Compute distances using backend
+        dists = backend.compute_distances(np.array(encs), encoding)
         min_dist = np.min(dists)
+
         if best_name_dist is None or min_dist < best_name_dist:
             best_name_dist = min_dist
             best_name = name
 
-    # Ignore-match (oförändrad)
+    # Match against ignored faces (with backend filtering)
     ignored_encs = []
     for entry in ignored_faces:
-        if isinstance(entry, dict) and "encoding" in entry:
-            enc = entry["encoding"]
-            if isinstance(enc, np.ndarray):
-                ignored_encs.append(enc)
-        elif isinstance(entry, np.ndarray):
-            ignored_encs.append(entry)
-    best_ignore_idx = None
+        if isinstance(entry, dict):
+            entry_enc = entry.get("encoding")
+            entry_backend = entry.get("backend", "dlib")
+        else:
+            entry_enc = entry
+            entry_backend = "dlib"
+
+        if entry_enc is not None and entry_backend == backend.backend_name:
+            if isinstance(entry_enc, np.ndarray):
+                ignored_encs.append(entry_enc)
+
     if ignored_encs:
-        dists = face_recognition.face_distance(ignored_encs, encoding)
+        dists = backend.compute_distances(np.array(ignored_encs), encoding)
         min_dist = np.min(dists)
         best_ignore_dist = min_dist
         best_ignore_idx = int(np.argmin(dists))
@@ -861,21 +1117,34 @@ def load_and_resize_raw(image_path, max_dim=None):
         rgb = np.array(rgb)
     return rgb
 
-def face_detection_attempt(rgb, model, upsample):
+def face_detection_attempt(rgb, model, upsample, backend: FaceBackend):
+    """
+    Detect faces using configured backend.
+
+    Args:
+        rgb: RGB image array
+        model: Detection model hint ('hog', 'cnn')
+        upsample: Upsampling factor
+        backend: FaceBackend instance
+
+    Returns:
+        (face_locations, face_encodings)
+    """
     t0 = time.time()
-    logging.debug(f"[FACEDETECT] begins : model={model}, upsample={upsample}, time {t0}")
-    face_locations = face_recognition.face_locations(
-        rgb, model=model, number_of_times_to_upsample=upsample
-    )
+    logging.debug(f"[FACEDETECT] begins: backend={backend.backend_name}, model={model}, upsample={upsample}")
+
+    face_locations, face_encodings = backend.detect_faces(rgb, model, upsample)
+
     t1 = time.time()
-    face_locations = sorted(face_locations, key=lambda loc: loc[3])
-    logging.debug(f"[FACEDETECT] Have locations at time {t1}")
-    face_encodings = face_recognition.face_encodings(rgb, face_locations)
-    t2 = time.time()
-    logging.debug(f"[FACEDETECT] Have encodings at time {t2}")
+    logging.debug(f"[FACEDETECT] Complete: {len(face_locations)} faces found in {t1-t0:.2f}s")
+
     return face_locations, face_encodings
 
 def input_name(known_names, prompt_txt="Ange namn (eller 'i' för ignorera, n = försök igen, x = skippa bild) › "):
+    """
+    Ber användaren om ett namn med autocomplete.
+    Reserverade kommandon (i, a, r, n, o, m, x) returneras som är för vidare hantering.
+    """
     completer = WordCompleter(sorted(known_names), ignore_case=True, sentence=True)
     try:
         name = prompt(prompt_txt, completer=completer)
@@ -917,7 +1186,9 @@ def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identi
     for hashval in hashes_to_remove:
         idx_to_del = None
         for idx, enc in enumerate(ignored_faces):
-            if hash_encoding(enc) == hashval:
+            enc_hash = hash_encoding(enc)
+            # Skip corrupted encodings (None hash)
+            if enc_hash is not None and enc_hash == hashval:
                 idx_to_del = idx
                 break
         if idx_to_del is not None:
@@ -928,7 +1199,9 @@ def remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, identi
         if namn and namn != "ignorerad" and namn in known_faces:
             idx_to_del = None
             for idx, enc in enumerate(known_faces[namn]):
-                if hash_encoding(enc) == hashval:
+                enc_hash = hash_encoding(enc)
+                # Skip corrupted encodings (None hash)
+                if enc_hash is not None and enc_hash == hashval:
                     idx_to_del = idx
                     break
             if idx_to_del is not None:
@@ -942,15 +1215,24 @@ def preprocess_image(
     ignored_faces,
     hard_negatives,
     config,
+    backend,
     max_attempts=3,
     attempts_so_far=None
 ):
     """
     Förbehandlar en bild och returnerar en lista av attempt-resultat.
     Om attempts_so_far anges (lista), används befintliga attempts och endast saknade attempts (index >= len(attempts_so_far)) körs.
+
+    Args:
+        backend: FaceBackend instance for face detection and encoding
     """
     fname = str(image_path)
     logging.debug(f"[PREPROCESS image][{fname}] start")
+
+    # Check if file exists before preprocessing
+    if not Path(image_path).exists():
+        logging.warning(f"[PREPROCESS image][SKIP][{fname}] File does not exist, skipping")
+        return []
 
     try:
         max_down = config.get("max_downsample_px")
@@ -960,7 +1242,7 @@ def preprocess_image(
         rgb_mid = load_and_resize_raw(image_path, max_mid)
         rgb_full = load_and_resize_raw(image_path, max_full)
 
-        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend)
     except Exception as e:
         logging.warning(f"[RAWREAD][SKIP][{fname}] Kunde inte öppna {fname}: {e}")
         return []
@@ -979,11 +1261,11 @@ def preprocess_image(
         logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: start")
         logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: face_detection_attempt")
         face_locations, face_encodings = face_detection_attempt(
-            rgb, setting["model"], setting["upsample"]
+            rgb, setting["model"], setting["upsample"], backend
         )
         logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: label_preview_for_encodings")
         preview_labels = label_preview_for_encodings(
-            face_encodings, known_faces, ignored_faces, hard_negatives, config
+            face_encodings, known_faces, ignored_faces, hard_negatives, config, backend
         )
         logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: create_labeled_image")
         preview_path = create_labeled_image(
@@ -995,6 +1277,8 @@ def preprocess_image(
         attempt_results.append({
             "attempt_index": attempt_idx,
             "model": setting["model"],
+            "backend": backend.backend_name,
+            "backend_version": backend.get_model_info().get('model', 'unknown'),
             "upsample": setting["upsample"],
             "scale_label": setting["scale_label"],
             "scale_px": setting["scale_px"],
@@ -1014,10 +1298,18 @@ def preprocess_image(
 
 
 def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negatives,
-                            config, attempt_results):
+                            config, backend, attempt_results):
     """
     Review-loop för EN attempt (sista) för en redan preprocessad bild.
+
+    Args:
+        backend: FaceBackend instance
     """
+    # Check if file exists before review
+    if not Path(image_path).exists():
+        logging.warning(f"[REVIEW][SKIP][{image_path}] File does not exist, skipping review")
+        return "skipped"
+    
     attempt_idx = len(attempt_results) - 1
     attempts_stats = []
     used_attempt = None
@@ -1043,6 +1335,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
     attempts_stats.append({
         "attempt_index": attempt_idx,
         "model": res["model"],
+        "backend": backend.backend_name,
+        "backend_version": backend.get_model_info().get('model', 'unknown'),
         "upsample": res["upsample"],
         "scale_label": res["scale_label"],
         "scale_px": res["scale_px"],
@@ -1060,8 +1354,8 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
 
     if face_encodings:
         review_result, labels = user_review_encodings(
-            face_encodings, known_faces, ignored_faces, hard_negatives, config, image_path,
-            preview_path, file_hash
+            face_encodings, known_faces, ignored_faces, hard_negatives, config, backend,
+            image_path, preview_path, file_hash
         )
         review_results.append(review_result)
         labels_per_attempt.append(labels)
@@ -1102,7 +1396,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
             )
             return "skipped"
         elif ans == "m":
-            namn, label_obj = handle_manual_add(known_faces, image_path, file_hash, input_name)
+            handle_manual_add(known_faces, image_path, file_hash, input_name, backend)
             review_results.append("ok")
             log_attempt_stats(
                 image_path, attempts_stats, used_attempt, BASE_DIR,
@@ -1128,12 +1422,13 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
         return "no_faces"
     return "retry"
 
-def process_image(image_path, known_faces, ignored_faces, hard_negatives, config):
+def process_image(image_path, known_faces, ignored_faces, hard_negatives, config, backend):
+    """Single-image processing wrapper."""
     attempt_results = preprocess_image(image_path, known_faces, ignored_faces,
-                                       hard_negatives, config, max_attempts=1)
+                                       hard_negatives, config, backend, max_attempts=1)
 
     return main_process_image_loop(image_path, known_faces, ignored_faces, hard_negatives,
-                                   config, attempt_results)
+                                   config, backend, attempt_results)
 
 
 def extract_prefix_suffix(fname):
@@ -1422,46 +1717,149 @@ def add_to_processed_files(path, processed_files):
         h = None
     processed_files.append({"name": path.name, "hash": h})
 
+
+def _cache_file(path):
+    """Return the cache file path for a given image path."""
+    CACHE_DIR.mkdir(exist_ok=True)
+    h = hashlib.sha1(str(path).encode()).hexdigest()
+    return CACHE_DIR / f"{h}.pkl"
+
+
+def save_preprocessed_cache(path, attempt_results):
+    """Persist preprocessing results so a run can resume after restart.
+
+    Preview images are copied to the cache directory so they exist on restart.
+    Returns a list with updated preview paths suitable for queuing.
+    """
+    cache_path = _cache_file(path)
+    h = hashlib.sha1(str(path).encode()).hexdigest()
+    cached = []
+    for res in attempt_results:
+        entry = res.copy()
+        prev = entry.get("preview_path")
+        if prev and Path(prev).exists():
+            dest = CACHE_DIR / f"{h}_a{entry['attempt_index']}.jpg"
+            # Only copy if source and destination are different files
+            prev_path = Path(prev).resolve()
+            dest_path = dest.resolve()
+            if prev_path != dest_path:
+                shutil.copy(prev, dest)
+            entry["preview_path"] = str(dest)
+        cached.append(entry)
+    try:
+        with open(cache_path, "wb") as f:
+            pickle.dump((str(path), cached), f)
+    except Exception as e:
+        logging.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
+    return cached
+
+
+def load_preprocessed_cache(queue):
+    """Load any cached preprocessing results into the queue."""
+    if not CACHE_DIR.exists():
+        return
+    for file in CACHE_DIR.glob("*.pkl"):
+        try:
+            with open(file, "rb") as f:
+                path, attempt_results = pickle.load(f)
+            # Check if the original image file still exists before loading into queue
+            if not Path(path).exists():
+                logging.warning(f"[CACHE] File {path} no longer exists, removing cache")
+                # Remove the cache file and associated preview images
+                file.unlink()
+                h = hashlib.sha1(str(path).encode()).hexdigest()
+                for img in CACHE_DIR.glob(f"{h}_a*.jpg"):
+                    try:
+                        img.unlink()
+                    except Exception:
+                        # Ignore errors (file already deleted, permission issues, etc.)
+                        pass
+                continue
+            queue.put((path, attempt_results))
+        except (FileNotFoundError, pickle.UnpicklingError, OSError):
+            logging.debug(f"[CACHE] Failed to load {file}")
+
+
+def remove_preprocessed_cache(path):
+    """Remove cached preprocessing data for a path."""
+    cache_path = _cache_file(path)
+    if cache_path.exists():
+        cache_path.unlink()
+    h = hashlib.sha1(str(path).encode()).hexdigest()
+    for img in CACHE_DIR.glob(f"{h}_a*.jpg"):
+        try:
+            img.unlink()
+        except Exception:
+            # Ignore errors (file already deleted, permission issues, etc.)
+            pass
+
 def preprocess_worker(
     known_faces, ignored_faces, hard_negatives, images_to_process,
     config, max_possible_attempts,
     preprocessed_queue, preprocess_done
 ):
-    """Preprocessa bilder och lägg varje nytt attempt i kön."""
-    try:
-        # Argumenten picklas redan till processen, så ingen ytterligare deepcopy
-        faces_copy = known_faces
-        ignored_copy = ignored_faces
-        hard_negatives_copy = hard_negatives
+    """
+    Worker process for preprocessing images in background.
 
-        for path in images_to_process:
-            logging.debug(f"[PREPROCESS worker] Startar för {path.name}")
-            attempt_results = []
-            for attempt_idx in range(1, max_possible_attempts + 1):
+    Initializes its own backend instance from config.
+    """
+    try:
+        # Initialize backend in worker process
+        from face_backends import create_backend
+        backend = create_backend(config)
+        logging.debug(f"[WORKER] Initialized backend: {backend.backend_name}")
+
+        faces_copy = copy.deepcopy(known_faces)
+        ignored_copy = copy.deepcopy(ignored_faces)
+        hard_negatives_copy = copy.deepcopy(hard_negatives)
+
+        # Track attempts per image and keep processing order deterministic
+        attempt_map = {path: [] for path in images_to_process}
+        active_paths = list(images_to_process)
+
+        # Breadth-first processing: handle attempt 1 for all images, then attempt 2, etc.
+        for attempt_idx in range(1, max_possible_attempts + 1):
+            if not active_paths:
+                break
+            for path in active_paths[:]:
+                # Check if file still exists before processing
+                if not Path(path).exists():
+                    logging.warning(f"[PREPROCESS worker][SKIP][{path.name}] File no longer exists, removing from queue")
+                    active_paths.remove(path)
+                    if path in attempt_map:
+                        del attempt_map[path]
+                    continue
+                
+                logging.debug(f"[PREPROCESS worker] Attempt {attempt_idx} for {path.name}")
+                current_attempts = attempt_map[path]
                 partial_results = preprocess_image(
                     path,
                     faces_copy,
                     ignored_copy,
                     hard_negatives_copy,
                     config,
+                    backend,
                     max_attempts=attempt_idx,
                     attempts_so_far=attempt_results,
                 )
-                if not partial_results or len(partial_results) <= len(attempt_results):
-                    break
-                new_attempt = partial_results[-1]
-                attempt_results.append(new_attempt)
-                logging.debug(
-                    f"[PREPROCESS worker][ATTEMPT {attempt_idx}] För {path.name}: nytt attempt"
-                )
-                preprocessed_queue.put((path, attempt_idx - 1, new_attempt))
-                if new_attempt.get("faces_found", 0) > 0:
-                    break
-        preprocess_done.set()
+                if len(partial_results) > len(current_attempts):
+                    cached = save_preprocessed_cache(path, partial_results)
+                    attempt_map[path] = cached
+                    logging.debug(
+                        f"[PREPROCESS worker][QUEUE PUT] {path.name}: attempts {len(cached)}"
+                    )
+                    preprocessed_queue.put((path, cached[:]))
+                    # Stop processing this image if faces were found
+                    if cached[-1]["faces_found"] > 0:
+                        active_paths.remove(path)
     except Exception as e:
-        logging.debug(f"[PREPROCESS worker][ERROR] {e}")
+        logging.error(f"[PREPROCESS worker][ERROR] {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        # Always signal completion, even on error, to unblock main loop
+        preprocess_done.set()
+        logging.debug("[PREPROCESS worker] Done")
 
 # === Entry point ===
 def main():
@@ -1471,10 +1869,11 @@ def main():
 
     if len(sys.argv) >= 2 and sys.argv[1] == "--archive":
         config = load_config()
+        backend = create_backend(config)
         rgb_down = np.zeros((config["max_downsample_px"], config["max_downsample_px"], 3), dtype=np.uint8)
         rgb_mid = np.zeros((config["max_midsample_px"], config["max_midsample_px"], 3), dtype=np.uint8)
         rgb_full = np.zeros((config["max_fullres_px"], config["max_fullres_px"], 3), dtype=np.uint8)
-        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend)
         current_sig = get_settings_signature(attempt_settings)
         archive_stats_if_needed(current_sig, force=True)
         print("Arkivering utförd.")
@@ -1506,9 +1905,33 @@ def main():
             args.remove(flag)
 
     config = load_config()
+
+    # Initialize face recognition backend
+    try:
+        backend = create_backend(config)
+        logging.info(f"[BACKEND] Initialized: {backend.backend_name}")
+        model_info = backend.get_model_info()
+        logging.info(f"[BACKEND] Model info: {model_info}")
+    except Exception as e:
+        logging.error(f"[BACKEND] Failed to initialize backend: {e}")
+        print(f"Error: Could not initialize face recognition backend: {e}")
+
+        # Provide backend-specific installation hints
+        backend_type = config.get("backend", {}).get("type", "unknown")
+        if backend_type == "dlib":
+            print("Hint: For the 'dlib' backend, install the required package:")
+            print("  pip install face_recognition")
+        elif backend_type == "insightface":
+            print("Hint: For the 'insightface' backend, install the required packages:")
+            print("  pip install insightface onnxruntime")
+        else:
+            print("Check that all required dependencies for the selected backend are installed.")
+
+        sys.exit(1)
+
     known_faces, ignored_faces, hard_negatives, processed_files = load_database()
     max_auto_attempts = config.get("max_attempts", MAX_ATTEMPTS)
-    max_possible_attempts = get_max_possible_attempts(config)
+    max_possible_attempts = get_max_possible_attempts(config, backend)
     max_queue = config.get("max_queue", MAX_QUEUE)
     num_workers = max(1, int(config.get("num_workers", 1)))
 
@@ -1529,7 +1952,7 @@ def main():
                 print(f"\nBearbetar {len(to_process)} nya filer innan omdöpning...")
             for path in to_process:
                 print(f"\n=== Bearbetar: {path.name} ===")
-                result = process_image(path, known_faces, ignored_faces, hard_negatives, config)
+                result = process_image(path, known_faces, ignored_faces, hard_negatives, config, backend)
                 if result is True or result == "skipped":
                     add_to_processed_files(path, processed_files)
                     save_database(known_faces, ignored_faces, hard_negatives, processed_files)
@@ -1564,6 +1987,12 @@ def main():
         input_paths = list(parse_inputs(arglist, SUPPORTED_EXT))
         n_found = 0
         for path in input_paths:
+            # Check if file exists before fixing
+            if not path.exists():
+                logging.warning(f"[FIX][SKIP][{path}] File does not exist")
+                print(f"⏭ Hoppar över {path.name} (filen finns inte längre)")
+                continue
+            
             n_found += 1
             print(f"\n=== FIXAR: {path.name} ===")
             removed = remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, path.name)
@@ -1571,25 +2000,31 @@ def main():
                 print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
 
             # NYTT: Kör attempts-loop precis som i batch-läget
-            max_possible_attempts = get_max_possible_attempts(config)
+            max_possible_attempts = get_max_possible_attempts(config, backend)
             attempts_so_far = []
             attempt_idx = 0
             result = None
             while attempt_idx < max_possible_attempts:
+                # Check file existence before each attempt
+                if not path.exists():
+                    logging.warning(f"[FIX][SKIP][{path.name}] File no longer exists during processing")
+                    print(f"⏭ {path.name} togs bort under bearbetning, hoppar över")
+                    break
+                
                 if attempt_idx == 0:
                     # Kör första attempt
                     attempts_so_far = preprocess_image(
-                        path, known_faces, ignored_faces, hard_negatives, config,
+                        path, known_faces, ignored_faces, hard_negatives, config, backend,
                         max_attempts=1, attempts_so_far=[]
                     )
                 else:
                     # Lägg till ett till attempt
                     attempts_so_far = preprocess_image(
-                        path, known_faces, ignored_faces, hard_negatives, config,
+                        path, known_faces, ignored_faces, hard_negatives, config, backend,
                         max_attempts=attempt_idx+1, attempts_so_far=attempts_so_far
                     )
                 result = main_process_image_loop(
-                    path, known_faces, ignored_faces, hard_negatives, config, attempts_so_far
+                    path, known_faces, ignored_faces, hard_negatives, config, backend, attempts_so_far
                 )
                 if result == "retry":
                     attempt_idx += 1
@@ -1617,6 +2052,7 @@ def main():
     images_to_process = []
     for path in input_paths:
         if not path.exists():
+            logging.warning(f"[MAIN][SKIP][{path}] File does not exist")
             continue
         n_found += 1
         if is_file_processed(path, processed_files):
@@ -1657,6 +2093,13 @@ def main():
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()
     for path in images_to_process:
+        # Check if file still exists before processing
+        if not path.exists():
+            logging.warning(f"[MAIN][SKIP][{path.name}] File no longer exists, skipping")
+            done_images.add(path)
+            remove_preprocessed_cache(path)
+            continue
+        
         logging.debug(f"[MAIN][STEG2] Bearbetar {path.name}...")
         path_key = str(path)
         attempt_idx = 0
@@ -1674,15 +2117,29 @@ def main():
                     worker_wait_msg_printed = True
 
                 while not fetched:
+                    # logging.debug(f"[MAIN] Väntar på attempt {attempt_idx+1} för {path.name}")
                     try:
-                        qpath, qidx, attempt_res = preprocessed_queue.get(timeout=1)
+                        qpath, attempt_results = preprocessed_queue.get(timeout=1)
+                        if str(qpath) != path_key:
+                            preprocessed_queue.put((qpath, attempt_results))
+                            continue
+                        attempts_so_far = attempt_results
+                        fetched = True
                     except queue.Empty:
-                        continue
-                    if str(qpath) != path_key or qidx != len(attempts_so_far):
-                        preprocessed_queue.put((qpath, qidx, attempt_res))
-                        continue
-                    attempts_so_far.append(attempt_res)
-                    fetched = True
+                        # Check if worker is done - if so, we won't get any more results
+                        if preprocess_done.is_set():
+                            logging.debug(f"[MAIN] Worker finished but no attempt {attempt_idx+1} for {path.name}")
+                            # No more preprocessing will happen, break out
+                            fetched = True
+                            # We need to generate this attempt ourselves
+                            if len(attempts_so_far) < attempt_idx + 1:
+                                logging.debug(f"[MAIN] Generating attempt {attempt_idx+1} manually for {path.name}")
+                                attempts_so_far = preprocess_image(
+                                    path, known_faces, ignored_faces, hard_negatives, config, backend,
+                                    max_attempts=attempt_idx + 1,
+                                    attempts_so_far=attempts_so_far
+                                )
+                        # Otherwise, keep waiting
 
                 logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
@@ -1692,7 +2149,7 @@ def main():
             logging.debug(f"[MAIN][QUEUE GET] {path.name}: hämtar attempt {attempt_idx+1}")
 
             result = main_process_image_loop(
-                path, known_faces, ignored_faces, hard_negatives, config, attempts_so_far
+                path, known_faces, ignored_faces, hard_negatives, config, backend, attempts_so_far
             )
 
             logging.debug(f"[MAIN] {path.name}: resultat från review-loop: {result}")
@@ -1715,23 +2172,26 @@ def main():
                         worker_wait_msg_printed = True
                     while waited < max_wait:
                         try:
-                            qpath, qidx, attempt_res = preprocessed_queue.get(timeout=1)
+                            qpath, attempt_results = preprocessed_queue.get(timeout=1)
+                            if str(qpath) == path_key:
+                                attempts_so_far = attempt_results
+                                got_new_attempt = True
+                                print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
+                                worker_wait_msg_printed = False
+                                break
+                            else:
+                                preprocessed_queue.put((qpath, attempt_results))
                         except queue.Empty:
-                            waited += 1
-                            continue
-                        if str(qpath) == path_key and qidx == len(attempts_so_far):
-                            attempts_so_far.append(attempt_res)
-                            got_new_attempt = True
-                            print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
-                            worker_wait_msg_printed = False
-                            break
-                        else:
-                            preprocessed_queue.put((qpath, qidx, attempt_res))
+                            # Check if worker is done
+                            if preprocess_done.is_set():
+                                logging.debug(f"[MAIN] Worker finished, no more attempts coming for {path.name}")
+                                break
+                        waited += 1
                     # Om worker ändå inte levererat: skapa nytt attempt manuellt
                     if not got_new_attempt:
                         logging.debug(f"[MAIN] {path.name}: skapar manuellt nytt attempt {attempt_idx+1}")
                         extra_attempts = preprocess_image(
-                            path, known_faces, ignored_faces, hard_negatives, config,
+                            path, known_faces, ignored_faces, hard_negatives, config, backend,
                             max_attempts=attempt_idx + 1,
                             attempts_so_far=attempts_so_far
                         )
