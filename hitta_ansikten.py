@@ -160,8 +160,27 @@ def load_config():
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG
 
-def get_attempt_setting_defs(config):
-    # Returnerar alla settings utan rgb_img
+def get_attempt_setting_defs(config, backend=None):
+    """
+    Returnerar alla attempt settings utan rgb_img.
+
+    Args:
+        config: Configuration dict
+        backend: FaceBackend instance (optional, för backend-specifika nivåer)
+
+    Returns:
+        List of attempt setting dicts
+    """
+    # InsightFace: Enklare nivåer (model/upsample ignoreras ändå)
+    # Bara variera upplösning - InsightFace är bra nog att klara de flesta fall
+    if backend and backend.backend_name == 'insightface':
+        return [
+            {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
+            {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
+            {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
+        ]
+
+    # Dlib: Behåll alla variationer med model och upsample
     return [
         # {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
         {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
@@ -172,22 +191,30 @@ def get_attempt_setting_defs(config):
         {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": config["max_fullres_px"]},
     ]
 
-def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full):
-    # Kopplar rgb_img enligt scale_label
+def get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend=None):
+    """
+    Kopplar rgb_img enligt scale_label.
+
+    Args:
+        config: Configuration dict
+        rgb_down, rgb_mid, rgb_full: Preprocessed images at different resolutions
+        backend: FaceBackend instance (optional, för backend-specifika nivåer)
+    """
     arr_map = {
         "down": rgb_down,
         "mid": rgb_mid,
         "full": rgb_full,
     }
     settings = []
-    for item in get_attempt_setting_defs(config):
+    for item in get_attempt_setting_defs(config, backend):
         item_with_img = dict(item)  # kopiera!
         item_with_img["rgb_img"] = arr_map[item["scale_label"]]
         settings.append(item_with_img)
     return settings
 
-def get_max_possible_attempts(config):
-    return len(get_attempt_setting_defs(config))
+def get_max_possible_attempts(config, backend=None):
+    """Returns max number of attempts for current backend."""
+    return len(get_attempt_setting_defs(config, backend))
 
 def get_settings_signature(attempt_settings):
     # Serialiserbar och ordningsoberoende
@@ -1175,7 +1202,7 @@ def preprocess_image(
         rgb_mid = load_and_resize_raw(image_path, max_mid)
         rgb_full = load_and_resize_raw(image_path, max_full)
 
-        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend)
     except Exception as e:
         logging.warning(f"[RAWREAD][SKIP][{fname}] Kunde inte öppna {fname}: {e}")
         return []
@@ -1805,10 +1832,11 @@ def main():
 
     if len(sys.argv) >= 2 and sys.argv[1] == "--archive":
         config = load_config()
+        backend = create_backend(config)
         rgb_down = np.zeros((config["max_downsample_px"], config["max_downsample_px"], 3), dtype=np.uint8)
         rgb_mid = np.zeros((config["max_midsample_px"], config["max_midsample_px"], 3), dtype=np.uint8)
         rgb_full = np.zeros((config["max_fullres_px"], config["max_fullres_px"], 3), dtype=np.uint8)
-        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full)
+        attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend)
         current_sig = get_settings_signature(attempt_settings)
         archive_stats_if_needed(current_sig, force=True)
         print("Arkivering utförd.")
@@ -1855,7 +1883,7 @@ def main():
 
     known_faces, ignored_faces, hard_negatives, processed_files = load_database()
     max_auto_attempts = config.get("max_attempts", MAX_ATTEMPTS)
-    max_possible_attempts = get_max_possible_attempts(config)
+    max_possible_attempts = get_max_possible_attempts(config, backend)
     max_queue = config.get("max_queue", MAX_QUEUE)
 
     # --------- HUVUDFALL: RENAME (BATCH-FLODE) ---------
@@ -1923,7 +1951,7 @@ def main():
                 print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
 
             # NYTT: Kör attempts-loop precis som i batch-läget
-            max_possible_attempts = get_max_possible_attempts(config)
+            max_possible_attempts = get_max_possible_attempts(config, backend)
             attempts_so_far = []
             attempt_idx = 0
             result = None
