@@ -159,29 +159,51 @@ class DlibBackend(FaceBackend):
 class InsightFaceBackend(FaceBackend):
     """Backend using InsightFace library."""
 
-    def __init__(self, model_name: str = 'buffalo_l', ctx_id: int = -1):
+    def __init__(self, model_name: str = 'buffalo_l', ctx_id: int = -1, det_size: tuple = (640, 640)):
         """
         Initialize InsightFace backend.
 
         Args:
             model_name: Model to use ('buffalo_l', 'buffalo_s', 'buffalo_m', etc.)
             ctx_id: -1 for CPU, 0+ for GPU device ID
+            det_size: Detection size (width, height) tuple, e.g. (640, 640)
         """
         try:
             import insightface
             from insightface.app import FaceAnalysis
+            import warnings
 
-            logging.info(f"[InsightFaceBackend] Initializing with model={model_name}, ctx_id={ctx_id}")
+            # Suppress verbose ONNX runtime messages
+            import logging as base_logging
+            base_logging.getLogger('onnxruntime').setLevel(base_logging.ERROR)
+
+            # Suppress FutureWarning from skimage (used by InsightFace)
+            warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
+
+            # Suppress CUDA provider warning on systems without GPU
+            warnings.filterwarnings('ignore', message='.*CUDAExecutionProvider.*')
+
+            logging.info(f"[InsightFaceBackend] Initializing with model={model_name}, ctx_id={ctx_id}, det_size={det_size}")
+
+            # Determine optimal providers for this platform
+            # On macOS: CoreML > CPU, on others: CPU only (CUDA handled by ctx_id)
+            import platform
+            if platform.system() == 'Darwin':  # macOS
+                providers = ['CoreMLExecutionProvider', 'CPUExecutionProvider']
+            else:
+                providers = ['CPUExecutionProvider']
 
             self.app = FaceAnalysis(
                 name=model_name,
-                allowed_modules=['detection', 'recognition']
+                allowed_modules=['detection', 'recognition'],
+                providers=providers
             )
-            self.app.prepare(ctx_id=ctx_id)
+            self.app.prepare(ctx_id=ctx_id, det_size=det_size)
             self.model_name = model_name
             self.ctx_id = ctx_id
+            self.det_size = det_size
 
-            logging.info(f"[InsightFaceBackend] Initialized successfully")
+            logging.info(f"[InsightFaceBackend] Initialized successfully with providers: {providers}")
 
         except ImportError as e:
             logging.error(f"[InsightFaceBackend] Failed to import insightface: {e}")
@@ -209,8 +231,8 @@ class InsightFaceBackend(FaceBackend):
 
         Args:
             rgb_image: RGB image array
-            model: 'hog' or 'cnn' (mapped to detection size)
-            upsample: Ignored for InsightFace (uses det_size instead)
+            model: 'hog' or 'cnn' (ignored for InsightFace, uses det_size from __init__)
+            upsample: Ignored for InsightFace (uses det_size from __init__)
 
         Returns:
             (face_locations, face_encodings)
@@ -218,14 +240,9 @@ class InsightFaceBackend(FaceBackend):
         # InsightFace expects BGR
         bgr_image = rgb_image[:, :, ::-1].copy()
 
-        # Map model hint to detection size
-        # 'cnn' -> larger det_size for better accuracy
-        # 'hog' -> smaller det_size for speed
-        det_size = (640, 640) if model == 'cnn' else (512, 512)
-
         try:
-            # Detect faces
-            faces = self.app.get(bgr_image, det_size=det_size)
+            # Detect faces using det_size set during prepare()
+            faces = self.app.get(bgr_image)
         except Exception as e:
             logging.error(f"[InsightFaceBackend] Face detection failed: {e}")
             # Return empty results on error
@@ -303,7 +320,8 @@ class InsightFaceBackend(FaceBackend):
             "model": self.model_name,
             "encoding_dim": 512,
             "distance_metric": "cosine",
-            "ctx_id": self.ctx_id
+            "ctx_id": self.ctx_id,
+            "det_size": self.det_size
         }
 
 
@@ -347,9 +365,12 @@ def create_backend(config: dict) -> FaceBackend:
 
         elif backend_type == 'insightface':
             settings = backend_config.get('insightface', {})
+            det_size_list = settings.get('det_size', [640, 640])
+            det_size = tuple(det_size_list) if isinstance(det_size_list, list) else det_size_list
             return backend_class(
                 model_name=settings.get('model_name', 'buffalo_l'),
-                ctx_id=settings.get('ctx_id', -1)
+                ctx_id=settings.get('ctx_id', -1),
+                det_size=det_size
             )
 
         # Default: try to instantiate with no args
