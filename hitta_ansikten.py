@@ -525,7 +525,7 @@ def add_hard_negative(hard_negatives, person, encoding, backend, image_path=None
         "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
     })
 
-def validate_action(action: str, ans: str, relevant_actions: set, best_name: str) -> tuple:
+def validate_action(action: str, ans: str, relevant_actions: set, best_name: str) -> tuple[bool, str | None]:
     """
     Validate if an action is allowed in the current context.
 
@@ -562,7 +562,7 @@ def get_validated_user_input(
     default_action: str,
     best_name: str,
     known_faces: dict
-) -> tuple:
+) -> tuple[str, str, str | None]:
     """
     Get and validate user input for face review.
 
@@ -582,8 +582,8 @@ def get_validated_user_input(
         - new_name: New name if action is "edit", otherwise None
     """
     while True:
-        # Determine input method based on case
-        is_name_input = (default_action == "edit" and "Okänt ansikte" in prompt_txt)
+        # Determine input method based on case (more robust than string matching)
+        is_name_input = (case == "unknown")
 
         if is_name_input:
             ans = input_name(list(known_faces.keys()), prompt_txt).strip()
@@ -600,10 +600,10 @@ def get_validated_user_input(
             elif ans:
                 action = "edit"
                 new_name = ans
-            # User pressed Enter (use default)
+            # User pressed Enter without input: re-prompt
             else:
-                action = default_action
-                new_name = None
+                print("⚠️  Du måste ange ett namn eller ett kommando.")
+                continue
         else:
             ans = safe_input(prompt_txt).strip().lower()
             # Handle answer: empty/enter -> default, otherwise lookup in base_actions
