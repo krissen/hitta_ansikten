@@ -24,7 +24,6 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-import face_recognition
 import matplotlib.font_manager as fm
 import numpy as np
 import rawpy
