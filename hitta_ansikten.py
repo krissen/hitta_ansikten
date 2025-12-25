@@ -568,7 +568,7 @@ def get_validated_user_input(
 
     Args:
         prompt_txt: Prompt to show user
-        case: Current case (match, uncertain_name, uncertain_ign, unknown)
+        case: Current case (name, ign, uncertain_name, uncertain_ign, unknown)
         base_actions: Dict mapping commands to actions
         relevant_actions: Set of allowed commands for this case
         default_action: Action to use if user presses Enter
@@ -756,10 +756,58 @@ def user_review_encodings(
                 if new_name is None:
                     new_name = input_name(list(known_faces.keys()))
                     # Handle if user entered a command instead of a name
+                    # Execute the command immediately rather than continuing the loop
                     if new_name.lower() in base_actions:
-                        action = base_actions[new_name.lower()]
-                        # Recursively handle the command by continuing the loop
-                        continue
+                        cmd_action = base_actions[new_name.lower()]
+
+                        # Execute command immediately
+                        if cmd_action == "show_original":
+                            if image_path is not None:
+                                export_and_show_original(image_path, config)
+                            elif preview_path is not None:
+                                show_temp_image(preview_path, config, image_path)
+                            continue
+                        elif cmd_action == "manual":
+                            handle_manual_add(known_faces, image_path, file_hash, input_name, backend, labels)
+                            all_ignored = False
+                            continue
+                        elif cmd_action == "skip":
+                            return "skipped", []
+                        elif cmd_action == "retry":
+                            retry_requested = True
+                            break
+                        elif cmd_action == "ignore":
+                            normalized_encoding = backend.normalize_encoding(encoding)
+                            ignored_faces.append({
+                                "encoding": normalized_encoding,
+                                "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path),
+                                "hash": file_hash,
+                                "backend": backend.backend_name,
+                                "backend_version": backend.get_model_info().get('model', 'unknown'),
+                                "created_at": datetime.now().isoformat(),
+                                "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
+                            })
+                            labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
+                            break
+                        elif cmd_action == "accept_suggestion":
+                            if best_name:
+                                name = best_name
+                                all_ignored = False
+                                break
+                            else:
+                                print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
+                                continue
+                        elif cmd_action == "name":
+                            name = best_name if best_name else input_name(list(known_faces.keys()))
+                            if name and name.lower() in RESERVED_COMMANDS:
+                                print(f"⚠️  '{name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                                continue
+                            all_ignored = False
+                            break
+                        else:
+                            # Unknown command, continue prompting
+                            continue
+
                     # Check for reserved commands
                     if new_name.lower() in RESERVED_COMMANDS:
                         print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
