@@ -12,7 +12,6 @@ import json
 import logging
 import math
 import multiprocessing
-import queue
 import os
 import queue
 import re
@@ -580,7 +579,7 @@ def user_review_encodings(
         if case == "uncertain_name":
             prompt_txt = (
                 f"↪ Osäkert: {best_name} ({name_confidence}%) / ign ({ignore_confidence}%)\n"
-                "[Enter = bekräfta namn, i = ignorera, a = acceptera förslag, r = rätta, n = försök igen, "
+                "[Enter/a = bekräfta namn, i = ignorera, r = rätta, n = försök igen, "
                 "o = öppna original, m = manuell tilldelning, x = skippa bild] › "
             )
             relevant_actions = {"i", "a", "r", "n", "o", "m", "x"}
@@ -1773,6 +1772,7 @@ def load_preprocessed_cache(queue):
                     try:
                         img.unlink()
                     except Exception:
+                        # Ignore errors (file already deleted, permission issues, etc.)
                         pass
                 continue
             queue.put((path, attempt_results))
@@ -1790,6 +1790,7 @@ def remove_preprocessed_cache(path):
         try:
             img.unlink()
         except Exception:
+            # Ignore errors (file already deleted, permission issues, etc.)
             pass
 
 def preprocess_worker(

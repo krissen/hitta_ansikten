@@ -170,6 +170,8 @@ def load_database():
         logging.info(f"  Known faces: {migration_stats['known_faces_migrated']}")
         logging.info(f"  Ignored faces: {migration_stats['ignored_faces_migrated']}")
         logging.info(f"  Hard negatives: {migration_stats['hard_negatives_migrated']}")
+    else:
+        logging.debug("[DATABASE] Database already in current format, no migration needed")
 
     return known_faces, ignored_faces, hard_negatives, processed_files
 
