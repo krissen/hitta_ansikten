@@ -1,9 +1,11 @@
 import hashlib
 import json
+import logging
 import pickle
 import re
 from pathlib import Path
 
+import numpy as np
 from xdg.BaseDirectory import xdg_data_home
 
 # === Konstanter ===
@@ -19,6 +21,51 @@ PROCESSED_PATH = BASE_DIR / "processed_files.jsonl"
 SUPPORTED_EXT = [".nef", ".NEF"]
 ATTEMPT_LOG_PATH = BASE_DIR / "attempt_stats.jsonl"
 LOGGING_PATH = BASE_DIR / "hitta_ansikten.log"
+
+
+def normalize_encoding_entry(entry, default_backend="dlib"):
+    """
+    Normalize encoding entry to dict format with backend metadata.
+
+    Handles:
+    - Legacy bare numpy arrays -> dict with dlib backend
+    - Dicts without backend metadata -> add dlib backend
+    - Modern dicts with full metadata -> pass through
+
+    Args:
+        entry: Either a numpy array or dict
+        default_backend: Backend to assign for legacy data
+
+    Returns:
+        Dict with keys: encoding, file, hash, backend, backend_version,
+                       created_at, encoding_hash
+    """
+    import numpy as np
+
+    if isinstance(entry, np.ndarray):
+        # Legacy format: bare array
+        return {
+            "encoding": entry,
+            "file": None,
+            "hash": None,
+            "backend": default_backend,
+            "backend_version": "unknown",
+            "created_at": None,
+            "encoding_hash": hashlib.sha1(entry.tobytes()).hexdigest()
+        }
+    elif isinstance(entry, dict):
+        # Ensure all required fields exist
+        if "backend" not in entry:
+            entry["backend"] = default_backend
+        if "backend_version" not in entry:
+            entry["backend_version"] = "unknown"
+        if "created_at" not in entry:
+            entry["created_at"] = None
+        if "encoding_hash" not in entry and entry.get("encoding") is not None:
+            entry["encoding_hash"] = hashlib.sha1(entry["encoding"].tobytes()).hexdigest()
+        return entry
+    else:
+        raise ValueError(f"Invalid encoding entry type: {type(entry)}")
 
 
 def load_database():
@@ -60,6 +107,42 @@ def load_database():
                     pass
                 # fallback legacy
                 processed_files.append({"name": line, "hash": None})
+
+    # Normalize all encodings to include backend metadata
+    migration_stats = {
+        'known_faces_migrated': 0,
+        'ignored_faces_migrated': 0,
+        'hard_negatives_migrated': 0
+    }
+
+    # Normalize known_faces
+    for name in known_faces:
+        for i, entry in enumerate(known_faces[name]):
+            if isinstance(entry, np.ndarray) or "backend" not in entry:
+                migration_stats['known_faces_migrated'] += 1
+            known_faces[name][i] = normalize_encoding_entry(entry)
+
+    # Normalize ignored_faces
+    for i, entry in enumerate(ignored_faces):
+        if isinstance(entry, np.ndarray) or (isinstance(entry, dict) and "backend" not in entry):
+            migration_stats['ignored_faces_migrated'] += 1
+        ignored_faces[i] = normalize_encoding_entry(entry)
+
+    # Normalize hard_negatives
+    for name in hard_negatives:
+        for i, entry in enumerate(hard_negatives[name]):
+            if isinstance(entry, np.ndarray) or (isinstance(entry, dict) and "backend" not in entry):
+                migration_stats['hard_negatives_migrated'] += 1
+            hard_negatives[name][i] = normalize_encoding_entry(entry)
+
+    # Log migration statistics if any migration occurred
+    total_migrated = sum(migration_stats.values())
+    if total_migrated > 0:
+        logging.info(f"[DATABASE] Migrated {total_migrated} encodings to new format:")
+        logging.info(f"  Known faces: {migration_stats['known_faces_migrated']}")
+        logging.info(f"  Ignored faces: {migration_stats['ignored_faces_migrated']}")
+        logging.info(f"  Hard negatives: {migration_stats['hard_negatives_migrated']}")
+
     return known_faces, ignored_faces, hard_negatives, processed_files
 
 
