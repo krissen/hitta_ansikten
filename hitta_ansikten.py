@@ -751,13 +751,28 @@ def user_review_encodings(
                 all_ignored = False
                 break
             elif action == "edit":
-                # new_name already validated by get_validated_user_input()
-                name = new_name
-                all_ignored = False
-                # Hard negative: Save encoding as hard negative for best_name if incorrectly suggested
-                if best_name and name != best_name:
-                    add_hard_negative(hard_negatives, best_name, encoding, backend, image_path, file_hash)
-                break
+                # If new_name is None, user pressed 'r' (edit) from a non-edit case
+                # We need to prompt for the corrected name
+                if new_name is None:
+                    new_name = input_name(list(known_faces.keys()))
+                    # Handle if user entered a command instead of a name
+                    if new_name.lower() in base_actions:
+                        action = base_actions[new_name.lower()]
+                        # Recursively handle the command by continuing the loop
+                        continue
+                    # Check for reserved commands
+                    if new_name.lower() in RESERVED_COMMANDS:
+                        print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
+                        continue
+
+                # Now we have a valid name
+                if new_name:
+                    name = new_name
+                    all_ignored = False
+                    # Hard negative: Save encoding as hard negative for best_name if incorrectly suggested
+                    if best_name and name != best_name:
+                        add_hard_negative(hard_negatives, best_name, encoding, backend, image_path, file_hash)
+                    break
             elif action == "ignore":
                 normalized_encoding = backend.normalize_encoding(encoding)
                 ignored_faces.append({
