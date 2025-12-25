@@ -525,6 +525,99 @@ def add_hard_negative(hard_negatives, person, encoding, backend, image_path=None
         "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
     })
 
+def validate_action(action: str, ans: str, relevant_actions: set, best_name: str) -> tuple:
+    """
+    Validate if an action is allowed in the current context.
+
+    Args:
+        action: The action to validate
+        ans: User's raw input
+        relevant_actions: Set of allowed action keys for this case
+        best_name: Current best match name (None if no match)
+
+    Returns:
+        (is_valid: bool, error_message: str | None)
+        error_message is None if valid
+    """
+    # Check if action is relevant for this case
+    if ans and ans.lower() in {"i", "a", "r", "n", "o", "m", "x"}:
+        if ans.lower() not in relevant_actions:
+            # Special message for 'accept_suggestion' when no suggestion exists
+            if ans.lower() == "a" and not best_name:
+                return False, "Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag."
+            return False, f"Kommandot '{ans.lower()}' är inte tillgängligt i detta läge."
+
+    # Validate accept_suggestion specifically
+    if action == "accept_suggestion" and not best_name:
+        return False, "Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag."
+
+    return True, None
+
+
+def get_validated_user_input(
+    prompt_txt: str,
+    case: str,
+    base_actions: dict,
+    relevant_actions: set,
+    default_action: str,
+    best_name: str,
+    known_faces: dict
+) -> tuple:
+    """
+    Get and validate user input for face review.
+
+    Args:
+        prompt_txt: Prompt to show user
+        case: Current case (match, uncertain_name, uncertain_ign, unknown)
+        base_actions: Dict mapping commands to actions
+        relevant_actions: Set of allowed commands for this case
+        default_action: Action to use if user presses Enter
+        best_name: Current best match (None if no match)
+        known_faces: Dict of known faces (for name autocomplete)
+
+    Returns:
+        (action: str, raw_answer: str, new_name: str | None)
+        - action: The validated action to take
+        - raw_answer: User's raw input (for logging)
+        - new_name: New name if action is "edit", otherwise None
+    """
+    while True:
+        # Determine input method based on case
+        is_name_input = (default_action == "edit" and "Okänt ansikte" in prompt_txt)
+
+        if is_name_input:
+            ans = input_name(list(known_faces.keys()), prompt_txt).strip()
+
+            # User entered a command instead of a name
+            if ans.lower() in base_actions:
+                action = base_actions[ans.lower()]
+                new_name = None
+            # User entered a reserved command as name (invalid)
+            elif ans.lower() in RESERVED_COMMANDS:
+                print(f"⚠️  '{ans}' är ett reserverat kommando och kan inte användas som namn.")
+                continue
+            # User entered a new name
+            elif ans:
+                action = "edit"
+                new_name = ans
+            # User pressed Enter (use default)
+            else:
+                action = default_action
+                new_name = None
+        else:
+            ans = safe_input(prompt_txt).strip().lower()
+            action = handle_answer(ans, base_actions, default=default_action)
+            new_name = None
+
+        # Validate the action
+        is_valid, error_msg = validate_action(action, ans, relevant_actions, best_name)
+        if not is_valid:
+            print(f"⚠️  {error_msg}")
+            continue
+
+        return action, ans, new_name
+
+
 def user_review_encodings(
     face_encodings, known_faces, ignored_faces, hard_negatives, config, backend,
     image_path=None, preview_path=None, file_hash=None
@@ -621,40 +714,18 @@ def user_review_encodings(
             default_action = "edit"
 
         while True:
-            if default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte."):
-                new_name = input_name(list(known_faces.keys()), prompt_txt)
-                ans = new_name.strip()
-                # Om användaren skrivit en specialaction istället för namn:
-                if ans.lower() in base_actions:
-                    action = base_actions[ans.lower()]
-                    # Kolla om kommandot är relevant för detta case
-                    if ans.lower() not in relevant_actions or (ans.lower() == "a" and not best_name):
-                        # Visa felmeddelande
-                        if ans.lower() == "a" and not best_name:
-                            print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
-                        else:
-                            print(f"⚠️  Kommandot '{ans.lower()}' är inte tillgängligt i detta läge.")
-                        continue
-                elif ans:
-                    # Kolla om namnet är ett reserverat kommando
-                    if ans.lower() in RESERVED_COMMANDS:
-                        print(f"⚠️  '{ans}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-                        continue
-                    action = "edit"
-                else:
-                    action = default_action
-            else:
-                ans = safe_input(prompt_txt).strip().lower()
-                action = handle_answer(ans, base_actions, default=default_action)
+            # Get validated user input (centralized, no duplication)
+            action, ans, new_name = get_validated_user_input(
+                prompt_txt=prompt_txt,
+                case=case,
+                base_actions=base_actions,
+                relevant_actions=relevant_actions,
+                default_action=default_action,
+                best_name=best_name,
+                known_faces=known_faces
+            )
 
-            # Validera att kommandot är relevant (om det inte är None/default)
-            if action and ans and ans != "" and ans.lower() in base_actions:
-                # Kontrollera om kommandot är relevant
-                if ans.lower() == "a" and action == "accept_suggestion":
-                    if not best_name:
-                        print("⚠️  Kommandot 'a' (acceptera förslag) kan inte användas - det finns inget förslag.")
-                        continue
-
+            # Execute action (clean separation of concerns)
             if action == "show_original":
                 if image_path is not None:
                     export_and_show_original(image_path, config)
@@ -671,60 +742,18 @@ def user_review_encodings(
                 retry_requested = True
                 break
             elif action == "accept_suggestion":
-                # 'a' kommandot - acceptera best_name om det finns
-                if best_name:
-                    name = best_name
-                    all_ignored = False
-                    break
-                else:
-                    print("⚠️  Det finns inget förslag att acceptera.")
-                    continue
+                # 'a' command - accept best_name (already validated by get_validated_user_input)
+                name = best_name
+                all_ignored = False
+                break
             elif action == "edit":
-                if not (default_action == "edit" and prompt_txt.startswith("↪ Okänt ansikte.")):
-                    new_name = input_name(list(known_faces.keys()))
-                # Hantera kommandon som angetts när namnet efterfrågades
-                if new_name.lower() in base_actions:
-                    # Rekursiv hantering av kommandot
-                    action = base_actions[new_name.lower()]
-                    if action == "skip":
-                        return "skipped", []
-                    elif action == "retry":
-                        retry_requested = True
-                        break
-                    elif action == "ignore":
-                        normalized_encoding = backend.normalize_encoding(encoding)
-                        ignored_faces.append({
-                            "encoding": normalized_encoding,
-                            "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path),
-                            "hash": file_hash,
-                            "backend": backend.backend_name,
-                            "backend_version": backend.get_model_info().get('model', 'unknown'),
-                            "created_at": datetime.now().isoformat(),
-                            "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
-                        })
-                        labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
-                        break
-                    elif action == "accept_suggestion":
-                        if best_name:
-                            name = best_name
-                            all_ignored = False
-                            break
-                        else:
-                            print("⚠️  Det finns inget förslag att acceptera.")
-                            continue
-                    # För andra kommandon, fortsätt loopen
-                    continue
-                # Kontrollera om namnet är ett reserverat kommando
-                if new_name.lower() in RESERVED_COMMANDS:
-                    print(f"⚠️  '{new_name}' är ett reserverat kommando och kan inte användas som namn. Ange ett annat namn.")
-                    continue
-                if new_name:
-                    name = new_name
-                    all_ignored = False
-                    # --- Hard negative: Spara encoding som hard negative för best_name om den felaktigt föreslogs! ---
-                    if best_name and name != best_name:
-                        add_hard_negative(hard_negatives, best_name, encoding, backend, image_path, file_hash)
-                    break
+                # new_name already validated by get_validated_user_input()
+                name = new_name
+                all_ignored = False
+                # Hard negative: Save encoding as hard negative for best_name if incorrectly suggested
+                if best_name and name != best_name:
+                    add_hard_negative(hard_negatives, best_name, encoding, backend, image_path, file_hash)
+                break
             elif action == "ignore":
                 normalized_encoding = backend.normalize_encoding(encoding)
                 ignored_faces.append({
