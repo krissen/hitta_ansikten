@@ -7,6 +7,7 @@ import pickle
 
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
+from pathlib import Path
 
 # === Konstanter ===
 BASE_DIR = Path(xdg_data_home) / "faceid"
