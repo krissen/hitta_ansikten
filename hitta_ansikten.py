@@ -513,10 +513,20 @@ def get_face_match_status(i, best_name, best_name_dist, name_conf, best_ignore, 
     else:
         return "#%d\nOkänt" % (i + 1), "unknown"
 
-def add_hard_negative(hard_negatives, person, encoding):
+def add_hard_negative(hard_negatives, person, encoding, backend, image_path=None, file_hash=None):
+    """Add a hard negative example for a person with full metadata."""
     if person not in hard_negatives:
         hard_negatives[person] = []
-    hard_negatives[person].append(encoding)
+    normalized_encoding = backend.normalize_encoding(encoding)
+    hard_negatives[person].append({
+        "encoding": normalized_encoding,
+        "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path) if image_path else None,
+        "hash": file_hash,
+        "backend": backend.backend_name,
+        "backend_version": backend.get_model_info().get('model', 'unknown'),
+        "created_at": datetime.now().isoformat(),
+        "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
+    })
 
 def user_review_encodings(
     face_encodings, known_faces, ignored_faces, hard_negatives, config, backend,
@@ -685,16 +695,17 @@ def user_review_encodings(
                         retry_requested = True
                         break
                     elif action == "ignore":
+                        normalized_encoding = backend.normalize_encoding(encoding)
                         ignored_faces.append({
-                            "encoding": backend.normalize_encoding(encoding),
+                            "encoding": normalized_encoding,
                             "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path),
                             "hash": file_hash,
                             "backend": backend.backend_name,
                             "backend_version": backend.get_model_info().get('model', 'unknown'),
                             "created_at": datetime.now().isoformat(),
-                            "encoding_hash": hashlib.sha1(encoding.tobytes()).hexdigest()
+                            "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
                         })
-                        labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(encoding.tobytes()).hexdigest()})
+                        labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
                         break
                     elif action == "accept_suggestion":
                         if best_name:
@@ -715,19 +726,20 @@ def user_review_encodings(
                     all_ignored = False
                     # --- Hard negative: Spara encoding som hard negative för best_name om den felaktigt föreslogs! ---
                     if best_name and name != best_name:
-                        add_hard_negative(hard_negatives, best_name, encoding)
+                        add_hard_negative(hard_negatives, best_name, encoding, backend, image_path, file_hash)
                     break
             elif action == "ignore":
+                normalized_encoding = backend.normalize_encoding(encoding)
                 ignored_faces.append({
-                    "encoding": backend.normalize_encoding(encoding),
+                    "encoding": normalized_encoding,
                     "file": str(image_path.name) if image_path and hasattr(image_path, "name") else str(image_path),
                     "hash": file_hash,
                     "backend": backend.backend_name,
                     "backend_version": backend.get_model_info().get('model', 'unknown'),
                     "created_at": datetime.now().isoformat(),
-                    "encoding_hash": hashlib.sha1(encoding.tobytes()).hexdigest()
+                    "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
                 })
-                labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(encoding.tobytes()).hexdigest()})
+                labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
                 break
             elif action == "name":
                 name = best_name if best_name else input_name(list(known_faces.keys()))
@@ -743,16 +755,17 @@ def user_review_encodings(
         if name is not None and name.lower() not in RESERVED_COMMANDS:
             if name not in known_faces:
                 known_faces[name] = []
+            normalized_encoding = backend.normalize_encoding(encoding)
             known_faces[name].append({
-                "encoding": backend.normalize_encoding(encoding),
+                "encoding": normalized_encoding,
                 "file": str(image_path.name) if image_path is not None and hasattr(image_path, "name") else str(image_path),
                 "hash": file_hash,
                 "backend": backend.backend_name,
                 "backend_version": backend.get_model_info().get('model', 'unknown'),
                 "created_at": datetime.now().isoformat(),
-                "encoding_hash": hashlib.sha1(encoding.tobytes()).hexdigest()
+                "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
             })
-            labels.append({"label": f"#{i+1}\n{name}", "hash": hashlib.sha1(encoding.tobytes()).hexdigest()})
+            labels.append({"label": f"#{i+1}\n{name}", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
 
     if retry_requested:
         logging.debug(f"[REVIEW] Retry ombett, återgår till anropare")

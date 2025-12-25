@@ -195,7 +195,7 @@ No automated test suite currently exists. Testing is manual via CLI workflows.
 
 1. Install InsightFace (if not already installed):
    ```bash
-   /Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/pip install insightface onnxruntime
+   pip install insightface onnxruntime
    ```
 
 2. Edit config:

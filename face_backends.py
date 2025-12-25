@@ -184,7 +184,8 @@ class InsightFaceBackend(FaceBackend):
             from io import StringIO
 
             # Suppress verbose ONNX runtime messages (must be set before importing)
-            os.environ['ORT_LOGGING_LEVEL'] = '3'  # 3 = ERROR, 2 = WARNING, 1 = INFO, 0 = VERBOSE
+            # Only set if not already configured by user
+            os.environ.setdefault('ORT_LOGGING_LEVEL', '3')  # 3 = ERROR, 2 = WARNING, 1 = INFO, 0 = VERBOSE
 
             # Suppress Python logging from onnxruntime
             import logging as base_logging
