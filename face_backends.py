@@ -6,7 +6,7 @@ Supports both dlib (via face_recognition) and InsightFace.
 """
 
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 import numpy as np
 import logging
 
@@ -168,6 +168,14 @@ class InsightFaceBackend(FaceBackend):
             ctx_id: -1 for CPU, 0+ for GPU device ID
             det_size: Detection size (width, height) tuple, e.g. (640, 640)
         """
+        # Validate parameters
+        if not isinstance(ctx_id, int) or ctx_id < -1:
+            raise ValueError(f"ctx_id must be >= -1 (got {ctx_id})")
+        if not isinstance(det_size, (tuple, list)) or len(det_size) != 2:
+            raise ValueError(f"det_size must be a tuple/list of 2 integers (got {det_size})")
+        if not all(isinstance(x, int) and x > 0 for x in det_size):
+            raise ValueError(f"det_size dimensions must be positive integers (got {det_size})")
+
         try:
             import os
             import sys
@@ -321,11 +329,13 @@ class InsightFaceBackend(FaceBackend):
             encoding: Face encoding vector
 
         Returns:
-            L2-normalized encoding
+            L2-normalized encoding (or original if norm is zero)
         """
         norm = np.linalg.norm(encoding)
-        if norm > 0:
+        if norm > 1e-10:  # Small epsilon to avoid division by very small numbers
             return encoding / norm
+        # Return zero vector as-is (edge case: all-zero encoding)
+        logging.warning("[InsightFaceBackend] Encoding has zero norm, returning as-is")
         return encoding
 
     def get_model_info(self) -> dict:
