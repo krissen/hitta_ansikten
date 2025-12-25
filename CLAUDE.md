@@ -64,11 +64,19 @@ pip install -r requirements.txt
 - Interactive review flow with terminal autocomplete (prompt_toolkit)
 - Three processing modes: normal batch, --rename, --fix
 - Preprocessing cache system for resuming interrupted runs
+- Pluggable backend system supporting multiple face recognition engines
 
 **faceid_db.py** (database layer)
 - Centralized database I/O for all tools
 - Data location: `~/.local/share/faceid/` (XDG standard)
 - Handles both legacy and current data formats with automatic migration
+- Auto-migrates bare numpy arrays to dict format with backend metadata
+
+**face_backends.py** (backend abstraction layer)
+- Abstract `FaceBackend` interface for pluggable backends
+- `DlibBackend`: Wraps face_recognition (dlib), 128-dim encodings, Euclidean distance
+- `InsightFaceBackend`: Uses InsightFace, 512-dim encodings, cosine distance
+- Factory pattern for backend creation from config
 
 ### Data Files
 
@@ -114,7 +122,14 @@ Key settings:
 - `auto_ignore`: Auto-ignore unmatched faces without review
 - `auto_ignore_on_fix`: Auto-ignore low-confidence matches in --fix mode
 - `image_viewer_app`: External app for previews ("Bildvisare", "feh", etc.)
-- `tolerance`: Face matching distance threshold (default 0.6)
+- `match_threshold`: Face matching distance threshold (default 0.54)
+
+**Backend Configuration:**
+- `backend.type`: "dlib" (default) or "insightface"
+- `backend.insightface.model_name`: "buffalo_s" (fast), "buffalo_m", "buffalo_l" (accurate, default)
+- `backend.insightface.ctx_id`: -1 (CPU), 0+ (GPU device ID)
+- `threshold_mode`: "auto" (use match_threshold for active backend) or "manual" (backend-specific thresholds)
+- `backend_thresholds`: Per-backend distance thresholds (dlib uses Euclidean ~0.54, InsightFace uses cosine ~0.4)
 
 ### Preprocessing Cache
 
@@ -162,9 +177,46 @@ No automated test suite currently exists. Testing is manual via CLI workflows.
 
 ## Important Implementation Details
 
-- **Multiprocessing safety**: Worker process communicates via Queue, main process owns all DB writes
+- **Multiprocessing safety**: Worker process communicates via Queue, main process owns all DB writes. Worker initializes its own backend instance.
 - **Signal handling**: SIGINT handler ensures graceful shutdown, saves preprocessed cache
 - **Reserved commands**: Single-character shortcuts (i, a, r, n, o, m, x) cannot be used as person names
-- **Encoding format**: 128-dimensional face_recognition encodings (dlib ResNet model)
+- **Encoding format**:
+  - Dlib backend: 128-dimensional encodings (dlib ResNet model), Euclidean distance
+  - InsightFace backend: 512-dimensional encodings (buffalo models), cosine distance
+  - Each encoding stored with backend metadata: `{"encoding": ndarray, "backend": str, "backend_version": str, "created_at": str, ...}`
+- **Backend filtering**: Encodings only compared against same backend (dlib vs dlib, insightface vs insightface)
+- **Backward compatibility**: Legacy bare numpy arrays auto-migrated to dict format with "dlib" backend on load
 - **File hashing**: SHA1 used throughout for file identity (avoids reprocessing renamed files)
 - **Archive mechanism**: When detection settings change (model, resolutions), old attempt_stats.jsonl archived automatically
+
+## Backend Switching
+
+**To switch from dlib to InsightFace:**
+
+1. Install InsightFace (if not already installed):
+   ```bash
+   pip install insightface onnxruntime
+   ```
+
+2. Edit config:
+   ```bash
+   nano ~/.local/share/faceid/config.json
+   ```
+
+   Change:
+   ```json
+   {
+     "backend": {
+       "type": "insightface"
+     }
+   }
+   ```
+
+3. Run program - new encodings use InsightFace, old dlib encodings remain accessible
+
+4. Optional: Gradually migrate by reprocessing images with `--fix` to create InsightFace encodings
+
+**Performance:**
+- InsightFace (buffalo_l): generally higher verification accuracy than dlib on LFW and similar benchmarks
+- 1.5-3x faster detection with better accuracy
+- Better detection in: profiles, low light, small faces, motion blur
