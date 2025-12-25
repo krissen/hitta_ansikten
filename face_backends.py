@@ -187,9 +187,12 @@ class InsightFaceBackend(FaceBackend):
             # Only set if not already configured by user
             os.environ.setdefault('ORT_LOGGING_LEVEL', '3')  # 3 = ERROR, 2 = WARNING, 1 = INFO, 0 = VERBOSE
 
-            # Suppress Python logging from onnxruntime
+            # Suppress Python logging from onnxruntime (without overriding user configuration)
             import logging as base_logging
-            base_logging.getLogger('onnxruntime').setLevel(base_logging.ERROR)
+            ort_logger = base_logging.getLogger('onnxruntime')
+            # Only adjust level if logger has not been explicitly configured
+            if not ort_logger.handlers and ort_logger.level == base_logging.NOTSET:
+                ort_logger.setLevel(base_logging.ERROR)
 
             # Suppress FutureWarning from skimage (used by InsightFace)
             warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
@@ -268,8 +271,11 @@ class InsightFaceBackend(FaceBackend):
             # Detect faces using det_size set during prepare()
             faces = self.app.get(bgr_image)
         except Exception as e:
+            # Re-raise critical system-level exceptions
+            if isinstance(e, (MemoryError, KeyboardInterrupt, SystemExit)):
+                raise
+            # Return empty results for recoverable errors
             logging.error(f"[InsightFaceBackend] Face detection failed: {e}")
-            # Return empty results on error
             return [], []
 
         # Convert to dlib-compatible format
@@ -333,7 +339,7 @@ class InsightFaceBackend(FaceBackend):
             L2-normalized encoding (or original if norm is zero)
         """
         norm = np.linalg.norm(encoding)
-        if norm > 1e-10:  # Small epsilon to avoid division by very small numbers
+        if norm > 1e-6:  # Epsilon to avoid division by very small numbers
             return encoding / norm
         # Return zero vector as-is (edge case: all-zero encoding)
         logging.warning("[InsightFaceBackend] Encoding has zero norm, returning as-is")

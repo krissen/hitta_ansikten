@@ -217,6 +217,6 @@ No automated test suite currently exists. Testing is manual via CLI workflows.
 4. Optional: Gradually migrate by reprocessing images with `--fix` to create InsightFace encodings
 
 **Performance:**
-- InsightFace (buffalo_l): ~99.83% accuracy vs dlib ~99.38% (LFW benchmark)
+- InsightFace (buffalo_l): generally higher verification accuracy than dlib on LFW and similar benchmarks
 - 1.5-3x faster detection with better accuracy
 - Better detection in: profiles, low light, small faces, motion blur

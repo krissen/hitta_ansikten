@@ -120,7 +120,7 @@ DEFAULT_CONFIG = {
     "backend": {
         "type": "dlib",  # Backend to use: "dlib" or "insightface"
         "dlib": {
-            "model": "large"  # Dlib model size
+            "model": "large"  # Currently unused by DlibBackend; kept for compatibility/future use
         },
         "insightface": {
             "model_name": "buffalo_l",  # Model: buffalo_s (fast), buffalo_m, buffalo_l (accurate)
@@ -174,10 +174,12 @@ def get_attempt_setting_defs(config, backend=None):
     # InsightFace: Enklare nivåer (model/upsample ignoreras ändå)
     # Bara variera upplösning - InsightFace är bra nog att klara de flesta fall
     if backend and backend.backend_name == 'insightface':
+        # Use actual model name from backend for clarity in logs/stats
+        model_name = backend.get_model_info().get('model', 'buffalo_l')
         return [
-            {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
-            {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
-            {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
+            {"model": model_name, "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
+            {"model": model_name, "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
+            {"model": model_name, "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
         ]
 
     # Dlib: Behåll alla variationer med model och upsample
@@ -956,19 +958,47 @@ def _get_backend_thresholds(config, backend):
     threshold_mode = config.get('threshold_mode', 'auto')
 
     if threshold_mode == 'manual':
-        # Use backend-specific thresholds
+        # Use backend-specific thresholds when available
         backend_thresholds = config.get('backend_thresholds', {})
-        return backend_thresholds.get(backend.backend_name, {
-            'match_threshold': config.get('match_threshold', 0.6),
-            'ignore_distance': config.get('ignore_distance', 0.5),
-            'hard_negative_distance': config.get('hard_negative_distance', 0.45)
-        })
-    else:
-        # Auto mode: use config values for active backend
+        if backend.backend_name in backend_thresholds:
+            return backend_thresholds[backend.backend_name]
+
+        # Fallback: log warning and use top-level config values
+        logging.warning(
+            f"Manual threshold mode: no thresholds configured for backend '{backend.backend_name}'; "
+            f"falling back to top-level threshold values which may not match this "
+            f"backend's distance metric."
+        )
         return {
             'match_threshold': config.get('match_threshold', 0.6),
             'ignore_distance': config.get('ignore_distance', 0.5),
             'hard_negative_distance': config.get('hard_negative_distance', 0.45)
+        }
+    else:
+        # Auto mode: prefer backend-specific thresholds, then adjust by distance metric
+        backend_thresholds = config.get('backend_thresholds', {})
+        backend_specific = backend_thresholds.get(backend.backend_name)
+        if backend_specific is not None:
+            return backend_specific
+
+        # Fallback based on backend distance metric
+        distance_metric = getattr(backend, 'distance_metric', 'euclidean')
+
+        # Default thresholds for Euclidean-like metrics (preserves existing behavior)
+        default_match = 0.6
+        default_ignore = 0.5
+        default_hard_negative = 0.45
+
+        # For cosine distance, typical thresholds are lower (e.g. ~0.4)
+        if isinstance(distance_metric, str) and 'cos' in distance_metric.lower():
+            default_match = 0.4
+            default_ignore = 0.35
+            default_hard_negative = 0.32
+
+        return {
+            'match_threshold': config.get('match_threshold', default_match),
+            'ignore_distance': config.get('ignore_distance', default_ignore),
+            'hard_negative_distance': config.get('hard_negative_distance', default_hard_negative)
         }
 
 
@@ -997,7 +1027,6 @@ def best_matches(encoding, known_faces, ignored_faces, hard_negatives, config, b
 
     # Get backend-appropriate thresholds
     thresholds = _get_backend_thresholds(config, backend)
-    name_thr = thresholds['match_threshold']
     hard_negative_thr = thresholds.get('hard_negative_distance', 0.45)
 
     # Match against known faces (with backend filtering)
@@ -1371,7 +1400,7 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
             )
             return "skipped"
         elif ans == "m":
-            namn, label_obj = handle_manual_add(known_faces, image_path, file_hash, input_name, backend)
+            handle_manual_add(known_faces, image_path, file_hash, input_name, backend)
             review_results.append("ok")
             log_attempt_stats(
                 image_path, attempts_stats, used_attempt, BASE_DIR,
@@ -1901,7 +1930,18 @@ def main():
     except Exception as e:
         logging.error(f"[BACKEND] Failed to initialize backend: {e}")
         print(f"Error: Could not initialize face recognition backend: {e}")
-        print("Check that required dependencies are installed.")
+
+        # Provide backend-specific installation hints
+        backend_type = config.get("backend", {}).get("type", "unknown")
+        if backend_type == "dlib":
+            print("Hint: For the 'dlib' backend, install the required package:")
+            print("  pip install face_recognition")
+        elif backend_type == "insightface":
+            print("Hint: For the 'insightface' backend, install the required packages:")
+            print("  pip install insightface onnxruntime")
+        else:
+            print("Check that all required dependencies for the selected backend are installed.")
+
         sys.exit(1)
 
     known_faces, ignored_faces, hard_negatives, processed_files = load_database()
