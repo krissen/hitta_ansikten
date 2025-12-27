@@ -22,8 +22,11 @@ class RestrictedUnpickler(pickle.Unpickler):
     ALLOWED_CLASSES = {
         ('numpy', 'ndarray'),
         ('numpy', 'dtype'),
+        # Support both old (numpy.core) and new (numpy._core) module paths
         ('numpy.core.multiarray', '_reconstruct'),
         ('numpy.core.multiarray', 'scalar'),
+        ('numpy._core.multiarray', '_reconstruct'),  # numpy >= 1.20
+        ('numpy._core.multiarray', 'scalar'),        # numpy >= 1.20
         ('builtins', 'dict'),
         ('builtins', 'list'),
         ('builtins', 'tuple'),
