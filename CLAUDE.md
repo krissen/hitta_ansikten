@@ -174,6 +174,8 @@ No automated test suite currently exists. Testing is manual via CLI workflows.
 ## External Dependencies
 
 **Companion app for image viewing**: Default is [Bildvisare](https://github.com/krissen/bildvisare), configurable via `image_viewer_app` setting.
+- Development folder: `~/dev/bildvisare`
+- Used for displaying face detection previews and original images during interactive review
 
 ## Important Implementation Details
 
