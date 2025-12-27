@@ -342,10 +342,23 @@ def show_temp_image(preview_path, config, image_path=None, last_shown=[None]):
             with open(status_path, "r") as f:
                 status = json.load(f)
             app_status = status.get("app_status", "unknown")
+            current_file = status.get("file_path", "")
+
             if app_status == "running":
-                # Bildvisare is running - trust its file watching to reload the updated file
-                should_open = False
-                logging.debug(f"[BILDVISARE] Bildvisaren kör redan, förlitar sig på filövervakning för omladdning")
+                # Check if Bildvisare is showing the correct file
+                try:
+                    if current_file and os.path.samefile(current_file, expected_path):
+                        # Already showing the right file - trust file watching for updates
+                        should_open = False
+                        logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
+                    else:
+                        # Running but showing different/no file - open the preview
+                        should_open = True
+                        logging.debug(f"[BILDVISARE] Bildvisaren kör men visar annan fil ({current_file}), öppnar {expected_path}")
+                except (OSError, ValueError):
+                    # File doesn't exist or can't compare - open it
+                    should_open = True
+                    logging.debug(f"[BILDVISARE] Kan inte jämföra filer, öppnar {expected_path}")
 
             elif app_status == "exited":
                 logging.debug(f"[BILDVISARE] Bildvisaren har avslutats, kommer öppna bild")
@@ -353,8 +366,8 @@ def show_temp_image(preview_path, config, image_path=None, last_shown=[None]):
             else:
                 logging.debug(f"[BILDVISARE] Bildvisar-status: {app_status} inte behandlad, kommer öppna bild")
                 should_open = True
-        except Exception:
-            logging.debug(f"[BILDVISARE] Misslyckades läsa statusfilen: {status_path}, kommer öppna bild")
+        except Exception as e:
+            logging.debug(f"[BILDVISARE] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
             should_open = True
 
     if should_open:
