@@ -8,6 +8,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The tool is designed for semi-automated workflows where users review uncertain matches interactively in the terminal.
 
+## Git Workflow
+
+**IMPORTANT: Repository Rules**
+- The `master` branch is protected and requires all changes to be made through pull requests
+- **DO NOT commit directly to master** - commits will be rejected on push
+- Always create a feature branch for changes: `git checkout -b feature/description`
+- Push the branch and create a PR: `git push -u origin feature/description`
+- Follow the commit message conventions from `~/.claude/CLAUDE.md`
+
 ## Key Commands
 
 ### Main Processing
