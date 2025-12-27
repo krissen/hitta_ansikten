@@ -162,9 +162,10 @@ Located in `./preprocessed_cache/` (relative to working directory):
 - **forfina_ansikten.py**: Refine face crops/detections
 - **update_encodings_with_filehash.py**: Migrate old encodings to include file hashes
 - **migrera_processed.py**: Migrate processed_files from old formats
-- **nef2jpg.py**: Convert NEF to JPEG
 - **rakna_spelare.py**: Count specific people in images
 - **inspect_encodings.py**: Debug tool for encoding database
+
+**Note**: `nef2jpg.py` has been moved to the bildvisare repo as it's only used by the image viewer.
 
 ### Naming Conventions
 
