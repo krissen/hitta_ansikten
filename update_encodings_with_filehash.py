@@ -5,6 +5,9 @@ import pickle
 import sys
 from pathlib import Path
 
+# Import safe pickle loader from faceid_db
+from faceid_db import safe_pickle_load
+
 ENCODINGS_PATH = Path.home() / ".local/share/faceid/encodings.pkl"
 BACKUP_PATH = Path(str(ENCODINGS_PATH) + ".bak")
 ATTEMPTS_FILES = [Path.home() / ".local/share/faceid/attempt_stats.jsonl"]
@@ -49,7 +52,7 @@ def main(patterns):
         BACKUP_PATH.write_bytes(ENCODINGS_PATH.read_bytes())
 
     with open(ENCODINGS_PATH, "rb") as f:
-        known_faces = pickle.load(f)
+        known_faces = safe_pickle_load(f)
 
     # 1. Samla alla relevanta filer (filnamn, basename)
     files = set()

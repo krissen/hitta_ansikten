@@ -9,6 +9,9 @@ import numpy as np
 from xdg.BaseDirectory import xdg_data_home
 from pathlib import Path
 
+# Import safe pickle loader from faceid_db
+from faceid_db import safe_pickle_load
+
 # === Konstanter ===
 BASE_DIR = Path(xdg_data_home) / "faceid"
 IGNORED_PATH = BASE_DIR / "ignored.pkl"
@@ -18,7 +21,7 @@ IGNORED_PATH = BASE_DIR / "ignored.pkl"
 def load_ignored():
     if IGNORED_PATH.exists():
         with open(IGNORED_PATH, "rb") as f:
-            return pickle.load(f)
+            return safe_pickle_load(f)
     return []
 
 

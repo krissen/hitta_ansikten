@@ -35,7 +35,7 @@ from prompt_toolkit.completion import WordCompleter
 
 from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
                        CONFIG_PATH, LOGGING_PATH, SUPPORTED_EXT, get_file_hash,
-                       load_attempt_log, load_database, save_database)
+                       load_attempt_log, load_database, save_database, safe_pickle_load)
 from face_backends import create_backend, FaceBackend
 
 
@@ -266,22 +266,30 @@ def export_and_show_original(image_path, config):
     from PIL import Image
 
     export_path = Path("/tmp/hitta_ansikten_original.jpg")
-    # Läs NEF, konvertera till RGB
-    with rawpy.imread(str(image_path)) as raw:
-        rgb = raw.postprocess()
 
-    img = Image.fromarray(rgb)
-    img.save(export_path, format="JPEG", quality=98)
+    try:
+        # Läs NEF, konvertera till RGB
+        with rawpy.imread(str(image_path)) as raw:
+            rgb = raw.postprocess()
 
-    status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
-    status = {
-        "timestamp": time.time(),
-        "source_nef": str(image_path),
-        "exported_jpg": str(export_path),
-        "exported": "true"
-    }
-    with open(status_path, "w") as f:
-        json.dump(status, f, indent=2)
+        img = Image.fromarray(rgb)
+        img.save(export_path, format="JPEG", quality=98)
+
+        status_path = Path.home() / "Library" / "Application Support" / "bildvisare" / "original_status.json"
+        status = {
+            "timestamp": time.time(),
+            "source_nef": str(image_path),
+            "exported_jpg": str(export_path),
+            "exported": "true"
+        }
+        with open(status_path, "w", encoding="utf-8") as f:
+            json.dump(status, f, indent=2)
+    except FileNotFoundError:
+        logging.error(f"[EXPORT] File not found: {image_path}")
+        print(f"⚠️  Kunde inte hitta filen: {image_path}")
+    except Exception as e:
+        logging.error(f"[EXPORT] Failed to export {image_path}: {e}")
+        print(f"⚠️  Kunde inte exportera bild: {e}")
 
     # Visa bilden (eller låt bildvisaren själv ladda in statusfilen)
     # os.system(f"open -a '{config.get('image_viewer_app', 'Bildvisare')}' '{export_path}'")
@@ -1846,7 +1854,7 @@ def load_preprocessed_cache(queue):
     for file in CACHE_DIR.glob("*.pkl"):
         try:
             with open(file, "rb") as f:
-                path, attempt_results = pickle.load(f)
+                path, attempt_results = safe_pickle_load(f)
             # Check if the original image file still exists before loading into queue
             if not Path(path).exists():
                 logging.warning(f"[CACHE] File {path} no longer exists, removing cache")

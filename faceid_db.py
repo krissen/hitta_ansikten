@@ -1,3 +1,4 @@
+import fcntl
 import hashlib
 import json
 import logging
@@ -7,6 +8,49 @@ from pathlib import Path
 
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
+
+
+# === Security: Restricted Unpickler ===
+class RestrictedUnpickler(pickle.Unpickler):
+    """
+    Restricted unpickler that only allows safe classes.
+
+    Prevents arbitrary code execution from malicious pickle files by
+    whitelisting only necessary classes (numpy arrays, basic Python types).
+    """
+    # Whitelist of allowed modules and classes
+    ALLOWED_CLASSES = {
+        ('numpy', 'ndarray'),
+        ('numpy', 'dtype'),
+        ('numpy.core.multiarray', '_reconstruct'),
+        ('numpy.core.multiarray', 'scalar'),
+        ('builtins', 'dict'),
+        ('builtins', 'list'),
+        ('builtins', 'tuple'),
+        ('builtins', 'str'),
+        ('builtins', 'int'),
+        ('builtins', 'float'),
+        ('builtins', 'bool'),
+        ('builtins', 'NoneType'),
+        ('builtins', 'set'),
+        ('builtins', 'frozenset'),
+        ('collections', 'OrderedDict'),
+        ('collections', 'defaultdict'),
+    }
+
+    def find_class(self, module, name):
+        """Only allow whitelisted classes to be unpickled."""
+        if (module, name) in self.ALLOWED_CLASSES:
+            return super().find_class(module, name)
+        # Log attempted unpickling of forbidden class
+        logging.error(f"[SECURITY] Attempted to unpickle forbidden class: {module}.{name}")
+        raise pickle.UnpicklingError(f"Forbidden class: {module}.{name}")
+
+
+def safe_pickle_load(file_handle):
+    """Safely load pickle file using RestrictedUnpickler."""
+    return RestrictedUnpickler(file_handle).load()
+
 
 # === Konstanter ===
 BASE_DIR = Path(xdg_data_home) / "faceid"
@@ -85,31 +129,42 @@ def normalize_encoding_entry(entry, default_backend="dlib"):
 
 
 def load_database():
+    """
+    Load database with file locking to ensure consistency.
+
+    Uses shared locks (LOCK_SH) to allow multiple concurrent readers
+    while blocking if a writer has exclusive lock.
+    """
     # Ladda known faces
     if ENCODING_PATH.exists():
         with open(ENCODING_PATH, "rb") as f:
-            known_faces = pickle.load(f)
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            known_faces = safe_pickle_load(f)
+            # Lock released on close
     else:
         known_faces = {}
 
     # Ladda ignored faces
     if IGNORED_PATH.exists():
         with open(IGNORED_PATH, "rb") as f:
-            ignored_faces = pickle.load(f)
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            ignored_faces = safe_pickle_load(f)
     else:
         ignored_faces = []
 
     # Ladda hard negatives
     if HARDNEG_PATH.exists():
         with open(HARDNEG_PATH, "rb") as f:
-            hard_negatives = pickle.load(f)
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+            hard_negatives = safe_pickle_load(f)
     else:
         hard_negatives = {}
 
     # Ladda processed_files
     processed_files = []
     if PROCESSED_PATH.exists():
-        with open(PROCESSED_PATH, "r") as f:
+        with open(PROCESSED_PATH, "r", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_SH)
             for line in f:
                 line = line.strip()
                 if not line:
@@ -177,18 +232,55 @@ def load_database():
 
 
 def save_database(known_faces, ignored_faces, hard_negatives, processed_files):
-    with open(ENCODING_PATH, "wb") as f:
-        pickle.dump(known_faces, f)
-    with open(IGNORED_PATH, "wb") as f:
-        pickle.dump(ignored_faces, f)
-    with open(HARDNEG_PATH, "wb") as f:
-        pickle.dump(hard_negatives, f)
-    with open(PROCESSED_PATH, "w") as f:
-        for entry in processed_files:
-            if isinstance(entry, dict):
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-            else:
-                f.write(json.dumps({"name": entry, "hash": None}) + "\n")
+    """
+    Save database with atomic writes and file locking to prevent corruption.
+
+    Uses atomic write pattern (write to temp file, then rename) to ensure
+    database files are never left in a partially-written state.
+    """
+    BASE_DIR.mkdir(parents=True, exist_ok=True)
+
+    def atomic_pickle_write(data, target_path):
+        """Write pickle file atomically with exclusive lock."""
+        temp_path = target_path.with_suffix('.tmp')
+        try:
+            with open(temp_path, "wb") as f:
+                # Acquire exclusive lock to prevent concurrent writes
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                pickle.dump(data, f)
+                # Lock released automatically on close
+            # Atomic rename - replaces target atomically
+            temp_path.replace(target_path)
+        except Exception as e:
+            # Clean up temp file on error
+            if temp_path.exists():
+                temp_path.unlink()
+            raise e
+
+    def atomic_jsonl_write(entries, target_path):
+        """Write JSONL file atomically with exclusive lock."""
+        temp_path = target_path.with_suffix('.tmp')
+        try:
+            with open(temp_path, "w", encoding="utf-8") as f:
+                # Acquire exclusive lock
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                for entry in entries:
+                    if isinstance(entry, dict):
+                        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                    else:
+                        f.write(json.dumps({"name": entry, "hash": None}, ensure_ascii=False) + "\n")
+            # Atomic rename
+            temp_path.replace(target_path)
+        except Exception as e:
+            if temp_path.exists():
+                temp_path.unlink()
+            raise e
+
+    # Write all database files atomically
+    atomic_pickle_write(known_faces, ENCODING_PATH)
+    atomic_pickle_write(ignored_faces, IGNORED_PATH)
+    atomic_pickle_write(hard_negatives, HARDNEG_PATH)
+    atomic_jsonl_write(processed_files, PROCESSED_PATH)
 
 
 def load_attempt_log(all_files=False):

@@ -4,6 +4,9 @@ from pathlib import Path
 import hashlib
 import argparse
 
+# Import safe pickle loader from faceid_db
+from faceid_db import safe_pickle_load
+
 def file_hash(path):
     """Returnera SHA1-hash av en fil."""
     h = hashlib.sha1()
@@ -46,7 +49,7 @@ for tf in target_files:
     hashes[tf] = file_hash(p) if p.exists() else None
 
 with open(encodings_path, "rb") as f:
-    known_faces = pickle.load(f)
+    known_faces = safe_pickle_load(f)
 
 print("Söker efter encodings kopplade till dessa filer (och/eller hash):")
 for tf in target_files:
