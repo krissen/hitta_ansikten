@@ -5,6 +5,7 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition_models")
 
+import copy
 import fnmatch
 import glob
 import hashlib
@@ -13,8 +14,10 @@ import logging
 import math
 import multiprocessing
 import os
+import pickle
 import queue
 import re
+import shutil
 import signal
 import sys
 import tempfile
@@ -55,6 +58,7 @@ init_logging()
 ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
 MAX_ATTEMPTS = 2
 MAX_QUEUE = 10
+CACHE_DIR = Path("./preprocessed_cache")
 
 # Reserved command shortcuts that cannot be used as person names
 RESERVED_COMMANDS = {"i", "a", "r", "n", "o", "m", "x"}
@@ -309,9 +313,10 @@ def show_temp_image(preview_path, config, image_path=None, last_shown=[None]):
             with open(status_path, "r") as f:
                 status = json.load(f)
             app_status = status.get("app_status", "unknown")
-            if app_status == "running" and os.path.samefile(status.get("file_path", ""), expected_path):
-                should_open = False  # Bildvisare kör redan och visar rätt fil
-                logging.debug(f"[BILDVISARE] Bildvisaren visar redan rätt fil: {expected_path}")
+            if app_status == "running":
+                # Bildvisare is running - trust its file watching to reload the updated file
+                should_open = False
+                logging.debug(f"[BILDVISARE] Bildvisaren kör redan, förlitar sig på filövervakning för omladdning")
 
             elif app_status == "exited":
                 logging.debug(f"[BILDVISARE] Bildvisaren har avslutats, kommer öppna bild")
@@ -1883,9 +1888,12 @@ def preprocess_worker(
 
     Initializes its own backend instance from config.
     """
+    import os
+    logging.debug(f"[WORKER] Process started, PID={os.getpid()}, processing {len(images_to_process)} images")
     try:
         # Initialize backend in worker process
         from face_backends import create_backend
+        logging.debug(f"[WORKER] About to create backend from config")
         backend = create_backend(config)
         logging.debug(f"[WORKER] Initialized backend: {backend.backend_name}")
 
@@ -2070,83 +2078,45 @@ def main():
             print("Ange fil(er) att fixa, t.ex. --fix 2024*.NEF")
             sys.exit(1)
         input_paths = list(parse_inputs(arglist, SUPPORTED_EXT))
-        n_found = 0
+
+        # Remove encodings for all files first, then process with workers
+        print("\n=== FIXAR: Tar bort gamla encodings ===")
+        images_to_process = []
         for path in input_paths:
-            # Check if file exists before fixing
             if not path.exists():
                 logging.warning(f"[FIX][SKIP][{path}] File does not exist")
                 print(f"⏭ Hoppar över {path.name} (filen finns inte längre)")
                 continue
-            
-            n_found += 1
-            print(f"\n=== FIXAR: {path.name} ===")
+
+            print(f"  ➤ {path.name}")
             removed = remove_encodings_for_file(known_faces, ignored_faces, hard_negatives, path.name)
             if removed:
-                print(f"  ➤ Tog bort {removed} encodings för tidigare mappningar.")
+                print(f"     (Tog bort {removed} encodings)")
+            images_to_process.append(path)
 
-            # NYTT: Kör attempts-loop precis som i batch-läget
-            max_possible_attempts = get_max_possible_attempts(config, backend)
-            attempts_so_far = []
-            attempt_idx = 0
-            result = None
-            while attempt_idx < max_possible_attempts:
-                # Check file existence before each attempt
-                if not path.exists():
-                    logging.warning(f"[FIX][SKIP][{path.name}] File no longer exists during processing")
-                    print(f"⏭ {path.name} togs bort under bearbetning, hoppar över")
-                    break
-                
-                if attempt_idx == 0:
-                    # Kör första attempt
-                    attempts_so_far = preprocess_image(
-                        path, known_faces, ignored_faces, hard_negatives, config, backend,
-                        max_attempts=1, attempts_so_far=[]
-                    )
-                else:
-                    # Lägg till ett till attempt
-                    attempts_so_far = preprocess_image(
-                        path, known_faces, ignored_faces, hard_negatives, config, backend,
-                        max_attempts=attempt_idx+1, attempts_so_far=attempts_so_far
-                    )
-                result = main_process_image_loop(
-                    path, known_faces, ignored_faces, hard_negatives, config, backend, attempts_so_far
-                )
-                if result == "retry":
-                    attempt_idx += 1
-                    continue
-                elif result in (True, "ok", "manual", "skipped", "no_faces", "all_ignored"):
-                    add_to_processed_files(path, processed_files)
-                    save_database(known_faces, ignored_faces, hard_negatives, processed_files)
-                    break
-                else:
-                    # Okänd return, bryt
-                    break
-            else:
-                # Om attempts tar slut utan att vi bryter, skriv ut det
-                print(f"⏭ Inga fler försök möjliga för {path.name}, hoppar över.")
-                add_to_processed_files(path, processed_files)
-                save_database(known_faces, ignored_faces, hard_negatives, processed_files)
-        if n_found == 0:
+        if not images_to_process:
             print("Inga matchande bildfiler hittades.")
             sys.exit(1)
-        return
 
-    # --------- HUVUDFALL: BEARBETA ALLA EJ BEARBETADE ---------
-    input_paths = list(parse_inputs(sys.argv[1:], SUPPORTED_EXT))
-    n_found = 0
-    images_to_process = []
-    for path in input_paths:
-        if not path.exists():
-            logging.warning(f"[MAIN][SKIP][{path}] File does not exist")
-            continue
-        n_found += 1
-        if is_file_processed(path, processed_files):
-            print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
-            continue
-        images_to_process.append(path)
-    if n_found == 0 or not images_to_process:
-        print("Inga matchande bildfiler hittades.")
-        sys.exit(1)
+        print(f"\n=== Reprocessar {len(images_to_process)} fil(er) med workers ===\n")
+        # Fall through to normal worker-based processing below
+    else:
+        # --------- HUVUDFALL: BEARBETA ALLA EJ BEARBETADE ---------
+        input_paths = list(parse_inputs(sys.argv[1:], SUPPORTED_EXT))
+        n_found = 0
+        images_to_process = []
+        for path in input_paths:
+            if not path.exists():
+                logging.warning(f"[MAIN][SKIP][{path}] File does not exist")
+                continue
+            n_found += 1
+            if is_file_processed(path, processed_files):
+                print(f"⏭ Hoppar över tidigare behandlad fil: {path.name}")
+                continue
+            images_to_process.append(path)
+        if n_found == 0 or not images_to_process:
+            print("Inga matchande bildfiler hittades.")
+            sys.exit(1)
 
     # === STEG 1: Starta worker-processen ===
     preprocessed_queue = multiprocessing.Queue(maxsize=max_queue)
@@ -2154,8 +2124,10 @@ def main():
 
     workers = []
     chunk_size = max(1, math.ceil(len(images_to_process) / num_workers))
+    logging.debug(f"[MAIN] Starting {num_workers} workers, chunk_size={chunk_size}, {len(images_to_process)} images")
     for i in range(num_workers):
         chunk = images_to_process[i * chunk_size:(i + 1) * chunk_size]
+        logging.debug(f"[MAIN] Worker {i}: chunk size = {len(chunk)}")
         if not chunk:
             continue
         p = multiprocessing.Process(
@@ -2174,6 +2146,7 @@ def main():
         p.daemon = True
         p.start()
         workers.append(p)
+        logging.debug(f"[MAIN] Started worker {i} (PID will be {p.pid})")
 
     # Check if workers crashed immediately
     import time
