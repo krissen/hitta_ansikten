@@ -174,7 +174,8 @@ def load_database():
                     if isinstance(entry, dict) and "hash" in entry and "name" in entry:
                         processed_files.append(entry)
                         continue
-                except Exception:
+                except Exception as e:
+                    logging.debug(f"Failed to parse processed file entry: {e}")
                     pass
                 # fallback legacy
                 processed_files.append({"name": line, "hash": None})
@@ -297,7 +298,8 @@ def load_attempt_log(all_files=False):
                 try:
                     entry = json.loads(line)
                     log.append(entry)
-                except Exception:
+                except Exception as e:
+                    logging.debug(f"Failed to parse attempt log entry: {e}")
                     pass
     return log
 

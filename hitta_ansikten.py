@@ -55,7 +55,10 @@ def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH):
 init_logging()
  
 # === CONSTANTS === #
-ORDINARY_PREVIEW_PATH = "/tmp/hitta_ansikten_preview.jpg"
+# Use system temp directory for cross-platform compatibility
+TEMP_DIR = Path(tempfile.gettempdir()) / "hitta_ansikten"
+TEMP_DIR.mkdir(exist_ok=True, parents=True)
+ORDINARY_PREVIEW_PATH = str(TEMP_DIR / "preview.jpg")
 MAX_ATTEMPTS = 2
 MAX_QUEUE = 10
 CACHE_DIR = Path("./preprocessed_cache")
@@ -93,8 +96,8 @@ DEFAULT_CONFIG = {
     "font_size_factor": 45,
     # App som används för att visa bilder, t.ex. "Bildvisare" eller "feh"
     "image_viewer_app": "Bildvisare",
-    # Sökväg för temporär förhandsvisningsbild
-    "temp_image_path": "/tmp/hitta_ansikten_preview.jpg",
+    # Sökväg för temporär förhandsvisningsbild (will use system temp dir)
+    "temp_image_path": None,  # Computed at runtime using ORDINARY_PREVIEW_PATH
     # Bakgrundsfärg för etiketter i RGBA
     "label_bg_color": [0, 0, 0, 192],
     # Textfärg för etiketter i RGB
@@ -245,14 +248,25 @@ def archive_stats_if_needed(current_sig, force=False):
         sig_path.write_text(current_sig)
 
 def hash_encoding(enc):
-    """Hash an encoding, handling both dict and ndarray formats."""
+    """
+    Hash an encoding, handling both dict and ndarray formats.
+
+    Returns None for corrupted or invalid encodings.
+    """
     # Hantera både dict och ndarray
     if isinstance(enc, dict) and "encoding" in enc:
         enc = enc["encoding"]
+
     # Handle None encodings (corrupted or missing data)
     if enc is None:
         return None
-    return hashlib.sha1(enc.tobytes()).hexdigest()
+
+    # Validate encoding can be hashed
+    try:
+        return hashlib.sha1(enc.tobytes()).hexdigest()
+    except (AttributeError, ValueError, TypeError) as e:
+        logging.error(f"Failed to hash encoding: {type(enc).__name__}: {e}")
+        return None
 
 def export_and_show_original(image_path, config):
     """
@@ -265,7 +279,7 @@ def export_and_show_original(image_path, config):
     import rawpy
     from PIL import Image
 
-    export_path = Path("/tmp/hitta_ansikten_original.jpg")
+    export_path = TEMP_DIR / "original.jpg"
 
     try:
         # Läs NEF, konvertera till RGB
@@ -1023,7 +1037,7 @@ def create_labeled_image(rgb_image, face_locations, labels, config, suffix=""):
         label_cy = ly + p["text_height"] // 2
         draw.line([(face_cx, face_cy), (label_cx, label_cy)], fill="yellow", width=2)
 
-    temp_dir = os.path.dirname(config.get("temp_image_path", "/tmp/hitta_ansikten_preview.jpg"))
+    temp_dir = str(TEMP_DIR)
     temp_prefix = "hitta_ansikten_preview"
     temp_suffix = f"{suffix}.jpg" if suffix else ".jpg"
 
@@ -1438,12 +1452,12 @@ def main_process_image_loop(image_path, known_faces, ignored_faces, hard_negativ
     })
 
     import shutil
-    ORDINARY_PREVIEW_PATH = config.get("ordinary_preview_path", "/tmp/hitta_ansikten_preview.jpg")
+    ordinary_preview_path = config.get("ordinary_preview_path") or ORDINARY_PREVIEW_PATH
     try:
-        shutil.copy(preview_path, ORDINARY_PREVIEW_PATH)
+        shutil.copy(preview_path, ordinary_preview_path)
     except Exception as e:
-        print(f"[WARN] Kunde inte kopiera preview till {ORDINARY_PREVIEW_PATH}: {e}")
-    show_temp_image(ORDINARY_PREVIEW_PATH, config, image_path)
+        print(f"[WARN] Kunde inte kopiera preview till {ordinary_preview_path}: {e}")
+    show_temp_image(ordinary_preview_path, config, image_path)
 
     if face_encodings:
         review_result, labels = user_review_encodings(
@@ -1762,10 +1776,14 @@ def rename_files(filelist, known_faces, processed_files, simulate=True, allow_re
             os.rename(orig, dest)
 
 def cleanup_tmp_previews():
-    for path in glob.glob("/tmp/hitta_ansikten_*"):
+    """Clean up temporary preview files from TEMP_DIR."""
+    if not TEMP_DIR.exists():
+        return
+    for path in TEMP_DIR.glob("hitta_ansikten_*"):
         try:
-            os.remove(path)
-        except Exception:
+            path.unlink()
+        except Exception as e:
+            logging.debug(f"Failed to remove temp file {path}: {e}")
             pass  # Ignorera ev. misslyckanden
 
 # === Graceful Exit ===
