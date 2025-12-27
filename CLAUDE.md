@@ -17,6 +17,12 @@ The tool is designed for semi-automated workflows where users review uncertain m
 - Push the branch and create a PR: `git push -u origin feature/description`
 - Follow the commit message conventions from `~/.claude/CLAUDE.md`
 
+**CRITICAL: Commit and PR Message Rules**
+- **ABSOLUTELY NO Claude references** in commit messages or PR descriptions
+- **NEVER** add "Generated with Claude Code" or similar footers
+- **NEVER** add "Co-Authored-By: Claude" or similar attribution
+- This rule is STRICTLY ENFORCED and violations are not acceptable
+
 ## Key Commands
 
 ### Main Processing
