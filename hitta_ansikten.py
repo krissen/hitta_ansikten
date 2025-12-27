@@ -1920,7 +1920,7 @@ def preprocess_worker(
                     config,
                     backend,
                     max_attempts=attempt_idx,
-                    attempts_so_far=attempt_results,
+                    attempts_so_far=current_attempts,
                 )
                 if len(partial_results) > len(current_attempts):
                     cached = save_preprocessed_cache(path, partial_results)
@@ -1935,6 +1935,11 @@ def preprocess_worker(
     except Exception as e:
         logging.error(f"[PREPROCESS worker][ERROR] {e}")
         import traceback
+        # Print error to stderr so it's visible to user
+        print(f"\n⚠️  KRITISKT FEL: Worker-processen kraschade!", file=sys.stderr)
+        print(f"⚠️  Fel: {type(e).__name__}: {e}", file=sys.stderr)
+        print(f"⚠️  Main-processen kommer att fortsätta utan parallell preprocessing.", file=sys.stderr)
+        print(f"⚠️  Se hitta_ansikten.log för detaljer.\n", file=sys.stderr)
         traceback.print_exc()
     finally:
         # Always signal completion, even on error, to unblock main loop
@@ -2169,6 +2174,14 @@ def main():
         p.daemon = True
         p.start()
         workers.append(p)
+
+    # Check if workers crashed immediately
+    import time
+    time.sleep(0.1)  # Give workers a moment to start
+    if preprocess_done.is_set() and preprocessed_queue.empty():
+        print(f"\n⚠️  VARNING: Worker-processen avslutades omedelbart!", file=sys.stderr)
+        print(f"⚠️  Detta tyder på ett fel i worker-processen.", file=sys.stderr)
+        print(f"⚠️  Preprocessing kommer att göras i main-processen istället (långsammare).\n", file=sys.stderr)
 
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()
