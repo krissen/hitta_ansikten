@@ -5,8 +5,8 @@ import pickle
 import sys
 from pathlib import Path
 
-# Import safe pickle loader from faceid_db
-from faceid_db import safe_pickle_load
+# Import utilities from faceid_db
+from faceid_db import safe_pickle_load, get_file_hash
 
 ENCODINGS_PATH = Path.home() / ".local/share/faceid/encodings.pkl"
 BACKUP_PATH = Path(str(ENCODINGS_PATH) + ".bak")
@@ -14,14 +14,6 @@ ATTEMPTS_FILES = [Path.home() / ".local/share/faceid/attempt_stats.jsonl"]
 ARCHIVE_DIR = Path.home() / ".local/share/faceid/archive"
 if ARCHIVE_DIR.exists():
     ATTEMPTS_FILES += sorted(ARCHIVE_DIR.glob("attempt_stats*.jsonl"))
-
-
-def get_file_hash(path):
-    try:
-        with open(path, "rb") as f:
-            return hashlib.sha1(f.read()).hexdigest()
-    except Exception:
-        return None
 
 
 def build_attempt_hash_map(attempt_files):

@@ -327,13 +327,24 @@ def extract_face_labels(labels):
 
 
 def get_file_hash(path):
+    """
+    Compute SHA1 hash of a file using chunked reading.
+
+    Args:
+        path: Path object or string path to file
+
+    Returns:
+        SHA1 hex digest string, or None on error
+    """
+    h = hashlib.sha1()
     try:
-        if hasattr(path, "read_bytes"):
-            # Path-objekt
-            return hashlib.sha1(path.read_bytes()).hexdigest()
-        else:
-            with open(path, "rb") as f:
-                return hashlib.sha1(f.read()).hexdigest()
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(65536)  # 64KB chunks for large files
+                if not chunk:
+                    break
+                h.update(chunk)
+        return h.hexdigest()
     except Exception as e:
-        print(f"[WARN] Kunde inte läsa hash för {path}: {e}")
+        logging.warning(f"Failed to compute file hash for {path}: {e}")
         return None

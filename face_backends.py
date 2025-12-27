@@ -10,6 +10,9 @@ from typing import Tuple, List
 import numpy as np
 import logging
 
+# Constants
+EPSILON_NORM = 1e-6  # Small value to avoid division by zero in normalization
+
 
 class FaceBackend(ABC):
     """Abstract interface for face detection and recognition backends."""
@@ -339,7 +342,7 @@ class InsightFaceBackend(FaceBackend):
             L2-normalized encoding (or original if norm is zero)
         """
         norm = np.linalg.norm(encoding)
-        if norm > 1e-6:  # Epsilon to avoid division by very small numbers
+        if norm > EPSILON_NORM:  # Avoid division by very small numbers
             return encoding / norm
         # Return zero vector as-is (edge case: all-zero encoding)
         logging.warning("[InsightFaceBackend] Encoding has zero norm, returning as-is")

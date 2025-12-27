@@ -66,6 +66,13 @@ CACHE_DIR = Path("./preprocessed_cache")
 # Reserved command shortcuts that cannot be used as person names
 RESERVED_COMMANDS = {"i", "a", "r", "n", "o", "m", "x"}
 
+# Face detection and processing constants
+FACE_BOX_OVERLAP_BUFFER = 40  # pixels - buffer for detecting overlapping face boxes
+MAX_WORKER_WAIT_TIME = 90  # seconds - max time to wait for worker preprocessing
+QUEUE_GET_TIMEOUT = 1  # seconds - timeout for queue.get() operations
+WORKER_JOIN_TIMEOUT = 30  # seconds - timeout for worker process join
+WORKER_TERMINATE_TIMEOUT = 5  # seconds - timeout after terminate before kill
+
 
 # === Standardkonfiguration ===
 DEFAULT_CONFIG = {
@@ -351,6 +358,14 @@ def show_temp_image(preview_path, config, image_path=None, last_shown=[None]):
             should_open = True
 
     if should_open:
+        # Validate viewer_app to prevent command injection
+        # Allow alphanumeric, spaces, hyphens, underscores, dots
+        safe_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.")
+        if not viewer_app or not all(c in safe_chars for c in viewer_app):
+            logging.error(f"[SECURITY] Invalid viewer app name: {viewer_app}")
+            print(f"⚠️  Säkerhetsvarning: Ogiltig bildvisarapp '{viewer_app}', hoppar över", file=sys.stderr)
+            return
+
         logging.debug(f"[BILDVISARE] Öppnar bild i visare: {expected_path}")
         subprocess.Popen(["open", "-a", viewer_app, preview_path])
         last_shown[0] = preview_path
@@ -889,7 +904,7 @@ def user_review_encodings(
     logging.debug(f"[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
     return "ok", labels
 
-def box_overlaps_with_buffer(b1, b2, buffer=40):
+def box_overlaps_with_buffer(b1, b2, buffer=FACE_BOX_OVERLAP_BUFFER):
     l1, t1, r1, b1_ = b1
     l2, t2, r2, b2_ = b2
     return not (r1 + buffer <= l2 - buffer or
@@ -2096,8 +2111,8 @@ def load_preprocessed_cache(queue):
                         pass
                 continue
             queue.put((path, attempt_results))
-        except (FileNotFoundError, pickle.UnpicklingError, OSError):
-            logging.debug(f"[CACHE] Failed to load {file}")
+        except (FileNotFoundError, pickle.UnpicklingError, OSError) as e:
+            logging.warning(f"[CACHE] Failed to load {file}: {e}")
 
 
 def remove_preprocessed_cache(path):
@@ -2420,7 +2435,7 @@ def main():
                 while not fetched:
                     # logging.debug(f"[MAIN] Väntar på attempt {attempt_idx+1} för {path.name}")
                     try:
-                        qpath, attempt_results = preprocessed_queue.get(timeout=1)
+                        qpath, attempt_results = preprocessed_queue.get(timeout=QUEUE_GET_TIMEOUT)
                         if str(qpath) != path_key:
                             preprocessed_queue.put((qpath, attempt_results))
                             continue
@@ -2464,7 +2479,7 @@ def main():
                     done_images.add(path)
                     break
                 # --- Vänta på worker om det är sannolikt att attempt är på gång ---
-                max_wait = 90  # sekunder
+                max_wait = MAX_WORKER_WAIT_TIME
                 waited = 0
                 got_new_attempt = False
                 if len(attempts_so_far) < attempt_idx + 1:
@@ -2473,7 +2488,7 @@ def main():
                         worker_wait_msg_printed = True
                     while waited < max_wait:
                         try:
-                            qpath, attempt_results = preprocessed_queue.get(timeout=1)
+                            qpath, attempt_results = preprocessed_queue.get(timeout=QUEUE_GET_TIMEOUT)
                             if str(qpath) == path_key:
                                 attempts_so_far = attempt_results
                                 got_new_attempt = True
@@ -2529,12 +2544,12 @@ def main():
 
     # Clean up workers with timeout to prevent deadlock
     for p in workers:
-        p.join(timeout=30)
+        p.join(timeout=WORKER_JOIN_TIMEOUT)
         if p.is_alive():
             logging.error(f"Worker {p.pid} did not finish within timeout, terminating")
             print(f"⚠️  Worker {p.pid} hängde, tvångsavslutar...", file=sys.stderr)
             p.terminate()
-            p.join(timeout=5)
+            p.join(timeout=WORKER_TERMINATE_TIMEOUT)
             if p.is_alive():
                 logging.error(f"Worker {p.pid} did not terminate, killing")
                 p.kill()

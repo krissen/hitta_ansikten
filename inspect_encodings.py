@@ -4,23 +4,8 @@ from pathlib import Path
 import hashlib
 import argparse
 
-# Import safe pickle loader from faceid_db
-from faceid_db import safe_pickle_load
-
-def file_hash(path):
-    """Returnera SHA1-hash av en fil."""
-    h = hashlib.sha1()
-    try:
-        with open(path, "rb") as f:
-            while True:
-                data = f.read(65536)
-                if not data:
-                    break
-                h.update(data)
-        return h.hexdigest()
-    except Exception as e:
-        print(f"[WARN] Kunde inte hasha {path}: {e}")
-        return None
+# Import utilities from faceid_db
+from faceid_db import safe_pickle_load, get_file_hash
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mode", choices=["filnamn", "hash", "både"], default="både",
@@ -46,7 +31,7 @@ target_files = [
 hashes = {}
 for tf in target_files:
     p = data_dir / tf
-    hashes[tf] = file_hash(p) if p.exists() else None
+    hashes[tf] = get_file_hash(p) if p.exists() else None
 
 with open(encodings_path, "rb") as f:
     known_faces = safe_pickle_load(f)
