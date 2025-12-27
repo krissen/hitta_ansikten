@@ -1620,10 +1620,19 @@ def collect_persons_for_files(filelist, known_faces, processed_files=None, attem
     return result
 
 def normalize_name(name):
-    # Tar bort diakritik och konverterar t.ex. Källa → Kalla, François → Francois
+    """
+    Normalize name by removing diacritics and sanitizing for safe filename use.
+
+    Security: Replaces path separators and null bytes to prevent path traversal.
+    """
+    # Remove diacritics (Källa → Kalla, François → Francois)
     n = unicodedata.normalize('NFKD', name)
     n = "".join(c for c in n if not unicodedata.combining(c))
-    # Om du vill: ta även bort andra icke-bokstäver (ej nödvändigt om du vill ha ÅÄÖ → AAOO, etc)
+
+    # Sanitize for filesystem safety: remove path separators and null bytes
+    # Replace / and \ with _ to prevent directory traversal
+    n = n.replace('/', '_').replace('\\', '_').replace('\0', '_')
+
     return n
 
 def split_fornamn_efternamn(namn):
@@ -1664,6 +1673,11 @@ def resolve_fornamn_dubletter(all_persons):
     return kortnamn
 
 def build_new_filename(fname, personer, namnmap):
+    """
+    Build new filename with person names.
+
+    Security: Validates against path traversal attempts.
+    """
     prefix, suffix = extract_prefix_suffix(fname)
     if not (prefix and suffix):
         return None
@@ -1675,7 +1689,14 @@ def build_new_filename(fname, personer, namnmap):
     if not fornamn_lista:
         return None
     namnstr = ",_".join(fornamn_lista)
-    return f"{prefix}_{namnstr}{suffix}"
+    new_name = f"{prefix}_{namnstr}{suffix}"
+
+    # Security: Validate no path traversal attempts
+    if '..' in new_name or '/' in new_name or '\\' in new_name or '\0' in new_name:
+        logging.error(f"[SECURITY] Rejected unsafe filename: {new_name}")
+        return None
+
+    return new_name
 
 def is_file_processed(path, processed_files):
     """Kolla om filen redan är processad, via namn ELLER hash."""
@@ -2299,8 +2320,20 @@ def main():
             attempt_idx += 1
 
         logging.debug(f"[MAIN] {path.name}: FÄRDIG, {len(attempts_so_far)} försök totalt")
+
+    # Clean up workers with timeout to prevent deadlock
     for p in workers:
-        p.join()
+        p.join(timeout=30)
+        if p.is_alive():
+            logging.error(f"Worker {p.pid} did not finish within timeout, terminating")
+            print(f"⚠️  Worker {p.pid} hängde, tvångsavslutar...", file=sys.stderr)
+            p.terminate()
+            p.join(timeout=5)
+            if p.is_alive():
+                logging.error(f"Worker {p.pid} did not terminate, killing")
+                p.kill()
+                p.join()
+
     preprocessed_queue.close()
     preprocessed_queue.join_thread()
 

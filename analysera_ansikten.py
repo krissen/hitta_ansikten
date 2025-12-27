@@ -26,13 +26,14 @@ def load_multiple_stats(files):
     stats = []
     for f in files:
         label = Path(f).stem
-        for line in open(f):
-            try:
-                entry = json.loads(line)
-                entry["__sourcefile"] = label
-                stats.append(entry)
-            except Exception:
-                pass
+        with open(f, encoding="utf-8") as file:
+            for line in file:
+                try:
+                    entry = json.loads(line)
+                    entry["__sourcefile"] = label
+                    stats.append(entry)
+                except Exception:
+                    pass
     return stats
 
 def find_all_stats_files():
