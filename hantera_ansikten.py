@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import fnmatch
+import hashlib
 from pathlib import Path
 
 from prompt_toolkit import prompt
@@ -233,12 +234,27 @@ def main():
                 encodings.extend(known[name1])
             if name2 in known:
                 encodings.extend(known[name2])
+            # Deduplicate encodings using content hash, not object identity
             seen = set()
             encodings_unique = []
             for enc in encodings:
-                if id(enc) not in seen:
-                    seen.add(id(enc))
-                    encodings_unique.append(enc)
+                # Get encoding hash for deduplication
+                if isinstance(enc, dict):
+                    enc_hash = enc.get('encoding_hash')
+                else:
+                    # Legacy numpy array - compute hash
+                    try:
+                        enc_hash = hashlib.sha1(enc.tobytes()).hexdigest()
+                    except (AttributeError, ValueError):
+                        enc_hash = None
+
+                # Skip if we've seen this exact encoding before
+                if enc_hash and enc_hash in seen:
+                    continue
+
+                if enc_hash:
+                    seen.add(enc_hash)
+                encodings_unique.append(enc)
             known[target] = encodings_unique
             for n in (name1, name2):
                 if n != target and n in known:
