@@ -380,8 +380,16 @@ def show_temp_image(preview_path, config, image_path=None, last_shown=[None]):
             return
 
         logging.debug(f"[BILDVISARE] Öppnar bild i visare: {expected_path}")
-        subprocess.Popen(["open", "-a", viewer_app, preview_path])
-        last_shown[0] = preview_path
+        cmd = ["open", "-a", viewer_app, expected_path]
+        logging.debug(f"[BILDVISARE] Kör kommando: {' '.join(cmd)}")
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # Don't wait for completion - let it run in background
+            logging.debug(f"[BILDVISARE] Subprocess startad, PID: {proc.pid}")
+        except Exception as e:
+            logging.error(f"[BILDVISARE] Fel vid start av bildvisare: {e}")
+            print(f"⚠️  Kunde inte öppna bildvisare: {e}", file=sys.stderr)
+        last_shown[0] = expected_path
     else:
         logging.debug(f"[BILDVISARE] Hoppar över open")
         last_shown[0] = preview_path
