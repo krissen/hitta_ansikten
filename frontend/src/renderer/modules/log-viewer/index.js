@@ -25,14 +25,20 @@ export default {
     const logs = [];
     let autoScroll = true;
     let filterLevel = 'all'; // 'all', 'info', 'warn', 'error'
+    let filterSource = 'all'; // 'all', 'backend', 'frontend'
 
     // Create UI
     container.innerHTML = `
       <div class="log-viewer">
         <div class="log-header">
-          <h3>Backend Logs</h3>
+          <h3>Logs</h3>
           <div class="log-controls">
-            <select class="log-filter">
+            <select class="log-source-filter">
+              <option value="all">All Sources</option>
+              <option value="backend">Backend</option>
+              <option value="frontend">Frontend</option>
+            </select>
+            <select class="log-level-filter">
               <option value="all">All Levels</option>
               <option value="info">Info</option>
               <option value="warn">Warning</option>
@@ -179,17 +185,21 @@ export default {
     /**
      * Add log entry
      */
-    function addLogEntry(level, message, timestamp = null) {
+    function addLogEntry(level, message, timestamp = null, source = 'backend') {
       const entry = {
         level,
         message,
-        timestamp: timestamp || new Date().toISOString()
+        timestamp: timestamp || new Date().toISOString(),
+        source
       };
 
       logs.push(entry);
 
-      // Apply filter
+      // Apply filters
       if (filterLevel !== 'all' && level !== filterLevel) {
+        return;
+      }
+      if (filterSource !== 'all' && source !== filterSource) {
         return;
       }
 

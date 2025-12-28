@@ -71,6 +71,7 @@ export default {
 
       if (!isNef) {
         console.log('[OriginalView] Not a NEF file, skipping original view');
+        showPlaceholder('Not a NEF file');
         return;
       }
 
@@ -97,6 +98,10 @@ export default {
 
         // Load converted JPG into canvas
         await renderer.loadImage(jpgPath);
+
+        // Remove placeholder after successful load
+        const placeholder = container.querySelector('.original-placeholder');
+        if (placeholder) placeholder.remove();
 
         console.log('[OriginalView] Original loaded successfully');
 
@@ -171,8 +176,18 @@ export default {
     document.addEventListener('keydown', keyboardHandler);
 
     // Initial state
-    showPlaceholder('Waiting for NEF file...');
     updateSyncIndicator();
+
+    // Check if there's already an image loaded in another module
+    // Request current image path from Image Viewer
+    api.emit('request-current-image', {});
+
+    // If no response within 100ms, show placeholder
+    setTimeout(() => {
+      if (!renderer.image) {
+        showPlaceholder('Waiting for NEF file...');
+      }
+    }, 100);
 
     console.log('[OriginalView] Initialized successfully');
 

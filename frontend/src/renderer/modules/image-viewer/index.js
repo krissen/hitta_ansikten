@@ -168,6 +168,20 @@ export default {
       }
     });
 
+    // Respond to current image requests
+    api.on('request-current-image', () => {
+      if (renderer.imagePath) {
+        console.log('[ImageViewer] Responding to current-image request:', renderer.imagePath);
+        api.emit('image-loaded', {
+          imagePath: renderer.imagePath,
+          dimensions: {
+            width: renderer.image.width,
+            height: renderer.image.height
+          }
+        });
+      }
+    });
+
     // TODO: Load initial image if provided in params
     // For now, we'll add a placeholder message
     if (!renderer.image) {
