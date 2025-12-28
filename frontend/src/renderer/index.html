@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bildvisare Workspace</title>
+  <link rel="stylesheet" href="../../node_modules/dockview-core/dist/styles/dockview.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    #workspace-root {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Custom workspace theme */
+    .bildvisare-workspace {
+      --dv-tabs-height: 30px;
+      --dv-activegroup-visiblepanel-tab-color: #007acc;
+    }
+  </style>
+</head>
+<body>
+  <div id="workspace-root"></div>
+  <script type="module" src="workspace/workspace.js"></script>
+</body>
+</html>

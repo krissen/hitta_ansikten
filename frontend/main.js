@@ -1,4 +1,18 @@
 // main.js
+//
+// Dual-Mode Bootstrap: Workspace vs Legacy
+// Set BILDVISARE_WORKSPACE=1 to use new modular workspace
+// Set BILDVISARE_WORKSPACE=0 (or unset) to use legacy single-window mode
+
+const USE_WORKSPACE = process.env.BILDVISARE_WORKSPACE === '1';
+
+if (USE_WORKSPACE) {
+  // Load new modular workspace
+  console.log('[Bootstrap] Loading modular workspace...');
+  require('./src/main/index.js');
+} else {
+  // LEGACY MODE: Continue with current implementation below
+  console.log('[Bootstrap] Loading legacy mode...');
 
 // Logging configuration - logger and dlog defined after requires below
 const LOG_LEVEL = process.env.BILDVISARE_LOG_LEVEL || "debug"; // Always debug in packaged app
@@ -709,3 +723,4 @@ app.whenReady().then(() => {
     createWindow();
   }
 });
+}
