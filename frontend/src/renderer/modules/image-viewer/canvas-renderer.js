@@ -437,6 +437,15 @@ export class CanvasRenderer {
   }
 
   /**
+   * Toggle face bounding boxes on/off
+   */
+  toggleFaceBoxes() {
+    this.showFaceBoxes = !this.showFaceBoxes;
+    console.log(`[CanvasRenderer] Face boxes ${this.showFaceBoxes ? 'enabled' : 'disabled'}`);
+    this.render(); // Re-render to apply change
+  }
+
+  /**
    * Draw face bounding boxes on the canvas
    */
   drawFaceBoxes() {

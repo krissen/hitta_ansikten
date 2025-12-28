@@ -103,6 +103,13 @@ export default {
           renderer.autoFit();
           event.preventDefault();
           break;
+
+        case 'b':
+        case 'B':
+          // Toggle bounding boxes
+          renderer.toggleFaceBoxes();
+          event.preventDefault();
+          break;
       }
     };
 
