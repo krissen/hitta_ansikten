@@ -4,9 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**hitta_ansikten** is a terminal-based batch face detection and recognition tool for processing large collections of RAW images (NEF files). It uses face_recognition (dlib) to detect faces, match them against a database of known people, and rename files based on who appears in them.
+**hitta_ansikten** is a monorepo combining:
+1. **Backend**: Terminal-based batch face detection tool (Python, dlib/InsightFace)
+2. **Frontend**: Modular workspace for image review and annotation (Electron + Dockview)
 
-The tool is designed for semi-automated workflows where users review uncertain matches interactively in the terminal.
+### Backend (CLI Tool)
+Terminal-based batch face detection and recognition for processing large collections of RAW images (NEF files). Uses face_recognition (dlib) or InsightFace to detect faces, match against a database, and rename files based on who appears in them.
+
+### Frontend (Bildvisare Workspace)
+GIMP-like modular workspace with dockable panels for interactive face review:
+- **Image Viewer**: Canvas-based rendering with zoom/pan
+- **Review Module**: Face detection UI with confirm/reject
+- **Log Viewer**: Real-time backend/frontend logs
+- **Original View**: Side-by-side NEF comparison
+
+**For detailed workspace implementation:** See `SESSION_SUMMARY.md` (local file)
+**For roadmap:** See `~/.claude/plans/mighty-brewing-pearl.md`
 
 ## Git Workflow
 
@@ -238,3 +251,61 @@ No automated test suite currently exists. Testing is manual via CLI workflows.
 - InsightFace (buffalo_l): generally higher verification accuracy than dlib on LFW and similar benchmarks
 - 1.5-3x faster detection with better accuracy
 - Better detection in: profiles, low light, small faces, motion blur
+
+## Frontend Workspace (Bildvisare)
+
+### Running the Workspace
+
+```bash
+cd frontend
+BILDVISARE_WORKSPACE=1 npx electron .
+```
+
+Backend auto-starts on `http://127.0.0.1:5000`
+
+### Architecture
+
+**One Source of Truth:** `SESSION_SUMMARY.md` (local file) contains complete implementation details for Phases 1-3.
+
+**Key Components:**
+- Dockview-core for panel management
+- FastAPI backend with WebSocket
+- Canvas-based image rendering
+- Module communication via ModuleAPI
+
+**Modules:**
+- `image-viewer/` - Canvas rendering, zoom/pan
+- `review-module/` - Face review UI (currently uses mock data)
+- `log-viewer/` - Frontend + backend logs
+- `original-view/` - NEF side-by-side comparison
+
+**Current State (Phase 3 complete):**
+- All UI modules implemented
+- Backend API with mock data
+- WebSocket real-time communication
+- Layout persistence (localStorage)
+
+**Next Steps:**
+- Integrate real face detection (replace mock data)
+- OR Phase 4: User preferences and enhanced persistence
+
+### Keyboard Shortcuts
+
+**Image Viewer:**
+- `Cmd+O` - Open file
+- `+`/`-` - Zoom (hold for continuous)
+- `=` - 1:1 zoom
+- `0` - Auto-fit (changed from `A`)
+
+**Original View:**
+- `X` - Toggle sync mode
+
+### Legacy Mode
+
+```bash
+cd frontend
+BILDVISARE_WORKSPACE=0 npx electron .
+```
+
+Runs original dual-window viewer (backward compatible).
+

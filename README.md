@@ -2,11 +2,13 @@
 
 **hitta_ansikten** är ett monorepo med verktyg för ansiktsdetektering och bildvisning:
 
-- **Backend**: Python-baserat terminalverktyg för batchhantering, detektering och igenkänning av ansikten i stora samlingar av RAW-bilder (t.ex. NEF från Nikon)
-- **Frontend**: Electron-baserad bildvisare (Bildvisare) för att visa och annotera bilder
+- **Backend**: Python-baserat terminalverktyg + FastAPI server för ansiktsdetektering och igenkänning i stora samlingar av RAW-bilder (NEF från Nikon)
+- **Frontend**: Modular workspace (Bildvisare) - GIMP-liknande dockbar panellayout för bildgranskning, annotation och real-time kommunikation med backend
 - **Shared**: Delade typdefinitioner och API-protokoll mellan frontend och backend
 
 Projektet är särskilt utformat för att underlätta identifiering, omdöpning och annotering av bilder från sportevent, skolaktiviteter eller andra miljöer där många personer återkommer på flera bilder.
+
+**Status:** Backend CLI funktionell. Frontend workspace (Fas 1-3) implementerad med mock data. Nästa steg: integrera riktig ansiktsdetektering.
 
 ## Projektstruktur
 
@@ -122,13 +124,34 @@ npm start
 npx electron .
 ```
 
-## Frontend (Bildvisare)
+## Frontend (Bildvisare Workspace)
 
-Den integrerade bildvisaren i `frontend/` används för att visa bilder med detekterade ansikten.
+Modular workspace med dockbara paneler för interaktiv bildgranskning:
 
-**Notering**: En fristående version finns också på [github.com/krissen/bildvisare](https://github.com/krissen/bildvisare) som kan användas separat.
+### Moduler
+- **Image Viewer**: Canvas-baserad bildvisning med zoom/pan (stödjer NEF auto-konvertering)
+- **Review Module**: UI för att granska detekterade ansikten, bekräfta/avvisa identiteter
+- **Log Viewer**: Real-time loggar från backend + frontend
+- **Original View**: Jämför original NEF bredvid processad bild
 
-Se `frontend/README.md` för mer information om bildvisaren.
+### Köra workspace
+
+```bash
+cd frontend
+BILDVISARE_WORKSPACE=1 npx electron .
+```
+
+Backend startar automatiskt på `http://127.0.0.1:5000`
+
+### Arkitektur
+- **Dockview-core**: Panel management
+- **FastAPI + WebSocket**: Backend kommunikation
+- **ModuleAPI**: Inter-modul events (`image-loaded`, `sync-view`, etc.)
+- **Layout persistence**: Sparas i localStorage
+
+**För implementation-detaljer:** Se `SESSION_SUMMARY.md` (lokal fil), `CLAUDE.md` och roadmap i `~/.claude/plans/`
+
+**Notering**: En fristående version finns också på [github.com/krissen/bildvisare](https://github.com/krissen/bildvisare)
 
 ## Preprocessed cache
 
