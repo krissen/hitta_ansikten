@@ -26,6 +26,7 @@ export default {
     let currentImagePath = null;
     let detectedFaces = [];
     let people = []; // Known people for autocomplete
+    let currentFaceIndex = 0; // Currently selected face for keyboard navigation
 
     // Create UI
     container.innerHTML = `
@@ -90,6 +91,7 @@ export default {
         display: flex;
         flex-direction: column;
         gap: 8px;
+        position: relative;
       }
 
       .face-thumbnail {
@@ -168,6 +170,24 @@ export default {
         opacity: 0.5;
       }
 
+      .face-card.active {
+        border: 3px solid #2196f3;
+        box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+      }
+
+      .face-number {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        font-size: 12px;
+        font-weight: bold;
+        padding: 2px 6px;
+        border-radius: 3px;
+        z-index: 10;
+      }
+
       .loading {
         text-align: center;
         padding: 32px;
@@ -178,6 +198,22 @@ export default {
         text-align: center;
         padding: 32px;
         color: #f44336;
+      }
+
+      .keyboard-hint {
+        position: absolute;
+        bottom: 4px;
+        right: 4px;
+        background: rgba(33, 150, 243, 0.8);
+        color: white;
+        font-size: 10px;
+        padding: 2px 4px;
+        border-radius: 2px;
+        display: none;
+      }
+
+      .face-card.active .keyboard-hint {
+        display: block;
       }
     `;
     container.appendChild(style);
@@ -208,6 +244,143 @@ export default {
     loadPeopleNames();
 
     /**
+     * Focus on current face's input field
+     */
+    function focusCurrentFace() {
+      const cards = gridEl.querySelectorAll('.face-card');
+      if (cards[currentFaceIndex]) {
+        const input = cards[currentFaceIndex].querySelector('input');
+        if (input) {
+          input.focus();
+          input.select(); // Select text for easy replacement
+        }
+      }
+    }
+
+    /**
+     * Navigate to next/previous face
+     */
+    function navigateToFace(direction) {
+      const unconfirmedFaces = detectedFaces.filter(f => !f.is_confirmed);
+      if (unconfirmedFaces.length === 0) return;
+
+      // Move index
+      currentFaceIndex += direction;
+
+      // Wrap around
+      if (currentFaceIndex >= detectedFaces.length) currentFaceIndex = 0;
+      if (currentFaceIndex < 0) currentFaceIndex = detectedFaces.length - 1;
+
+      // Skip confirmed faces
+      let attempts = 0;
+      while (detectedFaces[currentFaceIndex]?.is_confirmed && attempts < detectedFaces.length) {
+        currentFaceIndex += direction;
+        if (currentFaceIndex >= detectedFaces.length) currentFaceIndex = 0;
+        if (currentFaceIndex < 0) currentFaceIndex = detectedFaces.length - 1;
+        attempts++;
+      }
+
+      renderFaceGrid();
+    }
+
+    /**
+     * Confirm current face
+     */
+    function confirmCurrentFace() {
+      if (detectedFaces.length === 0) return;
+
+      const face = detectedFaces[currentFaceIndex];
+      if (!face || face.is_confirmed) return;
+
+      const cards = gridEl.querySelectorAll('.face-card');
+      const input = cards[currentFaceIndex]?.querySelector('input');
+      const personName = input?.value?.trim();
+
+      if (personName) {
+        confirmFace(face, personName, currentFaceIndex);
+      }
+    }
+
+    /**
+     * Ignore current face
+     */
+    function ignoreCurrentFace() {
+      if (detectedFaces.length === 0) return;
+
+      const face = detectedFaces[currentFaceIndex];
+      if (!face || face.is_confirmed) return;
+
+      rejectFace(face, currentFaceIndex);
+    }
+
+    /**
+     * Keyboard shortcuts
+     */
+    function handleKeyboard(event) {
+      // Don't handle if focus is on an input (except for Enter and Escape)
+      const activeElement = document.activeElement;
+      const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+
+      // Navigation shortcuts (work everywhere)
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        navigateToFace(event.shiftKey ? -1 : 1);
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        navigateToFace(1);
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        navigateToFace(-1);
+        return;
+      }
+
+      // Number shortcuts to jump to face
+      if (event.key >= '1' && event.key <= '9' && !isInput) {
+        const faceNum = parseInt(event.key);
+        if (faceNum <= detectedFaces.length) {
+          currentFaceIndex = faceNum - 1;
+          renderFaceGrid();
+        }
+        return;
+      }
+
+      // Action shortcuts
+      if (event.key === 'Enter' && isInput) {
+        event.preventDefault();
+        confirmCurrentFace();
+        return;
+      }
+
+      if ((event.key === 'a' || event.key === 'A') && !isInput) {
+        event.preventDefault();
+        confirmCurrentFace();
+        return;
+      }
+
+      if ((event.key === 'i' || event.key === 'I') && !isInput) {
+        event.preventDefault();
+        ignoreCurrentFace();
+        return;
+      }
+
+      if (event.key === 'Escape' && isInput) {
+        event.preventDefault();
+        activeElement.value = detectedFaces[currentFaceIndex]?.person_name || '';
+        activeElement.blur();
+        return;
+      }
+    }
+
+    // Add keyboard listener to container
+    container.addEventListener('keydown', handleKeyboard);
+
+    /**
      * Update status message
      */
     function updateStatus(message) {
@@ -220,6 +393,7 @@ export default {
     function renderFaceGrid() {
       if (detectedFaces.length === 0) {
         gridEl.innerHTML = '<div class="loading">No faces detected</div>';
+        currentFaceIndex = 0;
         return;
       }
 
@@ -229,6 +403,17 @@ export default {
         const card = createFaceCard(face, index);
         gridEl.appendChild(card);
       });
+
+      // Ensure current index is valid
+      if (currentFaceIndex >= detectedFaces.length) {
+        currentFaceIndex = detectedFaces.length - 1;
+      }
+      if (currentFaceIndex < 0) {
+        currentFaceIndex = 0;
+      }
+
+      // Focus on active card's input
+      focusCurrentFace();
     }
 
     /**
@@ -237,7 +422,21 @@ export default {
     function createFaceCard(face, index) {
       const card = document.createElement('div');
       card.className = 'face-card';
+      card.dataset.faceIndex = index; // Store index for keyboard navigation
       if (face.is_confirmed) card.classList.add('confirmed');
+      if (index === currentFaceIndex) card.classList.add('active');
+
+      // Face number badge
+      const numberBadge = document.createElement('div');
+      numberBadge.className = 'face-number';
+      numberBadge.textContent = `${index + 1}`;
+      card.appendChild(numberBadge);
+
+      // Keyboard hint (only shown on active card)
+      const keyboardHint = document.createElement('div');
+      keyboardHint.className = 'keyboard-hint';
+      keyboardHint.textContent = 'Enter=OK I=Ignore';
+      card.appendChild(keyboardHint);
 
       // Thumbnail - load actual face image from API
       const thumbnail = document.createElement('div');
