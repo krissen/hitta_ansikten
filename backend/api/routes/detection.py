@@ -5,9 +5,12 @@ Endpoints for face detection operations.
 """
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List, Optional
 import logging
+
+from ..services.detection_service import detection_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,6 +39,24 @@ class DetectionResult(BaseModel):
     processing_time_ms: float
     cached: bool = False
 
+class ConfirmIdentityRequest(BaseModel):
+    face_id: str
+    person_name: str
+    image_path: str
+
+class IgnoreFaceRequest(BaseModel):
+    face_id: str
+    image_path: str
+
+class ConfirmIdentityResponse(BaseModel):
+    status: str
+    person_name: str
+    encodings_count: int
+
+class IgnoreFaceResponse(BaseModel):
+    status: str
+    ignored_count: int
+
 @router.post("/detect-faces", response_model=DetectionResult)
 async def detect_faces(request: DetectionRequest):
     """
@@ -47,22 +68,116 @@ async def detect_faces(request: DetectionRequest):
     logger.info(f"[Detection] Processing image: {request.image_path}")
 
     try:
-        # TODO: Implement actual detection using detection_service
-        # For now, return mock data
+        # Use real detection service
+        result = await detection_service.detect_faces(
+            request.image_path,
+            force_reprocess=request.force_reprocess
+        )
+
+        # Convert to response model
         return DetectionResult(
             image_path=request.image_path,
             faces=[
                 DetectedFace(
-                    face_id="mock_face_1",
-                    bounding_box=BoundingBox(x=100, y=100, width=200, height=200),
-                    confidence=0.95,
-                    person_name=None,
-                    is_confirmed=False
+                    face_id=face["face_id"],
+                    bounding_box=BoundingBox(**face["bounding_box"]),
+                    confidence=face["confidence"],
+                    person_name=face["person_name"],
+                    is_confirmed=face["is_confirmed"]
                 )
+                for face in result["faces"]
             ],
-            processing_time_ms=123.45,
-            cached=False
+            processing_time_ms=result["processing_time_ms"],
+            cached=result.get("cached", False)
         )
+    except FileNotFoundError as e:
+        logger.error(f"[Detection] File not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"[Detection] Error processing image: {e}")
+        logger.error(f"[Detection] Error processing image: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/face-thumbnail")
+async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height: int, size: int = 150):
+    """
+    Get thumbnail image of a detected face
+
+    Args:
+        image_path: Path to source image
+        x, y, width, height: Bounding box coordinates
+        size: Thumbnail size (default 150x150)
+
+    Returns:
+        JPEG image bytes
+    """
+    logger.info(f"[Detection] Getting thumbnail from {image_path} at ({x},{y},{width},{height})")
+
+    try:
+        bounding_box = {"x": x, "y": y, "width": width, "height": height}
+        thumbnail_bytes = await detection_service.get_face_thumbnail(
+            image_path,
+            bounding_box,
+            size=size
+        )
+
+        return Response(
+            content=thumbnail_bytes,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=3600"}
+        )
+    except FileNotFoundError as e:
+        logger.error(f"[Detection] File not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Detection] Error generating thumbnail: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/confirm-identity", response_model=ConfirmIdentityResponse)
+async def confirm_identity(request: ConfirmIdentityRequest):
+    """
+    Confirm face identity and save to database
+
+    Saves the face encoding with the person name to the known_faces database.
+    """
+    logger.info(f"[Detection] Confirming identity: {request.face_id} -> {request.person_name}")
+
+    try:
+        result = await detection_service.confirm_identity(
+            request.face_id,
+            request.person_name,
+            request.image_path
+        )
+
+        return ConfirmIdentityResponse(**result)
+    except ValueError as e:
+        logger.error(f"[Detection] Invalid request: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Detection] Error confirming identity: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/ignore-face", response_model=IgnoreFaceResponse)
+async def ignore_face(request: IgnoreFaceRequest):
+    """
+    Mark face as ignored
+
+    Adds the face encoding to the ignored_faces database to skip it in future detections.
+    """
+    logger.info(f"[Detection] Ignoring face: {request.face_id}")
+
+    try:
+        result = await detection_service.ignore_face(
+            request.face_id,
+            request.image_path
+        )
+
+        return IgnoreFaceResponse(**result)
+    except ValueError as e:
+        logger.error(f"[Detection] Invalid request: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Detection] Error ignoring face: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
