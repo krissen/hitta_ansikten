@@ -179,7 +179,8 @@ export default {
 
     // Get DOM elements
     const entriesEl = container.querySelector('.log-entries');
-    const filterEl = container.querySelector('.log-filter');
+    const sourceFilterEl = container.querySelector('.log-source-filter');
+    const levelFilterEl = container.querySelector('.log-level-filter');
     const clearBtn = container.querySelector('.btn-clear');
 
     /**
@@ -219,9 +220,12 @@ export default {
       entryEl.className = `log-entry ${entry.level}`;
 
       const time = new Date(entry.timestamp).toLocaleTimeString('sv-SE');
+      const source = entry.source || 'backend';
+      const sourceBadge = source === 'frontend' ? '<span style="color: #569cd6;">[FE]</span>' : '<span style="color: #ce9178;">[BE]</span>';
 
       entryEl.innerHTML = `
         <span class="log-timestamp">[${time}]</span>
+        ${sourceBadge}
         <span class="log-level ${entry.level}">${entry.level.toUpperCase()}</span>
         <span class="log-message">${escapeHtml(entry.message)}</span>
       `;
@@ -235,9 +239,17 @@ export default {
     function renderAllEntries() {
       entriesEl.innerHTML = '';
 
-      const filtered = filterLevel === 'all'
-        ? logs
-        : logs.filter(log => log.level === filterLevel);
+      let filtered = logs;
+
+      // Filter by level
+      if (filterLevel !== 'all') {
+        filtered = filtered.filter(log => log.level === filterLevel);
+      }
+
+      // Filter by source
+      if (filterSource !== 'all') {
+        filtered = filtered.filter(log => log.source === filterSource);
+      }
 
       if (filtered.length === 0) {
         entriesEl.innerHTML = '<div class="log-empty">No log entries</div>';
@@ -270,8 +282,13 @@ export default {
     }
 
     // Event listeners
-    filterEl.addEventListener('change', (e) => {
+    levelFilterEl.addEventListener('change', (e) => {
       filterLevel = e.target.value;
+      renderAllEntries();
+    });
+
+    sourceFilterEl.addEventListener('change', (e) => {
+      filterSource = e.target.value;
       renderAllEntries();
     });
 
@@ -301,17 +318,53 @@ export default {
       addLogEntry('info', `Face detected: ${data.faceId} (confidence: ${data.confidence})`, data.timestamp);
     });
 
+    // Intercept console methods to capture frontend logs
+    const originalConsole = {
+      log: console.log.bind(console),
+      warn: console.warn.bind(console),
+      error: console.error.bind(console)
+    };
+
+    console.log = function(...args) {
+      originalConsole.log(...args);
+      const message = args.map(arg =>
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      ).join(' ');
+      addLogEntry('info', message, null, 'frontend');
+    };
+
+    console.warn = function(...args) {
+      originalConsole.warn(...args);
+      const message = args.map(arg =>
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      ).join(' ');
+      addLogEntry('warn', message, null, 'frontend');
+    };
+
+    console.error = function(...args) {
+      originalConsole.error(...args);
+      const message = args.map(arg =>
+        typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+      ).join(' ');
+      addLogEntry('error', message, null, 'frontend');
+    };
+
     // Initial empty state
     entriesEl.innerHTML = '<div class="log-empty">Waiting for log entries...</div>';
 
     // Add a welcome message
-    addLogEntry('info', 'Log viewer initialized - watching backend events');
+    addLogEntry('info', 'Log viewer initialized - watching backend + frontend events');
 
     console.log('[LogViewer] Initialized successfully');
 
     // Cleanup function
     return () => {
-      console.log('[LogViewer] Cleaning up...');
+      // Restore original console methods
+      console.log = originalConsole.log;
+      console.warn = originalConsole.warn;
+      console.error = originalConsole.error;
+
+      originalConsole.log('[LogViewer] Cleaning up...');
       // WebSocket event handlers will be cleaned up by workspace
     };
   },
