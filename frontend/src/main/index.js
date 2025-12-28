@@ -39,10 +39,10 @@ function createWorkspaceWindow() {
   const workspaceHtml = path.join(__dirname, '../renderer/index.html');
   mainWindow.loadFile(workspaceHtml);
 
-  // Open DevTools in development
-  if (!app.isPackaged) {
-    mainWindow.webContents.openDevTools();
-  }
+  // Open DevTools in development (disabled - user can open with Cmd+Option+I)
+  // if (!app.isPackaged) {
+  //   mainWindow.webContents.openDevTools();
+  // }
 
   mainWindow.on('closed', () => {
     mainWindow = null;

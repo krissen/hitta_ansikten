@@ -91,11 +91,9 @@ export default {
           break;
 
         case '=':
-          // Reset to 1:1 zoom
-          if (!event.shiftKey) {
-            renderer.resetZoom();
-            event.preventDefault();
-          }
+          // Reset to 1:1 zoom (works on both US and Swedish keyboards)
+          renderer.resetZoom();
+          event.preventDefault();
           break;
 
         case '0':
