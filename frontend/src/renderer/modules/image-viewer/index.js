@@ -98,9 +98,8 @@ export default {
           }
           break;
 
-        case 'a':
-        case 'A':
-          // Auto-fit mode
+        case '0':
+          // Auto-fit mode (0 = reset view)
           renderer.autoFit();
           event.preventDefault();
           break;

@@ -74,17 +74,24 @@ export class LayoutManager {
 
   /**
    * Load default workspace layout
-   * Currently: Single image viewer panel centered
+   * Image viewer (left) + Review module (right)
    */
   loadDefault() {
     console.log('[LayoutManager] Loading default layout');
 
-    // Create default layout: Image viewer centered
+    // Create default layout: Image viewer (left) + Review module (right)
     const imagePanel = this.dockview.addPanel({
       id: 'image-viewer-main',
       component: 'image-viewer',
       params: { isMain: true },
       title: 'Image Viewer'
+    });
+
+    const reviewPanel = this.dockview.addPanel({
+      id: 'review-module-main',
+      component: 'review-module',
+      position: { referencePanel: imagePanel, direction: 'right' },
+      title: 'Face Review'
     });
 
     // Save default layout

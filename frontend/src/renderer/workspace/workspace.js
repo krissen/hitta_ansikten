@@ -11,6 +11,9 @@ import { apiClient } from '../shared/api-client.js';
 
 // Import modules
 import imageViewerModule from '../modules/image-viewer/index.js';
+import reviewModule from '../modules/review-module/index.js';
+import logViewerModule from '../modules/log-viewer/index.js';
+import originalViewModule from '../modules/original-view/index.js';
 
 // Global workspace state
 let dockview = null;
@@ -177,6 +180,9 @@ async function initWorkspace() {
 
   // Register modules
   registerModule(imageViewerModule);
+  registerModule(reviewModule);
+  registerModule(logViewerModule);
+  registerModule(originalViewModule);
 
   // Create Dockview instance
   dockview = createDockview(document.getElementById('workspace-root'), {
