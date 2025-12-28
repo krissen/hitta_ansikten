@@ -182,6 +182,12 @@ export default {
       }
     });
 
+    // Listen for face detection results to show bounding boxes
+    api.on('faces-detected', ({ faces }) => {
+      console.log('[ImageViewer] Received faces-detected event, showing', faces.length, 'bounding boxes');
+      renderer.setFaces(faces);
+    });
+
     // TODO: Load initial image if provided in params
     // For now, we'll add a placeholder message
     if (!renderer.image) {

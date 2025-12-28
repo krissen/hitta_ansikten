@@ -29,6 +29,10 @@ export class CanvasRenderer {
     // Mouse tracking for zoom-to-cursor
     this.mousePos = { x: 0, y: 0 };
 
+    // Face detection overlays
+    this.faces = []; // Array of {bounding_box, person_name, confidence}
+    this.showFaceBoxes = true;
+
     // Setup canvas
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
@@ -215,6 +219,9 @@ export class CanvasRenderer {
     }
 
     this.ctx.drawImage(this.image, drawX, drawY, drawWidth, drawHeight);
+
+    // Draw face bounding boxes on top
+    this.drawFaceBoxes();
   }
 
   /**
@@ -238,6 +245,9 @@ export class CanvasRenderer {
       scaledWidth,
       scaledHeight
     );
+
+    // Draw face bounding boxes on top
+    this.drawFaceBoxes();
   }
 
   /**
@@ -415,6 +425,107 @@ export class CanvasRenderer {
     if (overlay) {
       overlay.remove();
     }
+  }
+
+  /**
+   * Set detected faces for overlay display
+   * @param {Array} faces - Array of face objects with bounding_box, person_name, confidence
+   */
+  setFaces(faces) {
+    this.faces = faces || [];
+    this.render(); // Re-render to show boxes
+  }
+
+  /**
+   * Draw face bounding boxes on the canvas
+   */
+  drawFaceBoxes() {
+    if (!this.showFaceBoxes || !this.faces || this.faces.length === 0) {
+      return;
+    }
+
+    if (!this.image) {
+      return;
+    }
+
+    const canvasWidth = this.canvas.width / (window.devicePixelRatio || 1);
+    const canvasHeight = this.canvas.height / (window.devicePixelRatio || 1);
+
+    // Calculate image position and scale
+    let imageScale, imageX, imageY;
+
+    if (this.zoomMode === 'auto') {
+      // Auto-fit mode
+      const imgRatio = this.image.width / this.image.height;
+      const canvasRatio = canvasWidth / canvasHeight;
+
+      if (imgRatio > canvasRatio) {
+        // Image is wider than canvas
+        imageScale = canvasWidth / this.image.width;
+        imageX = 0;
+        imageY = (canvasHeight - this.image.height * imageScale) / 2;
+      } else {
+        // Image is taller than canvas
+        imageScale = canvasHeight / this.image.height;
+        imageX = (canvasWidth - this.image.width * imageScale) / 2;
+        imageY = 0;
+      }
+    } else {
+      // Manual zoom mode
+      imageScale = this.zoomFactor;
+      imageX = this.pan.x;
+      imageY = this.pan.y;
+    }
+
+    // Draw each face bounding box
+    this.ctx.lineWidth = 3;
+    this.ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+    this.faces.forEach(face => {
+      const bbox = face.bounding_box;
+
+      // Transform bounding box coordinates to canvas space
+      const x = imageX + bbox.x * imageScale;
+      const y = imageY + bbox.y * imageScale;
+      const width = bbox.width * imageScale;
+      const height = bbox.height * imageScale;
+
+      // Choose color based on confidence
+      const confidence = face.confidence || 0;
+      let strokeColor, textBgColor;
+
+      if (confidence > 0.9) {
+        strokeColor = '#4caf50'; // Green for high confidence
+        textBgColor = 'rgba(76, 175, 80, 0.8)';
+      } else if (confidence > 0.6) {
+        strokeColor = '#ff9800'; // Orange for medium confidence
+        textBgColor = 'rgba(255, 152, 0, 0.8)';
+      } else {
+        strokeColor = '#f44336'; // Red for low confidence
+        textBgColor = 'rgba(244, 67, 54, 0.8)';
+      }
+
+      // Draw bounding box
+      this.ctx.strokeStyle = strokeColor;
+      this.ctx.strokeRect(x, y, width, height);
+
+      // Draw label if person has a name
+      if (face.person_name) {
+        const label = `${face.person_name} (${(confidence * 100).toFixed(0)}%)`;
+        const metrics = this.ctx.measureText(label);
+        const textWidth = metrics.width;
+        const textHeight = 20;
+        const padding = 4;
+
+        // Background for text
+        this.ctx.fillStyle = textBgColor;
+        this.ctx.fillRect(x, y - textHeight - padding, textWidth + padding * 2, textHeight + padding);
+
+        // Text
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillText(label, x + padding, y - padding);
+      }
+    });
   }
 
   /**

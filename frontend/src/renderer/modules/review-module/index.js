@@ -212,10 +212,25 @@ export default {
       card.className = 'face-card';
       if (face.is_confirmed) card.classList.add('confirmed');
 
-      // Thumbnail (placeholder for now - will extract from image in future)
+      // Thumbnail - load actual face image from API
       const thumbnail = document.createElement('div');
       thumbnail.className = 'face-thumbnail';
-      thumbnail.textContent = '👤';
+
+      // Build thumbnail URL
+      const bbox = face.bounding_box;
+      const thumbnailUrl = `http://127.0.0.1:5000/api/face-thumbnail?` +
+        `image_path=${encodeURIComponent(currentImagePath)}` +
+        `&x=${bbox.x}&y=${bbox.y}&width=${bbox.width}&height=${bbox.height}&size=150`;
+
+      // Create img element
+      const img = document.createElement('img');
+      img.src = thumbnailUrl;
+      img.alt = face.person_name || 'Unknown';
+      img.onerror = () => {
+        // Fallback to placeholder on error
+        thumbnail.textContent = '👤';
+      };
+      thumbnail.appendChild(img);
 
       // Info
       const info = document.createElement('div');
@@ -350,6 +365,9 @@ export default {
 
         detectedFaces = result.faces;
         console.log(`[ReviewModule] Found ${detectedFaces.length} faces`);
+
+        // Emit faces to Image Viewer for bounding box overlay
+        api.emit('faces-detected', { faces: detectedFaces });
 
         renderFaceGrid();
         updateStatus(`Found ${detectedFaces.length} faces (${result.processing_time_ms.toFixed(0)}ms)`);
