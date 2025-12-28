@@ -1,6 +1,23 @@
 # hitta_ansikten
 
-**hitta_ansikten** är ett Python-baserat terminalverktyg för batchhantering, detektering och igenkänning av ansikten i stora samlingar av RAW-bilder (t.ex. NEF från Nikon). Projektet är särskilt utformat för att underlätta identifiering, omdöpning och annotering av bilder från sportevent, skolaktiviteter eller andra miljöer där många personer återkommer på flera bilder.
+**hitta_ansikten** är ett monorepo med verktyg för ansiktsdetektering och bildvisning:
+
+- **Backend**: Python-baserat terminalverktyg för batchhantering, detektering och igenkänning av ansikten i stora samlingar av RAW-bilder (t.ex. NEF från Nikon)
+- **Frontend**: Electron-baserad bildvisare (Bildvisare) för att visa och annotera bilder
+- **Shared**: Delade typdefinitioner och API-protokoll mellan frontend och backend
+
+Projektet är särskilt utformat för att underlätta identifiering, omdöpning och annotering av bilder från sportevent, skolaktiviteter eller andra miljöer där många personer återkommer på flera bilder.
+
+## Projektstruktur
+
+```
+hitta_ansikten/
+├── backend/           # Python ML backend för ansiktsdetektering
+├── frontend/          # Electron bildvisare (Bildvisare)
+├── shared/            # Delade typer och API-protokoll
+├── README.md          # Denna fil
+└── LICENSE
+```
 
 ## Syfte och bakgrund
 
@@ -38,15 +55,21 @@ Alla data sparas i en katalog under `~/.local/share/faceid/` (justerbart):
 
 ## Arbetsflöde (CLI)
 
-1. **Detektera och processa bilder:** `hitta_ansikten 2024*.NEF`
+Alla backend-kommandon körs från `backend/`-katalogen:
 
-2. **Omdöp alla redan processade bilder enligt personer:** `hitta_ansikten --rename .`
+```sh
+cd backend
+```
 
-3. **Bearbeta endast vissa filer (t.ex. via glob):** `hitta_ansikten --rename 250518_*.NEF`
+1. **Detektera och processa bilder:** `./hitta_ansikten.py 2024*.NEF`
+
+2. **Omdöp alla redan processade bilder enligt personer:** `./hitta_ansikten.py --rename .`
+
+3. **Bearbeta endast vissa filer (t.ex. via glob):** `./hitta_ansikten.py --rename 250518_*.NEF`
 
 4. **Lägg till personer manuellt** (vid t.ex. ryggar eller okända ansikten) via alternativet `m` i review-dialogen.
 
-5. **Fixa encodings eller rensa gamla matchningar:** `hitta_ansikten --fix <filer>`
+5. **Fixa encodings eller rensa gamla matchningar:** `./hitta_ansikten.py --fix <filer>`
 
 6. **Migrera eller uppdatera encodings med filhash:** `python update_encodings_with_filehash.py 2024*.NEF`
 
@@ -70,19 +93,42 @@ known_faces = {
 
 ## Installation
 
+### Backend (Python)
+
 Python 3.9 or newer is required.
 
 Install all dependencies with:
 
 ```sh
+cd backend
 pip install -r requirements.txt
 ```
 
 Make sure you have Python development headers installed, as some libraries (such as dlib/face_recognition) require compilation.
 
-## Companion app för bildvisning
+### Frontend (Electron)
 
-App som används för att visa bild, taggat med labels på ansikten, är som förval kompanjon-appen [Bildvisare](https://github.com/krissen/bildvisare). Detta kan justeras i inställningar.
+Node.js and npm are required.
+
+```sh
+cd frontend
+npm install
+```
+
+To run the frontend:
+```sh
+npm start
+# or
+npx electron .
+```
+
+## Frontend (Bildvisare)
+
+Den integrerade bildvisaren i `frontend/` används för att visa bilder med detekterade ansikten.
+
+**Notering**: En fristående version finns också på [github.com/krissen/bildvisare](https://github.com/krissen/bildvisare) som kan användas separat.
+
+Se `frontend/README.md` för mer information om bildvisaren.
 
 ## Preprocessed cache
 

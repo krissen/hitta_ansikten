@@ -1,0 +1,27 @@
+/* Bildvisare Styles */
+
+body {
+  margin: 0;
+  background: #fff;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#bild-container {
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+}
+
+#bild {
+  display: block;
+}
+
+#fallback-message {
+  display: none;
+  text-align: center;
+  color: #888;
+  font-size: 22px;
+  margin-top: 30vh;
+}
