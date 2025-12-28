@@ -181,6 +181,12 @@ export class LayoutManager {
    * Reset to default layout
    */
   reset() {
+    // Clear all existing panels first
+    const panels = [...this.dockview.panels]; // Create copy to avoid mutation during iteration
+    panels.forEach(panel => {
+      this.dockview.removePanel(panel);
+    });
+
     localStorage.removeItem(this.storageKey);
     this.loadDefault();
     console.log('[LayoutManager] Reset to default layout');
