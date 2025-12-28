@@ -266,6 +266,14 @@ export class APIClient {
   async getPeople() {
     return await this.get('/api/database/people');
   }
+
+  /**
+   * Get list of person names (for autocomplete)
+   * @returns {Promise<Array<string>>}
+   */
+  async getPeopleNames() {
+    return await this.get('/api/database/people/names');
+  }
 }
 
 // Singleton instance

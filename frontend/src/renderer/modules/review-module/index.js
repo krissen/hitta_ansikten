@@ -38,6 +38,12 @@ export default {
       </div>
     `;
 
+    // Create datalist for autocomplete (shared by all name inputs)
+    const datalistId = 'people-names-datalist';
+    const datalist = document.createElement('datalist');
+    datalist.id = datalistId;
+    container.appendChild(datalist);
+
     // Add styles
     const style = document.createElement('style');
     style.textContent = `
@@ -180,6 +186,27 @@ export default {
     const statusEl = container.querySelector('.review-status');
     const gridEl = container.querySelector('.face-grid');
 
+    // Load people names for autocomplete
+    async function loadPeopleNames() {
+      try {
+        people = await api.backend.getPeopleNames();
+        console.log(`[ReviewModule] Loaded ${people.length} people names for autocomplete`);
+
+        // Update datalist
+        datalist.innerHTML = '';
+        people.forEach(name => {
+          const option = document.createElement('option');
+          option.value = name;
+          datalist.appendChild(option);
+        });
+      } catch (err) {
+        console.error('[ReviewModule] Failed to load people names:', err);
+      }
+    }
+
+    // Load people names on init
+    loadPeopleNames();
+
     /**
      * Update status message
      */
@@ -245,11 +272,12 @@ export default {
       actions.className = 'face-actions';
 
       if (!face.is_confirmed) {
-        // Name input
+        // Name input with autocomplete
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.placeholder = 'Person name...';
         nameInput.value = face.person_name || '';
+        nameInput.setAttribute('list', datalistId); // Link to datalist for autocomplete
 
         // Confirm button
         const confirmBtn = document.createElement('button');
@@ -298,6 +326,9 @@ export default {
         // Update local state
         detectedFaces[index].is_confirmed = true;
         detectedFaces[index].person_name = personName.trim();
+
+        // Reload people names to include newly added person
+        loadPeopleNames();
 
         // Emit event to other modules
         api.emit('face-confirmed', {
