@@ -7,6 +7,7 @@
 import { createDockview } from '../../../node_modules/dockview-core/dist/dockview-core.esm.js';
 import { LayoutManager } from './layout-manager.js';
 import { registerModule, getModule } from './module-registry.js';
+import { apiClient } from '../shared/api-client.js';
 
 // Import modules
 import imageViewerModule from '../modules/image-viewer/index.js';
@@ -68,26 +69,27 @@ class ModuleAPI {
     }
   }
 
-  // Backend communication (stub for Phase 2)
+  // Backend communication via API client
   http = {
     get: async (path, params) => {
-      console.warn('[ModuleAPI] HTTP not implemented yet (Phase 2)');
-      return {};
+      return apiClient.get(path, params);
     },
     post: async (path, body) => {
-      console.warn('[ModuleAPI] HTTP not implemented yet (Phase 2)');
-      return {};
+      return apiClient.post(path, body);
     }
   };
 
   ws = {
     on: (event, callback) => {
-      console.warn('[ModuleAPI] WebSocket not implemented yet (Phase 2)');
+      apiClient.onWSEvent(event, callback);
     },
-    emit: (event, data) => {
-      console.warn('[ModuleAPI] WebSocket not implemented yet (Phase 2)');
+    off: (event, callback) => {
+      apiClient.offWSEvent(event, callback);
     }
   };
+
+  // Direct access to API client for convenience
+  backend = apiClient;
 
   // IPC to main process
   ipc = {
@@ -198,6 +200,15 @@ async function initWorkspace() {
   // Setup keyboard shortcuts for workspace
   setupWorkspaceKeyboardShortcuts();
 
+  // Connect to backend WebSocket
+  try {
+    await apiClient.connectWebSocket();
+    console.log('[Workspace] WebSocket connected');
+  } catch (err) {
+    console.error('[Workspace] Failed to connect WebSocket:', err);
+    // Continue anyway - modules can still use HTTP API
+  }
+
   console.log('[Workspace] Initialized successfully');
 
   // Make workspace globally accessible for debugging
@@ -206,7 +217,8 @@ async function initWorkspace() {
     layoutManager,
     openModule,
     closePanel,
-    getModuleInstances: () => moduleInstances
+    getModuleInstances: () => moduleInstances,
+    apiClient // Expose API client for debugging
   };
 }
 

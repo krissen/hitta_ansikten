@@ -10,8 +10,10 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
+const { BackendService } = require('./backend-service');
 
 let mainWindow = null;
+let backendService = null;
 
 /**
  * Create the main workspace window
@@ -50,8 +52,20 @@ function createWorkspaceWindow() {
 }
 
 // App lifecycle
-app.whenReady().then(() => {
-  console.log('[Main] App ready, creating workspace...');
+app.whenReady().then(async () => {
+  console.log('[Main] App ready, starting backend...');
+
+  // Start backend service
+  try {
+    backendService = new BackendService();
+    await backendService.start();
+    console.log(`[Main] Backend ready at ${backendService.getUrl()}`);
+  } catch (err) {
+    console.error('[Main] Failed to start backend:', err);
+    // TODO: Show error dialog to user
+  }
+
+  // Create workspace window
   createWorkspaceWindow();
 
   app.on('activate', () => {
@@ -63,6 +77,19 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('before-quit', async (event) => {
+  if (backendService) {
+    console.log('[Main] Shutting down backend...');
+    event.preventDefault(); // Prevent quit until backend stops
+
+    await backendService.stop();
+    backendService = null;
+
+    // Now quit for real
     app.quit();
   }
 });
