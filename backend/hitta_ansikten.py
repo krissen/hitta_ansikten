@@ -55,8 +55,9 @@ def init_logging(level=logging.DEBUG, logfile=LOGGING_PATH):
 init_logging()
  
 # === CONSTANTS === #
-# Use system temp directory for cross-platform compatibility
-TEMP_DIR = Path(tempfile.gettempdir()) / "hitta_ansikten"
+# Use /private/tmp for macOS compatibility with Bildvisare security restrictions
+# Bildvisare whitelists /tmp and /private/tmp but not system temp (/var/folders/...)
+TEMP_DIR = Path("/private/tmp") / "hitta_ansikten"
 TEMP_DIR.mkdir(exist_ok=True, parents=True)
 ORDINARY_PREVIEW_PATH = str(TEMP_DIR / "preview.jpg")
 MAX_ATTEMPTS = 2
