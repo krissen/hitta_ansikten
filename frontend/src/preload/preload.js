@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld("bildvisareAPI", {
   },
 
   on: (channel, callback) => {
-    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view"];
+    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command"];
     if (allowedChannels.includes(channel)) {
       // Strip event object for security
       ipcRenderer.on(channel, (event, ...args) => callback(...args));

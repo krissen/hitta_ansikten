@@ -226,6 +226,194 @@ async function initWorkspace() {
     getModuleInstances: () => moduleInstances,
     apiClient // Expose API client for debugging
   };
+
+  // Listen for initial file path from main process
+  if (window.bildvisareAPI) {
+    window.bildvisareAPI.on('load-initial-file', (filePath) => {
+      console.log('[Workspace] Received initial file path:', filePath);
+
+      // Find image viewer module and trigger load
+      const imageViewerInstance = Array.from(moduleInstances.values()).find(
+        instance => instance.module.id === 'image-viewer'
+      );
+
+      if (imageViewerInstance) {
+        imageViewerInstance.api._triggerEvent('load-image', { imagePath: filePath });
+        console.log('[Workspace] Triggered load-image event for initial file');
+      } else {
+        console.warn('[Workspace] No image viewer module found for initial file load');
+      }
+    });
+
+    // Listen for menu commands
+    window.bildvisareAPI.on('menu-command', async (command) => {
+      console.log('[Workspace] Menu command:', command);
+
+      switch (command) {
+        case 'open-file':
+          await openFileDialog();
+          break;
+
+        case 'reload-database':
+          await reloadDatabase();
+          break;
+
+        case 'save-all-changes':
+          // Broadcast to Review Module
+          moduleInstances.forEach((instance) => {
+            if (instance.module.id === 'review-module') {
+              instance.api._triggerEvent('save-all-changes', {});
+            }
+          });
+          break;
+
+        case 'discard-changes':
+          // Broadcast to Review Module
+          moduleInstances.forEach((instance) => {
+            if (instance.module.id === 'review-module') {
+              instance.api._triggerEvent('discard-changes', {});
+            }
+          });
+          break;
+
+        case 'toggle-single-all-boxes':
+          // Broadcast to all modules
+          moduleInstances.forEach((instance) => {
+            instance.api._triggerEvent('toggle-single-all-boxes', {});
+          });
+          break;
+
+        case 'toggle-boxes-on-off':
+          // Broadcast to all modules
+          moduleInstances.forEach((instance) => {
+            instance.api._triggerEvent('toggle-boxes-on-off', {});
+          });
+          break;
+
+        case 'zoom-in':
+        case 'zoom-out':
+        case 'reset-zoom':
+        case 'auto-fit':
+          // Broadcast to all modules (image viewer will handle)
+          moduleInstances.forEach((instance) => {
+            instance.api._triggerEvent(command, {});
+          });
+          break;
+
+        case 'open-original-view':
+          // Smart positioning: place below Image Viewer if Review is open
+          const imageViewerPanel = dockview.panels.find(p => p.id === 'image-viewer-main');
+          const reviewPanel = dockview.panels.find(p => p.id === 'review-module-main');
+
+          if (imageViewerPanel && reviewPanel) {
+            // Both panels exist - place Original View below Image Viewer
+            openModule('original-view', {
+              title: 'Original View',
+              position: {
+                referencePanel: imageViewerPanel,
+                direction: 'below'
+              }
+            });
+          } else if (imageViewerPanel) {
+            // Only Image Viewer exists - place to the right
+            openModule('original-view', {
+              title: 'Original View',
+              position: {
+                referencePanel: imageViewerPanel,
+                direction: 'right'
+              }
+            });
+          } else {
+            // No reference panel - add freely
+            openModule('original-view', { title: 'Original View' });
+          }
+          break;
+
+        case 'open-log-viewer':
+          openModule('log-viewer', { title: 'Log Viewer' });
+          break;
+
+        case 'reset-layout':
+          if (confirm('Reset workspace layout to default?\n\nThis will close all panels and restore the default layout.')) {
+            layoutManager.reset();
+          }
+          break;
+
+        case 'show-keyboard-shortcuts':
+          showKeyboardShortcuts();
+          break;
+
+        default:
+          console.warn('[Workspace] Unknown menu command:', command);
+      }
+    });
+  }
+}
+
+/**
+ * Reload face database from backend
+ */
+async function reloadDatabase() {
+  try {
+    console.log('[Workspace] Reloading database...');
+
+    const response = await apiClient.post('/reload-database', {});
+
+    if (response.status === 'success') {
+      console.log(`[Workspace] Database reloaded: ${response.people_count} people, ${response.ignored_count} ignored`);
+      alert(`Database reloaded successfully!\n\n${response.people_count} people\n${response.ignored_count} ignored faces\n${response.cache_cleared} cached results cleared`);
+    }
+  } catch (err) {
+    console.error('[Workspace] Failed to reload database:', err);
+    alert('Failed to reload database. Check console for details.');
+  }
+}
+
+/**
+ * Show keyboard shortcuts help dialog
+ */
+function showKeyboardShortcuts() {
+  const shortcuts = `
+Keyboard Shortcuts
+
+File:
+  Cmd+O          Open Image
+  Cmd+R          Reload Database
+
+View:
+  b              Toggle Single/All Bounding Boxes
+  Shift+B        Toggle Bounding Boxes On/Off
+  Cmd++          Zoom In
+  Cmd+-          Zoom Out
+  Cmd+=          Reset Zoom (1:1)
+  Cmd+0          Auto-Fit
+  Cmd+Shift+O    Open Original View
+  Cmd+L          Open Log Viewer
+
+Image Viewer:
+  +/-            Zoom (hold for continuous)
+  =              Reset to 1:1
+  0              Auto-fit
+
+Review Module:
+  Tab/↓          Next face
+  Shift+Tab/↑    Previous face
+  1-9            Jump to face number
+  Enter/A        Confirm identity
+  I              Ignore face
+  Esc            Cancel input
+
+Window:
+  Cmd+Shift+L    Reset Layout
+  Cmd+W          Close Window
+  Cmd+Q          Quit
+
+Developer:
+  Cmd+Option+I   Toggle DevTools
+  Cmd+Shift+R    Reload Window
+  `.trim();
+
+  alert(shortcuts);
 }
 
 /**

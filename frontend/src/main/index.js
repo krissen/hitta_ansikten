@@ -5,15 +5,17 @@
  * This file is loaded when BILDVISARE_WORKSPACE=1
  */
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const { BackendService } = require('./backend-service');
+const { createApplicationMenu } = require('./menu');
 
 let mainWindow = null;
 let backendService = null;
+let initialFilePath = null;
 
 /**
  * Create the main workspace window
@@ -32,12 +34,21 @@ function createWorkspaceWindow() {
     title: 'Bildvisare Workspace'
   });
 
-  // Remove menu bar
-  mainWindow.setMenu(null);
+  // Set application menu
+  const menu = createApplicationMenu(mainWindow);
+  Menu.setApplicationMenu(menu);
 
   // Load workspace HTML
   const workspaceHtml = path.join(__dirname, '../renderer/index.html');
   mainWindow.loadFile(workspaceHtml);
+
+  // Send initial file path to renderer when ready
+  if (initialFilePath) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      console.log('[Main] Sending initial file path to renderer:', initialFilePath);
+      mainWindow.webContents.send('load-initial-file', initialFilePath);
+    });
+  }
 
   // Open DevTools in development (disabled - user can open with Cmd+Option+I)
   // if (!app.isPackaged) {
@@ -49,6 +60,17 @@ function createWorkspaceWindow() {
   });
 
   console.log('[Main] Workspace window created');
+}
+
+// Get initial file path from command line arguments
+// process.argv[0] is electron, process.argv[1] is the app, process.argv[2] is the file
+if (process.argv.length > 2) {
+  const argPath = process.argv[2];
+  // Check if it's a file path (not a flag)
+  if (!argPath.startsWith('-') && fs.existsSync(argPath)) {
+    initialFilePath = path.resolve(argPath);
+    console.log('[Main] Initial file path from args:', initialFilePath);
+  }
 }
 
 // App lifecycle
