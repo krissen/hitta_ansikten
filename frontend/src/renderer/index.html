@@ -26,23 +26,16 @@
 
     /* Custom workspace theme */
     .bildvisare-workspace {
-      --dv-tabs-height: 28px;
-
-      /* Group visual distinction - subtle borders only */
-      --dv-group-border-color: rgba(128, 128, 128, 0.2);
+      /* Border radius (not user-configurable) */
       --dv-group-border-radius: 4px;
-
-      /* Tab styling - grayscale only */
       --dv-tab-border-radius: 6px 6px 0 0;
-      --dv-active-tab-background: #f5f5f5;
-      --dv-inactive-tab-background: #e0e0e0;
-      --dv-active-tab-color: #1a1a1a;
-      --dv-inactive-tab-color: #888888;
+
+      /* All other CSS variables are set dynamically from preferences via workspace.js */
     }
 
     /* Group borders - same for active/inactive */
     .bildvisare-workspace .groupview {
-      border: 1px solid var(--dv-group-border-color);
+      border: 1px solid var(--dv-group-border-color, rgba(128, 128, 128, 0.2));
       border-radius: var(--dv-group-border-radius);
       overflow: hidden;
     }
@@ -55,7 +48,7 @@
     /* Remove border between tabs and content */
     .bildvisare-workspace .tabs-and-actions-container {
       border: none !important;
-      background-color: #d0d0d0;
+      background-color: var(--dv-tab-container-background, #d0d0d0);
       padding: 4px 4px 0 4px;
     }
 
@@ -65,8 +58,8 @@
       border: 1px solid transparent;
       margin-right: 2px;
       padding: 0 var(--dv-tab-padding-right, 6px) 0 var(--dv-tab-padding-left, 8px) !important;
-      background-color: var(--dv-inactive-tab-background);
-      color: var(--dv-inactive-tab-color);
+      background-color: var(--dv-inactive-tab-background, #e0e0e0) !important;
+      color: var(--dv-inactive-tab-color, #888888) !important;
       font-size: var(--dv-tabs-font-size, 13px);
       height: var(--dv-tabs-height, 28px) !important;
       transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
@@ -98,8 +91,8 @@
     }
 
     .bildvisare-workspace .tab.active-tab {
-      background-color: var(--dv-active-tab-background);
-      color: var(--dv-active-tab-color);
+      background-color: var(--dv-active-tab-background, #f5f5f5) !important;
+      color: var(--dv-active-tab-color, #1a1a1a) !important;
       border-color: rgba(128, 128, 128, 0.25);
       border-bottom-color: transparent;
       font-weight: 500;
@@ -107,20 +100,20 @@
 
     /* All tabs in inactive group should look inactive */
     .bildvisare-workspace .groupview.inactive-group .tab.active-tab {
-      background-color: var(--dv-inactive-tab-background);
-      color: var(--dv-inactive-tab-color);
+      background-color: var(--dv-inactive-tab-background, #e0e0e0) !important;
+      color: var(--dv-inactive-tab-color, #888888) !important;
       font-weight: normal;
       border-color: transparent;
     }
 
     .bildvisare-workspace .tab:hover:not(.active-tab) {
-      background-color: #eeeeee;
-      color: #333333;
+      background-color: #eeeeee !important;
+      color: #333333 !important;
     }
 
     /* Hover state for tabs in inactive groups */
     .bildvisare-workspace .groupview.inactive-group .tab:hover {
-      background-color: #d8d8d8;
+      background-color: #d8d8d8 !important;
     }
 
     /* Separator visibility */

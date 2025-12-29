@@ -194,20 +194,60 @@ async function openFileDialog() {
  * Apply UI preferences to CSS variables
  */
 function applyUIPreferences() {
+  console.log('[Workspace] applyUIPreferences() called');
+
+  // Find the workspace root element
+  const workspaceRoot = document.querySelector('.bildvisare-workspace');
+  if (!workspaceRoot) {
+    console.error('[Workspace] Could not find .bildvisare-workspace element!');
+    return;
+  }
+
+  // Sizes and spacing
   const tabsHeight = preferences.get('appearance.tabsHeight') || 28;
   const tabsFontSize = preferences.get('appearance.tabsFontSize') || 13;
   const tabPaddingLeft = preferences.get('appearance.tabPaddingLeft') || 8;
   const tabPaddingRight = preferences.get('appearance.tabPaddingRight') || 6;
   const tabMinGap = preferences.get('appearance.tabMinGap') || 10;
 
-  document.documentElement.style.setProperty('--dv-tabs-height', `${tabsHeight}px`);
-  document.documentElement.style.setProperty('--dv-tabs-font-size', `${tabsFontSize}px`);
-  document.documentElement.style.setProperty('--dv-tab-padding-left', `${tabPaddingLeft}px`);
-  document.documentElement.style.setProperty('--dv-tab-padding-right', `${tabPaddingRight}px`);
-  document.documentElement.style.setProperty('--dv-tab-min-gap', `${tabMinGap}px`);
+  console.log('[Workspace] Setting size CSS variables on .bildvisare-workspace...');
+  workspaceRoot.style.setProperty('--dv-tabs-height', `${tabsHeight}px`);
+  workspaceRoot.style.setProperty('--dv-tabs-font-size', `${tabsFontSize}px`);
+  workspaceRoot.style.setProperty('--dv-tab-padding-left', `${tabPaddingLeft}px`);
+  workspaceRoot.style.setProperty('--dv-tab-padding-right', `${tabPaddingRight}px`);
+  workspaceRoot.style.setProperty('--dv-tab-min-gap', `${tabMinGap}px`);
+
+  // Colors
+  const activeTabBackground = preferences.get('appearance.activeTabBackground') || '#f5f5f5';
+  const inactiveTabBackground = preferences.get('appearance.inactiveTabBackground') || '#e0e0e0';
+  const activeTabColor = preferences.get('appearance.activeTabColor') || '#1a1a1a';
+  const inactiveTabColor = preferences.get('appearance.inactiveTabColor') || '#888888';
+  const tabContainerBackground = preferences.get('appearance.tabContainerBackground') || '#d0d0d0';
+  const groupBorderColor = preferences.get('appearance.groupBorderColor') || 'rgba(128, 128, 128, 0.2)';
+
+  console.log('[Workspace] Color values from preferences:', {
+    activeTabBackground, inactiveTabBackground, activeTabColor, inactiveTabColor,
+    tabContainerBackground, groupBorderColor
+  });
+
+  console.log('[Workspace] Setting color CSS variables on .bildvisare-workspace...');
+  workspaceRoot.style.setProperty('--dv-active-tab-background', activeTabBackground);
+  workspaceRoot.style.setProperty('--dv-inactive-tab-background', inactiveTabBackground);
+  workspaceRoot.style.setProperty('--dv-active-tab-color', activeTabColor);
+  workspaceRoot.style.setProperty('--dv-inactive-tab-color', inactiveTabColor);
+  workspaceRoot.style.setProperty('--dv-tab-container-background', tabContainerBackground);
+  workspaceRoot.style.setProperty('--dv-group-border-color', groupBorderColor);
+
+  // Verify variables were set
+  console.log('[Workspace] Verifying CSS variables were set on workspace element:');
+  console.log('  --dv-active-tab-background:', workspaceRoot.style.getPropertyValue('--dv-active-tab-background'));
+  console.log('  --dv-inactive-tab-background:', workspaceRoot.style.getPropertyValue('--dv-inactive-tab-background'));
+  console.log('  --dv-active-tab-color:', workspaceRoot.style.getPropertyValue('--dv-active-tab-color'));
 
   console.log(`[Workspace] Applied appearance preferences:`, {
-    tabsHeight, tabsFontSize, tabPaddingLeft, tabPaddingRight, tabMinGap
+    tabsHeight, tabsFontSize, tabPaddingLeft, tabPaddingRight, tabMinGap,
+    activeTabBackground, inactiveTabBackground, activeTabColor, inactiveTabColor,
+    tabContainerBackground, groupBorderColor
   });
 }
 

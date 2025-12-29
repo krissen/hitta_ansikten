@@ -181,6 +181,46 @@ export class PreferencesUI {
               </div>
               <small>Minimum space between text and close button.</small>
             </div>
+
+            <div class="pref-section">
+              <h3>Colors</h3>
+
+              <!-- Tab Background Colors -->
+              <div class="pref-field-row">
+                <div class="pref-field-color">
+                  <label>Active Tab Background</label>
+                  <input type="color" id="pref-appearance-activeTabBackground" />
+                </div>
+                <div class="pref-field-color">
+                  <label>Inactive Tab Background</label>
+                  <input type="color" id="pref-appearance-inactiveTabBackground" />
+                </div>
+              </div>
+
+              <!-- Tab Text Colors -->
+              <div class="pref-field-row">
+                <div class="pref-field-color">
+                  <label>Active Tab Text</label>
+                  <input type="color" id="pref-appearance-activeTabColor" />
+                </div>
+                <div class="pref-field-color">
+                  <label>Inactive Tab Text</label>
+                  <input type="color" id="pref-appearance-inactiveTabColor" />
+                </div>
+              </div>
+
+              <!-- Container Colors -->
+              <div class="pref-field-row">
+                <div class="pref-field-color">
+                  <label>Tab Container Background</label>
+                  <input type="color" id="pref-appearance-tabContainerBackground" />
+                </div>
+                <div class="pref-field-color">
+                  <label>Group Border Color</label>
+                  <input type="color" id="pref-appearance-groupBorderColor" />
+                </div>
+              </div>
+            </div>
           </div>
           </div>
 
@@ -448,6 +488,42 @@ export class PreferencesUI {
         color: #777;
       }
 
+      .pref-field-row {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+
+      .pref-field-color {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .pref-field-color label {
+        font-size: 14px;
+        font-weight: 500;
+        color: #555;
+      }
+
+      .pref-field-color input[type="color"] {
+        height: 40px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        padding: 2px;
+      }
+
+      .pref-field-color input[type="color"]::-webkit-color-swatch-wrapper {
+        padding: 2px;
+      }
+
+      .pref-field-color input[type="color"]::-webkit-color-swatch {
+        border: none;
+        border-radius: 2px;
+      }
+
       .slider-input-group {
         display: flex;
         gap: 12px;
@@ -613,6 +689,13 @@ export class PreferencesUI {
       });
     });
 
+    // ESC key to cancel (same as cancel button)
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.modal && this.modal.style.display !== 'none') {
+        this.hide();
+      }
+    });
+
     // Close button
     this.modal.querySelector('.btn-close').addEventListener('click', () => {
       this.hide();
@@ -656,6 +739,14 @@ export class PreferencesUI {
     this.setupLivePreview('appearance-tabPaddingLeft', '--dv-tab-padding-left', 'px');
     this.setupLivePreview('appearance-tabPaddingRight', '--dv-tab-padding-right', 'px');
     this.setupLivePreview('appearance-tabMinGap', '--dv-tab-min-gap', 'px');
+
+    // Setup live preview for color settings
+    this.setupColorLivePreview('appearance-activeTabBackground', '--dv-active-tab-background');
+    this.setupColorLivePreview('appearance-inactiveTabBackground', '--dv-inactive-tab-background');
+    this.setupColorLivePreview('appearance-activeTabColor', '--dv-active-tab-color');
+    this.setupColorLivePreview('appearance-inactiveTabColor', '--dv-inactive-tab-color');
+    this.setupColorLivePreview('appearance-tabContainerBackground', '--dv-tab-container-background');
+    this.setupColorLivePreview('appearance-groupBorderColor', '--dv-group-border-color', true);
   }
 
   /**
@@ -688,7 +779,11 @@ export class PreferencesUI {
     if (!slider || !numberInput) return;
 
     const updateCSS = (value) => {
-      document.documentElement.style.setProperty(cssVariable, `${value}${unit}`);
+      // Set on .bildvisare-workspace element, not :root
+      const workspaceRoot = document.querySelector('.bildvisare-workspace');
+      if (workspaceRoot) {
+        workspaceRoot.style.setProperty(cssVariable, `${value}${unit}`);
+      }
 
       // Also update tempPrefs so Save button saves the correct value
       const path = id.replace(/-/g, '.');
@@ -714,6 +809,67 @@ export class PreferencesUI {
   }
 
   /**
+   * Setup live preview for color CSS variable changes
+   */
+  setupColorLivePreview(id, cssVariable, isRgba = false) {
+    const colorInput = this.modal.querySelector(`#pref-${id}`);
+
+    if (!colorInput) return;
+
+    const updateCSS = (value) => {
+      let cssValue = value;
+
+      // If this is an rgba color (groupBorderColor), convert hex to rgba
+      if (isRgba) {
+        const r = parseInt(value.slice(1, 3), 16);
+        const g = parseInt(value.slice(3, 5), 16);
+        const b = parseInt(value.slice(5, 7), 16);
+        cssValue = `rgba(${r}, ${g}, ${b}, 0.2)`;
+      }
+
+      // Set on .bildvisare-workspace element, not :root
+      const workspaceRoot = document.querySelector('.bildvisare-workspace');
+      if (workspaceRoot) {
+        workspaceRoot.style.setProperty(cssVariable, cssValue);
+      }
+
+      // Also update tempPrefs so Save button saves the correct value
+      const path = id.replace(/-/g, '.');
+      const keys = path.split('.');
+      const lastKey = keys.pop();
+      let target = this.tempPrefs;
+      for (const key of keys) {
+        if (!target[key]) target[key] = {};
+        target = target[key];
+      }
+      target[lastKey] = isRgba ? cssValue : value;
+    };
+
+    // Update on color change
+    colorInput.addEventListener('input', () => {
+      updateCSS(colorInput.value);
+    });
+  }
+
+  /**
+   * Convert rgba string to hex color
+   */
+  rgbaToHex(rgba) {
+    // Extract rgba values
+    const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (!match) return rgba; // Return as-is if not rgba
+
+    const r = parseInt(match[1]);
+    const g = parseInt(match[2]);
+    const b = parseInt(match[3]);
+
+    return '#' + [r, g, b].map(x => {
+      const hex = x.toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+  }
+
+  /**
    * Populate form with current preference values
    */
   populateForm() {
@@ -727,6 +883,28 @@ export class PreferencesUI {
     this.setValue('ui-defaultLayout', this.tempPrefs.ui.defaultLayout);
     this.setValue('ui-showWelcome', this.tempPrefs.ui.showWelcome);
     this.setValue('ui-logLevel', this.tempPrefs.ui.logLevel);
+
+    // Appearance settings - sizes
+    this.setValue('appearance-tabsHeight', this.tempPrefs.appearance.tabsHeight);
+    this.setValue('appearance-tabsHeight-slider', this.tempPrefs.appearance.tabsHeight);
+    this.setValue('appearance-tabsFontSize', this.tempPrefs.appearance.tabsFontSize);
+    this.setValue('appearance-tabsFontSize-slider', this.tempPrefs.appearance.tabsFontSize);
+    this.setValue('appearance-tabPaddingLeft', this.tempPrefs.appearance.tabPaddingLeft);
+    this.setValue('appearance-tabPaddingLeft-slider', this.tempPrefs.appearance.tabPaddingLeft);
+    this.setValue('appearance-tabPaddingRight', this.tempPrefs.appearance.tabPaddingRight);
+    this.setValue('appearance-tabPaddingRight-slider', this.tempPrefs.appearance.tabPaddingRight);
+    this.setValue('appearance-tabMinGap', this.tempPrefs.appearance.tabMinGap);
+    this.setValue('appearance-tabMinGap-slider', this.tempPrefs.appearance.tabMinGap);
+
+    // Appearance settings - colors
+    this.setValue('appearance-activeTabBackground', this.tempPrefs.appearance.activeTabBackground);
+    this.setValue('appearance-inactiveTabBackground', this.tempPrefs.appearance.inactiveTabBackground);
+    this.setValue('appearance-activeTabColor', this.tempPrefs.appearance.activeTabColor);
+    this.setValue('appearance-inactiveTabColor', this.tempPrefs.appearance.inactiveTabColor);
+    this.setValue('appearance-tabContainerBackground', this.tempPrefs.appearance.tabContainerBackground);
+    // Convert rgba to hex for color picker
+    const borderColor = this.rgbaToHex(this.tempPrefs.appearance.groupBorderColor);
+    this.setValue('appearance-groupBorderColor', borderColor);
 
     // Image viewer settings
     this.setValue('imageViewer-zoomSpeed', this.tempPrefs.imageViewer.zoomSpeed);
@@ -796,6 +974,20 @@ export class PreferencesUI {
     this.tempPrefs.appearance.tabPaddingLeft = this.getValue('appearance-tabPaddingLeft');
     this.tempPrefs.appearance.tabPaddingRight = this.getValue('appearance-tabPaddingRight');
     this.tempPrefs.appearance.tabMinGap = this.getValue('appearance-tabMinGap');
+
+    // Appearance colors
+    this.tempPrefs.appearance.activeTabBackground = this.getValue('appearance-activeTabBackground');
+    this.tempPrefs.appearance.inactiveTabBackground = this.getValue('appearance-inactiveTabBackground');
+    this.tempPrefs.appearance.activeTabColor = this.getValue('appearance-activeTabColor');
+    this.tempPrefs.appearance.inactiveTabColor = this.getValue('appearance-inactiveTabColor');
+    this.tempPrefs.appearance.tabContainerBackground = this.getValue('appearance-tabContainerBackground');
+
+    // Convert hex to rgba for groupBorderColor (keep opacity from default)
+    const hexColor = this.getValue('appearance-groupBorderColor');
+    const r = parseInt(hexColor.slice(1, 3), 16);
+    const g = parseInt(hexColor.slice(3, 5), 16);
+    const b = parseInt(hexColor.slice(5, 7), 16);
+    this.tempPrefs.appearance.groupBorderColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
 
     this.tempPrefs.imageViewer.zoomSpeed = this.getValue('imageViewer-zoomSpeed');
     this.tempPrefs.imageViewer.maxZoom = this.getValue('imageViewer-maxZoom');
