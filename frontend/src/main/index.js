@@ -100,13 +100,22 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', async () => {
-  console.log('[Main] All windows closed');
+  console.log('[Main] All windows closed, isQuitting:', isQuitting);
 
-  // On macOS, stop backend but keep app running
+  // If we're in the middle of quitting, actually quit now
+  if (isQuitting) {
+    console.log('[Main] Quitting after backend stopped');
+    // Don't call app.quit() here - we're already quitting
+    // Just exit the process directly
+    process.exit(0);
+    return;
+  }
+
+  // On macOS, stop backend but keep app running (unless quitting)
   // On other platforms, quit the app
   if (process.platform === 'darwin') {
     // Stop backend when window closes on macOS
-    if (backendService && !isQuitting) {
+    if (backendService) {
       isQuitting = true;
       try {
         await backendService.stop();
