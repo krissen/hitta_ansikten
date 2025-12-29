@@ -69,8 +69,15 @@ class DevToolsFocusManager {
    * Returns true if event should be ignored (DevTools has focus OR input is focused)
    */
   shouldIgnoreKeyboardEvent(event) {
+    console.log('[DevToolsFocus] shouldIgnoreKeyboardEvent called:', {
+      key: event.key,
+      isDevToolsFocused: this.isDevToolsFocused,
+      activeElement: document.activeElement?.tagName
+    });
+
     // DevTools has focus - always ignore
     if (this.isDevToolsFocused) {
+      console.log('[DevToolsFocus] → Ignoring (DevTools focused)');
       return true;
     }
 
