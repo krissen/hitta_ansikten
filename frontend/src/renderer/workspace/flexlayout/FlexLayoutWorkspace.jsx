@@ -435,6 +435,18 @@ export function FlexLayoutWorkspace() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [model, ready, findTabsetInDirection, addTabset, removeEmptyTabset]);
 
+  // Load a preset layout (must be defined before IPC useEffect that uses it)
+  const loadLayout = useCallback((layoutName) => {
+    console.log(`[FlexLayoutWorkspace] Loading layout: ${layoutName}`);
+    const layoutConfig = getLayoutByName(layoutName);
+    try {
+      const newModel = Model.fromJson(layoutConfig);
+      setModel(newModel);
+    } catch (err) {
+      console.error('[FlexLayoutWorkspace] Failed to load layout:', err);
+    }
+  }, []);
+
   // Setup IPC listeners
   useEffect(() => {
     if (!ready || !window.bildvisareAPI) return;
@@ -550,18 +562,6 @@ export function FlexLayoutWorkspace() {
       // Cleanup if needed
     };
   }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule]);
-
-  // Load a preset layout
-  const loadLayout = useCallback((layoutName) => {
-    console.log(`[FlexLayoutWorkspace] Loading layout: ${layoutName}`);
-    const layoutConfig = getLayoutByName(layoutName);
-    try {
-      const newModel = Model.fromJson(layoutConfig);
-      setModel(newModel);
-    } catch (err) {
-      console.error('[FlexLayoutWorkspace] Failed to load layout:', err);
-    }
-  }, []);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
