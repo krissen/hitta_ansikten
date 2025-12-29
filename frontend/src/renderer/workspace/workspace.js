@@ -147,6 +147,15 @@ function setupWorkspaceKeyboardShortcuts() {
       return;
     }
 
+    // CRITICAL: Detect Cmd+Option+I (open DevTools) and IMMEDIATELY disable shortcuts
+    // This prevents race condition where keyboard events arrive before IPC message
+    if ((event.metaKey || event.ctrlKey) && event.altKey && event.key.toLowerCase() === 'i') {
+      console.log('[Workspace] Cmd+Option+I detected - disabling shortcuts IMMEDIATELY (optimistic)');
+      devToolsFocus.isDevToolsOpen = true;  // Set optimistically BEFORE IPC arrives!
+      // Let the event through to actually open DevTools
+      return;
+    }
+
     // Check if keyboard event should be ignored (DevTools focused or input focused)
     if (devToolsFocus.shouldIgnoreKeyboardEvent(event)) {
       return;
