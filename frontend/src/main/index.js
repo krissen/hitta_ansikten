@@ -16,6 +16,7 @@ const { createApplicationMenu } = require('./menu');
 let mainWindow = null;
 let backendService = null;
 let initialFilePath = null;
+let isQuitting = false;
 
 /**
  * Create the main workspace window
@@ -29,7 +30,8 @@ function createWorkspaceWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '../preload/preload.js')
+      preload: path.join(__dirname, '../preload/preload.js'),
+      partition: 'persist:bildvisare' // Persist localStorage between sessions
     },
     title: 'Bildvisare Workspace'
   });
@@ -104,11 +106,18 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', async (event) => {
-  if (backendService) {
+  if (backendService && !isQuitting) {
     console.log('[Main] Shutting down backend...');
     event.preventDefault(); // Prevent quit until backend stops
+    isQuitting = true;
 
-    await backendService.stop();
+    try {
+      await backendService.stop();
+      console.log('[Main] Backend stopped successfully');
+    } catch (err) {
+      console.error('[Main] Error stopping backend:', err);
+    }
+
     backendService = null;
 
     // Now quit for real
