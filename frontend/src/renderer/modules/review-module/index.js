@@ -36,7 +36,6 @@ export default {
     container.innerHTML = `
       <div class="review-module">
         <div class="review-header">
-          <h3>Face Review</h3>
           <div class="review-status">No image loaded</div>
         </div>
         <div class="face-grid"></div>
