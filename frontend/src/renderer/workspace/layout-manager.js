@@ -27,17 +27,35 @@ export class LayoutManager {
 
       localStorage.setItem(this.storageKey, JSON.stringify(state));
 
-      // Log panel configuration
+      // Log panel configuration with sizes
       const panels = this.dockview.panels || [];
+      const groups = this.dockview.groups || [];
       const panelInfo = panels.map(p => ({
         id: p.id,
         title: p.title,
         size: p.api?.width + 'x' + p.api?.height
       }));
+      const groupInfo = groups.map((g, i) => ({
+        group: i,
+        width: g.api?.width,
+        height: g.api?.height,
+        panels: g.panels?.map(p => p.id) || []
+      }));
+
       console.log('[LayoutManager] Saved workspace layout:', {
         panels: panelInfo.length,
-        config: panelInfo,
+        groups: groupInfo.length,
+        panelDetails: panelInfo,
+        groupDetails: groupInfo,
         timestamp: new Date(state.timestamp).toLocaleTimeString()
+      });
+
+      // Log serialized layout structure for debugging
+      console.log('[LayoutManager] Layout JSON structure:', {
+        hasGrid: !!layout.grid,
+        gridRoot: layout.grid?.root?.type,
+        gridOrientation: layout.grid?.orientation,
+        fullGrid: layout.grid  // Log entire grid structure to see size data
       });
     } catch (err) {
       console.error('[LayoutManager] Failed to save layout:', err);
@@ -69,7 +87,20 @@ export class LayoutManager {
         return;
       }
 
+      // Log what we're about to restore
+      console.log('[LayoutManager] About to restore layout with grid:', {
+        hasGrid: !!state.layout.grid,
+        gridStructure: state.layout.grid
+      });
+
       this.dockview.fromJSON(state.layout);
+
+      // Log immediate state after fromJSON (before async rendering completes)
+      console.log('[LayoutManager] Immediately after fromJSON:', {
+        panels: this.dockview.panels?.length || 0,
+        groups: this.dockview.groups?.length || 0
+      });
+
       this.restoreModuleStates(state.moduleStates);
 
       // Check if layout has any panels - if not, load default
@@ -79,16 +110,47 @@ export class LayoutManager {
         return;
       }
 
-      // Log loaded panel configuration
+      // Log loaded panel configuration with actual sizes after restoration
       const panels = this.dockview.panels || [];
+      const groups = this.dockview.groups || [];
       const panelInfo = panels.map(p => ({
         id: p.id,
-        title: p.title
+        title: p.title,
+        size: p.api?.width + 'x' + p.api?.height
       }));
+      const groupInfo = groups.map((g, i) => ({
+        group: i,
+        width: g.api?.width,
+        height: g.api?.height,
+        panels: g.panels?.map(p => p.id) || []
+      }));
+
       console.log('[LayoutManager] Loaded workspace layout successfully:', {
         panels: panelInfo.length,
-        config: panelInfo
+        groups: groupInfo.length,
+        panelDetails: panelInfo,
+        groupDetails: groupInfo
       });
+
+      // Check sizes again after layout engine has finished (async)
+      setTimeout(() => {
+        const panelsAfter = this.dockview.panels || [];
+        const groupsAfter = this.dockview.groups || [];
+        const panelInfoAfter = panelsAfter.map(p => ({
+          id: p.id,
+          size: p.api?.width + 'x' + p.api?.height
+        }));
+        const groupInfoAfter = groupsAfter.map((g, i) => ({
+          group: i,
+          width: g.api?.width,
+          height: g.api?.height
+        }));
+
+        console.log('[LayoutManager] Layout sizes after 100ms (post-render):', {
+          panelDetails: panelInfoAfter,
+          groupDetails: groupInfoAfter
+        });
+      }, 100);
     } catch (err) {
       console.error('[LayoutManager] Failed to load layout:', err);
       this.loadDefault();
