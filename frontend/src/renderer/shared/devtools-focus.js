@@ -7,23 +7,15 @@
 
 class DevToolsFocusManager {
   constructor() {
-    this.isDevToolsFocused = false;
+    this.isDevToolsOpen = false;  // Track if DevTools is OPEN (not just focused)
     this.listeners = [];
 
-    // Listen for focus changes from main process
+    // Listen for DevTools open/close state from main process
     if (window.bildvisareAPI) {
-      window.bildvisareAPI.on('devtools-focus-changed', (focused) => {
-        console.log('[DevToolsFocus] Focus changed:', focused);
-        this.isDevToolsFocused = focused;
+      window.bildvisareAPI.on('devtools-state-changed', (isOpen) => {
+        console.log('[DevToolsFocus] DevTools state changed - open:', isOpen);
+        this.isDevToolsOpen = isOpen;
         this.notifyListeners();
-      });
-
-      // Query initial state
-      window.bildvisareAPI.invoke('is-devtools-focused').then(focused => {
-        this.isDevToolsFocused = focused;
-        console.log('[DevToolsFocus] Initial state:', focused);
-      }).catch(err => {
-        console.warn('[DevToolsFocus] Failed to query initial state:', err);
       });
     } else {
       console.warn('[DevToolsFocus] bildvisareAPI not available');
@@ -31,10 +23,10 @@ class DevToolsFocusManager {
   }
 
   /**
-   * Check if DevTools currently has focus
+   * Check if DevTools is currently open
    */
-  isFocused() {
-    return this.isDevToolsFocused;
+  isOpen() {
+    return this.isDevToolsOpen;
   }
 
   /**
@@ -57,7 +49,7 @@ class DevToolsFocusManager {
   notifyListeners() {
     this.listeners.forEach(listener => {
       try {
-        listener(this.isDevToolsFocused);
+        listener(this.isDevToolsOpen);
       } catch (err) {
         console.error('[DevToolsFocus] Listener error:', err);
       }
@@ -66,18 +58,12 @@ class DevToolsFocusManager {
 
   /**
    * Helper: Check if keyboard event should be ignored
-   * Returns true if event should be ignored (DevTools has focus OR input is focused)
+   * Returns true if event should be ignored (DevTools is open OR input is focused)
    */
   shouldIgnoreKeyboardEvent(event) {
-    console.log('[DevToolsFocus] shouldIgnoreKeyboardEvent called:', {
-      key: event.key,
-      isDevToolsFocused: this.isDevToolsFocused,
-      activeElement: document.activeElement?.tagName
-    });
-
-    // DevTools has focus - always ignore
-    if (this.isDevToolsFocused) {
-      console.log('[DevToolsFocus] → Ignoring (DevTools focused)');
+    // DevTools is open - always ignore to prevent interference
+    if (this.isDevToolsOpen) {
+      console.log('[DevToolsFocus] → Ignoring keyboard shortcut (DevTools is open):', event.key);
       return true;
     }
 

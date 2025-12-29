@@ -17,7 +17,6 @@ let mainWindow = null;
 let backendService = null;
 let initialFilePath = null;
 let isQuitting = false;
-let isDevToolsFocused = false;
 
 /**
  * Create the main workspace window
@@ -62,44 +61,16 @@ function createWorkspaceWindow() {
     mainWindow = null;
   });
 
-  // Track DevTools focus state to prevent keyboard shortcuts interference
-  mainWindow.webContents.on('devtools-focused', () => {
-    isDevToolsFocused = true;
-    console.log('[Main] DevTools focused');
-    mainWindow.webContents.send('devtools-focus-changed', true);
+  // Track when DevTools is opened/closed (not just focused)
+  // Disable ALL shortcuts when DevTools is open to prevent interference
+  mainWindow.webContents.on('devtools-opened', () => {
+    console.log('[Main] DevTools opened - disabling shortcuts');
+    mainWindow.webContents.send('devtools-state-changed', true);
   });
 
   mainWindow.webContents.on('devtools-closed', () => {
-    isDevToolsFocused = false;
-    console.log('[Main] DevTools closed');
-    mainWindow.webContents.send('devtools-focus-changed', false);
-  });
-
-  // Track when main window regains focus from DevTools
-  mainWindow.on('focus', () => {
-    if (isDevToolsFocused && !mainWindow.webContents.isDevToolsFocused()) {
-      isDevToolsFocused = false;
-      console.log('[Main] Main window focused (DevTools lost focus)');
-      mainWindow.webContents.send('devtools-focus-changed', false);
-    }
-  });
-
-  // CRITICAL: Intercept keyboard events BEFORE they reach renderer
-  // This is the ONLY way to reliably prevent shortcuts when DevTools is focused
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    // Synchronously check if DevTools is focused (no race condition!)
-    const devToolsFocused = mainWindow.webContents.isDevToolsFocused();
-
-    if (devToolsFocused) {
-      // DevTools is focused - prevent event from reaching renderer's keyboard handlers
-      // This allows DevTools to handle the input itself
-      console.log('[Main] DevTools focused, preventing renderer shortcut for:', input.key, input.type);
-      event.preventDefault();
-      return;
-    }
-
-    // If we get here, DevTools is NOT focused, so keyboard events
-    // will be allowed to reach the renderer's keyboard handlers
+    console.log('[Main] DevTools closed - enabling shortcuts');
+    mainWindow.webContents.send('devtools-state-changed', false);
   });
 
   console.log('[Main] Workspace window created');
@@ -199,10 +170,6 @@ app.on('will-quit', () => {
 });
 
 // IPC Handlers
-ipcMain.handle('is-devtools-focused', async () => {
-  return mainWindow && mainWindow.webContents.isDevToolsFocused();
-});
-
 ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
