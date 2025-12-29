@@ -318,6 +318,70 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          label: 'Layout',
+          submenu: [
+            {
+              label: 'Add Column',
+              accelerator: 'CmdOrCtrl+Shift+]',
+              click: () => {
+                sendMenuCommand('layout-add-column');
+              }
+            },
+            {
+              label: 'Remove Column',
+              accelerator: 'CmdOrCtrl+Shift+[',
+              click: () => {
+                sendMenuCommand('layout-remove-column');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Add Row',
+              accelerator: 'CmdOrCtrl+Shift+}',
+              click: () => {
+                sendMenuCommand('layout-add-row');
+              }
+            },
+            {
+              label: 'Remove Row',
+              accelerator: 'CmdOrCtrl+Shift+{',
+              click: () => {
+                sendMenuCommand('layout-remove-row');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Move Panel to New Column Left',
+              accelerator: 'CmdOrCtrl+Alt+Left',
+              click: () => {
+                sendMenuCommand('layout-move-new-left');
+              }
+            },
+            {
+              label: 'Move Panel to New Column Right',
+              accelerator: 'CmdOrCtrl+Alt+Right',
+              click: () => {
+                sendMenuCommand('layout-move-new-right');
+              }
+            },
+            {
+              label: 'Move Panel to New Row Above',
+              accelerator: 'CmdOrCtrl+Alt+Up',
+              click: () => {
+                sendMenuCommand('layout-move-new-above');
+              }
+            },
+            {
+              label: 'Move Panel to New Row Below',
+              accelerator: 'CmdOrCtrl+Alt+Down',
+              click: () => {
+                sendMenuCommand('layout-move-new-below');
+              }
+            }
+          ]
+        },
+        { type: 'separator' },
+        {
           label: 'Reset Layout',
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
