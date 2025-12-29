@@ -56,6 +56,12 @@ export default {
         return; // Don't interfere with text input
       }
 
+      // Ignore events that don't originate from our workspace
+      const workspaceRoot = document.getElementById('workspace-root');
+      if (!event.target || !workspaceRoot || !workspaceRoot.contains(event.target)) {
+        return;
+      }
+
       // Prevent key repeat for non-zoom keys
       if (event.repeat && event.key !== '+' && event.key !== '-') {
         return;

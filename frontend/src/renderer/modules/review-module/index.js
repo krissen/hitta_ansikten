@@ -328,6 +328,12 @@ export default {
       const activeElement = document.activeElement;
       const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
 
+      // Ignore events that don't originate from our workspace
+      const workspaceRoot = document.getElementById('workspace-root');
+      if (!event.target || !workspaceRoot || !workspaceRoot.contains(event.target)) {
+        return;
+      }
+
       // Navigation shortcuts (work everywhere)
       if (event.key === 'Tab') {
         event.preventDefault();

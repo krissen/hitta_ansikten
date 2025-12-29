@@ -152,6 +152,13 @@ function setupWorkspaceKeyboardShortcuts() {
       return;
     }
 
+    // Ignore events that don't originate from our workspace
+    // This prevents DevTools console from triggering shortcuts
+    const workspaceRoot = document.getElementById('workspace-root');
+    if (!event.target || !workspaceRoot || !workspaceRoot.contains(event.target)) {
+      return;
+    }
+
     // Cmd+Shift+Arrow keys - Group active panel as tab
     if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
       if (event.key === 'ArrowUp') {
