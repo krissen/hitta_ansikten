@@ -14,6 +14,17 @@ const { Menu, shell } = require('electron');
 function createApplicationMenu(mainWindow) {
   const isMac = process.platform === 'darwin';
 
+  // Helper: Check if DevTools is open before sending menu commands
+  const sendMenuCommand = (command) => {
+    // If DevTools is open, don't send keyboard shortcut commands
+    // This prevents shortcuts from triggering when typing in DevTools console
+    if (mainWindow.webContents.isDevToolsOpened()) {
+      console.log(`[Main] Menu command "${command}" blocked - DevTools is open`);
+      return;
+    }
+    sendMenuCommand( command);
+  };
+
   const template = [
     // App menu (macOS only)
     ...(isMac ? [{
@@ -28,7 +39,7 @@ function createApplicationMenu(mainWindow) {
           label: 'Preferences...',
           accelerator: 'CmdOrCtrl+,',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'open-preferences');
+            sendMenuCommand('open-preferences');
           }
         },
         { type: 'separator' },
@@ -60,7 +71,7 @@ function createApplicationMenu(mainWindow) {
           label: 'Open Image...',
           accelerator: 'CmdOrCtrl+O',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'open-file');
+            sendMenuCommand( 'open-file');
           }
         },
         { type: 'separator' },
@@ -68,7 +79,7 @@ function createApplicationMenu(mainWindow) {
           label: 'Reload Database',
           accelerator: 'CmdOrCtrl+R',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'reload-database');
+            sendMenuCommand( 'reload-database');
           }
         },
         { type: 'separator' },
@@ -76,14 +87,14 @@ function createApplicationMenu(mainWindow) {
           label: 'Save All Changes',
           accelerator: 'CmdOrCtrl+S',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'save-all-changes');
+            sendMenuCommand( 'save-all-changes');
           }
         },
         {
           label: 'Discard Changes',
           accelerator: 'Escape',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'discard-changes');
+            sendMenuCommand( 'discard-changes');
           }
         },
         { type: 'separator' },
@@ -105,14 +116,14 @@ function createApplicationMenu(mainWindow) {
           label: 'Toggle Single/All Boxes',
           accelerator: 'b',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'toggle-single-all-boxes');
+            sendMenuCommand( 'toggle-single-all-boxes');
           }
         },
         {
           label: 'Toggle Boxes On/Off',
           accelerator: 'Shift+B',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'toggle-boxes-on-off');
+            sendMenuCommand( 'toggle-boxes-on-off');
           }
         },
         { type: 'separator' },
@@ -120,28 +131,28 @@ function createApplicationMenu(mainWindow) {
           label: 'Zoom In',
           accelerator: 'CmdOrCtrl+Plus',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'zoom-in');
+            sendMenuCommand( 'zoom-in');
           }
         },
         {
           label: 'Zoom Out',
           accelerator: 'CmdOrCtrl+-',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'zoom-out');
+            sendMenuCommand( 'zoom-out');
           }
         },
         {
           label: 'Reset Zoom (1:1)',
           accelerator: 'CmdOrCtrl+=',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'reset-zoom');
+            sendMenuCommand( 'reset-zoom');
           }
         },
         {
           label: 'Auto-Fit',
           accelerator: 'CmdOrCtrl+0',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'auto-fit');
+            sendMenuCommand( 'auto-fit');
           }
         },
         { type: 'separator' },
@@ -149,14 +160,14 @@ function createApplicationMenu(mainWindow) {
           label: 'Enable Auto-Center on Face',
           accelerator: 'c',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'auto-center-enable');
+            sendMenuCommand( 'auto-center-enable');
           }
         },
         {
           label: 'Disable Auto-Center on Face',
           accelerator: 'Shift+C',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'auto-center-disable');
+            sendMenuCommand( 'auto-center-disable');
           }
         },
         { type: 'separator' },
@@ -164,34 +175,34 @@ function createApplicationMenu(mainWindow) {
           label: 'Open Original View',
           accelerator: 'CmdOrCtrl+Shift+O',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'open-original-view');
+            sendMenuCommand( 'open-original-view');
           }
         },
         {
           label: 'Open Log Viewer',
           accelerator: 'CmdOrCtrl+L',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'open-log-viewer');
+            sendMenuCommand( 'open-log-viewer');
           }
         },
         {
           label: 'Open Review Module',
           accelerator: 'CmdOrCtrl+Shift+F',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'open-review-module');
+            sendMenuCommand( 'open-review-module');
           }
         },
         { type: 'separator' },
         {
           label: 'Statistics Dashboard',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'open-statistics-dashboard');
+            sendMenuCommand( 'open-statistics-dashboard');
           }
         },
         {
           label: 'Database Management',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'open-database-management');
+            sendMenuCommand( 'open-database-management');
           }
         },
         { type: 'separator' },
@@ -223,28 +234,28 @@ function createApplicationMenu(mainWindow) {
               label: 'Review Mode',
               accelerator: 'CmdOrCtrl+1',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'layout-template-review');
+                sendMenuCommand( 'layout-template-review');
               }
             },
             {
               label: 'Comparison Mode',
               accelerator: 'CmdOrCtrl+2',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'layout-template-comparison');
+                sendMenuCommand( 'layout-template-comparison');
               }
             },
             {
               label: 'Full Image',
               accelerator: 'CmdOrCtrl+3',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'layout-template-full-image');
+                sendMenuCommand( 'layout-template-full-image');
               }
             },
             {
               label: 'Statistics Mode',
               accelerator: 'CmdOrCtrl+4',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'layout-template-stats');
+                sendMenuCommand( 'layout-template-stats');
               }
             }
           ]
@@ -257,35 +268,35 @@ function createApplicationMenu(mainWindow) {
               label: '50% / 50%',
               accelerator: 'CmdOrCtrl+Shift+1',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'grid-preset-50-50');
+                sendMenuCommand( 'grid-preset-50-50');
               }
             },
             {
               label: '60% / 40%',
               accelerator: 'CmdOrCtrl+Shift+2',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'grid-preset-60-40');
+                sendMenuCommand( 'grid-preset-60-40');
               }
             },
             {
               label: '70% / 30%',
               accelerator: 'CmdOrCtrl+Shift+3',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'grid-preset-70-30');
+                sendMenuCommand( 'grid-preset-70-30');
               }
             },
             {
               label: '30% / 70%',
               accelerator: 'CmdOrCtrl+Shift+4',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'grid-preset-30-70');
+                sendMenuCommand( 'grid-preset-30-70');
               }
             },
             {
               label: '40% / 60%',
               accelerator: 'CmdOrCtrl+Shift+5',
               click: () => {
-                mainWindow.webContents.send('menu-command', 'grid-preset-40-60');
+                sendMenuCommand( 'grid-preset-40-60');
               }
             }
           ]
@@ -295,19 +306,19 @@ function createApplicationMenu(mainWindow) {
           label: 'Reset Layout',
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'reset-layout');
+            sendMenuCommand( 'reset-layout');
           }
         },
         {
           label: 'Export Layout...',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'export-layout');
+            sendMenuCommand( 'export-layout');
           }
         },
         {
           label: 'Import Layout...',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'import-layout');
+            sendMenuCommand( 'import-layout');
           }
         },
         { type: 'separator' },
@@ -351,7 +362,7 @@ function createApplicationMenu(mainWindow) {
           label: 'Keyboard Shortcuts',
           accelerator: 'CmdOrCtrl+/',
           click: () => {
-            mainWindow.webContents.send('menu-command', 'show-keyboard-shortcuts');
+            sendMenuCommand( 'show-keyboard-shortcuts');
           }
         }
       ]
