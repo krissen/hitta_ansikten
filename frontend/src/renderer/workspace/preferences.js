@@ -24,6 +24,10 @@ export class PreferencesManager {
         showWelcome: true, // Show welcome message on first launch
         logLevel: 'info' // 'debug' | 'info' | 'warn' | 'error'
       },
+      debug: {
+        enabled: false, // Enable debug logging
+        logToFile: false // Also write logs to file (requires enabled=true)
+      },
       appearance: {
         // Sizes and spacing
         tabsHeight: 28, // Tab height in pixels (20-40)
@@ -61,6 +65,49 @@ export class PreferencesManager {
         defaultTemplate: 'review', // Default layout template: 'review', 'comparison', 'full-image', 'stats'
         autoSaveLayout: true, // Auto-save layout on changes
         rememberPanelSizes: true // Remember panel sizes across sessions
+      },
+      // Preset-specific layout configurations
+      // Each preset can override module positions and ratios
+      layouts: {
+        presets: {
+          review: {
+            // Review mode: sidebar + main viewer
+            modules: {
+              'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 1.0 },
+              'image-viewer': { row: 1, col: 2, ratio: 0.85, rowRatio: 1.0 }
+            }
+          },
+          comparison: {
+            // Comparison mode: three-column
+            modules: {
+              'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 1.0 },
+              'image-viewer': { row: 1, col: 2, ratio: 0.50, rowRatio: 1.0 },
+              'original-view': { row: 1, col: 3, ratio: 0.35, rowRatio: 1.0 }
+            }
+          },
+          'full-image': {
+            // Full image mode: maximized viewer
+            modules: {
+              'image-viewer': { row: 1, col: 1, ratio: 1.0, rowRatio: 1.0 }
+            }
+          },
+          stats: {
+            // Stats mode: viewer + stats panels
+            modules: {
+              'image-viewer': { row: 1, col: 1, ratio: 0.6, rowRatio: 0.7 },
+              'statistics-dashboard': { row: 1, col: 2, ratio: 0.4, rowRatio: 0.7 },
+              'database-management': { row: 2, col: 1, colSpan: 'full', ratio: 1.0, rowRatio: 0.3 }
+            }
+          },
+          'review-with-logs': {
+            // Review mode with log viewer at bottom
+            modules: {
+              'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 0.75 },
+              'image-viewer': { row: 1, col: 2, ratio: 0.85, rowRatio: 0.75 },
+              'log-viewer': { row: 2, col: 1, colSpan: 'full', ratio: 1.0, rowRatio: 0.25 }
+            }
+          }
+        }
       }
     };
 
