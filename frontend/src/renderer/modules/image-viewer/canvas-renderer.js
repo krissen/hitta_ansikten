@@ -19,7 +19,7 @@ export class CanvasRenderer {
     // Zoom/pan state
     this.zoomMode = 'auto'; // 'auto' | 'manual'
     this.zoomFactor = 1;
-    this.minZoom = 0.1;
+    this.minZoom = 0.01; // Allow zooming out to 1% (was 0.1 = 10%)
     this.maxZoom = 10;
     this.zoomStep = 1.15; // 15% zoom per step (will be user-configurable in Phase 4)
 
@@ -34,6 +34,11 @@ export class CanvasRenderer {
     this.faces = []; // Array of {bounding_box, person_name, confidence}
     this.faceBoxMode = 'all'; // 'none' | 'single' | 'all'
     this.activeFaceIndex = 0; // Index of active face for 'single' mode
+    this.previousFaceBoxMode = 'all'; // For toggling between modes
+
+    // Label collision avoidance settings (will be user-configurable in Phase 4)
+    this.labelBufferRatio = 0.005; // Buffer as % of image width (0.5%)
+    this.labelMinBuffer = 10; // Minimum buffer in pixels
 
     // Setup canvas
     this.canvas.style.width = '100%';
@@ -491,6 +496,191 @@ export class CanvasRenderer {
   /**
    * Draw face bounding boxes on the canvas
    */
+  /**
+   * Check if two boxes overlap with buffer zone
+   * @param {Object} box1 - {x, y, width, height}
+   * @param {Object} box2 - {x, y, width, height}
+   * @param {number} buffer - Buffer zone in pixels
+   * @returns {boolean} True if boxes overlap
+   */
+  boxesOverlap(box1, box2, buffer = 20) {
+    const l1 = box1.x - buffer;
+    const r1 = box1.x + box1.width + buffer;
+    const t1 = box1.y - buffer;
+    const b1 = box1.y + box1.height + buffer;
+
+    const l2 = box2.x - buffer;
+    const r2 = box2.x + box2.width + buffer;
+    const t2 = box2.y - buffer;
+    const b2 = box2.y + box2.height + buffer;
+
+    return !(r1 <= l2 || l1 >= r2 || b1 <= t2 || t1 >= b2);
+  }
+
+  /**
+   * Calculate intersection point of line from box center to external point with box edge
+   * @param {Object} box - {x, y, width, height}
+   * @param {number} externalX - External point x
+   * @param {number} externalY - External point y
+   * @returns {Object} {x, y} intersection point on box edge
+   */
+  getBoxEdgeIntersection(box, externalX, externalY) {
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+
+    // Direction vector from center to external point
+    const dx = externalX - centerX;
+    const dy = externalY - centerY;
+
+    // Avoid division by zero
+    if (dx === 0 && dy === 0) {
+      return { x: centerX, y: centerY };
+    }
+
+    // Calculate intersection with each edge
+    const intersections = [];
+
+    // Top edge (y = box.y)
+    if (dy < 0) {
+      const t = (box.y - centerY) / dy;
+      const x = centerX + t * dx;
+      if (x >= box.x && x <= box.x + box.width) {
+        intersections.push({ x, y: box.y, dist: Math.abs(t) });
+      }
+    }
+
+    // Bottom edge (y = box.y + box.height)
+    if (dy > 0) {
+      const t = (box.y + box.height - centerY) / dy;
+      const x = centerX + t * dx;
+      if (x >= box.x && x <= box.x + box.width) {
+        intersections.push({ x, y: box.y + box.height, dist: Math.abs(t) });
+      }
+    }
+
+    // Left edge (x = box.x)
+    if (dx < 0) {
+      const t = (box.x - centerX) / dx;
+      const y = centerY + t * dy;
+      if (y >= box.y && y <= box.y + box.height) {
+        intersections.push({ x: box.x, y, dist: Math.abs(t) });
+      }
+    }
+
+    // Right edge (x = box.x + box.width)
+    if (dx > 0) {
+      const t = (box.x + box.width - centerX) / dx;
+      const y = centerY + t * dy;
+      if (y >= box.y && y <= box.y + box.height) {
+        intersections.push({ x: box.x + box.width, y, dist: Math.abs(t) });
+      }
+    }
+
+    // Return the closest intersection (should typically be only one)
+    if (intersections.length > 0) {
+      intersections.sort((a, b) => a.dist - b.dist);
+      return { x: intersections[0].x, y: intersections[0].y };
+    }
+
+    // Fallback to center (shouldn't happen)
+    return { x: centerX, y: centerY };
+  }
+
+  /**
+   * Find optimal label position avoiding collisions
+   * @param {Object} faceBox - Face bounding box in canvas coords {x, y, width, height}
+   * @param {number} labelWidth - Label width
+   * @param {number} labelHeight - Label height
+   * @param {Array} placedBoxes - Array of already placed boxes
+   * @param {number} canvasWidth - Canvas width
+   * @param {number} canvasHeight - Canvas height
+   * @param {number} imageWidth - Original image width for scaling buffer
+   * @returns {Object} {x, y} position for label
+   */
+  findLabelPosition(faceBox, labelWidth, labelHeight, placedBoxes, canvasWidth, canvasHeight, imageWidth, imageHeight, imageX, imageY, imageScale) {
+    // Scale buffer based on DISPLAYED image size (not original)
+    // Buffer is in canvas coordinates, so must use scaled size
+    // Uses configurable ratio (default: 0.5% of displayed width)
+    // Examples: 0.5% of 1000px displayed = 5px buffer, 0.5% of 2000px = 10px
+    const displayedWidth = imageWidth * imageScale;
+    const buffer = Math.max(
+      this.labelMinBuffer,
+      Math.floor(displayedWidth * this.labelBufferRatio)
+    );
+
+    const faceCenterX = faceBox.x + faceBox.width / 2;
+    const faceCenterY = faceBox.y + faceBox.height / 2;
+
+    // Calculate image bounds in canvas coordinates
+    const imageBounds = {
+      left: imageX,
+      top: imageY,
+      right: imageX + imageWidth * imageScale,
+      bottom: imageY + imageHeight * imageScale
+    };
+
+    // Try circular search pattern - increasing radius from face center
+    const maxRadius = Math.max(canvasWidth, canvasHeight) * 2;
+    const startRadius = Math.max(faceBox.width, faceBox.height) / 2 + 20;
+
+    let bestPosition = null;
+    let bestOutside = null; // Track best position outside image as fallback
+
+    for (let radius = startRadius; radius < maxRadius; radius += 25) {
+      // Try angles from 0° to 360° in 15° steps
+      for (let angle = 0; angle < 360; angle += 15) {
+        const radians = (angle * Math.PI) / 180;
+        const labelX = Math.floor(faceCenterX + radius * Math.cos(radians) - labelWidth / 2);
+        const labelY = Math.floor(faceCenterY + radius * Math.sin(radians) - labelHeight / 2);
+
+        const labelBox = {
+          x: labelX,
+          y: labelY,
+          width: labelWidth,
+          height: labelHeight
+        };
+
+        // Check for collision with all placed boxes
+        let collision = false;
+        for (const box of placedBoxes) {
+          if (this.boxesOverlap(labelBox, box, buffer)) {
+            collision = true;
+            break;
+          }
+        }
+
+        if (!collision) {
+          // Check if label is within image bounds
+          const withinBounds = (
+            labelX >= imageBounds.left &&
+            labelY >= imageBounds.top &&
+            labelX + labelWidth <= imageBounds.right &&
+            labelY + labelHeight <= imageBounds.bottom
+          );
+
+          if (withinBounds) {
+            // Prefer positions within image bounds
+            return { x: labelX, y: labelY, outsideImage: false };
+          } else if (!bestOutside) {
+            // Track first valid position outside image as fallback
+            bestOutside = { x: labelX, y: labelY, outsideImage: true };
+          }
+        }
+      }
+    }
+
+    // Return best outside position if found, otherwise fallback to above face
+    if (bestOutside) {
+      return bestOutside;
+    }
+
+    return {
+      x: faceBox.x,
+      y: faceBox.y - labelHeight - 10,
+      outsideImage: true
+    };
+  }
+
   drawFaceBoxes() {
     // Check mode - return early if 'none' or no faces
     if (this.faceBoxMode === 'none' || !this.faces || this.faces.length === 0) {
@@ -537,18 +727,90 @@ export class CanvasRenderer {
       facesToDraw = this.faces[this.activeFaceIndex] ? [this.faces[this.activeFaceIndex]] : [];
     }
 
-    // Draw each face bounding box
-    this.ctx.lineWidth = 3;
+    // First pass: calculate all label positions with collision avoidance
     this.ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    const placedBoxes = [];
+    const placements = [];
 
     facesToDraw.forEach(face => {
       const bbox = face.bounding_box;
 
       // Transform bounding box coordinates to canvas space
-      const x = imageX + bbox.x * imageScale;
-      const y = imageY + bbox.y * imageScale;
-      const width = bbox.width * imageScale;
-      const height = bbox.height * imageScale;
+      const faceX = imageX + bbox.x * imageScale;
+      const faceY = imageY + bbox.y * imageScale;
+      const faceWidth = bbox.width * imageScale;
+      const faceHeight = bbox.height * imageScale;
+
+      const faceBox = {
+        x: faceX,
+        y: faceY,
+        width: faceWidth,
+        height: faceHeight
+      };
+
+      // Add face box to placed boxes
+      placedBoxes.push(faceBox);
+
+      // Calculate label dimensions
+      let labelPos = null;
+      let labelWidth = 0;
+      let labelHeight = 0;
+
+      if (face.person_name) {
+        const confidence = face.confidence || 0;
+        const label = `${face.person_name} (${(confidence * 100).toFixed(0)}%)`;
+        const metrics = this.ctx.measureText(label);
+        labelWidth = metrics.width + 8; // padding
+        labelHeight = 24; // text height + padding
+
+        // Find optimal position avoiding collisions
+        labelPos = this.findLabelPosition(
+          faceBox,
+          labelWidth,
+          labelHeight,
+          placedBoxes,
+          canvasWidth,
+          canvasHeight,
+          this.image.width, // Original image width for buffer scaling
+          this.image.height, // Original image height
+          imageX, // Image position in canvas
+          imageY,
+          imageScale // Image scale factor
+        );
+
+        // Add label box to placed boxes for future collision checks
+        placedBoxes.push({
+          x: labelPos.x,
+          y: labelPos.y,
+          width: labelWidth,
+          height: labelHeight
+        });
+      }
+
+      // Store placement info
+      placements.push({
+        face: face,
+        faceBox: faceBox,
+        label: face.person_name ? `${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)` : null,
+        labelPos: labelPos,
+        labelWidth: labelWidth,
+        labelHeight: labelHeight
+      });
+    });
+
+    // TODO Phase 4: Extended bounds for auto-fit
+    // When labels extend outside image in auto-fit mode, we should:
+    // 1. Calculate bounding box of all elements (image + labels)
+    // 2. Recalculate scale/position to fit everything
+    // 3. Redraw with adjusted viewport
+    // This requires a two-pass algorithm and is deferred to Phase 4
+    // Current behavior: labels may extend outside visible area in auto-fit mode
+
+    // Second pass: draw everything
+    this.ctx.lineWidth = 3;
+
+    placements.forEach(placement => {
+      const { face, faceBox, label, labelPos, labelWidth, labelHeight } = placement;
 
       // Choose color based on confidence
       const confidence = face.confidence || 0;
@@ -556,34 +818,45 @@ export class CanvasRenderer {
 
       if (confidence > 0.9) {
         strokeColor = '#4caf50'; // Green for high confidence
-        textBgColor = 'rgba(76, 175, 80, 0.8)';
+        textBgColor = 'rgba(76, 175, 80, 0.9)';
       } else if (confidence > 0.6) {
         strokeColor = '#ff9800'; // Orange for medium confidence
-        textBgColor = 'rgba(255, 152, 0, 0.8)';
+        textBgColor = 'rgba(255, 152, 0, 0.9)';
       } else {
         strokeColor = '#f44336'; // Red for low confidence
-        textBgColor = 'rgba(244, 67, 54, 0.8)';
+        textBgColor = 'rgba(244, 67, 54, 0.9)';
       }
 
       // Draw bounding box
       this.ctx.strokeStyle = strokeColor;
-      this.ctx.strokeRect(x, y, width, height);
+      this.ctx.strokeRect(faceBox.x, faceBox.y, faceBox.width, faceBox.height);
 
       // Draw label if person has a name
-      if (face.person_name) {
-        const label = `${face.person_name} (${(confidence * 100).toFixed(0)}%)`;
-        const metrics = this.ctx.measureText(label);
-        const textWidth = metrics.width;
-        const textHeight = 20;
-        const padding = 4;
+      if (label && labelPos) {
+        // Draw connecting line from face BOX EDGE to label center (not face center - avoid obscuring face)
+        const labelCenterX = labelPos.x + labelWidth / 2;
+        const labelCenterY = labelPos.y + labelHeight / 2;
 
-        // Background for text
+        // Calculate where line intersects face box edge
+        const edgePoint = this.getBoxEdgeIntersection(faceBox, labelCenterX, labelCenterY);
+
+        this.ctx.strokeStyle = '#ffeb3b'; // Yellow line
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(edgePoint.x, edgePoint.y); // Start from box edge, not center
+        this.ctx.lineTo(labelCenterX, labelCenterY);
+        this.ctx.stroke();
+
+        // Draw label background
         this.ctx.fillStyle = textBgColor;
-        this.ctx.fillRect(x, y - textHeight - padding, textWidth + padding * 2, textHeight + padding);
+        this.ctx.fillRect(labelPos.x, labelPos.y, labelWidth, labelHeight);
 
-        // Text
+        // Draw label text
         this.ctx.fillStyle = 'white';
-        this.ctx.fillText(label, x + padding, y - padding);
+        this.ctx.fillText(label, labelPos.x + 4, labelPos.y + 17);
+
+        // Reset line width
+        this.ctx.lineWidth = 3;
       }
     });
   }
