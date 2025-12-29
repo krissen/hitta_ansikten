@@ -27,9 +27,8 @@ function createApplicationMenu(mainWindow) {
         {
           label: 'Preferences...',
           accelerator: 'CmdOrCtrl+,',
-          enabled: false, // TODO: Implement preferences
           click: () => {
-            // TODO: Open preferences window
+            mainWindow.webContents.send('menu-command', 'open-preferences');
           }
         },
         { type: 'separator' },

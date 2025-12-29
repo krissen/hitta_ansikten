@@ -8,6 +8,8 @@ import { createDockview } from '../../../node_modules/dockview-core/dist/dockvie
 import { LayoutManager } from './layout-manager.js';
 import { registerModule, getModule } from './module-registry.js';
 import { apiClient } from '../shared/api-client.js';
+import { preferences } from './preferences.js';
+import { preferencesUI } from './preferences-ui.js';
 
 // Import modules
 import imageViewerModule from '../modules/image-viewer/index.js';
@@ -228,7 +230,9 @@ async function initWorkspace() {
     openModule,
     closePanel,
     getModuleInstances: () => moduleInstances,
-    apiClient // Expose API client for debugging
+    apiClient, // Expose API client for debugging
+    preferences, // Expose preferences for debugging and module access
+    preferencesUI // Expose preferences UI for debugging
   };
 
   // Listen for initial file path from main process
@@ -355,6 +359,10 @@ async function initWorkspace() {
 
         case 'open-database-management':
           openModule('database-management', { title: 'Database Management' });
+          break;
+
+        case 'open-preferences':
+          preferencesUI.show();
           break;
 
         default:
