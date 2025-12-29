@@ -36,7 +36,8 @@ export class PreferencesManager {
         autoSaveOnComplete: true, // Auto-save when all faces reviewed
         confirmBeforeSave: false, // Ask confirmation before saving
         defaultAction: 'next', // 'next' | 'stay' after confirming face
-        showConfidenceScores: true
+        showConfidenceScores: true,
+        saveMode: 'per-image' // 'per-face' | 'per-image' - how to write review results
       }
     };
 

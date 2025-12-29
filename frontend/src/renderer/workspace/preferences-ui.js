@@ -127,19 +127,28 @@ export class PreferencesUI {
 
             <div class="pref-field">
               <label>Zoom Speed</label>
-              <input type="number" id="pref-imageViewer-zoomSpeed" step="0.01" min="1.01" max="2.0" />
+              <div class="slider-input-group">
+                <input type="range" id="pref-imageViewer-zoomSpeed-slider" step="0.01" min="1.01" max="2.0" />
+                <input type="number" id="pref-imageViewer-zoomSpeed" step="0.01" min="1.01" max="2.0" />
+              </div>
               <small>Zoom multiplier per step (1.07 = 7% per step)</small>
             </div>
 
             <div class="pref-field">
               <label>Maximum Zoom</label>
-              <input type="number" id="pref-imageViewer-maxZoom" step="1" min="1" max="50" />
+              <div class="slider-input-group">
+                <input type="range" id="pref-imageViewer-maxZoom-slider" step="1" min="1" max="50" />
+                <input type="number" id="pref-imageViewer-maxZoom" step="1" min="1" max="50" />
+              </div>
               <small>Maximum zoom level</small>
             </div>
 
             <div class="pref-field">
               <label>Minimum Zoom</label>
-              <input type="number" id="pref-imageViewer-minZoom" step="0.01" min="0.01" max="1" />
+              <div class="slider-input-group">
+                <input type="range" id="pref-imageViewer-minZoom-slider" step="0.01" min="0.01" max="1" />
+                <input type="number" id="pref-imageViewer-minZoom" step="0.01" min="0.01" max="1" />
+              </div>
               <small>Minimum zoom level</small>
             </div>
 
@@ -197,6 +206,15 @@ export class PreferencesUI {
                 <input type="checkbox" id="pref-reviewModule-showConfidenceScores" />
                 Show confidence scores
               </label>
+            </div>
+
+            <div class="pref-field">
+              <label>Save Mode</label>
+              <select id="pref-reviewModule-saveMode">
+                <option value="per-image">Per image (save all faces for each image)</option>
+                <option value="per-face">Per face (save each face immediately)</option>
+              </select>
+              <small>How review results are written to database</small>
             </div>
           </div>
         </div>
@@ -363,6 +381,45 @@ export class PreferencesUI {
         color: #777;
       }
 
+      .slider-input-group {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .slider-input-group input[type="range"] {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: #e0e0e0;
+        outline: none;
+        -webkit-appearance: none;
+      }
+
+      .slider-input-group input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #2196f3;
+        cursor: pointer;
+      }
+
+      .slider-input-group input[type="range"]::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #2196f3;
+        cursor: pointer;
+        border: none;
+      }
+
+      .slider-input-group input[type="number"] {
+        width: 80px;
+        flex-shrink: 0;
+      }
+
       .preferences-footer {
         display: flex;
         align-items: center;
@@ -445,6 +502,31 @@ export class PreferencesUI {
         this.reset();
       }
     });
+
+    // Sync sliders with number inputs
+    this.setupSliderSync('imageViewer-zoomSpeed');
+    this.setupSliderSync('imageViewer-maxZoom');
+    this.setupSliderSync('imageViewer-minZoom');
+  }
+
+  /**
+   * Setup bidirectional sync between slider and number input
+   */
+  setupSliderSync(id) {
+    const slider = this.modal.querySelector(`#pref-${id}-slider`);
+    const numberInput = this.modal.querySelector(`#pref-${id}`);
+
+    if (!slider || !numberInput) return;
+
+    // Slider -> number input
+    slider.addEventListener('input', () => {
+      numberInput.value = slider.value;
+    });
+
+    // Number input -> slider
+    numberInput.addEventListener('input', () => {
+      slider.value = numberInput.value;
+    });
   }
 
   /**
@@ -464,8 +546,11 @@ export class PreferencesUI {
 
     // Image viewer settings
     this.setValue('imageViewer-zoomSpeed', this.tempPrefs.imageViewer.zoomSpeed);
+    this.setValue('imageViewer-zoomSpeed-slider', this.tempPrefs.imageViewer.zoomSpeed);
     this.setValue('imageViewer-maxZoom', this.tempPrefs.imageViewer.maxZoom);
+    this.setValue('imageViewer-maxZoom-slider', this.tempPrefs.imageViewer.maxZoom);
     this.setValue('imageViewer-minZoom', this.tempPrefs.imageViewer.minZoom);
+    this.setValue('imageViewer-minZoom-slider', this.tempPrefs.imageViewer.minZoom);
     this.setValue('imageViewer-defaultZoomMode', this.tempPrefs.imageViewer.defaultZoomMode);
     this.setValue('imageViewer-smoothPan', this.tempPrefs.imageViewer.smoothPan);
     this.setValue('imageViewer-showPixelGrid', this.tempPrefs.imageViewer.showPixelGrid);
@@ -475,6 +560,7 @@ export class PreferencesUI {
     this.setValue('reviewModule-confirmBeforeSave', this.tempPrefs.reviewModule.confirmBeforeSave);
     this.setValue('reviewModule-defaultAction', this.tempPrefs.reviewModule.defaultAction);
     this.setValue('reviewModule-showConfidenceScores', this.tempPrefs.reviewModule.showConfidenceScores);
+    this.setValue('reviewModule-saveMode', this.tempPrefs.reviewModule.saveMode);
   }
 
   /**
@@ -532,6 +618,7 @@ export class PreferencesUI {
     this.tempPrefs.reviewModule.confirmBeforeSave = this.getValue('reviewModule-confirmBeforeSave');
     this.tempPrefs.reviewModule.defaultAction = this.getValue('reviewModule-defaultAction');
     this.tempPrefs.reviewModule.showConfidenceScores = this.getValue('reviewModule-showConfidenceScores');
+    this.tempPrefs.reviewModule.saveMode = this.getValue('reviewModule-saveMode');
 
     // Save to preferences manager
     preferences.setAll(this.tempPrefs);
