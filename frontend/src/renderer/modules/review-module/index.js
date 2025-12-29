@@ -328,9 +328,11 @@ export default {
       const activeElement = document.activeElement;
       const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
 
-      // Ignore events that don't originate from our workspace
-      const workspaceRoot = document.getElementById('workspace-root');
-      if (!event.target || !workspaceRoot || !workspaceRoot.contains(event.target)) {
+      // Check for contenteditable (DevTools console)
+      if (activeElement && (activeElement.isContentEditable || activeElement.getAttribute('contenteditable') === 'true')) {
+        return;
+      }
+      if (event.target && (event.target.isContentEditable || event.target.getAttribute('contenteditable') === 'true')) {
         return;
       }
 

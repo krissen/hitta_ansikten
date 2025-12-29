@@ -148,14 +148,19 @@ function setupWorkspaceKeyboardShortcuts() {
 
     // Only handle remaining shortcuts if no input is focused
     const activeElement = document.activeElement;
-    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-      return;
+    if (activeElement) {
+      // Check for regular inputs
+      if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+        return;
+      }
+      // Check for contenteditable (used by DevTools console)
+      if (activeElement.isContentEditable || activeElement.getAttribute('contenteditable') === 'true') {
+        return;
+      }
     }
 
-    // Ignore events that don't originate from our workspace
-    // This prevents DevTools console from triggering shortcuts
-    const workspaceRoot = document.getElementById('workspace-root');
-    if (!event.target || !workspaceRoot || !workspaceRoot.contains(event.target)) {
+    // Also check event target for contenteditable
+    if (event.target && (event.target.isContentEditable || event.target.getAttribute('contenteditable') === 'true')) {
       return;
     }
 
