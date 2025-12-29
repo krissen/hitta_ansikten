@@ -280,10 +280,22 @@ export function navigateInDirection(dockview, direction) {
   const targetGroup = findGroupInDirection(dockview, activeGroup, direction);
   if (!targetGroup) return false;
 
-  // Focus the first panel in target group
+  // Focus the first panel in target group, or the group itself if empty
   const targetPanel = targetGroup.activePanel || targetGroup.panels[0];
   if (targetPanel) {
     targetPanel.api.setActive();
+    return true;
+  }
+
+  // Empty group - focus the group directly
+  if (targetGroup.api && typeof targetGroup.api.setActive === 'function') {
+    targetGroup.api.setActive();
+    return true;
+  }
+
+  // Fallback: try to focus the group element
+  if (targetGroup.element) {
+    targetGroup.element.focus();
     return true;
   }
 

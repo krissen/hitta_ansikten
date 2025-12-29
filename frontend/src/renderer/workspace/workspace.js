@@ -189,7 +189,8 @@ function setupWorkspaceKeyboardShortcuts() {
         event.preventDefault();
         layoutStateTracker.captureState(dockview);
         addColumn(dockview);
-        layoutManager.save();
+        // Apply module-based ratios: empty column gets minimal size
+        setTimeout(() => applyModuleBasedRatios(), 50);
         return;
       }
       // Cmd+Shift+[ - Remove active column (if empty)
@@ -197,7 +198,8 @@ function setupWorkspaceKeyboardShortcuts() {
         event.preventDefault();
         layoutStateTracker.captureState(dockview);
         if (removeActiveGroup(dockview)) {
-          layoutManager.save();
+          // Apply module-based ratios: redistribute space to remaining modules
+          setTimeout(() => applyModuleBasedRatios(), 50);
         }
         return;
       }
@@ -206,7 +208,8 @@ function setupWorkspaceKeyboardShortcuts() {
         event.preventDefault();
         layoutStateTracker.captureState(dockview);
         addRow(dockview);
-        layoutManager.save();
+        // Apply module-based ratios: empty row gets minimal size
+        setTimeout(() => applyModuleBasedRatios(), 50);
         return;
       }
       // Cmd+Shift+{ - Remove active row (if empty) (Shift+[)
@@ -214,7 +217,8 @@ function setupWorkspaceKeyboardShortcuts() {
         event.preventDefault();
         layoutStateTracker.captureState(dockview);
         if (removeActiveGroup(dockview)) {
-          layoutManager.save();
+          // Apply module-based ratios: redistribute space to remaining modules
+          setTimeout(() => applyModuleBasedRatios(), 50);
         }
         return;
       }
@@ -313,13 +317,8 @@ function groupActivePanel(direction) {
     return;
   }
 
-  // Get first panel in target group as reference
+  // Get first panel in target group as reference (may be null for empty groups)
   const referencePanel = targetGroup.activePanel || targetGroup.panels[0];
-
-  if (!referencePanel) {
-    workspaceWarn('No reference panel found in target group');
-    return;
-  }
 
   // Save module state before removing
   let savedState = null;
@@ -353,14 +352,28 @@ function groupActivePanel(direction) {
 
   dockview.removePanel(activePanel);
 
-  // Re-add as tab in reference panel's group using 'center' direction
-  const newPanel = dockview.addPanel({
-    ...panelParams,
-    position: {
-      referencePanel: referencePanel,
-      direction: 'within' // Add as tab in same group
-    }
-  });
+  // Re-add as tab in target group
+  // Use referencePanel if available, otherwise use referenceGroup for empty groups
+  let newPanel;
+  if (referencePanel) {
+    newPanel = dockview.addPanel({
+      ...panelParams,
+      position: {
+        referencePanel: referencePanel,
+        direction: 'within' // Add as tab in same group
+      }
+    });
+  } else {
+    // Target group is empty - add panel directly to the group
+    newPanel = dockview.addPanel({
+      ...panelParams,
+      position: {
+        referenceGroup: targetGroup,
+        direction: 'within'
+      }
+    });
+    workspaceLog(`Grouped panel into empty group`);
+  }
 
   // Restore module state with retry mechanism (waits for async init to complete)
   if (savedState && newPanel) {
@@ -397,13 +410,8 @@ function moveActivePanel(direction) {
     return;
   }
 
-  // Get first panel in target group as reference
+  // Get first panel in target group as reference (may be null for empty groups)
   const referencePanel = targetGroup.activePanel || targetGroup.panels[0];
-
-  if (!referencePanel) {
-    workspaceWarn('No reference panel found in target group');
-    return;
-  }
 
   // Get module ID for panel params
   const activeModuleId = activePanel.api?.component || activePanel.params?.component;
@@ -441,13 +449,27 @@ function moveActivePanel(direction) {
   dockview.removePanel(activePanel);
 
   // Re-add in new position
-  const newPanel = dockview.addPanel({
-    ...panelParams,
-    position: {
-      referencePanel: referencePanel,
-      direction: direction
-    }
-  });
+  // Use referencePanel if available, otherwise use referenceGroup for empty groups
+  let newPanel;
+  if (referencePanel) {
+    newPanel = dockview.addPanel({
+      ...panelParams,
+      position: {
+        referencePanel: referencePanel,
+        direction: direction
+      }
+    });
+  } else {
+    // Target group is empty - add panel directly to the group
+    newPanel = dockview.addPanel({
+      ...panelParams,
+      position: {
+        referenceGroup: targetGroup,
+        direction: 'within'
+      }
+    });
+    workspaceLog(`Moved panel to empty group`);
+  }
 
   // Restore module state with retry mechanism (waits for async init to complete)
   if (savedState && newPanel) {
@@ -520,12 +542,14 @@ function restoreModuleStateWithRetry(panelId, savedState, maxRetries = 5, delay 
 /**
  * Apply ratios based on the modules currently in each group position
  * Scans all groups and sets ratios based on each group's primary module
+ * Empty groups get a minimal ratio (10%) so they don't take much space
  */
 function applyModuleBasedRatios() {
   const groups = dockview.groups;
   if (groups.length < 2) return;
 
   const ratios = [];
+  const EMPTY_GROUP_RATIO = 0.1; // Empty columns get 10%
 
   for (const group of groups) {
     // Get the active panel or first panel in the group
@@ -536,8 +560,9 @@ function applyModuleBasedRatios() {
       ratios.push(config?.ratio || 0.5);
       workspaceLog(`Group has module ${moduleId} with ratio ${config?.ratio}`);
     } else {
-      // Empty group - give it default ratio
-      ratios.push(0.5);
+      // Empty group - give it minimal ratio
+      ratios.push(EMPTY_GROUP_RATIO);
+      workspaceLog(`Empty group gets minimal ratio ${EMPTY_GROUP_RATIO}`);
     }
   }
 
@@ -986,26 +1011,30 @@ async function initWorkspace() {
         case 'layout-add-column':
           layoutStateTracker.captureState(dockview);
           addColumn(dockview);
-          layoutManager.save();
+          // Apply module-based ratios: empty column gets minimal size
+          setTimeout(() => applyModuleBasedRatios(), 50);
           break;
 
         case 'layout-remove-column':
           layoutStateTracker.captureState(dockview);
           if (removeActiveGroup(dockview)) {
-            layoutManager.save();
+            // Apply module-based ratios: redistribute space to remaining modules
+            setTimeout(() => applyModuleBasedRatios(), 50);
           }
           break;
 
         case 'layout-add-row':
           layoutStateTracker.captureState(dockview);
           addRow(dockview);
-          layoutManager.save();
+          // Apply module-based ratios: empty row gets minimal size
+          setTimeout(() => applyModuleBasedRatios(), 50);
           break;
 
         case 'layout-remove-row':
           layoutStateTracker.captureState(dockview);
           if (removeActiveGroup(dockview)) {
-            layoutManager.save();
+            // Apply module-based ratios: redistribute space to remaining modules
+            setTimeout(() => applyModuleBasedRatios(), 50);
           }
           break;
 
