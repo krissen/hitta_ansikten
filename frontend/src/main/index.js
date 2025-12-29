@@ -84,6 +84,24 @@ function createWorkspaceWindow() {
     }
   });
 
+  // CRITICAL: Intercept keyboard events BEFORE they reach renderer
+  // This is the ONLY way to reliably prevent shortcuts when DevTools is focused
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    // Synchronously check if DevTools is focused (no race condition!)
+    const devToolsFocused = mainWindow.webContents.isDevToolsFocused();
+
+    if (devToolsFocused) {
+      // DevTools is focused - prevent event from reaching renderer's keyboard handlers
+      // This allows DevTools to handle the input itself
+      console.log('[Main] DevTools focused, preventing renderer shortcut for:', input.key, input.type);
+      event.preventDefault();
+      return;
+    }
+
+    // If we get here, DevTools is NOT focused, so keyboard events
+    // will be allowed to reach the renderer's keyboard handlers
+  });
+
   console.log('[Main] Workspace window created');
 }
 
