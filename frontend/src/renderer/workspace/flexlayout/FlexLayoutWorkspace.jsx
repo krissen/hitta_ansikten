@@ -1,52 +1,54 @@
 /**
  * FlexLayoutWorkspace - Main workspace component using FlexLayout
  *
- * Replaces Dockview with FlexLayout for better layout capabilities:
- * - Native full-width spanning rows
- * - Floating windows support (future)
- * - Popout windows support (future)
- * - Tab maximization
+ * Pure React implementation - all modules are React components.
  */
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions } from 'flexlayout-react';
-import { ModuleWrapper } from './ModuleWrapper.jsx';
 import { reviewLayout, getLayoutByName } from './layouts.js';
-import { registerModule, getModule } from '../module-registry.js';
-import { apiClient } from '../../shared/api-client.js';
 import { preferences } from '../preferences.js';
+import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 
-// Import modules
-import imageViewerModule from '../../modules/image-viewer/index.js';
-import reviewModule from '../../modules/review-module/index.js';
-import logViewerModule from '../../modules/log-viewer/index.js';
-import originalViewModule from '../../modules/original-view/index.js';
-import statisticsDashboardModule from '../../modules/statistics-dashboard/index.js';
-import databaseManagementModule from '../../modules/database-management/index.js';
+// Import React components directly
+import { ImageViewer } from '../../components/ImageViewer.jsx';
+import { OriginalView } from '../../components/OriginalView.jsx';
+import { LogViewer } from '../../components/LogViewer.jsx';
+import { StatisticsDashboard } from '../../components/StatisticsDashboard.jsx';
+import { ReviewModule } from '../../components/ReviewModule.jsx';
+import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
 
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
+
+// Module component mapping
+const MODULE_COMPONENTS = {
+  'image-viewer': ImageViewer,
+  'original-view': OriginalView,
+  'log-viewer': LogViewer,
+  'statistics-dashboard': StatisticsDashboard,
+  'review-module': ReviewModule,
+  'database-management': DatabaseManagement
+};
+
+// Module titles
+const MODULE_TITLES = {
+  'image-viewer': 'Image Viewer',
+  'original-view': 'Original View',
+  'log-viewer': 'Backend Logs',
+  'statistics-dashboard': 'Statistics Dashboard',
+  'review-module': 'Face Review',
+  'database-management': 'Database Management'
+};
 
 /**
  * FlexLayoutWorkspace Component
  */
 export function FlexLayoutWorkspace() {
   const layoutRef = useRef(null);
-  const moduleInstancesRef = useRef(new Map());
   const [model, setModel] = useState(null);
   const [ready, setReady] = useState(false);
-
-  // Register all modules on mount
-  useEffect(() => {
-    console.log('[FlexLayoutWorkspace] Registering modules...');
-    registerModule(imageViewerModule);
-    registerModule(reviewModule);
-    registerModule(logViewerModule);
-    registerModule(originalViewModule);
-    registerModule(statisticsDashboardModule);
-    registerModule(databaseManagementModule);
-    console.log('[FlexLayoutWorkspace] Modules registered');
-  }, []);
+  const moduleAPI = useModuleAPI();
 
   // Initialize model
   useEffect(() => {
@@ -73,37 +75,21 @@ export function FlexLayoutWorkspace() {
     try {
       const newModel = Model.fromJson(layoutConfig);
       setModel(newModel);
+      setReady(true);
       console.log('[FlexLayoutWorkspace] Model created');
     } catch (err) {
       console.error('[FlexLayoutWorkspace] Failed to create model:', err);
       // Fall back to default
       setModel(Model.fromJson(reviewLayout));
+      setReady(true);
     }
   }, []);
-
-  // Connect WebSocket when ready
-  useEffect(() => {
-    if (!model) return;
-
-    const connectWS = async () => {
-      try {
-        await apiClient.connectWebSocket();
-        console.log('[FlexLayoutWorkspace] WebSocket connected');
-      } catch (err) {
-        console.error('[FlexLayoutWorkspace] Failed to connect WebSocket:', err);
-      }
-      setReady(true);
-    };
-
-    connectWS();
-  }, [model]);
 
   // Save layout on model change
   const handleModelChange = useCallback((newModel) => {
     try {
       const json = newModel.toJson();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(json));
-      console.log('[FlexLayoutWorkspace] Layout saved');
     } catch (err) {
       console.warn('[FlexLayoutWorkspace] Failed to save layout:', err);
     }
@@ -113,15 +99,15 @@ export function FlexLayoutWorkspace() {
   const openModule = useCallback((moduleId, options = {}) => {
     if (!model || !layoutRef.current) return;
 
-    const module = getModule(moduleId);
-    if (!module) {
+    const ModuleComponent = MODULE_COMPONENTS[moduleId];
+    if (!ModuleComponent) {
       console.error(`[FlexLayoutWorkspace] Module not found: ${moduleId}`);
       return;
     }
 
     const tabJson = {
       type: 'tab',
-      name: module.title || moduleId,
+      name: MODULE_TITLES[moduleId] || moduleId,
       component: moduleId,
       config: { moduleId }
     };
@@ -149,9 +135,9 @@ export function FlexLayoutWorkspace() {
   // Factory function for FlexLayout
   const factory = useCallback((node) => {
     const component = node.getComponent();
-    const module = getModule(component);
+    const ModuleComponent = MODULE_COMPONENTS[component];
 
-    if (!module) {
+    if (!ModuleComponent) {
       return (
         <div style={{ padding: 20, color: '#666' }}>
           Unknown module: {component}
@@ -159,15 +145,8 @@ export function FlexLayoutWorkspace() {
       );
     }
 
-    return (
-      <ModuleWrapper
-        node={node}
-        moduleInstances={moduleInstancesRef}
-        openModule={openModule}
-        closePanel={closePanel}
-      />
-    );
-  }, [openModule, closePanel]);
+    return <ModuleComponent />;
+  }, []);
 
   // Get tabset position in layout (using bounding rect)
   const getTabsetPosition = useCallback((tabset) => {
@@ -247,7 +226,7 @@ export function FlexLayoutWorkspace() {
     // Create a placeholder tab in the new tabset
     const placeholderTab = {
       type: 'tab',
-      name: 'New Tab',
+      name: 'Image Viewer',
       component: 'image-viewer',
       config: { moduleId: 'image-viewer' }
     };
@@ -263,7 +242,6 @@ export function FlexLayoutWorkspace() {
 
     const children = activeTabset.getChildren();
     if (children.length === 0) {
-      // Empty tabset - can't directly delete, but FlexLayout handles this
       console.log('[FlexLayoutWorkspace] Cannot remove empty tabset directly');
       return false;
     }
@@ -279,6 +257,18 @@ export function FlexLayoutWorkspace() {
     console.log(`[FlexLayoutWorkspace] Tabset has ${children.length} tabs, not removing`);
     return false;
   }, [model]);
+
+  // Load a preset layout
+  const loadLayout = useCallback((layoutName) => {
+    console.log(`[FlexLayoutWorkspace] Loading layout: ${layoutName}`);
+    const layoutConfig = getLayoutByName(layoutName);
+    try {
+      const newModel = Model.fromJson(layoutConfig);
+      setModel(newModel);
+    } catch (err) {
+      console.error('[FlexLayoutWorkspace] Failed to load layout:', err);
+    }
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -316,7 +306,7 @@ export function FlexLayoutWorkspace() {
           removeEmptyTabset();
           return;
         }
-        // Cmd+Shift+}/{ - Add/remove row (Shift+] is }, Shift+[ is {)
+        // Cmd+Shift+}/{ - Add/remove row
         if (event.key === '}') {
           event.preventDefault();
           addTabset('row');
@@ -334,26 +324,48 @@ export function FlexLayoutWorkspace() {
         const activeTabset = model.getActiveTabset();
         if (!activeTabset) return;
 
-        if (event.key === 'ArrowLeft') {
+        const navigate = (direction) => {
           event.preventDefault();
-          navigateToDirection('left');
-          return;
-        }
-        if (event.key === 'ArrowRight') {
-          event.preventDefault();
-          navigateToDirection('right');
-          return;
-        }
-        if (event.key === 'ArrowUp') {
-          event.preventDefault();
-          navigateToDirection('up');
-          return;
-        }
-        if (event.key === 'ArrowDown') {
-          event.preventDefault();
-          navigateToDirection('down');
-          return;
-        }
+          const targetTabset = findTabsetInDirection(activeTabset, direction);
+
+          if (targetTabset) {
+            const selectedNode = targetTabset.getSelectedNode();
+            if (selectedNode) {
+              model.doAction(Actions.selectTab(selectedNode.getId()));
+            }
+          } else {
+            // Fallback: cycle through all tabsets
+            const tabsets = [];
+            model.visitNodes((node) => {
+              if (node.getType() === 'tabset') {
+                tabsets.push(node);
+              }
+            });
+
+            if (tabsets.length < 2) return;
+
+            const currentIndex = tabsets.findIndex(ts => ts.getId() === activeTabset.getId());
+            let nextIndex;
+
+            if (direction === 'left' || direction === 'up') {
+              nextIndex = (currentIndex - 1 + tabsets.length) % tabsets.length;
+            } else {
+              nextIndex = (currentIndex + 1) % tabsets.length;
+            }
+
+            const nextTabset = tabsets[nextIndex];
+            const selectedNode = nextTabset.getSelectedNode();
+            if (selectedNode) {
+              model.doAction(Actions.selectTab(selectedNode.getId()));
+            }
+          }
+        };
+
+        if (event.key === 'ArrowLeft') navigate('left');
+        else if (event.key === 'ArrowRight') navigate('right');
+        else if (event.key === 'ArrowUp') navigate('up');
+        else if (event.key === 'ArrowDown') navigate('down');
+        return;
       }
 
       // Cmd/Ctrl + O: Open file
@@ -363,69 +375,14 @@ export function FlexLayoutWorkspace() {
       }
     };
 
-    const navigateToDirection = (direction) => {
-      const activeTabset = model.getActiveTabset();
-      if (!activeTabset) return;
-
-      // Try position-based navigation first
-      const targetTabset = findTabsetInDirection(activeTabset, direction);
-
-      if (targetTabset) {
-        const selectedNode = targetTabset.getSelectedNode();
-        if (selectedNode) {
-          model.doAction(Actions.selectTab(selectedNode.getId()));
-          console.log(`[FlexLayoutWorkspace] Navigated ${direction} to ${selectedNode.getId()}`);
-        }
-      } else {
-        // Fallback: cycle through all tabsets
-        const tabsets = [];
-        model.visitNodes((node) => {
-          if (node.getType() === 'tabset') {
-            tabsets.push(node);
-          }
-        });
-
-        if (tabsets.length < 2) return;
-
-        const currentIndex = tabsets.findIndex(ts => ts.getId() === activeTabset.getId());
-        let nextIndex;
-
-        switch (direction) {
-          case 'left':
-          case 'up':
-            nextIndex = (currentIndex - 1 + tabsets.length) % tabsets.length;
-            break;
-          case 'right':
-          case 'down':
-            nextIndex = (currentIndex + 1) % tabsets.length;
-            break;
-          default:
-            return;
-        }
-
-        const nextTabset = tabsets[nextIndex];
-        const selectedNode = nextTabset.getSelectedNode();
-        if (selectedNode) {
-          model.doAction(Actions.selectTab(selectedNode.getId()));
-        }
-      }
-    };
-
     const openFileDialog = async () => {
       try {
         const filePath = await window.bildvisareAPI?.invoke('open-file-dialog');
         if (!filePath) return;
 
         console.log(`[FlexLayoutWorkspace] Opening file: ${filePath}`);
-
-        // Find image viewer and trigger load
-        const instances = moduleInstancesRef.current;
-        for (const [id, instance] of instances) {
-          if (instance.module.id === 'image-viewer') {
-            instance.api._triggerEvent('load-image', { imagePath: filePath });
-            break;
-          }
-        }
+        // Emit load-image event via module API
+        moduleAPI.emit('load-image', { imagePath: filePath });
       } catch (err) {
         console.error('[FlexLayoutWorkspace] Failed to open file:', err);
       }
@@ -433,19 +390,7 @@ export function FlexLayoutWorkspace() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [model, ready, findTabsetInDirection, addTabset, removeEmptyTabset]);
-
-  // Load a preset layout (must be defined before IPC useEffect that uses it)
-  const loadLayout = useCallback((layoutName) => {
-    console.log(`[FlexLayoutWorkspace] Loading layout: ${layoutName}`);
-    const layoutConfig = getLayoutByName(layoutName);
-    try {
-      const newModel = Model.fromJson(layoutConfig);
-      setModel(newModel);
-    } catch (err) {
-      console.error('[FlexLayoutWorkspace] Failed to load layout:', err);
-    }
-  }, []);
+  }, [model, ready, findTabsetInDirection, addTabset, removeEmptyTabset, moduleAPI]);
 
   // Setup IPC listeners
   useEffect(() => {
@@ -454,13 +399,7 @@ export function FlexLayoutWorkspace() {
     // Listen for initial file path
     const handleInitialFile = (filePath) => {
       console.log('[FlexLayoutWorkspace] Received initial file:', filePath);
-      const instances = moduleInstancesRef.current;
-      for (const [id, instance] of instances) {
-        if (instance.module.id === 'image-viewer') {
-          instance.api._triggerEvent('load-image', { imagePath: filePath });
-          break;
-        }
-      }
+      moduleAPI.emit('load-image', { imagePath: filePath });
     };
 
     // Listen for menu commands
@@ -472,44 +411,32 @@ export function FlexLayoutWorkspace() {
         case 'open-file': {
           const filePath = await window.bildvisareAPI?.invoke('open-file-dialog');
           if (filePath) {
-            const instances = moduleInstancesRef.current;
-            for (const [id, instance] of instances) {
-              if (instance.module.id === 'image-viewer') {
-                instance.api._triggerEvent('load-image', { imagePath: filePath });
-                break;
-              }
-            }
+            moduleAPI.emit('load-image', { imagePath: filePath });
           }
           break;
         }
 
         // Layout template commands
         case 'layout-template-review':
+        case 'layout-review':
           loadLayout('review');
           break;
         case 'layout-template-comparison':
+        case 'layout-comparison':
           loadLayout('comparison');
           break;
         case 'layout-template-full-image':
-          loadLayout('review'); // Use review as default for full-image
+          loadLayout('review');
           break;
         case 'layout-template-stats':
+        case 'layout-database':
           loadLayout('database');
-          break;
-        case 'layout-review':
-          loadLayout('review');
           break;
         case 'layout-review-with-logs':
           loadLayout('review-with-logs');
           break;
-        case 'layout-comparison':
-          loadLayout('comparison');
-          break;
         case 'layout-full-review':
           loadLayout('full-review');
-          break;
-        case 'layout-database':
-          loadLayout('database');
           break;
         case 'reset-layout':
           loadLayout('review');
@@ -546,12 +473,9 @@ export function FlexLayoutWorkspace() {
           openModule('database-management');
           break;
 
+        // View commands - broadcast to modules
         default:
-          // Broadcast to modules (for view commands like zoom, boxes, etc.)
-          const instances = moduleInstancesRef.current;
-          instances.forEach((instance) => {
-            instance.api._triggerEvent(command, {});
-          });
+          moduleAPI.emit(command, {});
       }
     };
 
@@ -561,7 +485,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       // Cleanup if needed
     };
-  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule]);
+  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, moduleAPI]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
@@ -570,21 +494,20 @@ export function FlexLayoutWorkspace() {
     window.workspace = {
       model,
       layoutRef,
-      moduleInstances: moduleInstancesRef.current,
       openModule,
       closePanel,
       loadLayout,
       addColumn: () => addTabset('column'),
       addRow: () => addTabset('row'),
       removeTabset: removeEmptyTabset,
-      apiClient,
+      moduleAPI,
       preferences
     };
 
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, closePanel, loadLayout, addTabset, removeEmptyTabset]);
+  }, [model, openModule, closePanel, loadLayout, addTabset, removeEmptyTabset, moduleAPI]);
 
   if (!model) {
     return (

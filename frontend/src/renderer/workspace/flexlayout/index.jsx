@@ -2,11 +2,14 @@
  * FlexLayout Workspace Entry Point
  *
  * Boots React and renders the FlexLayoutWorkspace component.
+ * Pure React implementation - all modules are React components.
  */
 
-import React from 'react';
+import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FlexLayoutWorkspace } from './FlexLayoutWorkspace.jsx';
+import { ModuleAPIProvider } from '../../context/ModuleAPIContext.jsx';
+import { BackendProvider } from '../../context/BackendContext.jsx';
 
 // Import FlexLayout CSS
 import 'flexlayout-react/style/light.css';
@@ -23,12 +26,17 @@ function initFlexLayoutWorkspace() {
     return;
   }
 
-  // Create React root and render
+  // Create React root and render with providers
+  // StrictMode is now enabled since we use pure React components
   const root = createRoot(rootElement);
   root.render(
-    <React.StrictMode>
-      <FlexLayoutWorkspace />
-    </React.StrictMode>
+    <StrictMode>
+      <ModuleAPIProvider>
+        <BackendProvider>
+          <FlexLayoutWorkspace />
+        </BackendProvider>
+      </ModuleAPIProvider>
+    </StrictMode>
   );
 
   console.log('[FlexLayout] Workspace initialized');
