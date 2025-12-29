@@ -62,7 +62,7 @@ export default {
       }
 
       .review-header {
-        padding: 16px;
+        padding: 8px 12px;
         background: white;
         border-bottom: 1px solid #ddd;
       }
@@ -74,28 +74,28 @@ export default {
       }
 
       .review-status {
-        font-size: 12px;
+        font-size: 11px;
         color: #666;
       }
 
       .face-grid {
         flex: 1;
         overflow-y: auto;
-        padding: 16px;
+        padding: 8px;
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 8px;
         align-content: start;
       }
 
       .face-card {
         background: white;
-        border-radius: 8px;
-        padding: 12px;
+        border-radius: 6px;
+        padding: 8px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 6px;
         position: relative;
       }
 
@@ -118,7 +118,7 @@ export default {
       }
 
       .face-info {
-        font-size: 12px;
+        font-size: 10px;
         color: #666;
       }
 
@@ -129,22 +129,23 @@ export default {
 
       .face-actions {
         display: flex;
-        gap: 8px;
+        gap: 4px;
       }
 
       .face-actions input {
         flex: 1;
-        padding: 6px 8px;
+        padding: 4px 6px;
         border: 1px solid #ddd;
         border-radius: 4px;
-        font-size: 12px;
+        font-size: 11px;
+        min-width: 0;
       }
 
       .face-actions button {
-        padding: 6px 12px;
+        padding: 4px 8px;
         border: none;
         border-radius: 4px;
-        font-size: 12px;
+        font-size: 11px;
         cursor: pointer;
         font-weight: 600;
       }

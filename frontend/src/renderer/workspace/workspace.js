@@ -39,7 +39,6 @@ class ModuleAPI {
 
   // Inter-module events
   emit(eventName, data) {
-    console.log(`[ModuleAPI] ${this.panelId} emitted: ${eventName}`, data);
     // Broadcast to all modules
     moduleInstances.forEach((instance, id) => {
       if (id !== this.panelId && instance.api) {
@@ -147,12 +146,10 @@ function setupWorkspaceKeyboardShortcuts() {
       return;
     }
 
-    // CRITICAL: Detect Cmd+Option+I (open DevTools) and IMMEDIATELY disable shortcuts
+    // Detect Cmd+Option+I (open DevTools) and immediately disable shortcuts
     // This prevents race condition where keyboard events arrive before IPC message
     if ((event.metaKey || event.ctrlKey) && event.altKey && event.key.toLowerCase() === 'i') {
-      console.log('[Workspace] Cmd+Option+I detected - disabling shortcuts IMMEDIATELY (optimistic)');
-      devToolsFocus.isDevToolsOpen = true;  // Set optimistically BEFORE IPC arrives!
-      // Let the event through to actually open DevTools
+      devToolsFocus.isDevToolsOpen = true;
       return;
     }
 

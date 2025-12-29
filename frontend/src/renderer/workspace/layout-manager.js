@@ -26,37 +26,6 @@ export class LayoutManager {
       };
 
       localStorage.setItem(this.storageKey, JSON.stringify(state));
-
-      // Log panel configuration with sizes
-      const panels = this.dockview.panels || [];
-      const groups = this.dockview.groups || [];
-      const panelInfo = panels.map(p => ({
-        id: p.id,
-        title: p.title,
-        size: p.api?.width + 'x' + p.api?.height
-      }));
-      const groupInfo = groups.map((g, i) => ({
-        group: i,
-        width: g.api?.width,
-        height: g.api?.height,
-        panels: g.panels?.map(p => p.id) || []
-      }));
-
-      console.log('[LayoutManager] Saved workspace layout:', {
-        panels: panelInfo.length,
-        groups: groupInfo.length,
-        panelDetails: panelInfo,
-        groupDetails: groupInfo,
-        timestamp: new Date(state.timestamp).toLocaleTimeString()
-      });
-
-      // Log serialized layout structure for debugging
-      console.log('[LayoutManager] Layout JSON structure:', {
-        hasGrid: !!layout.grid,
-        gridRoot: layout.grid?.root?.type,
-        gridOrientation: layout.grid?.orientation,
-        fullGrid: layout.grid  // Log entire grid structure to see size data
-      });
     } catch (err) {
       console.error('[LayoutManager] Failed to save layout:', err);
     }
@@ -78,8 +47,6 @@ export class LayoutManager {
     try {
       const state = JSON.parse(saved);
 
-      console.log('[LayoutManager] Found saved layout from:', new Date(state.timestamp).toLocaleString());
-
       // Check version and migrate if needed
       if (state.version !== this.currentVersion) {
         console.warn(`[LayoutManager] Layout version mismatch (${state.version} vs ${this.currentVersion}), loading default`);
@@ -87,20 +54,7 @@ export class LayoutManager {
         return;
       }
 
-      // Log what we're about to restore
-      console.log('[LayoutManager] About to restore layout with grid:', {
-        hasGrid: !!state.layout.grid,
-        gridStructure: state.layout.grid
-      });
-
       this.dockview.fromJSON(state.layout);
-
-      // Log immediate state after fromJSON (before async rendering completes)
-      console.log('[LayoutManager] Immediately after fromJSON:', {
-        panels: this.dockview.panels?.length || 0,
-        groups: this.dockview.groups?.length || 0
-      });
-
       this.restoreModuleStates(state.moduleStates);
 
       // Check if layout has any panels - if not, load default
@@ -109,48 +63,6 @@ export class LayoutManager {
         this.loadDefault();
         return;
       }
-
-      // Log loaded panel configuration with actual sizes after restoration
-      const panels = this.dockview.panels || [];
-      const groups = this.dockview.groups || [];
-      const panelInfo = panels.map(p => ({
-        id: p.id,
-        title: p.title,
-        size: p.api?.width + 'x' + p.api?.height
-      }));
-      const groupInfo = groups.map((g, i) => ({
-        group: i,
-        width: g.api?.width,
-        height: g.api?.height,
-        panels: g.panels?.map(p => p.id) || []
-      }));
-
-      console.log('[LayoutManager] Loaded workspace layout successfully:', {
-        panels: panelInfo.length,
-        groups: groupInfo.length,
-        panelDetails: panelInfo,
-        groupDetails: groupInfo
-      });
-
-      // Check sizes again after layout engine has finished (async)
-      setTimeout(() => {
-        const panelsAfter = this.dockview.panels || [];
-        const groupsAfter = this.dockview.groups || [];
-        const panelInfoAfter = panelsAfter.map(p => ({
-          id: p.id,
-          size: p.api?.width + 'x' + p.api?.height
-        }));
-        const groupInfoAfter = groupsAfter.map((g, i) => ({
-          group: i,
-          width: g.api?.width,
-          height: g.api?.height
-        }));
-
-        console.log('[LayoutManager] Layout sizes after 100ms (post-render):', {
-          panelDetails: panelInfoAfter,
-          groupDetails: groupInfoAfter
-        });
-      }, 100);
     } catch (err) {
       console.error('[LayoutManager] Failed to load layout:', err);
       this.loadDefault();
@@ -170,7 +82,6 @@ export class LayoutManager {
    * @param {string} templateName - Template name: 'review', 'comparison', 'full-image', 'stats'
    */
   loadTemplate(templateName) {
-    console.log(`[LayoutManager] Loading template: ${templateName}`);
 
     // Clear existing panels first
     const panels = [...this.dockview.panels];
@@ -207,7 +118,7 @@ export class LayoutManager {
 
   /**
    * Review Mode Template
-   * Review module (10% left) + Image viewer (90% right)
+   * Review module (15% left) + Image viewer (85% right)
    */
   loadReviewTemplate() {
     const reviewPanel = this.dockview.addPanel({
@@ -224,10 +135,9 @@ export class LayoutManager {
       title: 'Image Viewer'
     });
 
-    // Apply 10-90 ratio (review narrow, image wide)
-    // Note: applyGridPreset modifies existing layouts, so we delay it slightly
+    // Apply 15-85 ratio (review narrow, image wide)
     setTimeout(() => {
-      this.applyGridPreset('10-90');
+      this.applyGridPreset('15-85');
     }, 50);
   }
 
@@ -336,7 +246,6 @@ export class LayoutManager {
       if (state && panel.api && panel.api.module && typeof panel.api.module.setState === 'function') {
         try {
           panel.api.module.setState(state);
-          console.log(`[LayoutManager] Restored state for panel ${panel.id}`);
         } catch (err) {
           console.warn(`[LayoutManager] Failed to restore state for panel ${panel.id}:`, err);
         }
@@ -369,8 +278,7 @@ export class LayoutManager {
       const state = JSON.parse(jsonString);
       this.dockview.fromJSON(state.layout);
       this.restoreModuleStates(state.moduleStates);
-      this.save(); // Save imported layout
-      console.log('[LayoutManager] Imported layout successfully');
+      this.save();
     } catch (err) {
       console.error('[LayoutManager] Failed to import layout:', err);
       throw err;
@@ -389,15 +297,13 @@ export class LayoutManager {
 
     localStorage.removeItem(this.storageKey);
     this.loadDefault();
-    console.log('[LayoutManager] Reset to default layout');
   }
 
   /**
    * Apply grid preset to resize panels
-   * @param {string} preset - Preset name: '50-50', '60-40', '70-30', '30-70', '40-60', '10-90', '90-10'
+   * @param {string} preset - Preset name: '50-50', '60-40', '70-30', '30-70', '40-60', '10-90', '15-85', '85-15', '90-10'
    */
   applyGridPreset(preset) {
-    console.log(`[LayoutManager] Applying grid preset: ${preset}`);
 
     const groups = this.dockview.groups || [];
     if (groups.length < 2) {
@@ -429,6 +335,12 @@ export class LayoutManager {
       case '10-90':
         ratio = 0.1;
         break;
+      case '15-85':
+        ratio = 0.15;
+        break;
+      case '85-15':
+        ratio = 0.85;
+        break;
       case '90-10':
         ratio = 0.9;
         break;
@@ -455,7 +367,6 @@ export class LayoutManager {
       }
 
       this.save();
-      console.log(`[LayoutManager] Applied ${preset} grid preset (ratio: ${ratio})`);
     }
   }
 

@@ -61,23 +61,15 @@ function createWorkspaceWindow() {
     mainWindow = null;
   });
 
-  // Track when DevTools is opened/closed (not just focused)
-  // Disable ALL shortcuts when DevTools is open to prevent interference
-  console.log('[Main] Attaching DevTools event listeners...');
-
+  // Track DevTools open/close state for renderer
   mainWindow.webContents.on('devtools-opened', () => {
-    console.log('[Main] ✓ devtools-opened EVENT FIRED!');
-    console.log('[Main] DevTools opened - disabling shortcuts');
     mainWindow.webContents.send('devtools-state-changed', true);
   });
 
   mainWindow.webContents.on('devtools-closed', () => {
-    console.log('[Main] ✓ devtools-closed EVENT FIRED!');
-    console.log('[Main] DevTools closed - enabling shortcuts');
     mainWindow.webContents.send('devtools-state-changed', false);
   });
 
-  console.log('[Main] DevTools event listeners attached');
   console.log('[Main] Workspace window created');
 }
 
