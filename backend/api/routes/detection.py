@@ -57,6 +57,29 @@ class IgnoreFaceResponse(BaseModel):
     status: str
     ignored_count: int
 
+class ReloadDatabaseResponse(BaseModel):
+    status: str
+    people_count: int
+    ignored_count: int
+    cache_cleared: int
+
+@router.post("/reload-database", response_model=ReloadDatabaseResponse)
+async def reload_database():
+    """
+    Reload face database from disk
+
+    Useful when database has been modified externally (e.g., by hantera_ansikten script).
+    Clears detection cache to ensure fresh results with updated data.
+    """
+    logger.info("[Detection] Reloading database...")
+
+    try:
+        result = detection_service.reload_database()
+        return ReloadDatabaseResponse(**result)
+    except Exception as e:
+        logger.error(f"[Detection] Error reloading database: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/detect-faces", response_model=DetectionResult)
 async def detect_faces(request: DetectionRequest):
     """

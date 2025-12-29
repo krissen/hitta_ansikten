@@ -49,6 +49,42 @@ class DetectionService:
         # Cache for face encodings (keyed by face_id for confirm/ignore operations)
         self.encoding_cache: Dict[str, Tuple[np.ndarray, Dict[str, int]]] = {}
 
+        # Cache for loaded images (keyed by image path) - for fast thumbnail generation
+        # Stores (rgb_array, timestamp) tuples, expires after 300 seconds
+        self.image_cache: Dict[str, Tuple[np.ndarray, float]] = {}
+        self.image_cache_ttl = 300  # 5 minutes
+
+    def reload_database(self) -> Dict[str, Any]:
+        """
+        Reload face database from disk
+
+        Useful when database has been modified externally (e.g., by hantera_ansikten).
+        Clears detection cache to ensure fresh results with new data.
+
+        Returns:
+            Status info with counts
+        """
+        logger.info("[DetectionService] Reloading database from disk...")
+
+        # Reload database
+        self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
+
+        # Clear caches to ensure fresh results
+        old_cache_size = len(self.cache)
+        self.cache.clear()
+        self.encoding_cache.clear()
+        self.image_cache.clear()
+
+        logger.info(f"[DetectionService] Database reloaded: {len(self.known_faces)} people, {len(self.ignored_faces)} ignored faces")
+        logger.info(f"[DetectionService] Cleared {old_cache_size} cached detection results")
+
+        return {
+            "status": "success",
+            "people_count": len(self.known_faces),
+            "ignored_count": len(self.ignored_faces),
+            "cache_cleared": old_cache_size
+        }
+
     def _get_file_hash(self, path: Path) -> str:
         """Compute SHA1 hash of file"""
         with open(path, "rb") as f:
@@ -222,10 +258,29 @@ class DetectionService:
             JPEG thumbnail bytes
         """
         import io
+        import time
 
-        # Load image
+        # Check image cache first
         path = Path(image_path)
-        rgb = self._load_image(path)
+        cache_key = str(path)
+        current_time = time.time()
+
+        if cache_key in self.image_cache:
+            rgb, timestamp = self.image_cache[cache_key]
+            # Check if cache entry is still valid
+            if current_time - timestamp < self.image_cache_ttl:
+                logger.debug(f"[DetectionService] Using cached image for thumbnail: {path.name}")
+            else:
+                # Cache expired, remove it
+                logger.debug(f"[DetectionService] Cache expired for: {path.name}")
+                del self.image_cache[cache_key]
+                rgb = self._load_image(path)
+                self.image_cache[cache_key] = (rgb, current_time)
+        else:
+            # Load image and cache it
+            logger.debug(f"[DetectionService] Loading and caching image for thumbnail: {path.name}")
+            rgb = self._load_image(path)
+            self.image_cache[cache_key] = (rgb, current_time)
 
         # Extract bounding box coordinates
         x = bounding_box['x']

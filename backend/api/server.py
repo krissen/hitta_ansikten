@@ -5,6 +5,7 @@ Main entry point for the Bildvisare backend API.
 Provides REST endpoints and WebSocket streaming for face detection.
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -17,11 +18,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Lifespan event handler (replaces deprecated on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Bildvisare Backend API starting up...")
+    logger.info("Server ready on http://127.0.0.1:5000")
+    yield
+    # Shutdown
+    logger.info("Bildvisare Backend API shutting down...")
+
 # Create FastAPI app
 app = FastAPI(
     title="Bildvisare Backend API",
     description="Face detection and annotation API for Bildvisare image viewer",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Configure CORS - only allow localhost (all ports)
@@ -49,15 +61,6 @@ app.include_router(database.router, prefix="/api", tags=["database"])
 # WebSocket endpoint
 from .websocket import progress
 app.include_router(progress.router)
-
-@app.on_event("startup")
-async def startup_event():
-    logger.info("Bildvisare Backend API starting up...")
-    logger.info("Server ready on http://127.0.0.1:5000")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("Bildvisare Backend API shutting down...")
 
 if __name__ == "__main__":
     import uvicorn
