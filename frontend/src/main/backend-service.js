@@ -16,7 +16,8 @@ const DEBUG = true;
 class BackendService {
   constructor() {
     this.process = null;
-    this.port = 5000;
+    // Default to 5001 to avoid conflict with macOS Control Center on 5000
+    this.port = parseInt(process.env.BILDVISARE_PORT || '5001');
     this.host = '127.0.0.1';
     this.maxRetries = 30; // 30 seconds max wait
     this.retryDelay = 1000; // 1 second between retries
@@ -52,7 +53,8 @@ class BackendService {
         cwd: path.join(__dirname, '../../../backend'),
         env: {
           ...process.env,
-          PYTHONPATH: path.join(__dirname, '../../../backend')
+          PYTHONPATH: path.join(__dirname, '../../../backend'),
+          BILDVISARE_PORT: this.port.toString()
         },
         stdio: 'pipe'
       }
@@ -88,17 +90,28 @@ class BackendService {
    * @returns {Promise<void>}
    */
   async waitForReady() {
-    console.log('[BackendService] Waiting for server to be ready...');
+    console.log('[BackendService] ⏳ Starting backend server, please wait...');
+    console.log('[BackendService] This may take 5-10 seconds on first start');
+
+    // Initial delay to let Python start (reduces noise from failed health checks)
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     for (let i = 0; i < this.maxRetries; i++) {
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
-        console.log(`[BackendService] Server ready after ${i + 1} attempts`);
+        console.log(`[BackendService] ✅ Backend server ready! (took ${(i + 1) * this.retryDelay / 1000}s)`);
         return;
       }
 
-      if (DEBUG) {
-        console.log(`[BackendService] Health check ${i + 1}/${this.maxRetries} failed, retrying...`);
+      // More user-friendly progress messages
+      if (i === 0) {
+        console.log('[BackendService] ⏳ Initializing Python environment...');
+      } else if (i === 3) {
+        console.log('[BackendService] ⏳ Loading FastAPI modules...');
+      } else if (i === 6) {
+        console.log('[BackendService] ⏳ Starting web server...');
+      } else if (i > 15 && i % 5 === 0) {
+        console.log(`[BackendService] ⏳ Still waiting... (${i}/${this.maxRetries} attempts)`);
       }
 
       // Wait before next retry
@@ -134,14 +147,10 @@ class BackendService {
             try {
               const json = JSON.parse(data);
               const isHealthy = json.status === 'ok';
-              if (DEBUG && isHealthy) {
-                console.log('[BackendService] Health check successful');
-              }
+              // Don't log every successful health check during startup
               resolve(isHealthy);
             } catch (err) {
-              if (DEBUG) {
-                console.log('[BackendService] Health check - invalid JSON:', data);
-              }
+              // Invalid JSON during startup is expected (server not ready yet)
               resolve(false);
             }
           });
@@ -149,17 +158,16 @@ class BackendService {
       );
 
       req.on('error', (err) => {
-        if (DEBUG) {
+        // Don't log connection refused errors during startup (expected)
+        // Only log other errors or if server takes too long
+        if (DEBUG && err.code !== 'ECONNREFUSED') {
           console.log('[BackendService] Health check error:', err.message);
         }
         resolve(false);
       });
 
       req.on('timeout', () => {
-        if (DEBUG) {
-          console.log('[BackendService] Health check timeout');
-        }
-        req.destroy();
+        // Timeouts during startup are expected, don't log
         resolve(false);
       });
 

@@ -22,8 +22,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    import os
+    port = int(os.getenv('BILDVISARE_PORT', '5001'))
     logger.info("Bildvisare Backend API starting up...")
-    logger.info("Server ready on http://127.0.0.1:5000")
+    logger.info(f"Server ready on http://127.0.0.1:{port}")
     yield
     # Shutdown
     logger.info("Bildvisare Backend API shutting down...")
@@ -66,4 +68,9 @@ app.include_router(progress.router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=5000, log_level="info")
+    import os
+
+    # Get port from environment variable, default to 5001
+    port = int(os.getenv('BILDVISARE_PORT', '5001'))
+
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")

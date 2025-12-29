@@ -6,7 +6,7 @@
  */
 
 export class APIClient {
-  constructor(baseUrl = 'http://127.0.0.1:5000') {
+  constructor(baseUrl = 'http://127.0.0.1:5001') {
     this.baseUrl = baseUrl;
     this.ws = null;
     this.wsHandlers = new Map(); // event name -> Set of callbacks
