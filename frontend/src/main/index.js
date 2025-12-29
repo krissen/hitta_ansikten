@@ -99,15 +99,33 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on('window-all-closed', async () => {
+  console.log('[Main] All windows closed');
+
+  // On macOS, stop backend but keep app running
+  // On other platforms, quit the app
+  if (process.platform === 'darwin') {
+    // Stop backend when window closes on macOS
+    if (backendService && !isQuitting) {
+      isQuitting = true;
+      try {
+        await backendService.stop();
+        console.log('[Main] Backend stopped (window closed)');
+      } catch (err) {
+        console.error('[Main] Error stopping backend:', err);
+      }
+      backendService = null;
+    }
+  } else {
     app.quit();
   }
 });
 
 app.on('before-quit', async (event) => {
+  console.log('[Main] before-quit event, isQuitting:', isQuitting);
+
   if (backendService && !isQuitting) {
-    console.log('[Main] Shutting down backend...');
+    console.log('[Main] Preventing quit to stop backend first...');
     event.preventDefault(); // Prevent quit until backend stops
     isQuitting = true;
 
@@ -121,8 +139,13 @@ app.on('before-quit', async (event) => {
     backendService = null;
 
     // Now quit for real
+    console.log('[Main] Backend stopped, quitting now...');
     app.quit();
   }
+});
+
+app.on('will-quit', () => {
+  console.log('[Main] will-quit event');
 });
 
 // IPC Handlers
