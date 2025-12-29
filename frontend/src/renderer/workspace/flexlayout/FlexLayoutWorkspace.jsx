@@ -456,7 +456,8 @@ export function FlexLayoutWorkspace() {
       console.log('[FlexLayoutWorkspace] Menu command:', command);
 
       switch (command) {
-        case 'open-file':
+        // File commands
+        case 'open-file': {
           const filePath = await window.bildvisareAPI?.invoke('open-file-dialog');
           if (filePath) {
             const instances = moduleInstancesRef.current;
@@ -468,29 +469,73 @@ export function FlexLayoutWorkspace() {
             }
           }
           break;
+        }
 
+        // Layout template commands
+        case 'layout-template-review':
+          loadLayout('review');
+          break;
+        case 'layout-template-comparison':
+          loadLayout('comparison');
+          break;
+        case 'layout-template-full-image':
+          loadLayout('review'); // Use review as default for full-image
+          break;
+        case 'layout-template-stats':
+          loadLayout('database');
+          break;
         case 'layout-review':
           loadLayout('review');
           break;
-
         case 'layout-review-with-logs':
           loadLayout('review-with-logs');
           break;
-
         case 'layout-comparison':
           loadLayout('comparison');
           break;
-
         case 'layout-full-review':
           loadLayout('full-review');
           break;
-
         case 'layout-database':
           loadLayout('database');
           break;
+        case 'reset-layout':
+          loadLayout('review');
+          break;
+
+        // Layout manipulation commands
+        case 'layout-add-column':
+          addTabset('column');
+          break;
+        case 'layout-remove-column':
+          removeEmptyTabset();
+          break;
+        case 'layout-add-row':
+          addTabset('row');
+          break;
+        case 'layout-remove-row':
+          removeEmptyTabset();
+          break;
+
+        // Open module commands
+        case 'open-original-view':
+          openModule('original-view');
+          break;
+        case 'open-log-viewer':
+          openModule('log-viewer');
+          break;
+        case 'open-review-module':
+          openModule('review-module');
+          break;
+        case 'open-statistics-dashboard':
+          openModule('statistics-dashboard');
+          break;
+        case 'open-database-management':
+          openModule('database-management');
+          break;
 
         default:
-          // Broadcast to modules
+          // Broadcast to modules (for view commands like zoom, boxes, etc.)
           const instances = moduleInstancesRef.current;
           instances.forEach((instance) => {
             instance.api._triggerEvent(command, {});
@@ -504,7 +549,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       // Cleanup if needed
     };
-  }, [ready]);
+  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule]);
 
   // Load a preset layout
   const loadLayout = useCallback((layoutName) => {
