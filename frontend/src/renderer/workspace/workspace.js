@@ -14,6 +14,8 @@ import imageViewerModule from '../modules/image-viewer/index.js';
 import reviewModule from '../modules/review-module/index.js';
 import logViewerModule from '../modules/log-viewer/index.js';
 import originalViewModule from '../modules/original-view/index.js';
+import statisticsDashboardModule from '../modules/statistics-dashboard/index.js';
+import databaseManagementModule from '../modules/database-management/index.js';
 
 // Global workspace state
 let dockview = null;
@@ -183,6 +185,8 @@ async function initWorkspace() {
   registerModule(reviewModule);
   registerModule(logViewerModule);
   registerModule(originalViewModule);
+  registerModule(statisticsDashboardModule);
+  registerModule(databaseManagementModule);
 
   // Create Dockview instance
   dockview = createDockview(document.getElementById('workspace-root'), {
@@ -343,6 +347,14 @@ async function initWorkspace() {
 
         case 'show-keyboard-shortcuts':
           showKeyboardShortcuts();
+          break;
+
+        case 'open-statistics-dashboard':
+          openModule('statistics-dashboard', { title: 'Statistics Dashboard' });
+          break;
+
+        case 'open-database-management':
+          openModule('database-management', { title: 'Database Management' });
           break;
 
         default:

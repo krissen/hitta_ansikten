@@ -177,6 +177,19 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          label: 'Statistics Dashboard',
+          click: () => {
+            mainWindow.webContents.send('menu-command', 'open-statistics-dashboard');
+          }
+        },
+        {
+          label: 'Database Management',
+          click: () => {
+            mainWindow.webContents.send('menu-command', 'open-database-management');
+          }
+        },
+        { type: 'separator' },
+        {
           label: 'Toggle Developer Tools',
           accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
           click: () => {
