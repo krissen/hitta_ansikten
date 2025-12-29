@@ -113,6 +113,18 @@ export default {
           renderer.toggleOnOff();
           event.preventDefault();
           break;
+
+        case 'c':
+          // Enable auto-center and center on current face
+          renderer.toggleAutoCenterOnFace(true);
+          event.preventDefault();
+          break;
+
+        case 'C':
+          // Disable auto-center on face
+          renderer.toggleAutoCenterOnFace(false);
+          event.preventDefault();
+          break;
       }
     };
 
@@ -237,6 +249,14 @@ export default {
 
     api.on('auto-fit', () => {
       renderer.autoFit();
+    });
+
+    api.on('auto-center-enable', () => {
+      renderer.toggleAutoCenterOnFace(true);
+    });
+
+    api.on('auto-center-disable', () => {
+      renderer.toggleAutoCenterOnFace(false);
     });
 
     // TODO: Load initial image if provided in params

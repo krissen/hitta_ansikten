@@ -147,6 +147,21 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          label: 'Enable Auto-Center on Face',
+          accelerator: 'c',
+          click: () => {
+            mainWindow.webContents.send('menu-command', 'auto-center-enable');
+          }
+        },
+        {
+          label: 'Disable Auto-Center on Face',
+          accelerator: 'Shift+C',
+          click: () => {
+            mainWindow.webContents.send('menu-command', 'auto-center-disable');
+          }
+        },
+        { type: 'separator' },
+        {
           label: 'Open Original View',
           accelerator: 'CmdOrCtrl+Shift+O',
           click: () => {

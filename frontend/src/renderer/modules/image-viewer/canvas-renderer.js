@@ -40,6 +40,9 @@ export class CanvasRenderer {
     this.labelBufferRatio = 0.005; // Buffer as % of image width (0.5%)
     this.labelMinBuffer = 10; // Minimum buffer in pixels
 
+    // Auto-center on active face (will be user-configurable in Phase 4)
+    this.autoCenterOnFace = false; // Auto-center viewport when active face changes
+
     // Setup canvas
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
@@ -484,10 +487,77 @@ export class CanvasRenderer {
   }
 
   /**
+   * Center viewport on active face
+   * Only works in manual zoom mode (not auto-fit)
+   */
+  centerOnActiveFace() {
+    // Only center if we have faces and are in manual zoom mode
+    if (!this.faces || this.faces.length === 0 || this.zoomMode === 'auto') {
+      console.log('[CanvasRenderer] Cannot center: no faces or in auto-fit mode');
+      return;
+    }
+
+    const face = this.faces[this.activeFaceIndex];
+    if (!face) {
+      console.log('[CanvasRenderer] Cannot center: no face at active index');
+      return;
+    }
+
+    const bbox = face.bounding_box;
+
+    // Calculate face center in image coordinates
+    const faceCenterX = bbox.x + bbox.width / 2;
+    const faceCenterY = bbox.y + bbox.height / 2;
+
+    // Get canvas dimensions
+    const canvasWidth = this.canvas.width / (window.devicePixelRatio || 1);
+    const canvasHeight = this.canvas.height / (window.devicePixelRatio || 1);
+
+    // Calculate viewport center in canvas coordinates
+    const viewportCenterX = canvasWidth / 2;
+    const viewportCenterY = canvasHeight / 2;
+
+    // Calculate required pan to center face
+    // pan.x/y represents top-left corner of the image in canvas coordinates
+    // We want: faceCenterX * zoomFactor + pan.x = viewportCenterX
+    this.pan.x = viewportCenterX - (faceCenterX * this.zoomFactor);
+    this.pan.y = viewportCenterY - (faceCenterY * this.zoomFactor);
+
+    console.log(`[CanvasRenderer] Centered on face ${this.activeFaceIndex + 1}`);
+    this.render();
+  }
+
+  /**
+   * Toggle auto-center on face feature
+   * @param {boolean} enable - True to enable, false to disable, undefined to toggle
+   */
+  toggleAutoCenterOnFace(enable) {
+    if (enable === undefined) {
+      this.autoCenterOnFace = !this.autoCenterOnFace;
+    } else {
+      this.autoCenterOnFace = enable;
+    }
+
+    console.log(`[CanvasRenderer] Auto-center on face: ${this.autoCenterOnFace ? 'enabled' : 'disabled'}`);
+
+    // If enabling, center immediately
+    if (this.autoCenterOnFace) {
+      this.centerOnActiveFace();
+    }
+  }
+
+  /**
    * Set active face index for 'single' mode
+   * If auto-center is enabled, centers viewport on new face
    */
   setActiveFaceIndex(index) {
     this.activeFaceIndex = index;
+
+    // Auto-center on new face if enabled
+    if (this.autoCenterOnFace) {
+      this.centerOnActiveFace();
+    }
+
     if (this.faceBoxMode === 'single') {
       this.render();
     }

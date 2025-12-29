@@ -294,6 +294,8 @@ async function initWorkspace() {
         case 'zoom-out':
         case 'reset-zoom':
         case 'auto-fit':
+        case 'auto-center-enable':
+        case 'auto-center-disable':
           // Broadcast to all modules (image viewer will handle)
           moduleInstances.forEach((instance) => {
             instance.api._triggerEvent(command, {});
