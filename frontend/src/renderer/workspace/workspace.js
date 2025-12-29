@@ -6,11 +6,14 @@
 
 import { createDockview } from '../../../node_modules/dockview-core/dist/dockview-core.esm.js';
 import { LayoutManager } from './layout-manager.js';
+import { LayoutStateTracker } from './layout-state.js';
+import { findGroupInDirection, navigateInDirection, addColumn, addRow, removeActiveGroup } from './grid-helpers.js';
 import { registerModule, getModule } from './module-registry.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from './preferences.js';
 import { preferencesUI } from './preferences-ui.js';
 import { devToolsFocus } from '../shared/devtools-focus.js';
+import { workspaceLog, workspaceWarn, workspaceError, workspaceDebug } from '../shared/logger.js';
 
 // Import modules
 import imageViewerModule from '../modules/image-viewer/index.js';
@@ -23,6 +26,7 @@ import databaseManagementModule from '../modules/database-management/index.js';
 // Global workspace state
 let dockview = null;
 let layoutManager = null;
+let layoutStateTracker = null;
 const moduleInstances = new Map(); // Track module instances and cleanup functions
 
 /**
@@ -70,7 +74,7 @@ class ModuleAPI {
         try {
           handler(data);
         } catch (err) {
-          console.error(`[ModuleAPI] Error in event handler for ${eventName}:`, err);
+          workspaceError(`Error in event handler for ${eventName}:`, err);
         }
       });
     }
@@ -180,10 +184,78 @@ function setupWorkspaceKeyboardShortcuts() {
         groupActivePanel('right');
         return;
       }
+      // Cmd+Shift+] - Add column to the right
+      if (event.key === ']') {
+        event.preventDefault();
+        layoutStateTracker.captureState(dockview);
+        addColumn(dockview);
+        layoutManager.save();
+        return;
+      }
+      // Cmd+Shift+[ - Remove active column (if empty)
+      if (event.key === '[') {
+        event.preventDefault();
+        layoutStateTracker.captureState(dockview);
+        if (removeActiveGroup(dockview)) {
+          layoutManager.save();
+        }
+        return;
+      }
+      // Cmd+Shift+} - Add row below (Shift+])
+      if (event.key === '}') {
+        event.preventDefault();
+        layoutStateTracker.captureState(dockview);
+        addRow(dockview);
+        layoutManager.save();
+        return;
+      }
+      // Cmd+Shift+{ - Remove active row (if empty) (Shift+[)
+      if (event.key === '{') {
+        event.preventDefault();
+        layoutStateTracker.captureState(dockview);
+        if (removeActiveGroup(dockview)) {
+          layoutManager.save();
+        }
+        return;
+      }
+    }
+
+    // Cmd+Option+Arrow keys - Move panel to new column/row (create if needed, remove empty)
+    if ((event.metaKey || event.ctrlKey) && event.altKey && !event.shiftKey) {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveToNewGroup('above');
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveToNewGroup('below');
+        return;
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        moveToNewGroup('left');
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        moveToNewGroup('right');
+        return;
+      }
+    }
+
+    // Cmd+Alt+1-5 - Set column count
+    if ((event.metaKey || event.ctrlKey) && event.altKey && !event.shiftKey) {
+      const num = parseInt(event.key);
+      if (num >= 1 && num <= 5) {
+        event.preventDefault();
+        layoutManager.setColumnCount(num);
+        return;
+      }
     }
 
     // Cmd+Arrow keys - Move active panel in grid (swap)
-    if ((event.metaKey || event.ctrlKey) && !event.shiftKey) {
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
       if (event.key === 'ArrowUp') {
         event.preventDefault();
         moveActivePanel('above');
@@ -221,21 +293,31 @@ function setupWorkspaceKeyboardShortcuts() {
 function groupActivePanel(direction) {
   const activePanel = dockview.activePanel;
   if (!activePanel) {
-    console.warn('[Workspace] No active panel to group');
+    workspaceWarn('No active panel to group');
     return;
   }
 
-  console.log(`[Workspace] Grouping panel ${activePanel.id} with panel ${direction}`);
+  const activeGroup = dockview.activeGroup;
+  if (!activeGroup) {
+    workspaceWarn('No active group');
+    return;
+  }
 
-  // Get all panels to find a reference panel in the target direction
-  const panels = dockview.panels;
+  workspaceLog(`Grouping panel ${activePanel.id} with panel ${direction}`);
 
-  // Simple heuristic: find first panel that's not the active one
-  // TODO: In future, could find panel that's actually in the specified direction
-  const referencePanel = panels.find(p => p.id !== activePanel.id);
+  // Use directional navigation to find target group
+  const targetGroup = findGroupInDirection(dockview, activeGroup, direction);
+
+  if (!targetGroup) {
+    workspaceWarn(`No group found ${direction}`);
+    return;
+  }
+
+  // Get first panel in target group as reference
+  const referencePanel = targetGroup.activePanel || targetGroup.panels[0];
 
   if (!referencePanel) {
-    console.warn('[Workspace] No reference panel found');
+    workspaceWarn('No reference panel found in target group');
     return;
   }
 
@@ -247,16 +329,16 @@ function groupActivePanel(direction) {
     if (moduleInstance.getState && typeof moduleInstance.getState === 'function') {
       try {
         savedState = moduleInstance.getState();
-        console.log(`[Workspace] Saved instance state for panel ${activePanel.id}`);
+        workspaceLog(`Saved instance state for panel ${activePanel.id}`);
       } catch (err) {
-        console.warn(`[Workspace] Failed to save instance state for panel ${activePanel.id}:`, err);
+        workspaceWarn(`Failed to save instance state for panel ${activePanel.id}:`, err);
       }
     } else if (moduleInstance.renderer && typeof moduleInstance.renderer.getState === 'function') {
       try {
         savedState = moduleInstance.renderer.getState();
-        console.log(`[Workspace] Saved renderer state for panel ${activePanel.id}`);
+        workspaceLog(`Saved renderer state for panel ${activePanel.id}`);
       } catch (err) {
-        console.warn(`[Workspace] Failed to save renderer state for panel ${activePanel.id}:`, err);
+        workspaceWarn(`Failed to save renderer state for panel ${activePanel.id}:`, err);
       }
     }
   }
@@ -280,38 +362,12 @@ function groupActivePanel(direction) {
     }
   });
 
-  // Restore module state
+  // Restore module state with retry mechanism (waits for async init to complete)
   if (savedState && newPanel) {
-    setTimeout(() => {
-      const newModuleInstance = moduleInstances.get(newPanel.id);
-      if (newModuleInstance) {
-        // Try instance-level setState first
-        if (newModuleInstance.setState && typeof newModuleInstance.setState === 'function') {
-          try {
-            newModuleInstance.setState(savedState);
-            console.log(`[Workspace] Restored instance state for panel ${newPanel.id}`);
-          } catch (err) {
-            console.warn(`[Workspace] Failed to restore instance state for panel ${newPanel.id}:`, err);
-          }
-        } else if (newModuleInstance.renderer && typeof newModuleInstance.renderer.setState === 'function') {
-          try {
-            newModuleInstance.renderer.setState(savedState);
-            console.log(`[Workspace] Restored renderer state for panel ${newPanel.id}`);
-
-            // Remove placeholder if it exists (for image-viewer)
-            const placeholder = newModuleInstance.container.querySelector('.image-viewer-placeholder');
-            if (placeholder) {
-              placeholder.remove();
-            }
-          } catch (err) {
-            console.warn(`[Workspace] Failed to restore renderer state for panel ${newPanel.id}:`, err);
-          }
-        }
-      }
-    }, 100);
+    restoreModuleStateWithRetry(newPanel.id, savedState, 5, 100);
   }
 
-  console.log(`[Workspace] Panel ${panelParams.id} grouped as tab`);
+  workspaceLog(`Panel ${panelParams.id} grouped as tab`);
 }
 
 /**
@@ -321,58 +377,63 @@ function groupActivePanel(direction) {
 function moveActivePanel(direction) {
   const activePanel = dockview.activePanel;
   if (!activePanel) {
-    console.warn('[Workspace] No active panel to move');
+    workspaceWarn('No active panel to move');
     return;
   }
 
-  console.log(`[Workspace] Moving panel ${activePanel.id} ${direction}`);
+  const activeGroup = dockview.activeGroup;
+  if (!activeGroup) {
+    workspaceWarn('No active group');
+    return;
+  }
 
-  // Get all panels to find a reference panel in the target direction
-  const panels = dockview.panels;
+  workspaceLog(`Moving panel ${activePanel.id} ${direction}`);
 
-  // Simple heuristic: find first panel that's not the active one
-  const referencePanel = panels.find(p => p.id !== activePanel.id);
+  // Use directional navigation to find target group
+  const targetGroup = findGroupInDirection(dockview, activeGroup, direction);
+
+  if (!targetGroup) {
+    workspaceWarn(`No group found ${direction}`);
+    return;
+  }
+
+  // Get first panel in target group as reference
+  const referencePanel = targetGroup.activePanel || targetGroup.panels[0];
 
   if (!referencePanel) {
-    console.warn('[Workspace] No reference panel found');
+    workspaceWarn('No reference panel found in target group');
     return;
   }
+
+  // Get module ID for panel params
+  const activeModuleId = activePanel.api?.component || activePanel.params?.component;
+
+  // Capture layout state before modification
+  layoutStateTracker.captureState(dockview);
 
   // Save module state before removing
   let savedState = null;
   const moduleInstance = moduleInstances.get(activePanel.id);
   if (moduleInstance) {
-    // Try instance-level getState first (from init return), then renderer, then module
     if (moduleInstance.getState && typeof moduleInstance.getState === 'function') {
       try {
         savedState = moduleInstance.getState();
-        console.log(`[Workspace] Saved instance state for panel ${activePanel.id}:`, savedState);
       } catch (err) {
-        console.warn(`[Workspace] Failed to save instance state for panel ${activePanel.id}:`, err);
+        workspaceWarn(`Failed to save state:`, err);
       }
     } else if (moduleInstance.renderer && typeof moduleInstance.renderer.getState === 'function') {
       try {
         savedState = moduleInstance.renderer.getState();
-        console.log(`[Workspace] Saved renderer state for panel ${activePanel.id}:`, savedState);
       } catch (err) {
-        console.warn(`[Workspace] Failed to save renderer state for panel ${activePanel.id}:`, err);
+        workspaceWarn(`Failed to save renderer state:`, err);
       }
-    } else if (moduleInstance.module && typeof moduleInstance.module.getState === 'function') {
-      try {
-        savedState = moduleInstance.module.getState();
-        console.log(`[Workspace] Saved module state for panel ${activePanel.id}:`, savedState);
-      } catch (err) {
-        console.warn(`[Workspace] Failed to save module state for panel ${activePanel.id}:`, err);
-      }
-    } else {
-      console.warn(`[Workspace] No getState() method found for panel ${activePanel.id}`);
     }
   }
 
   // Remove the panel from its current position
   const panelParams = {
     id: activePanel.id,
-    component: activePanel.api?.component || activePanel.params?.component,
+    component: activeModuleId,
     params: activePanel.params,
     title: activePanel.title
   };
@@ -388,46 +449,194 @@ function moveActivePanel(direction) {
     }
   });
 
-  // Restore module state after a brief delay to let the module initialize
+  // Restore module state with retry mechanism (waits for async init to complete)
   if (savedState && newPanel) {
-    setTimeout(() => {
-      const newModuleInstance = moduleInstances.get(newPanel.id);
-      if (newModuleInstance) {
-        // Try instance-level setState first (from init return), then renderer, then module
-        if (newModuleInstance.setState && typeof newModuleInstance.setState === 'function') {
-          try {
-            newModuleInstance.setState(savedState);
-            console.log(`[Workspace] Restored instance state for panel ${newPanel.id}`);
-          } catch (err) {
-            console.warn(`[Workspace] Failed to restore instance state for panel ${newPanel.id}:`, err);
-          }
-        } else if (newModuleInstance.renderer && typeof newModuleInstance.renderer.setState === 'function') {
-          try {
-            newModuleInstance.renderer.setState(savedState);
-            console.log(`[Workspace] Restored renderer state for panel ${newPanel.id}`);
-
-            // Remove placeholder if it exists (for image-viewer)
-            const placeholder = newModuleInstance.container.querySelector('.image-viewer-placeholder');
-            if (placeholder) {
-              placeholder.remove();
-              console.log(`[Workspace] Removed placeholder after state restoration`);
-            }
-          } catch (err) {
-            console.warn(`[Workspace] Failed to restore renderer state for panel ${newPanel.id}:`, err);
-          }
-        } else if (newModuleInstance.module && typeof newModuleInstance.module.setState === 'function') {
-          try {
-            newModuleInstance.module.setState(savedState);
-            console.log(`[Workspace] Restored module state for panel ${newPanel.id}`);
-          } catch (err) {
-            console.warn(`[Workspace] Failed to restore module state for panel ${newPanel.id}:`, err);
-          }
-        }
-      }
-    }, 100);
+    restoreModuleStateWithRetry(newPanel.id, savedState, 5, 100);
   }
 
-  console.log(`[Workspace] Panel ${panelParams.id} moved ${direction}`);
+  // AFTER move: Apply ratios based on where modules ended up
+  setTimeout(() => {
+    applyModuleBasedRatios();
+  }, 50);
+
+  workspaceLog(`Panel ${panelParams.id} moved ${direction}`);
+}
+
+/**
+ * Restore module state with retry mechanism
+ * Waits for async init to complete and renderer to be available
+ * @param {string} panelId - Panel ID
+ * @param {object} savedState - State to restore
+ * @param {number} maxRetries - Maximum number of retries
+ * @param {number} delay - Delay between retries in ms
+ * @param {number} attempt - Current attempt number (internal)
+ */
+function restoreModuleStateWithRetry(panelId, savedState, maxRetries = 5, delay = 100, attempt = 0) {
+  const newModuleInstance = moduleInstances.get(panelId);
+
+  if (!newModuleInstance) {
+    if (attempt < maxRetries) {
+      setTimeout(() => restoreModuleStateWithRetry(panelId, savedState, maxRetries, delay, attempt + 1), delay);
+    } else {
+      workspaceWarn(`Failed to restore state for ${panelId}: module instance not found after ${maxRetries} retries`);
+    }
+    return;
+  }
+
+  // Try instance-level setState first
+  if (newModuleInstance.setState && typeof newModuleInstance.setState === 'function') {
+    try {
+      newModuleInstance.setState(savedState);
+      workspaceDebug(`Restored state via instance.setState for ${panelId}`);
+      return;
+    } catch (err) {
+      workspaceWarn(`Failed to restore state via instance.setState for ${panelId}:`, err);
+    }
+  }
+
+  // Try renderer setState (e.g., for image-viewer)
+  if (newModuleInstance.renderer && typeof newModuleInstance.renderer.setState === 'function') {
+    try {
+      newModuleInstance.renderer.setState(savedState);
+      // Remove placeholder if exists
+      const placeholder = newModuleInstance.container?.querySelector('.image-viewer-placeholder');
+      if (placeholder) placeholder.remove();
+      workspaceDebug(`Restored state via renderer.setState for ${panelId}`);
+      return;
+    } catch (err) {
+      workspaceWarn(`Failed to restore state via renderer.setState for ${panelId}:`, err);
+    }
+  }
+
+  // Renderer not available yet - retry
+  if (attempt < maxRetries) {
+    workspaceDebug(`Renderer not available for ${panelId}, retry ${attempt + 1}/${maxRetries}`);
+    setTimeout(() => restoreModuleStateWithRetry(panelId, savedState, maxRetries, delay, attempt + 1), delay);
+  } else {
+    workspaceWarn(`Failed to restore state for ${panelId}: no setState method found after ${maxRetries} retries`);
+  }
+}
+
+/**
+ * Apply ratios based on the modules currently in each group position
+ * Scans all groups and sets ratios based on each group's primary module
+ */
+function applyModuleBasedRatios() {
+  const groups = dockview.groups;
+  if (groups.length < 2) return;
+
+  const ratios = [];
+
+  for (const group of groups) {
+    // Get the active panel or first panel in the group
+    const panel = group.activePanel || group.panels[0];
+    if (panel) {
+      const moduleId = panel.api?.component || panel.params?.component;
+      const config = layoutManager.getModuleLayoutConfig(moduleId);
+      ratios.push(config?.ratio || 0.5);
+      workspaceLog(`Group has module ${moduleId} with ratio ${config?.ratio}`);
+    } else {
+      // Empty group - give it default ratio
+      ratios.push(0.5);
+    }
+  }
+
+  // Normalize ratios to sum to 1
+  const total = ratios.reduce((sum, r) => sum + r, 0);
+  const normalizedRatios = ratios.map(r => r / total);
+
+  workspaceLog(`Applying module-based ratios:`, normalizedRatios);
+  layoutManager.setRatios(normalizedRatios);
+}
+
+/**
+ * Move active panel to a new group in the specified direction
+ * Creates a new group if none exists, removes empty source group after move
+ * @param {string} direction - 'above', 'below', 'left', 'right'
+ */
+function moveToNewGroup(direction) {
+  const activePanel = dockview.activePanel;
+  if (!activePanel) {
+    workspaceWarn('No active panel to move');
+    return;
+  }
+
+  const sourceGroup = dockview.activeGroup;
+  if (!sourceGroup) {
+    workspaceWarn('No active group');
+    return;
+  }
+
+  workspaceLog(`Moving panel ${activePanel.id} to new group ${direction}`);
+
+  // Capture layout state before modification
+  layoutStateTracker.captureState(dockview);
+
+  // Save module state before removing
+  let savedState = null;
+  const moduleInstance = moduleInstances.get(activePanel.id);
+  if (moduleInstance) {
+    if (moduleInstance.getState && typeof moduleInstance.getState === 'function') {
+      try {
+        savedState = moduleInstance.getState();
+      } catch (err) {
+        workspaceWarn(`Failed to save state:`, err);
+      }
+    } else if (moduleInstance.renderer && typeof moduleInstance.renderer.getState === 'function') {
+      try {
+        savedState = moduleInstance.renderer.getState();
+      } catch (err) {
+        workspaceWarn(`Failed to save renderer state:`, err);
+      }
+    }
+  }
+
+  // Check how many panels are in the source group
+  const sourcePanelCount = sourceGroup.panels.length;
+
+  // Store panel info before removing
+  const panelParams = {
+    id: activePanel.id,
+    component: activePanel.api?.component || activePanel.params?.component,
+    params: activePanel.params,
+    title: activePanel.title
+  };
+
+  // Remove the panel from its current group
+  dockview.removePanel(activePanel);
+
+  // Create new group in the specified direction
+  // Use the source group as reference (it still exists if it had other panels)
+  const referenceGroup = sourcePanelCount > 1 ? sourceGroup : dockview.activeGroup || dockview.groups[0];
+
+  if (!referenceGroup) {
+    workspaceWarn('No reference group available');
+    return;
+  }
+
+  // Add panel to new group in the specified direction
+  const newPanel = dockview.addPanel({
+    ...panelParams,
+    position: {
+      referenceGroup: referenceGroup,
+      direction: direction
+    }
+  });
+
+  // If source group is now empty (had only this panel), it should auto-remove
+  // Dockview typically removes empty groups automatically, but let's verify
+  if (sourcePanelCount === 1) {
+    // The source group should have been removed when we removed its only panel
+    workspaceLog(`Source group was emptied and should be auto-removed`);
+  }
+
+  // Restore module state with retry mechanism (waits for async init to complete)
+  if (savedState && newPanel) {
+    restoreModuleStateWithRetry(newPanel.id, savedState, 5, 100);
+  }
+
+  layoutManager.save();
+  workspaceLog(`Panel ${panelParams.id} moved to new group ${direction}`);
 }
 
 /**
@@ -438,11 +647,11 @@ async function openFileDialog() {
     const filePath = await window.bildvisareAPI.invoke('open-file-dialog');
 
     if (!filePath) {
-      console.log('[Workspace] File dialog canceled');
+      workspaceLog('File dialog canceled');
       return;
     }
 
-    console.log(`[Workspace] Opening file: ${filePath}`);
+    workspaceLog(`Opening file: ${filePath}`);
 
     // Find image viewer module and trigger load-image event
     const imageViewerInstance = Array.from(moduleInstances.values()).find(
@@ -453,10 +662,10 @@ async function openFileDialog() {
       // Directly trigger the event on the image viewer's API
       imageViewerInstance.api._triggerEvent('load-image', { imagePath: filePath });
     } else {
-      console.warn('[Workspace] No image viewer module found');
+      workspaceWarn('No image viewer module found');
     }
   } catch (err) {
-    console.error('[Workspace] Failed to open file:', err);
+    workspaceError('Failed to open file:', err);
   }
 }
 
@@ -464,12 +673,12 @@ async function openFileDialog() {
  * Apply UI preferences to CSS variables
  */
 function applyUIPreferences() {
-  console.log('[Workspace] applyUIPreferences() called');
+  workspaceDebug('applyUIPreferences() called');
 
   // Find the workspace root element
   const workspaceRoot = document.querySelector('.bildvisare-workspace');
   if (!workspaceRoot) {
-    console.error('[Workspace] Could not find .bildvisare-workspace element!');
+    workspaceError('Could not find .bildvisare-workspace element!');
     return;
   }
 
@@ -480,7 +689,7 @@ function applyUIPreferences() {
   const tabPaddingRight = preferences.get('appearance.tabPaddingRight') || 6;
   const tabMinGap = preferences.get('appearance.tabMinGap') || 10;
 
-  console.log('[Workspace] Setting size CSS variables on .bildvisare-workspace...');
+  workspaceDebug('Setting size CSS variables on .bildvisare-workspace...');
   workspaceRoot.style.setProperty('--dv-tabs-height', `${tabsHeight}px`);
   workspaceRoot.style.setProperty('--dv-tabs-font-size', `${tabsFontSize}px`);
   workspaceRoot.style.setProperty('--dv-tab-padding-left', `${tabPaddingLeft}px`);
@@ -495,12 +704,12 @@ function applyUIPreferences() {
   const tabContainerBackground = preferences.get('appearance.tabContainerBackground') || '#d0d0d0';
   const groupBorderColor = preferences.get('appearance.groupBorderColor') || 'rgba(128, 128, 128, 0.2)';
 
-  console.log('[Workspace] Color values from preferences:', {
+  workspaceDebug('Color values from preferences:', {
     activeTabBackground, inactiveTabBackground, activeTabColor, inactiveTabColor,
     tabContainerBackground, groupBorderColor
   });
 
-  console.log('[Workspace] Setting color CSS variables on .bildvisare-workspace...');
+  workspaceDebug('Setting color CSS variables on .bildvisare-workspace...');
   workspaceRoot.style.setProperty('--dv-active-tab-background', activeTabBackground);
   workspaceRoot.style.setProperty('--dv-inactive-tab-background', inactiveTabBackground);
   workspaceRoot.style.setProperty('--dv-active-tab-color', activeTabColor);
@@ -509,12 +718,12 @@ function applyUIPreferences() {
   workspaceRoot.style.setProperty('--dv-group-border-color', groupBorderColor);
 
   // Verify variables were set
-  console.log('[Workspace] Verifying CSS variables were set on workspace element:');
-  console.log('  --dv-active-tab-background:', workspaceRoot.style.getPropertyValue('--dv-active-tab-background'));
-  console.log('  --dv-inactive-tab-background:', workspaceRoot.style.getPropertyValue('--dv-inactive-tab-background'));
-  console.log('  --dv-active-tab-color:', workspaceRoot.style.getPropertyValue('--dv-active-tab-color'));
+  workspaceDebug('Verifying CSS variables were set on workspace element:');
+  workspaceDebug('  --dv-active-tab-background:', workspaceRoot.style.getPropertyValue('--dv-active-tab-background'));
+  workspaceDebug('  --dv-inactive-tab-background:', workspaceRoot.style.getPropertyValue('--dv-inactive-tab-background'));
+  workspaceDebug('  --dv-active-tab-color:', workspaceRoot.style.getPropertyValue('--dv-active-tab-color'));
 
-  console.log(`[Workspace] Applied appearance preferences:`, {
+  workspaceDebug('Applied appearance preferences:', {
     tabsHeight, tabsFontSize, tabPaddingLeft, tabPaddingRight, tabMinGap,
     activeTabBackground, inactiveTabBackground, activeTabColor, inactiveTabColor,
     tabContainerBackground, groupBorderColor
@@ -525,7 +734,7 @@ function applyUIPreferences() {
  * Initialize workspace
  */
 async function initWorkspace() {
-  console.log('[Workspace] Initializing...');
+  workspaceLog('Initializing...');
 
   // Register modules
   registerModule(imageViewerModule);
@@ -546,8 +755,9 @@ async function initWorkspace() {
   // Apply UI preferences to CSS
   applyUIPreferences();
 
-  // Create layout manager
+  // Create layout manager and state tracker
   layoutManager = new LayoutManager(dockview);
+  layoutStateTracker = new LayoutStateTracker();
 
   // Setup auto-save on layout changes
   dockview.onDidLayoutChange(() => {
@@ -555,7 +765,7 @@ async function initWorkspace() {
     const panels = dockview.panels || [];
     const groups = dockview.groups || [];
 
-    console.log('[Workspace] Layout changed - Final result:', {
+    workspaceDebug('Layout changed - Final result:', {
       panels: panels.length,
       groups: groups.length,
       panelList: panels.map(p => p.id),
@@ -579,31 +789,38 @@ async function initWorkspace() {
   // Connect to backend WebSocket
   try {
     await apiClient.connectWebSocket();
-    console.log('[Workspace] WebSocket connected');
+    workspaceLog('WebSocket connected');
   } catch (err) {
-    console.error('[Workspace] Failed to connect WebSocket:', err);
+    workspaceError('Failed to connect WebSocket:', err);
     // Continue anyway - modules can still use HTTP API
   }
 
-  console.log('[Workspace] Initialized successfully');
+  workspaceLog('Initialized successfully');
 
   // Make workspace globally accessible for debugging
   window.workspace = {
     dockview,
     layoutManager,
+    layoutStateTracker,
     openModule,
     closePanel,
     getModuleInstances: () => moduleInstances,
     apiClient, // Expose API client for debugging
     preferences, // Expose preferences for debugging and module access
     preferencesUI, // Expose preferences UI for debugging
-    applyUIPreferences // Expose for reapplying after preference changes
+    applyUIPreferences, // Expose for reapplying after preference changes
+    // Layout helpers
+    addColumn: () => addColumn(dockview),
+    addRow: () => addRow(dockview),
+    removeActiveGroup: (force) => removeActiveGroup(dockview, force),
+    navigateInDirection: (direction) => navigateInDirection(dockview, direction),
+    moveToNewGroup: (direction) => moveToNewGroup(direction)
   };
 
   // Listen for initial file path from main process
   if (window.bildvisareAPI) {
     window.bildvisareAPI.on('load-initial-file', (filePath) => {
-      console.log('[Workspace] Received initial file path:', filePath);
+      workspaceLog('Received initial file path:', filePath);
 
       // Find image viewer module and trigger load
       const imageViewerInstance = Array.from(moduleInstances.values()).find(
@@ -612,15 +829,15 @@ async function initWorkspace() {
 
       if (imageViewerInstance) {
         imageViewerInstance.api._triggerEvent('load-image', { imagePath: filePath });
-        console.log('[Workspace] Triggered load-image event for initial file');
+        workspaceLog('Triggered load-image event for initial file');
       } else {
-        console.warn('[Workspace] No image viewer module found for initial file load');
+        workspaceWarn('No image viewer module found for initial file load');
       }
     });
 
     // Listen for menu commands
     window.bildvisareAPI.on('menu-command', async (command) => {
-      console.log('[Workspace] Menu command:', command);
+      workspaceDebug('Menu command:', command);
 
       switch (command) {
         case 'open-file':
@@ -766,6 +983,48 @@ async function initWorkspace() {
           }
           break;
 
+        case 'layout-add-column':
+          layoutStateTracker.captureState(dockview);
+          addColumn(dockview);
+          layoutManager.save();
+          break;
+
+        case 'layout-remove-column':
+          layoutStateTracker.captureState(dockview);
+          if (removeActiveGroup(dockview)) {
+            layoutManager.save();
+          }
+          break;
+
+        case 'layout-add-row':
+          layoutStateTracker.captureState(dockview);
+          addRow(dockview);
+          layoutManager.save();
+          break;
+
+        case 'layout-remove-row':
+          layoutStateTracker.captureState(dockview);
+          if (removeActiveGroup(dockview)) {
+            layoutManager.save();
+          }
+          break;
+
+        case 'layout-move-new-left':
+          moveToNewGroup('left');
+          break;
+
+        case 'layout-move-new-right':
+          moveToNewGroup('right');
+          break;
+
+        case 'layout-move-new-above':
+          moveToNewGroup('above');
+          break;
+
+        case 'layout-move-new-below':
+          moveToNewGroup('below');
+          break;
+
         case 'export-layout':
           exportLayoutToFile();
           break;
@@ -791,7 +1050,7 @@ async function initWorkspace() {
           break;
 
         default:
-          console.warn('[Workspace] Unknown menu command:', command);
+          workspaceWarn('Unknown menu command:', command);
       }
     });
   }
@@ -802,16 +1061,16 @@ async function initWorkspace() {
  */
 async function reloadDatabase() {
   try {
-    console.log('[Workspace] Reloading database...');
+    workspaceLog('Reloading database...');
 
     const response = await apiClient.post('/reload-database', {});
 
     if (response.status === 'success') {
-      console.log(`[Workspace] Database reloaded: ${response.people_count} people, ${response.ignored_count} ignored`);
+      workspaceLog(`Database reloaded: ${response.people_count} people, ${response.ignored_count} ignored`);
       alert(`Database reloaded successfully!\n\n${response.people_count} people\n${response.ignored_count} ignored faces\n${response.cache_cleared} cached results cleared`);
     }
   } catch (err) {
-    console.error('[Workspace] Failed to reload database:', err);
+    workspaceError('Failed to reload database:', err);
     alert('Failed to reload database. Check console for details.');
   }
 }
@@ -831,9 +1090,9 @@ function exportLayoutToFile() {
     link.click();
 
     URL.revokeObjectURL(url);
-    console.log('[Workspace] Layout exported successfully');
+    workspaceLog('Layout exported successfully');
   } catch (err) {
-    console.error('[Workspace] Failed to export layout:', err);
+    workspaceError('Failed to export layout:', err);
     alert('Failed to export layout. Check console for details.');
   }
 }
@@ -853,10 +1112,10 @@ function importLayoutFromFile() {
     try {
       const text = await file.text();
       layoutManager.importLayout(text);
-      console.log('[Workspace] Layout imported successfully');
+      workspaceLog('Layout imported successfully');
       alert('Layout imported successfully!');
     } catch (err) {
-      console.error('[Workspace] Failed to import layout:', err);
+      workspaceError('Failed to import layout:', err);
       alert('Failed to import layout. Check console for details.');
     }
   };
@@ -898,6 +1157,15 @@ Review Module:
   I              Ignore face
   Esc            Cancel input
 
+Layout:
+  Cmd+Arrow      Navigate to adjacent panel
+  Cmd+Opt+Arrow  Move panel to new column/row
+  Cmd+Opt+1-5    Set number of columns (1-5)
+  Cmd+Shift+]    Add column
+  Cmd+Shift+[    Remove column
+  Cmd+Shift+}    Add row
+  Cmd+Shift+{    Remove row
+
 Window:
   Cmd+Shift+L    Reset Layout
   Cmd+W          Close Window
@@ -919,11 +1187,11 @@ Developer:
 function createModuleComponent(options) {
   const { id, name } = options;
 
-  console.log(`[Workspace] Creating component for module: ${name}`);
+  workspaceLog(`Creating component for module: ${name}`);
 
   const module = getModule(name);
   if (!module) {
-    console.error(`[Workspace] Module not found: ${name}`);
+    workspaceError(`Module not found: ${name}`);
     return createErrorComponent(`Module not found: ${name}`);
   }
 
@@ -943,7 +1211,7 @@ function createModuleComponent(options) {
 
     // Init method called by Dockview
     init: (parameters) => {
-      console.log(`[Workspace] Initializing module: ${name} (panel: ${id})`);
+      workspaceLog(`Initializing module: ${name} (panel: ${id})`);
 
       // Create module API
       const api = new ModuleAPI(id);
@@ -990,16 +1258,16 @@ function createModuleComponent(options) {
           instance.cleanup = cleanup;
         }
 
-        console.log(`[Workspace] Module ${name} initialized`);
+        workspaceLog(`Module ${name} initialized`);
       }).catch(err => {
-        console.error(`[Workspace] Failed to initialize module ${name}:`, err);
+        workspaceError(`Failed to initialize module ${name}:`, err);
         container.innerHTML = `<div style="padding: 20px; color: red;">Error loading module: ${err.message}</div>`;
       });
     },
 
     // Dispose method called by Dockview
     dispose: () => {
-      console.log(`[Workspace] Disposing module: ${id}`);
+      workspaceLog(`Disposing module: ${id}`);
       if (cleanup && typeof cleanup === 'function') {
         cleanup();
       }
@@ -1034,7 +1302,7 @@ function createErrorComponent(message) {
 function openModule(moduleId, options = {}) {
   const module = getModule(moduleId);
   if (!module) {
-    console.error(`[Workspace] Cannot open module: ${moduleId} not found`);
+    workspaceError(`Cannot open module: ${moduleId} not found`);
     return;
   }
 
@@ -1048,7 +1316,7 @@ function openModule(moduleId, options = {}) {
     ...options
   });
 
-  console.log(`[Workspace] Opened module: ${moduleId} (panel: ${panelId})`);
+  workspaceLog(`Opened module: ${moduleId} (panel: ${panelId})`);
 }
 
 /**
@@ -1059,7 +1327,7 @@ function closePanel(panelId) {
   const panel = dockview.panels.find(p => p.id === panelId);
   if (panel) {
     panel.api.close();
-    console.log(`[Workspace] Closed panel: ${panelId}`);
+    workspaceLog(`Closed panel: ${panelId}`);
   }
 }
 
