@@ -141,6 +141,7 @@ export default {
     // Listen for image-loaded events from main Image Viewer
     api.on('image-loaded', ({ imagePath }) => {
       console.log('[OriginalView] Image loaded event received:', imagePath);
+      console.log('[OriginalView] Image path type:', typeof imagePath, 'Is NEF:', imagePath?.toLowerCase().endsWith('.nef'));
       loadOriginal(imagePath);
     });
 
@@ -180,14 +181,19 @@ export default {
 
     // Check if there's already an image loaded in another module
     // Request current image path from Image Viewer
+    console.log('[OriginalView] Requesting current image from Image Viewer...');
     api.emit('request-current-image', {});
 
-    // If no response within 100ms, show placeholder
+    // Show initial placeholder (will be removed when image loads)
+    showPlaceholder('Waiting for NEF file...');
+
+    // Debug: Also try direct approach after a delay to ensure Image Viewer is ready
     setTimeout(() => {
-      if (!renderer.image) {
-        showPlaceholder('Waiting for NEF file...');
+      if (!currentNefPath) {
+        console.log('[OriginalView] No image loaded yet, retrying request...');
+        api.emit('request-current-image', {});
       }
-    }, 100);
+    }, 500);
 
     console.log('[OriginalView] Initialized successfully');
 

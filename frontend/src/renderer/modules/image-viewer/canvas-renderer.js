@@ -13,7 +13,8 @@ export class CanvasRenderer {
 
     // Image state
     this.image = null;
-    this.imagePath = null;
+    this.imagePath = null; // Path to loaded image (may be converted JPG)
+    this.originalImagePath = null; // Original path (e.g., NEF file before conversion)
 
     // Zoom/pan state
     this.zoomMode = 'auto'; // 'auto' | 'manual'
@@ -31,7 +32,8 @@ export class CanvasRenderer {
 
     // Face detection overlays
     this.faces = []; // Array of {bounding_box, person_name, confidence}
-    this.showFaceBoxes = true;
+    this.faceBoxMode = 'all'; // 'none' | 'single' | 'all'
+    this.activeFaceIndex = 0; // Index of active face for 'single' mode
 
     // Setup canvas
     this.canvas.style.width = '100%';
@@ -129,6 +131,10 @@ export class CanvasRenderer {
    * @returns {Promise<void>}
    */
   async loadImage(filepath) {
+    // Store original path
+    const originalPath = filepath;
+    let loadPath = filepath;
+
     // Check if NEF file - convert to JPG first
     if (filepath.toLowerCase().endsWith('.nef')) {
       try {
@@ -137,7 +143,7 @@ export class CanvasRenderer {
         const jpgPath = await window.bildvisareAPI.invoke('convert-nef', filepath);
         console.log('[CanvasRenderer] NEF converted to:', jpgPath);
         this.hideLoadingOverlay();
-        filepath = jpgPath; // Use converted JPG
+        loadPath = jpgPath; // Use converted JPG for loading
       } catch (err) {
         this.hideLoadingOverlay();
         console.error('[CanvasRenderer] NEF conversion failed:', err);
@@ -150,7 +156,8 @@ export class CanvasRenderer {
 
       img.onload = () => {
         this.image = img;
-        this.imagePath = filepath;
+        this.imagePath = loadPath; // Path to loaded image (converted JPG if NEF)
+        this.originalImagePath = originalPath; // Original path (NEF if converted)
 
         // Reset to auto-fit mode
         this.zoomMode = 'auto';
@@ -162,12 +169,12 @@ export class CanvasRenderer {
       };
 
       img.onerror = (err) => {
-        console.error('[CanvasRenderer] Failed to load image:', filepath, err);
-        reject(new Error(`Failed to load image: ${filepath}`));
+        console.error('[CanvasRenderer] Failed to load image:', loadPath, err);
+        reject(new Error(`Failed to load image: ${loadPath}`));
       };
 
       // Handle file:// protocol
-      const imageSrc = filepath.startsWith('file://') ? filepath : 'file://' + filepath;
+      const imageSrc = loadPath.startsWith('file://') ? loadPath : 'file://' + loadPath;
       img.src = imageSrc;
     });
   }
@@ -439,17 +446,54 @@ export class CanvasRenderer {
   /**
    * Toggle face bounding boxes on/off
    */
-  toggleFaceBoxes() {
-    this.showFaceBoxes = !this.showFaceBoxes;
-    console.log(`[CanvasRenderer] Face boxes ${this.showFaceBoxes ? 'enabled' : 'disabled'}`);
-    this.render(); // Re-render to apply change
+  /**
+   * Toggle between single and all bounding boxes (lowercase 'b')
+   */
+  toggleSingleAll() {
+    if (this.faceBoxMode === 'single') {
+      this.faceBoxMode = 'all';
+    } else if (this.faceBoxMode === 'all') {
+      this.faceBoxMode = 'single';
+    } else {
+      // If currently 'none', switch to 'all'
+      this.faceBoxMode = 'all';
+    }
+    console.log(`[CanvasRenderer] Face box mode: ${this.faceBoxMode}`);
+    this.render();
+  }
+
+  /**
+   * Toggle between none and previous mode (uppercase 'B')
+   */
+  toggleOnOff() {
+    if (this.faceBoxMode === 'none') {
+      // Restore to previous mode (default to 'all')
+      this.faceBoxMode = this.previousFaceBoxMode || 'all';
+    } else {
+      // Save current mode and switch to 'none'
+      this.previousFaceBoxMode = this.faceBoxMode;
+      this.faceBoxMode = 'none';
+    }
+    console.log(`[CanvasRenderer] Face box mode: ${this.faceBoxMode}`);
+    this.render();
+  }
+
+  /**
+   * Set active face index for 'single' mode
+   */
+  setActiveFaceIndex(index) {
+    this.activeFaceIndex = index;
+    if (this.faceBoxMode === 'single') {
+      this.render();
+    }
   }
 
   /**
    * Draw face bounding boxes on the canvas
    */
   drawFaceBoxes() {
-    if (!this.showFaceBoxes || !this.faces || this.faces.length === 0) {
+    // Check mode - return early if 'none' or no faces
+    if (this.faceBoxMode === 'none' || !this.faces || this.faces.length === 0) {
       return;
     }
 
@@ -486,11 +530,18 @@ export class CanvasRenderer {
       imageY = this.pan.y;
     }
 
+    // Determine which faces to draw based on mode
+    let facesToDraw = this.faces;
+    if (this.faceBoxMode === 'single') {
+      // Only draw the active face
+      facesToDraw = this.faces[this.activeFaceIndex] ? [this.faces[this.activeFaceIndex]] : [];
+    }
+
     // Draw each face bounding box
     this.ctx.lineWidth = 3;
     this.ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
-    this.faces.forEach(face => {
+    facesToDraw.forEach(face => {
       const bbox = face.bounding_box;
 
       // Transform bounding box coordinates to canvas space

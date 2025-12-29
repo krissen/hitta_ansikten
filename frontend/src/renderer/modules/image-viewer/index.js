@@ -103,9 +103,14 @@ export default {
           break;
 
         case 'b':
+          // Toggle between single and all bounding boxes
+          renderer.toggleSingleAll();
+          event.preventDefault();
+          break;
+
         case 'B':
-          // Toggle bounding boxes
-          renderer.toggleFaceBoxes();
+          // Toggle between none and previous mode
+          renderer.toggleOnOff();
           event.preventDefault();
           break;
       }
@@ -175,15 +180,24 @@ export default {
 
     // Respond to current image requests
     api.on('request-current-image', () => {
+      console.log('[ImageViewer] Received request-current-image event');
+      console.log('[ImageViewer] Current imagePath:', renderer.imagePath);
+      console.log('[ImageViewer] Original imagePath:', renderer.originalImagePath);
+      console.log('[ImageViewer] Has image:', !!renderer.image);
+
       if (renderer.imagePath) {
-        console.log('[ImageViewer] Responding to current-image request:', renderer.imagePath);
+        // Use original path if available (e.g., NEF file), otherwise use loaded path
+        const pathToSend = renderer.originalImagePath || renderer.imagePath;
+        console.log('[ImageViewer] Responding to current-image request with:', pathToSend);
         api.emit('image-loaded', {
-          imagePath: renderer.imagePath,
+          imagePath: pathToSend,
           dimensions: {
             width: renderer.image.width,
             height: renderer.image.height
           }
         });
+      } else {
+        console.log('[ImageViewer] No image path available to respond with');
       }
     });
 
@@ -191,6 +205,38 @@ export default {
     api.on('faces-detected', ({ faces }) => {
       console.log('[ImageViewer] Received faces-detected event, showing', faces.length, 'bounding boxes');
       renderer.setFaces(faces);
+    });
+
+    // Listen for active face changes from Review Module
+    api.on('active-face-changed', ({ index }) => {
+      renderer.setActiveFaceIndex(index);
+    });
+
+    // Listen for menu commands
+    api.on('toggle-single-all-boxes', () => {
+      renderer.toggleSingleAll();
+    });
+
+    api.on('toggle-boxes-on-off', () => {
+      renderer.toggleOnOff();
+    });
+
+    api.on('zoom-in', () => {
+      const factor = renderer.zoomStep;
+      renderer.zoom(factor, renderer.mousePos.x, renderer.mousePos.y);
+    });
+
+    api.on('zoom-out', () => {
+      const factor = 1 / renderer.zoomStep;
+      renderer.zoom(factor, renderer.mousePos.x, renderer.mousePos.y);
+    });
+
+    api.on('reset-zoom', () => {
+      renderer.resetZoom();
+    });
+
+    api.on('auto-fit', () => {
+      renderer.autoFit();
     });
 
     // TODO: Load initial image if provided in params
