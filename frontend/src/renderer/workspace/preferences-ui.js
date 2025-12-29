@@ -57,10 +57,20 @@ export class PreferencesUI {
           <button class="btn-close" title="Close">&times;</button>
         </div>
 
+        <!-- Tab Navigation -->
+        <div class="pref-tabs">
+          <button class="pref-tab active" data-tab="general">General</button>
+          <button class="pref-tab" data-tab="appearance">Appearance</button>
+          <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
+          <button class="pref-tab" data-tab="review">Review</button>
+        </div>
+
         <div class="preferences-content">
-          <!-- Backend Settings -->
-          <div class="pref-section">
-            <h3>Backend Settings</h3>
+          <!-- General Tab Panel -->
+          <div class="pref-tab-panel active" data-tab="general">
+            <!-- Backend Settings -->
+            <div class="pref-section">
+              <h3>Backend Settings</h3>
 
             <div class="pref-field">
               <label>
@@ -120,10 +130,12 @@ export class PreferencesUI {
               </select>
             </div>
           </div>
+          </div>
 
-          <!-- Appearance Settings -->
-          <div class="pref-section">
-            <h3>Appearance</h3>
+          <!-- Appearance Tab Panel -->
+          <div class="pref-tab-panel" data-tab="appearance">
+            <div class="pref-section">
+              <h3>Appearance</h3>
 
             <div class="pref-field">
               <label>Tab Height (px)</label>
@@ -170,10 +182,12 @@ export class PreferencesUI {
               <small>Minimum space between text and close button.</small>
             </div>
           </div>
+          </div>
 
-          <!-- Image Viewer Settings -->
-          <div class="pref-section">
-            <h3>Image Viewer</h3>
+          <!-- Image Viewer Tab Panel -->
+          <div class="pref-tab-panel" data-tab="image-viewer">
+            <div class="pref-section">
+              <h3>Image Viewer</h3>
 
             <div class="pref-field">
               <label>Zoom Speed</label>
@@ -224,10 +238,12 @@ export class PreferencesUI {
               </label>
             </div>
           </div>
+          </div>
 
-          <!-- Review Module Settings -->
-          <div class="pref-section">
-            <h3>Review Module</h3>
+          <!-- Review Tab Panel -->
+          <div class="pref-tab-panel" data-tab="review">
+            <div class="pref-section">
+              <h3>Review Module</h3>
 
             <div class="pref-field">
               <label>
@@ -266,6 +282,7 @@ export class PreferencesUI {
               </select>
               <small>How review results are written to database</small>
             </div>
+          </div>
           </div>
         </div>
 
@@ -518,14 +535,84 @@ export class PreferencesUI {
       .btn-reset:hover {
         background: #ffebee;
       }
+
+      /* Tab Navigation */
+      .pref-tabs {
+        display: flex;
+        gap: 4px;
+        padding: 0 24px;
+        border-bottom: 1px solid #e0e0e0;
+        background: #f8f8f8;
+      }
+
+      .pref-tab {
+        background: none;
+        border: none;
+        padding: 12px 20px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #666;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: color 0.2s, border-color 0.2s;
+      }
+
+      .pref-tab:hover {
+        color: #333;
+      }
+
+      .pref-tab.active {
+        color: #007acc;
+        border-bottom-color: #007acc;
+      }
+
+      /* Tab Panels */
+      .pref-tab-panel {
+        display: none;
+      }
+
+      .pref-tab-panel.active {
+        display: block;
+      }
     `;
     this.modal.appendChild(style);
+  }
+
+  /**
+   * Switch to a specific tab
+   */
+  switchTab(tabName) {
+    // Update tab buttons
+    this.modal.querySelectorAll('.pref-tab').forEach(tab => {
+      if (tab.dataset.tab === tabName) {
+        tab.classList.add('active');
+      } else {
+        tab.classList.remove('active');
+      }
+    });
+
+    // Update tab panels
+    this.modal.querySelectorAll('.pref-tab-panel').forEach(panel => {
+      if (panel.dataset.tab === tabName) {
+        panel.classList.add('active');
+      } else {
+        panel.classList.remove('active');
+      }
+    });
   }
 
   /**
    * Add event listeners
    */
   addEventListeners() {
+    // Tab switching
+    this.modal.querySelectorAll('.pref-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const targetTab = tab.dataset.tab;
+        this.switchTab(targetTab);
+      });
+    });
+
     // Close button
     this.modal.querySelector('.btn-close').addEventListener('click', () => {
       this.hide();
