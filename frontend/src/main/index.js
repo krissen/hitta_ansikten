@@ -3,7 +3,11 @@
  *
  * Entry point for the new modular workspace architecture.
  * This file is loaded when BILDVISARE_WORKSPACE=1
+ *
+ * Set BILDVISARE_FLEXLAYOUT=1 to use FlexLayout instead of Dockview
  */
+
+const USE_FLEXLAYOUT = process.env.BILDVISARE_FLEXLAYOUT === '1';
 
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
@@ -40,8 +44,10 @@ function createWorkspaceWindow() {
   const menu = createApplicationMenu(mainWindow);
   Menu.setApplicationMenu(menu);
 
-  // Load workspace HTML
-  const workspaceHtml = path.join(__dirname, '../renderer/index.html');
+  // Load workspace HTML (FlexLayout or Dockview)
+  const htmlFile = USE_FLEXLAYOUT ? 'workspace-flex.html' : 'index.html';
+  const workspaceHtml = path.join(__dirname, '../renderer', htmlFile);
+  console.log(`[Main] Loading ${USE_FLEXLAYOUT ? 'FlexLayout' : 'Dockview'} workspace:`, workspaceHtml);
   mainWindow.loadFile(workspaceHtml);
 
   // Send initial file path to renderer when ready
