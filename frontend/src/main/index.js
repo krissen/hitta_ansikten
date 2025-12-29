@@ -1,13 +1,13 @@
 /**
  * Main Process - Modular Workspace Mode
  *
- * Entry point for the new modular workspace architecture.
- * This file is loaded when BILDVISARE_WORKSPACE=1
+ * Entry point for the modular workspace architecture (default mode).
+ * Uses FlexLayout by default for better layout capabilities.
  *
- * Set BILDVISARE_FLEXLAYOUT=1 to use FlexLayout instead of Dockview
+ * Set BILDVISARE_DOCKVIEW=1 to use legacy Dockview instead of FlexLayout
  */
 
-const USE_FLEXLAYOUT = process.env.BILDVISARE_FLEXLAYOUT === '1';
+const USE_FLEXLAYOUT = process.env.BILDVISARE_DOCKVIEW !== '1';
 
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
