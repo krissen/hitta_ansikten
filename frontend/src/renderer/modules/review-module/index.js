@@ -789,10 +789,32 @@ export default {
 
     console.log('[ReviewModule] Initialized successfully');
 
-    // Cleanup function
-    return () => {
-      console.log('[ReviewModule] Cleaning up...');
-      document.removeEventListener('keydown', handleKeyboard);
+    // Return object with cleanup and state accessor
+    return {
+      cleanup: () => {
+        console.log('[ReviewModule] Cleaning up...');
+        document.removeEventListener('keydown', handleKeyboard);
+      },
+      getState: () => ({
+        currentImagePath,
+        detectedFaces,
+        people,
+        currentFaceIndex,
+        pendingConfirmations,
+        pendingIgnores
+      }),
+      setState: (state) => {
+        if (state.currentImagePath) currentImagePath = state.currentImagePath;
+        if (state.detectedFaces) {
+          detectedFaces = state.detectedFaces;
+          currentFaceIndex = state.currentFaceIndex || 0;
+          renderFaceGrid(); // Re-render faces
+        }
+        if (state.people) people = state.people;
+        if (state.pendingConfirmations) pendingConfirmations = state.pendingConfirmations;
+        if (state.pendingIgnores) pendingIgnores = state.pendingIgnores;
+        updateStatus(`${detectedFaces.length} faces detected`);
+      }
     };
   },
 

@@ -378,7 +378,10 @@ export class CanvasRenderer {
       imagePath: this.imagePath,
       zoomMode: this.zoomMode,
       zoomFactor: this.zoomFactor,
-      pan: { ...this.pan }
+      pan: { ...this.pan },
+      faces: this.faces ? [...this.faces] : [],
+      faceBoxMode: this.faceBoxMode,
+      activeFaceIndex: this.activeFaceIndex
     };
   }
 
@@ -394,6 +397,9 @@ export class CanvasRenderer {
     this.zoomMode = state.zoomMode || 'auto';
     this.zoomFactor = state.zoomFactor || 1;
     this.pan = state.pan || { x: 0, y: 0 };
+    this.faces = state.faces || [];
+    this.faceBoxMode = state.faceBoxMode || 'all';
+    this.activeFaceIndex = state.activeFaceIndex || 0;
 
     this.render();
   }

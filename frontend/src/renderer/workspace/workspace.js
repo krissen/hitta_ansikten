@@ -212,8 +212,15 @@ function moveActivePanel(direction) {
   let savedState = null;
   const moduleInstance = moduleInstances.get(activePanel.id);
   if (moduleInstance) {
-    // Try renderer's getState first (for image-viewer), fallback to module's getState
-    if (moduleInstance.renderer && typeof moduleInstance.renderer.getState === 'function') {
+    // Try instance-level getState first (from init return), then renderer, then module
+    if (moduleInstance.getState && typeof moduleInstance.getState === 'function') {
+      try {
+        savedState = moduleInstance.getState();
+        console.log(`[Workspace] Saved instance state for panel ${activePanel.id}:`, savedState);
+      } catch (err) {
+        console.warn(`[Workspace] Failed to save instance state for panel ${activePanel.id}:`, err);
+      }
+    } else if (moduleInstance.renderer && typeof moduleInstance.renderer.getState === 'function') {
       try {
         savedState = moduleInstance.renderer.getState();
         console.log(`[Workspace] Saved renderer state for panel ${activePanel.id}:`, savedState);
@@ -256,11 +263,25 @@ function moveActivePanel(direction) {
     setTimeout(() => {
       const newModuleInstance = moduleInstances.get(newPanel.id);
       if (newModuleInstance) {
-        // Try renderer's setState first (for image-viewer), fallback to module's setState
-        if (newModuleInstance.renderer && typeof newModuleInstance.renderer.setState === 'function') {
+        // Try instance-level setState first (from init return), then renderer, then module
+        if (newModuleInstance.setState && typeof newModuleInstance.setState === 'function') {
+          try {
+            newModuleInstance.setState(savedState);
+            console.log(`[Workspace] Restored instance state for panel ${newPanel.id}`);
+          } catch (err) {
+            console.warn(`[Workspace] Failed to restore instance state for panel ${newPanel.id}:`, err);
+          }
+        } else if (newModuleInstance.renderer && typeof newModuleInstance.renderer.setState === 'function') {
           try {
             newModuleInstance.renderer.setState(savedState);
             console.log(`[Workspace] Restored renderer state for panel ${newPanel.id}`);
+
+            // Remove placeholder if it exists (for image-viewer)
+            const placeholder = newModuleInstance.container.querySelector('.image-viewer-placeholder');
+            if (placeholder) {
+              placeholder.remove();
+              console.log(`[Workspace] Removed placeholder after state restoration`);
+            }
           } catch (err) {
             console.warn(`[Workspace] Failed to restore renderer state for panel ${newPanel.id}:`, err);
           }
@@ -787,23 +808,33 @@ function createModuleComponent(options) {
         api,
         container,
         cleanup: null, // Will be set after init completes
-        renderer: null // Will be set if module exposes renderer
+        renderer: null, // Will be set if module exposes renderer
+        getState: null, // Will be set if module exposes getState
+        setState: null // Will be set if module exposes setState
       });
 
       // Initialize module
       module.init(container, api).then(result => {
-        // Handle both old format (function) and new format (object with cleanup + renderer)
+        // Handle both old format (function) and new format (object with cleanup + extras)
         if (typeof result === 'function') {
           // Old format: just a cleanup function
           cleanup = result;
         } else if (result && typeof result === 'object') {
-          // New format: object with cleanup and optionally renderer
+          // New format: object with cleanup and optionally renderer/state accessors
           cleanup = result.cleanup;
 
-          // Update stored instance with renderer reference if available
+          // Update stored instance with references if available
           const instance = moduleInstances.get(id);
-          if (instance && result.renderer) {
-            instance.renderer = result.renderer;
+          if (instance) {
+            if (result.renderer) {
+              instance.renderer = result.renderer;
+            }
+            if (result.getState && typeof result.getState === 'function') {
+              instance.getState = result.getState;
+            }
+            if (result.setState && typeof result.setState === 'function') {
+              instance.setState = result.setState;
+            }
           }
         }
 
