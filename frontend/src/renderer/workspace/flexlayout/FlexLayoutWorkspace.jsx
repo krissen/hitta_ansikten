@@ -5,9 +5,10 @@
  */
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { Layout, Model, Actions } from 'flexlayout-react';
+import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName } from './layouts.js';
 import { preferences } from '../preferences.js';
+import { preferencesUI } from '../preferences-ui.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 
 // Import React components directly
@@ -40,6 +41,48 @@ const MODULE_TITLES = {
   'review-module': 'Face Review',
   'database-management': 'Database Management'
 };
+
+// Module-specific default layout ratios
+// widthRatio: proportion of row width (horizontal split)
+// heightRatio: proportion when in a secondary row (vertical split)
+// row: default row (1 = primary/top, 2 = secondary/bottom)
+const MODULE_LAYOUT = {
+  'review-module': {
+    widthRatio: 0.15,     // 15% width in its row
+    heightRatio: 0.70,    // Primary row gets 70% height
+    row: 1
+  },
+  'image-viewer': {
+    widthRatio: 0.85,     // 85% width in its row
+    heightRatio: 0.70,    // Primary row gets 70% height
+    row: 1
+  },
+  'original-view': {
+    widthRatio: 0.50,     // 50% when sharing row
+    heightRatio: 0.70,    // Primary row
+    row: 1
+  },
+  'log-viewer': {
+    widthRatio: 0.50,     // 50% when sharing row with stats
+    heightRatio: 0.30,    // Secondary row gets 30% height
+    row: 2
+  },
+  'statistics-dashboard': {
+    widthRatio: 0.50,     // 50% when sharing row with log
+    heightRatio: 0.30,    // Secondary row gets 30% height
+    row: 2
+  },
+  'database-management': {
+    widthRatio: 0.50,     // 50% when sharing row
+    heightRatio: 0.30,    // Secondary row
+    row: 2
+  }
+};
+
+// Simple width ratios for backward compatibility
+const MODULE_RATIOS = Object.fromEntries(
+  Object.entries(MODULE_LAYOUT).map(([k, v]) => [k, v.widthRatio])
+);
 
 /**
  * FlexLayoutWorkspace Component
@@ -152,18 +195,53 @@ export function FlexLayoutWorkspace() {
   const getTabsetPosition = useCallback((tabset) => {
     if (!layoutRef.current) return { x: 0, y: 0 };
 
-    // Find the DOM element for this tabset
     const tabsetId = tabset.getId();
-    const element = document.querySelector(`[data-layout-path*="${tabsetId}"]`);
-    if (!element) return { x: 0, y: 0 };
 
-    const rect = element.getBoundingClientRect();
-    return {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-      rect
-    };
-  }, []);
+    // FlexLayout uses class-based selectors, find the tabset container
+    // The tabset header contains a unique identifier we can use
+    const allTabsets = document.querySelectorAll('.flexlayout__tabset');
+
+    for (const element of allTabsets) {
+      // Check if this element corresponds to our tabset by matching tab IDs
+      const tabButtons = element.querySelectorAll('.flexlayout__tab_button');
+      for (const btn of tabButtons) {
+        const btnId = btn.getAttribute('data-layout-path');
+        if (btnId && btnId.includes(tabsetId)) {
+          const rect = element.getBoundingClientRect();
+          return {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            rect
+          };
+        }
+      }
+    }
+
+    // Fallback: try to find by iterating through layout structure
+    const allElements = document.querySelectorAll('.flexlayout__tabset');
+    if (allElements.length > 0) {
+      // Get tabsets from model and match by index
+      const tabsets = [];
+      model.visitNodes((node) => {
+        if (node.getType() === 'tabset') {
+          tabsets.push(node);
+        }
+      });
+
+      const tabsetIndex = tabsets.findIndex(ts => ts.getId() === tabsetId);
+      if (tabsetIndex >= 0 && tabsetIndex < allElements.length) {
+        const element = allElements[tabsetIndex];
+        const rect = element.getBoundingClientRect();
+        return {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+          rect
+        };
+      }
+    }
+
+    return { x: 0, y: 0 };
+  }, [model]);
 
   // Find tabset in direction based on position
   const findTabsetInDirection = useCallback((fromTabset, direction) => {
@@ -214,14 +292,13 @@ export function FlexLayoutWorkspace() {
   // Add a new tabset (column or row)
   const addTabset = useCallback((direction) => {
     const activeTabset = model.getActiveTabset();
-    if (!activeTabset) return;
+    if (!activeTabset) {
+      console.log('[FlexLayoutWorkspace] No active tabset for adding', direction);
+      return;
+    }
 
-    // Get the active tab to use as reference
-    const activeTab = activeTabset.getSelectedNode();
-    if (!activeTab) return;
-
-    // FlexLayout's addNode with 'right' or 'bottom' location creates new tabset
-    const location = direction === 'column' ? 'right' : 'bottom';
+    // FlexLayout's addNode with RIGHT or BOTTOM location creates new tabset
+    const location = direction === 'column' ? DockLocation.RIGHT : DockLocation.BOTTOM;
 
     // Create a placeholder tab in the new tabset
     const placeholderTab = {
@@ -270,7 +347,197 @@ export function FlexLayoutWorkspace() {
     }
   }, []);
 
-  // Keyboard navigation
+  // Helper: Get DockLocation from direction string
+  const getDockLocation = useCallback((direction) => {
+    switch (direction) {
+      case 'left': return DockLocation.LEFT;
+      case 'right': return DockLocation.RIGHT;
+      case 'above':
+      case 'up': return DockLocation.TOP;
+      case 'below':
+      case 'down': return DockLocation.BOTTOM;
+      default: return DockLocation.RIGHT;
+    }
+  }, []);
+
+  // Apply module-based ratios to all tabsets
+  // Handles both width ratios (horizontal) and height ratios (vertical)
+  const applyModuleBasedRatios = useCallback(() => {
+    const root = model.getRoot();
+    if (!root) return;
+
+    // Helper: Get module layout config
+    const getModuleLayout = (moduleId) => MODULE_LAYOUT[moduleId] || { widthRatio: 0.5, heightRatio: 0.5, row: 1 };
+
+    // Helper: Apply width ratios to tabsets in a row
+    const applyWidthRatios = (children) => {
+      const tabsetsWithModules = [];
+      children.forEach(child => {
+        if (child.getType() === 'tabset') {
+          const selectedTab = child.getSelectedNode();
+          if (selectedTab) {
+            const moduleId = selectedTab.getComponent();
+            const layout = getModuleLayout(moduleId);
+            tabsetsWithModules.push({ node: child, moduleId, ratio: layout.widthRatio });
+          }
+        }
+      });
+
+      if (tabsetsWithModules.length < 2) return;
+
+      // Normalize ratios
+      const totalRatio = tabsetsWithModules.reduce((sum, t) => sum + t.ratio, 0);
+      tabsetsWithModules.forEach(t => {
+        const weight = Math.round((t.ratio / totalRatio) * 100);
+        model.doAction(Actions.updateNodeAttributes(t.node.getId(), { weight }));
+        console.log(`[FlexLayoutWorkspace] Set ${t.moduleId} width weight to ${weight}`);
+      });
+    };
+
+    // Helper: Apply height ratios to rows
+    const applyHeightRatios = (rows) => {
+      if (rows.length < 2) return;
+
+      // Determine height ratio for each row based on its modules
+      const rowHeights = rows.map(row => {
+        // Find modules in this row
+        let heightRatio = 0.5; // default
+        row.getChildren().forEach(child => {
+          if (child.getType() === 'tabset') {
+            const selectedTab = child.getSelectedNode();
+            if (selectedTab) {
+              const moduleId = selectedTab.getComponent();
+              const layout = getModuleLayout(moduleId);
+              heightRatio = layout.heightRatio;
+            }
+          }
+        });
+        return { node: row, heightRatio };
+      });
+
+      // Apply height weights
+      const totalHeight = rowHeights.reduce((sum, r) => sum + r.heightRatio, 0);
+      rowHeights.forEach(r => {
+        const weight = Math.round((r.heightRatio / totalHeight) * 100);
+        model.doAction(Actions.updateNodeAttributes(r.node.getId(), { weight }));
+        console.log(`[FlexLayoutWorkspace] Set row height weight to ${weight}`);
+      });
+    };
+
+    // Process root children
+    const children = root.getChildren();
+    const rows = children.filter(c => c.getType() === 'row');
+    const tabsets = children.filter(c => c.getType() === 'tabset');
+
+    if (rows.length > 0) {
+      // Vertical layout: multiple rows
+      applyHeightRatios(rows);
+      // Apply width ratios within each row
+      rows.forEach(row => applyWidthRatios(row.getChildren()));
+    } else if (tabsets.length > 0) {
+      // Horizontal layout: just tabsets in root
+      applyWidthRatios(tabsets);
+    }
+
+    console.log('[FlexLayoutWorkspace] Applied module-based ratios');
+  }, [model]);
+
+  // Swap active panel with panel in specified direction (Cmd+Arrow)
+  // Moves the active tab past the target tabset, then applies module-based ratios
+  const swapActivePanel = useCallback((direction) => {
+    const activeTabset = model.getActiveTabset();
+    if (!activeTabset) {
+      console.log('[FlexLayoutWorkspace] No active tabset');
+      return;
+    }
+
+    const activeTab = activeTabset.getSelectedNode();
+    if (!activeTab) {
+      console.log('[FlexLayoutWorkspace] No active tab to swap');
+      return;
+    }
+
+    // Find target tabset in direction
+    const targetTabset = findTabsetInDirection(activeTabset, direction);
+    if (!targetTabset) {
+      console.log('[FlexLayoutWorkspace] No tabset found in direction:', direction);
+      return;
+    }
+
+    // Move active tab past the target (in the direction pressed)
+    // This creates: pressing Right on [A][B] -> [B][A]
+    const dockLocation = getDockLocation(direction);
+    model.doAction(Actions.moveNode(
+      activeTab.getId(),
+      targetTabset.getId(),
+      dockLocation,
+      -1,
+      true
+    ));
+
+    // After the move, apply module-based ratios
+    // Each module gets its default width ratio regardless of position
+    setTimeout(() => {
+      applyModuleBasedRatios();
+    }, 50);
+
+    console.log('[FlexLayoutWorkspace] Swapped panel', direction);
+  }, [model, findTabsetInDirection, getDockLocation, applyModuleBasedRatios]);
+
+  // Move active panel to new tabset in direction (Cmd+Alt+Arrow)
+  const moveToNewTabset = useCallback((direction) => {
+    const activeTabset = model.getActiveTabset();
+    if (!activeTabset) return;
+
+    const activeTab = activeTabset.getSelectedNode();
+    if (!activeTab) return;
+
+    // Move to root in the specified direction (creates new tabset)
+    const rootNode = model.getRoot();
+    const dockLocation = getDockLocation(direction);
+    model.doAction(Actions.moveNode(
+      activeTab.getId(),
+      rootNode.getId(),
+      dockLocation,
+      -1,
+      true
+    ));
+
+    // Apply module-based ratios after the move
+    setTimeout(() => {
+      applyModuleBasedRatios();
+    }, 50);
+
+    console.log('[FlexLayoutWorkspace] Moved panel to new tabset', direction);
+  }, [model, getDockLocation, applyModuleBasedRatios]);
+
+  // Group active panel as tab with panel in direction (Cmd+Shift+Arrow)
+  const groupAsTab = useCallback((direction) => {
+    const activeTabset = model.getActiveTabset();
+    if (!activeTabset) return;
+
+    const activeTab = activeTabset.getSelectedNode();
+    if (!activeTab) return;
+
+    // Find target tabset in direction
+    const targetTabset = findTabsetInDirection(activeTabset, direction);
+    if (!targetTabset) {
+      console.log('[FlexLayoutWorkspace] No tabset found in direction:', direction);
+      return;
+    }
+
+    // Move to target tabset as a tab (CENTER location = same tabset)
+    model.doAction(Actions.moveNode(
+      activeTab.getId(),
+      targetTabset.getId(),
+      DockLocation.CENTER,
+      -1,
+      true
+    ));
+    console.log('[FlexLayoutWorkspace] Grouped panel as tab in direction', direction);
+  }, [model, findTabsetInDirection]);
+
+  // Keyboard shortcuts
   useEffect(() => {
     if (!model || !ready) return;
 
@@ -280,38 +547,76 @@ export function FlexLayoutWorkspace() {
         return;
       }
 
+      const isMod = event.metaKey || event.ctrlKey;
+
       // Cmd+Shift+R / Ctrl+Shift+R - Hard reload
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'r') {
+      if (isMod && event.shiftKey && event.key.toLowerCase() === 'r') {
         event.preventDefault();
         window.location.reload(true);
         return;
       }
 
       // Cmd+R / Ctrl+R - Reload
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'r' && !event.shiftKey) {
+      if (isMod && event.key.toLowerCase() === 'r' && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         window.location.reload();
         return;
       }
 
-      // Cmd+Shift+]/[ - Add/remove column
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
+      // === Arrow key combinations ===
+      const arrowKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+      if (isMod && arrowKeys.includes(event.key)) {
+        const dirMap = {
+          'ArrowLeft': 'left',
+          'ArrowRight': 'right',
+          'ArrowUp': 'above',
+          'ArrowDown': 'below'
+        };
+        const direction = dirMap[event.key];
+
+        // Cmd+Shift+Arrow: Group as tab with panel in direction
+        if (event.shiftKey && !event.altKey) {
+          event.preventDefault();
+          groupAsTab(direction);
+          return;
+        }
+
+        // Cmd+Alt+Arrow: Move panel to new column/row
+        if (event.altKey && !event.shiftKey) {
+          event.preventDefault();
+          moveToNewTabset(direction);
+          return;
+        }
+
+        // Cmd+Arrow (no modifiers): Swap/move panel positions
+        if (!event.shiftKey && !event.altKey) {
+          event.preventDefault();
+          swapActivePanel(direction);
+          return;
+        }
+      }
+
+      // === Bracket key combinations ===
+      if (isMod && event.shiftKey) {
+        // Cmd+Shift+] - Add column to the right
         if (event.key === ']') {
           event.preventDefault();
           addTabset('column');
           return;
         }
+        // Cmd+Shift+[ - Remove active tabset (if possible)
         if (event.key === '[') {
           event.preventDefault();
           removeEmptyTabset();
           return;
         }
-        // Cmd+Shift+}/{ - Add/remove row
+        // Cmd+Shift+} - Add row below
         if (event.key === '}') {
           event.preventDefault();
           addTabset('row');
           return;
         }
+        // Cmd+Shift+{ - Remove active tabset (if possible)
         if (event.key === '{') {
           event.preventDefault();
           removeEmptyTabset();
@@ -319,59 +624,15 @@ export function FlexLayoutWorkspace() {
         }
       }
 
-      // Cmd/Ctrl + Arrow: Navigate between tabsets
-      if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
-        const activeTabset = model.getActiveTabset();
-        if (!activeTabset) return;
+      // Cmd+Alt+1-5: Set column count (future enhancement)
+      // FlexLayout doesn't have direct column count control like Dockview
+      // Would need to restructure the entire layout
 
-        const navigate = (direction) => {
-          event.preventDefault();
-          const targetTabset = findTabsetInDirection(activeTabset, direction);
-
-          if (targetTabset) {
-            const selectedNode = targetTabset.getSelectedNode();
-            if (selectedNode) {
-              model.doAction(Actions.selectTab(selectedNode.getId()));
-            }
-          } else {
-            // Fallback: cycle through all tabsets
-            const tabsets = [];
-            model.visitNodes((node) => {
-              if (node.getType() === 'tabset') {
-                tabsets.push(node);
-              }
-            });
-
-            if (tabsets.length < 2) return;
-
-            const currentIndex = tabsets.findIndex(ts => ts.getId() === activeTabset.getId());
-            let nextIndex;
-
-            if (direction === 'left' || direction === 'up') {
-              nextIndex = (currentIndex - 1 + tabsets.length) % tabsets.length;
-            } else {
-              nextIndex = (currentIndex + 1) % tabsets.length;
-            }
-
-            const nextTabset = tabsets[nextIndex];
-            const selectedNode = nextTabset.getSelectedNode();
-            if (selectedNode) {
-              model.doAction(Actions.selectTab(selectedNode.getId()));
-            }
-          }
-        };
-
-        if (event.key === 'ArrowLeft') navigate('left');
-        else if (event.key === 'ArrowRight') navigate('right');
-        else if (event.key === 'ArrowUp') navigate('up');
-        else if (event.key === 'ArrowDown') navigate('down');
-        return;
-      }
-
-      // Cmd/Ctrl + O: Open file
-      if ((event.metaKey || event.ctrlKey) && event.key === 'o') {
+      // Cmd+O: Open file
+      if (isMod && event.key === 'o' && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         openFileDialog();
+        return;
       }
     };
 
@@ -381,7 +642,6 @@ export function FlexLayoutWorkspace() {
         if (!filePath) return;
 
         console.log(`[FlexLayoutWorkspace] Opening file: ${filePath}`);
-        // Emit load-image event via module API
         moduleAPI.emit('load-image', { imagePath: filePath });
       } catch (err) {
         console.error('[FlexLayoutWorkspace] Failed to open file:', err);
@@ -390,7 +650,7 @@ export function FlexLayoutWorkspace() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [model, ready, findTabsetInDirection, addTabset, removeEmptyTabset, moduleAPI]);
+  }, [model, ready, swapActivePanel, moveToNewTabset, groupAsTab, addTabset, removeEmptyTabset, moduleAPI]);
 
   // Setup IPC listeners
   useEffect(() => {
@@ -456,6 +716,20 @@ export function FlexLayoutWorkspace() {
           removeEmptyTabset();
           break;
 
+        // Move to new column/row commands (Cmd+Alt+Arrow via menu)
+        case 'layout-move-new-left':
+          moveToNewTabset('left');
+          break;
+        case 'layout-move-new-right':
+          moveToNewTabset('right');
+          break;
+        case 'layout-move-new-above':
+          moveToNewTabset('above');
+          break;
+        case 'layout-move-new-below':
+          moveToNewTabset('below');
+          break;
+
         // Open module commands
         case 'open-original-view':
           openModule('original-view');
@@ -473,6 +747,10 @@ export function FlexLayoutWorkspace() {
           openModule('database-management');
           break;
 
+        case 'open-preferences':
+          preferencesUI.show();
+          break;
+
         // View commands - broadcast to modules
         default:
           moduleAPI.emit(command, {});
@@ -485,7 +763,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       // Cleanup if needed
     };
-  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, moduleAPI]);
+  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, moduleAPI, moveToNewTabset]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
@@ -500,6 +778,10 @@ export function FlexLayoutWorkspace() {
       addColumn: () => addTabset('column'),
       addRow: () => addTabset('row'),
       removeTabset: removeEmptyTabset,
+      swapPanel: swapActivePanel,
+      moveToNew: moveToNewTabset,
+      groupAsTab: groupAsTab,
+      applyModuleRatios: applyModuleBasedRatios,
       moduleAPI,
       preferences
     };
@@ -507,7 +789,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, closePanel, loadLayout, addTabset, removeEmptyTabset, moduleAPI]);
+  }, [model, openModule, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
 
   if (!model) {
     return (
