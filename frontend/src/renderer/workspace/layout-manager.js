@@ -207,22 +207,28 @@ export class LayoutManager {
 
   /**
    * Review Mode Template
-   * Image viewer (70% left) + Review module (30% right)
+   * Review module (10% left) + Image viewer (90% right)
    */
   loadReviewTemplate() {
-    const imagePanel = this.dockview.addPanel({
-      id: 'image-viewer-main',
-      component: 'image-viewer',
-      params: { isMain: true },
-      title: 'Image Viewer'
+    const reviewPanel = this.dockview.addPanel({
+      id: 'review-module-main',
+      component: 'review-module',
+      title: 'Face Review'
     });
 
     this.dockview.addPanel({
-      id: 'review-module-main',
-      component: 'review-module',
-      position: { referencePanel: imagePanel, direction: 'right' },
-      title: 'Face Review'
+      id: 'image-viewer-main',
+      component: 'image-viewer',
+      params: { isMain: true },
+      position: { referencePanel: reviewPanel, direction: 'right' },
+      title: 'Image Viewer'
     });
+
+    // Apply 10-90 ratio (review narrow, image wide)
+    // Note: applyGridPreset modifies existing layouts, so we delay it slightly
+    setTimeout(() => {
+      this.applyGridPreset('10-90');
+    }, 50);
   }
 
   /**
@@ -388,7 +394,7 @@ export class LayoutManager {
 
   /**
    * Apply grid preset to resize panels
-   * @param {string} preset - Preset name: '50-50', '70-30', '60-40', '30-70'
+   * @param {string} preset - Preset name: '50-50', '60-40', '70-30', '30-70', '40-60', '10-90', '90-10'
    */
   applyGridPreset(preset) {
     console.log(`[LayoutManager] Applying grid preset: ${preset}`);
@@ -419,6 +425,12 @@ export class LayoutManager {
         break;
       case '40-60':
         ratio = 0.4;
+        break;
+      case '10-90':
+        ratio = 0.1;
+        break;
+      case '90-10':
+        ratio = 0.9;
         break;
       default:
         console.warn(`[LayoutManager] Unknown preset: ${preset}`);
