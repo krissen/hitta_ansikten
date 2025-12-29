@@ -64,59 +64,20 @@ function createApplicationMenu(mainWindow) {
       ]
     }] : []),
 
-    // Edit menu (needed for copy/paste in DevTools)
+    // Edit menu - uses roles for native focus-aware clipboard handling
+    // Roles automatically route to correct context (main window or DevTools)
     {
       label: 'Edit',
       submenu: [
-        {
-          label: 'Undo',
-          accelerator: 'CmdOrCtrl+Z',
-          click: () => {
-            mainWindow.webContents.undo();
-          }
-        },
-        {
-          label: 'Redo',
-          accelerator: 'Shift+CmdOrCtrl+Z',
-          click: () => {
-            mainWindow.webContents.redo();
-          }
-        },
+        { role: 'undo' },
+        { role: 'redo' },
         { type: 'separator' },
-        {
-          label: 'Cut',
-          accelerator: 'CmdOrCtrl+X',
-          click: () => {
-            mainWindow.webContents.cut();
-          }
-        },
-        {
-          label: 'Copy',
-          accelerator: 'CmdOrCtrl+C',
-          click: () => {
-            mainWindow.webContents.copy();
-          }
-        },
-        {
-          label: 'Paste',
-          accelerator: 'CmdOrCtrl+V',
-          click: () => {
-            mainWindow.webContents.paste();
-          }
-        },
-        {
-          label: 'Delete',
-          click: () => {
-            mainWindow.webContents.delete();
-          }
-        },
-        {
-          label: 'Select All',
-          accelerator: 'CmdOrCtrl+A',
-          click: () => {
-            mainWindow.webContents.selectAll();
-          }
-        }
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' }
       ]
     },
 
