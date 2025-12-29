@@ -239,4 +239,48 @@ ipcMain.handle('convert-nef', async (event, nefPath) => {
   });
 });
 
+// Renderer log file handling
+let rendererLogStream = null;
+
+function getRendererLogPath() {
+  // Use ~/Library/Logs/Bildvisare on macOS, %APPDATA%/Bildvisare/logs on Windows
+  const logDir = process.platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Logs', 'Bildvisare')
+    : path.join(app.getPath('userData'), 'logs');
+
+  // Ensure directory exists
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
+  // Use date-based log file
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  return path.join(logDir, `renderer-${today}.log`);
+}
+
+function ensureLogStream() {
+  const logPath = getRendererLogPath();
+
+  // Create new stream if none exists or if date changed
+  if (!rendererLogStream || rendererLogStream.path !== logPath) {
+    if (rendererLogStream) {
+      rendererLogStream.end();
+    }
+    rendererLogStream = fs.createWriteStream(logPath, { flags: 'a' });
+    console.log('[Main] Renderer log file:', logPath);
+  }
+
+  return rendererLogStream;
+}
+
+// IPC handler for renderer logs
+ipcMain.on('renderer-log', (event, { level, message }) => {
+  try {
+    const stream = ensureLogStream();
+    stream.write(`[${level.toUpperCase()}] ${message}\n`);
+  } catch (err) {
+    console.error('[Main] Failed to write renderer log:', err);
+  }
+});
+
 console.log('[Main] Workspace mode initialized');

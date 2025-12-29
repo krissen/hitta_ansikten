@@ -7,7 +7,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("bildvisareAPI", {
   // IPC communication - only specific channels allowed
   send: (channel, data) => {
-    const allowedChannels = ["bild-visad", "sync-view"];
+    const allowedChannels = ["bild-visad", "sync-view", "renderer-log"];
     if (allowedChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
