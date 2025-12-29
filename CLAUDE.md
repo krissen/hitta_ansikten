@@ -40,9 +40,11 @@ GIMP-like modular workspace with dockable panels for interactive face review:
   ```bash
   git checkout dev
   git merge feature/description
-  git branch -d feature/description     # delete the feature branch
+  git branch -d feature/description         # delete local feature branch
+  git push origin --delete feature/description  # delete remote feature branch (if pushed)
   ```
 - Only merge `dev` to `master` via PR when ready for release
+- **NEVER delete `master` or `dev` branches** - locally or remotely
 
 **CRITICAL: Commit and PR Message Rules**
 - **ABSOLUTELY NO Claude references** in commit messages or PR descriptions
