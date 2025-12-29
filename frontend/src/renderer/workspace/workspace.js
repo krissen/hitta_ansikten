@@ -208,6 +208,17 @@ function moveActivePanel(direction) {
     return;
   }
 
+  // Save module state before removing
+  let savedState = null;
+  if (activePanel.api && activePanel.api.module && typeof activePanel.api.module.getState === 'function') {
+    try {
+      savedState = activePanel.api.module.getState();
+      console.log(`[Workspace] Saved state for panel ${activePanel.id}`);
+    } catch (err) {
+      console.warn(`[Workspace] Failed to save state for panel ${activePanel.id}:`, err);
+    }
+  }
+
   // Remove the panel from its current position
   const panelParams = {
     id: activePanel.id,
@@ -219,13 +230,27 @@ function moveActivePanel(direction) {
   dockview.removePanel(activePanel);
 
   // Re-add in new position
-  dockview.addPanel({
+  const newPanel = dockview.addPanel({
     ...panelParams,
     position: {
       referencePanel: referencePanel,
       direction: direction
     }
   });
+
+  // Restore module state after a brief delay to let the module initialize
+  if (savedState && newPanel) {
+    setTimeout(() => {
+      if (newPanel.api && newPanel.api.module && typeof newPanel.api.module.setState === 'function') {
+        try {
+          newPanel.api.module.setState(savedState);
+          console.log(`[Workspace] Restored state for panel ${newPanel.id}`);
+        } catch (err) {
+          console.warn(`[Workspace] Failed to restore state for panel ${newPanel.id}:`, err);
+        }
+      }
+    }, 100);
+  }
 
   console.log(`[Workspace] Panel ${panelParams.id} moved ${direction}`);
 }
@@ -522,6 +547,26 @@ async function initWorkspace() {
 
         case 'layout-template-stats':
           layoutManager.loadTemplate('stats');
+          break;
+
+        case 'grid-preset-50-50':
+          layoutManager.applyGridPreset('50-50');
+          break;
+
+        case 'grid-preset-60-40':
+          layoutManager.applyGridPreset('60-40');
+          break;
+
+        case 'grid-preset-70-30':
+          layoutManager.applyGridPreset('70-30');
+          break;
+
+        case 'grid-preset-30-70':
+          layoutManager.applyGridPreset('30-70');
+          break;
+
+        case 'grid-preset-40-60':
+          layoutManager.applyGridPreset('40-60');
           break;
 
         case 'reset-layout':

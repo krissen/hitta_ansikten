@@ -300,4 +300,89 @@ export class LayoutManager {
     this.loadDefault();
     console.log('[LayoutManager] Reset to default layout');
   }
+
+  /**
+   * Apply grid preset to resize panels
+   * @param {string} preset - Preset name: '50-50', '70-30', '60-40', '30-70'
+   */
+  applyGridPreset(preset) {
+    console.log(`[LayoutManager] Applying grid preset: ${preset}`);
+
+    const groups = this.dockview.groups || [];
+    if (groups.length < 2) {
+      console.warn('[LayoutManager] Need at least 2 groups to apply grid preset');
+      return;
+    }
+
+    // Get the main container width/height
+    const api = this.dockview;
+
+    // Determine split ratios based on preset
+    let ratio;
+    switch (preset) {
+      case '50-50':
+        ratio = 0.5;
+        break;
+      case '60-40':
+        ratio = 0.6;
+        break;
+      case '70-30':
+        ratio = 0.7;
+        break;
+      case '30-70':
+        ratio = 0.3;
+        break;
+      case '40-60':
+        ratio = 0.4;
+        break;
+      default:
+        console.warn(`[LayoutManager] Unknown preset: ${preset}`);
+        return;
+    }
+
+    // Try to apply the ratio to the first split container
+    // This is a simplified approach - Dockview's API for programmatic resizing is limited
+    // We'll set the size on the first two groups if they exist
+    if (groups.length >= 2) {
+      const totalWidth = api.width;
+      const firstGroupWidth = Math.floor(totalWidth * ratio);
+
+      // Dockview doesn't expose direct resize methods, so we'll use the layout save/restore
+      // with modified sizes. This is a workaround.
+      const currentLayout = api.toJSON();
+
+      // Modify the layout to set sizes
+      if (currentLayout.grid && currentLayout.grid.root) {
+        this.modifyLayoutSizes(currentLayout.grid.root, ratio);
+        api.fromJSON(currentLayout);
+      }
+
+      this.save();
+      console.log(`[LayoutManager] Applied ${preset} grid preset (ratio: ${ratio})`);
+    }
+  }
+
+  /**
+   * Recursively modify layout sizes
+   * @param {object} node - Layout tree node
+   * @param {number} ratio - Size ratio for first child
+   */
+  modifyLayoutSizes(node, ratio) {
+    if (node.type === 'branch') {
+      // This is a split container
+      if (node.data && Array.isArray(node.data) && node.data.length >= 2) {
+        // Set sizes based on ratio
+        const totalSize = node.data.reduce((sum, child) => sum + (child.size || 1), 0);
+        node.data[0].size = Math.floor(totalSize * ratio);
+        node.data[1].size = Math.floor(totalSize * (1 - ratio));
+
+        // Recursively apply to children
+        node.data.forEach(child => {
+          if (child.type === 'branch') {
+            this.modifyLayoutSizes(child, ratio);
+          }
+        });
+      }
+    }
+  }
 }

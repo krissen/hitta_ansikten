@@ -251,6 +251,47 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          label: 'Grid Presets',
+          submenu: [
+            {
+              label: '50% / 50%',
+              accelerator: 'CmdOrCtrl+Shift+1',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'grid-preset-50-50');
+              }
+            },
+            {
+              label: '60% / 40%',
+              accelerator: 'CmdOrCtrl+Shift+2',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'grid-preset-60-40');
+              }
+            },
+            {
+              label: '70% / 30%',
+              accelerator: 'CmdOrCtrl+Shift+3',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'grid-preset-70-30');
+              }
+            },
+            {
+              label: '30% / 70%',
+              accelerator: 'CmdOrCtrl+Shift+4',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'grid-preset-30-70');
+              }
+            },
+            {
+              label: '40% / 60%',
+              accelerator: 'CmdOrCtrl+Shift+5',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'grid-preset-40-60');
+              }
+            }
+          ]
+        },
+        { type: 'separator' },
+        {
           label: 'Reset Layout',
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
