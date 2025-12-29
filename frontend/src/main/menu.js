@@ -71,51 +71,37 @@ function createApplicationMenu(mainWindow) {
         {
           label: 'Undo',
           accelerator: 'CmdOrCtrl+Z',
-          click: () => {
-            mainWindow.webContents.undo();
-          }
+          role: 'undo'
         },
         {
           label: 'Redo',
           accelerator: 'Shift+CmdOrCtrl+Z',
-          click: () => {
-            mainWindow.webContents.redo();
-          }
+          role: 'redo'
         },
         { type: 'separator' },
         {
           label: 'Cut',
           accelerator: 'CmdOrCtrl+X',
-          click: () => {
-            mainWindow.webContents.cut();
-          }
+          role: 'cut'
         },
         {
           label: 'Copy',
           accelerator: 'CmdOrCtrl+C',
-          click: () => {
-            mainWindow.webContents.copy();
-          }
+          role: 'copy'
         },
         {
           label: 'Paste',
           accelerator: 'CmdOrCtrl+V',
-          click: () => {
-            mainWindow.webContents.paste();
-          }
+          role: 'paste'
         },
         {
           label: 'Delete',
-          click: () => {
-            mainWindow.webContents.delete();
-          }
+          role: 'delete'
         },
         {
           label: 'Select All',
           accelerator: 'CmdOrCtrl+A',
-          click: () => {
-            mainWindow.webContents.selectAll();
-          }
+          role: 'selectAll'
         }
       ]
     },
