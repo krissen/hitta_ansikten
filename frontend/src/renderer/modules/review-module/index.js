@@ -28,6 +28,10 @@ export default {
     let people = []; // Known people for autocomplete
     let currentFaceIndex = 0; // Currently selected face for keyboard navigation
 
+    // Batch mode: store pending changes (not saved to database until "Save All")
+    let pendingConfirmations = []; // { face_id, person_name, image_path }
+    let pendingIgnores = []; // { face_id, image_path }
+
     // Create UI
     container.innerHTML = `
       <div class="review-module">
@@ -281,6 +285,9 @@ export default {
       }
 
       renderFaceGrid();
+
+      // Notify Image Viewer of active face index (for 'single' bounding box mode)
+      api.emit('active-face-changed', { index: currentFaceIndex });
     }
 
     /**
@@ -342,16 +349,19 @@ export default {
 
       // Number shortcuts to jump to face
       if (event.key >= '1' && event.key <= '9' && !isInput) {
+        event.preventDefault(); // Prevent default browser behavior
         const faceNum = parseInt(event.key);
         if (faceNum <= detectedFaces.length) {
           currentFaceIndex = faceNum - 1;
           renderFaceGrid();
+          // Notify Image Viewer of active face change
+          api.emit('active-face-changed', { index: currentFaceIndex });
         }
         return;
       }
 
       // Action shortcuts
-      if (event.key === 'Enter' && isInput) {
+      if (event.key === 'Enter') {
         event.preventDefault();
         confirmCurrentFace();
         return;
@@ -369,16 +379,42 @@ export default {
         return;
       }
 
-      if (event.key === 'Escape' && isInput) {
+      // 'r' or 'R' to enter write mode (focus input and clear)
+      if ((event.key === 'r' || event.key === 'R') && !isInput) {
         event.preventDefault();
-        activeElement.value = detectedFaces[currentFaceIndex]?.person_name || '';
-        activeElement.blur();
+        const currentCard = container.querySelector(`.face-card[data-face-index="${currentFaceIndex}"]`);
+        if (currentCard) {
+          const input = currentCard.querySelector('input[type="text"]');
+          if (input && !detectedFaces[currentFaceIndex]?.is_confirmed) {
+            input.focus();
+            input.value = '';
+          }
+        }
         return;
       }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (isInput) {
+          // Inside input: reset value and blur
+          activeElement.value = detectedFaces[currentFaceIndex]?.person_name || '';
+          activeElement.blur();
+        } else {
+          // Outside input: discard all pending changes
+          if (pendingConfirmations.length > 0 || pendingIgnores.length > 0) {
+            discardAllChanges();
+          }
+        }
+        return;
+      }
+
+      // Letter keys: Reserved for shortcuts, no auto-typing
+      // User must press 'r' to enter write mode
+      // (This section intentionally left minimal to prevent conflicts)
     }
 
-    // Add keyboard listener to container
-    container.addEventListener('keydown', handleKeyboard);
+    // Add keyboard listener to document (module-wide shortcuts)
+    document.addEventListener('keydown', handleKeyboard);
 
     /**
      * Update status message
@@ -412,8 +448,7 @@ export default {
         currentFaceIndex = 0;
       }
 
-      // Focus on active card's input
-      focusCurrentFace();
+      // Don't auto-focus input - user must press 'r' to enter write mode
     }
 
     /**
@@ -435,7 +470,7 @@ export default {
       // Keyboard hint (only shown on active card)
       const keyboardHint = document.createElement('div');
       keyboardHint.className = 'keyboard-hint';
-      keyboardHint.textContent = 'Enter=OK I=Ignore';
+      keyboardHint.textContent = 'R=Write A/Enter=Accept I=Ignore';
       card.appendChild(keyboardHint);
 
       // Thumbnail - load actual face image from API
@@ -471,113 +506,221 @@ export default {
       actions.className = 'face-actions';
 
       if (!face.is_confirmed) {
-        // Name input with autocomplete
+        // Name input with autocomplete (no buttons - keyboard only)
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.placeholder = 'Person name...';
         nameInput.value = face.person_name || '';
         nameInput.setAttribute('list', datalistId); // Link to datalist for autocomplete
 
-        // Confirm button
-        const confirmBtn = document.createElement('button');
-        confirmBtn.className = 'btn-confirm';
-        confirmBtn.textContent = '✓';
-        confirmBtn.title = 'Confirm identity';
-        confirmBtn.onclick = () => confirmFace(face, nameInput.value, index);
-
-        // Reject button
-        const rejectBtn = document.createElement('button');
-        rejectBtn.className = 'btn-reject';
-        rejectBtn.textContent = '✗';
-        rejectBtn.title = 'Reject/ignore face';
-        rejectBtn.onclick = () => rejectFace(face, index);
-
         actions.appendChild(nameInput);
-        actions.appendChild(confirmBtn);
-        actions.appendChild(rejectBtn);
       } else {
-        actions.innerHTML = `<div style="color: #4caf50; font-size: 12px;">✓ Confirmed</div>`;
+        actions.innerHTML = `<div style="color: #4caf50; font-size: 12px;">✓ Confirmed: ${face.person_name || 'Ignored'}</div>`;
       }
 
       card.appendChild(thumbnail);
       card.appendChild(info);
       card.appendChild(actions);
 
+      // Click handler to select this face
+      card.addEventListener('click', (e) => {
+        // Don't select if clicking on input
+        if (e.target.tagName === 'INPUT') {
+          return;
+        }
+
+        // Set as current face and re-render
+        currentFaceIndex = index;
+        renderFaceGrid();
+
+        // Notify Image Viewer of active face change
+        api.emit('active-face-changed', { index: currentFaceIndex });
+
+        // Don't auto-focus input - user must press 'r' to enter write mode
+      });
+
       return card;
     }
 
     /**
-     * Confirm face identity
+     * Confirm face identity (batch mode - not saved until "Save All")
      */
-    async function confirmFace(face, personName, index) {
+    function confirmFace(face, personName, index) {
       if (!personName || !personName.trim()) {
         alert('Please enter a person name');
         return;
       }
 
-      console.log(`[ReviewModule] Confirming face ${face.face_id} as ${personName}`);
+      console.log(`[ReviewModule] Confirming face ${face.face_id} as ${personName} (pending save)`);
+
+      // Update local state (not saved to database yet)
+      detectedFaces[index].is_confirmed = true;
+      detectedFaces[index].person_name = personName.trim();
+
+      // Add to pending confirmations (or update if already exists)
+      const existingIndex = pendingConfirmations.findIndex(p => p.face_id === face.face_id);
+      if (existingIndex >= 0) {
+        pendingConfirmations[existingIndex].person_name = personName.trim();
+      } else {
+        pendingConfirmations.push({
+          face_id: face.face_id,
+          person_name: personName.trim(),
+          image_path: currentImagePath
+        });
+      }
+
+      // Re-render
+      renderFaceGrid();
+      const confirmedCount = detectedFaces.filter(f => f.is_confirmed).length;
+      const pendingCount = pendingConfirmations.length + pendingIgnores.length;
+      updateStatus(`${confirmedCount}/${detectedFaces.length} confirmed | ${pendingCount} changes pending (NOT SAVED)`);
+
+      // Check if all faces are now confirmed/rejected
+      const allDone = detectedFaces.every(f => f.is_confirmed || f.is_rejected);
+      if (allDone && (pendingConfirmations.length > 0 || pendingIgnores.length > 0)) {
+        console.log('[ReviewModule] All faces reviewed! Auto-saving changes...');
+        // Auto-save after a short delay to allow UI to update
+        setTimeout(() => {
+          saveAllChanges();
+        }, 500);
+      } else {
+        // Move to next unconfirmed face
+        navigateToFace(1);
+      }
+
+      console.log(`[ReviewModule] Face confirmed locally (${pendingConfirmations.length} confirmations, ${pendingIgnores.length} ignores pending)`);
+    }
+
+    /**
+     * Reject/ignore face (batch mode - not saved until "Save All")
+     */
+    function rejectFace(face, index) {
+      console.log(`[ReviewModule] Rejecting face ${face.face_id} (pending save)`);
+
+      // Mark as rejected locally (not saved to database yet)
+      detectedFaces[index].is_confirmed = false;
+      detectedFaces[index].is_rejected = true;
+
+      // Add to pending ignores
+      const existingIndex = pendingIgnores.findIndex(p => p.face_id === face.face_id);
+      if (existingIndex < 0) {
+        pendingIgnores.push({
+          face_id: face.face_id,
+          image_path: currentImagePath
+        });
+      }
+
+      // Re-render
+      renderFaceGrid();
+      const confirmedCount = detectedFaces.filter(f => f.is_confirmed).length;
+      const pendingCount = pendingConfirmations.length + pendingIgnores.length;
+      updateStatus(`${confirmedCount}/${detectedFaces.length} confirmed | ${pendingCount} changes pending (NOT SAVED)`);
+
+      // Check if all faces are now confirmed/rejected
+      const allDone = detectedFaces.every(f => f.is_confirmed || f.is_rejected);
+      if (allDone && (pendingConfirmations.length > 0 || pendingIgnores.length > 0)) {
+        console.log('[ReviewModule] All faces reviewed! Auto-saving changes...');
+        // Auto-save after a short delay to allow UI to update
+        setTimeout(() => {
+          saveAllChanges();
+        }, 500);
+      } else {
+        // Move to next unconfirmed face
+        navigateToFace(1);
+      }
+
+      console.log(`[ReviewModule] Face rejected locally (${pendingConfirmations.length} confirmations, ${pendingIgnores.length} ignores pending)`);
+    }
+
+    /**
+     * Save all pending changes to database
+     */
+    async function saveAllChanges() {
+      if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) {
+        alert('No changes to save');
+        return;
+      }
+
+      const totalChanges = pendingConfirmations.length + pendingIgnores.length;
+      console.log(`[ReviewModule] Saving ${totalChanges} changes to database...`);
+
+      updateStatus(`Saving ${totalChanges} changes to database...`);
 
       try {
-        updateStatus('Confirming identity...');
+        // Save all confirmations
+        for (const confirmation of pendingConfirmations) {
+          await api.backend.confirmIdentity(
+            confirmation.face_id,
+            confirmation.person_name,
+            confirmation.image_path
+          );
+        }
 
-        await api.backend.confirmIdentity(face.face_id, personName.trim(), currentImagePath);
+        // Save all ignores
+        for (const ignore of pendingIgnores) {
+          await api.backend.ignoreFace(ignore.face_id, ignore.image_path);
+        }
 
-        // Update local state
-        detectedFaces[index].is_confirmed = true;
-        detectedFaces[index].person_name = personName.trim();
+        // Clear pending arrays
+        pendingConfirmations = [];
+        pendingIgnores = [];
 
-        // Reload people names to include newly added person
-        loadPeopleNames();
+        // Reload people names to include newly added people
+        await loadPeopleNames();
 
-        // Emit event to other modules
-        api.emit('face-confirmed', {
-          faceId: face.face_id,
-          personName: personName.trim(),
-          imagePath: currentImagePath
-        });
+        // Update UI
+        updateStatus(`✅ Successfully saved ${totalChanges} changes to database!`);
 
-        // Re-render
-        renderFaceGrid();
-        updateStatus(`${detectedFaces.filter(f => f.is_confirmed).length}/${detectedFaces.length} faces confirmed`);
+        console.log('[ReviewModule] All changes saved successfully');
 
-        console.log('[ReviewModule] Face confirmed successfully');
+        // Show success message
+        setTimeout(() => {
+          updateStatus(`All faces reviewed and saved!`);
+        }, 2000);
+
       } catch (err) {
-        console.error('[ReviewModule] Failed to confirm face:', err);
-        updateStatus('Error confirming face');
-        alert('Failed to confirm face: ' + err.message);
+        console.error('[ReviewModule] Failed to save changes:', err);
+        updateStatus('❌ Error saving changes - see console');
+        alert(`Failed to save changes: ${err.message}\n\nSome changes may have been saved. Check the console for details.`);
       }
     }
 
     /**
-     * Reject/ignore face
+     * Discard all pending changes
      */
-    async function rejectFace(face, index) {
-      console.log(`[ReviewModule] Rejecting face ${face.face_id}`);
+    function discardAllChanges() {
+      const totalChanges = pendingConfirmations.length + pendingIgnores.length;
 
-      try {
-        updateStatus('Rejecting face...');
-
-        await api.backend.ignoreFace(face.face_id, currentImagePath);
-
-        // Remove from grid
-        detectedFaces.splice(index, 1);
-
-        // Emit event
-        api.emit('face-rejected', {
-          faceId: face.face_id,
-          imagePath: currentImagePath
-        });
-
-        // Re-render
-        renderFaceGrid();
-        updateStatus(`${detectedFaces.length} faces remaining`);
-
-        console.log('[ReviewModule] Face rejected successfully');
-      } catch (err) {
-        console.error('[ReviewModule] Failed to reject face:', err);
-        updateStatus('Error rejecting face');
-        alert('Failed to reject face: ' + err.message);
+      if (totalChanges === 0) {
+        return;
       }
+
+      if (!confirm(`Discard ${totalChanges} unsaved changes?`)) {
+        return;
+      }
+
+      console.log(`[ReviewModule] Discarding ${totalChanges} pending changes`);
+
+      // Clear pending arrays
+      pendingConfirmations = [];
+      pendingIgnores = [];
+
+      // Reset face states
+      detectedFaces.forEach(face => {
+        if (face.is_rejected) {
+          face.is_rejected = false;
+        }
+        if (face.is_confirmed) {
+          face.is_confirmed = false;
+          face.person_name = null;
+        }
+      });
+
+      // Re-render
+      renderFaceGrid();
+      updateStatus('Changes discarded');
+
+      console.log('[ReviewModule] All changes discarded');
     }
 
     /**
@@ -615,6 +758,21 @@ export default {
       detectFaces(imagePath);
     });
 
+    // Listen for menu commands
+    api.on('save-all-changes', () => {
+      console.log('[ReviewModule] Save all changes command received');
+      if (pendingConfirmations.length > 0 || pendingIgnores.length > 0) {
+        saveAllChanges();
+      }
+    });
+
+    api.on('discard-changes', () => {
+      console.log('[ReviewModule] Discard changes command received');
+      if (pendingConfirmations.length > 0 || pendingIgnores.length > 0) {
+        discardAllChanges();
+      }
+    });
+
     // Listen for backend WebSocket events
     api.ws.on('face-detected', (data) => {
       console.log('[ReviewModule] Face detected event:', data);
@@ -629,7 +787,7 @@ export default {
     // Cleanup function
     return () => {
       console.log('[ReviewModule] Cleaning up...');
-      // Remove event listeners if needed
+      document.removeEventListener('keydown', handleKeyboard);
     };
   },
 
