@@ -171,7 +171,8 @@ export default {
       }
 
       .face-card.rejected {
-        opacity: 0.5;
+        border: 2px solid #ff9800;
+        opacity: 0.7;
       }
 
       .face-card.active {
@@ -458,7 +459,8 @@ export default {
       const card = document.createElement('div');
       card.className = 'face-card';
       card.dataset.faceIndex = index; // Store index for keyboard navigation
-      if (face.is_confirmed) card.classList.add('confirmed');
+      if (face.is_confirmed && !face.is_rejected) card.classList.add('confirmed');
+      if (face.is_rejected) card.classList.add('rejected');
       if (index === currentFaceIndex) card.classList.add('active');
 
       // Face number badge
@@ -477,9 +479,9 @@ export default {
       const thumbnail = document.createElement('div');
       thumbnail.className = 'face-thumbnail';
 
-      // Build thumbnail URL
+      // Build thumbnail URL using api.backend.baseUrl
       const bbox = face.bounding_box;
-      const thumbnailUrl = `http://127.0.0.1:5000/api/face-thumbnail?` +
+      const thumbnailUrl = `${api.backend.baseUrl}/api/face-thumbnail?` +
         `image_path=${encodeURIComponent(currentImagePath)}` +
         `&x=${bbox.x}&y=${bbox.y}&width=${bbox.width}&height=${bbox.height}&size=150`;
 
@@ -515,7 +517,9 @@ export default {
 
         actions.appendChild(nameInput);
       } else {
-        actions.innerHTML = `<div style="color: #4caf50; font-size: 12px;">✓ Confirmed: ${face.person_name || 'Ignored'}</div>`;
+        const statusColor = face.is_rejected ? '#ff9800' : '#4caf50';
+        const statusText = face.is_rejected ? '⊘ Ignored' : `✓ Confirmed: ${face.person_name}`;
+        actions.innerHTML = `<div style="color: ${statusColor}; font-size: 12px;">${statusText}</div>`;
       }
 
       card.appendChild(thumbnail);
@@ -571,9 +575,9 @@ export default {
 
       // Re-render
       renderFaceGrid();
-      const confirmedCount = detectedFaces.filter(f => f.is_confirmed).length;
+      const reviewedCount = detectedFaces.filter(f => f.is_confirmed).length;
       const pendingCount = pendingConfirmations.length + pendingIgnores.length;
-      updateStatus(`${confirmedCount}/${detectedFaces.length} confirmed | ${pendingCount} changes pending (NOT SAVED)`);
+      updateStatus(`${reviewedCount}/${detectedFaces.length} reviewed | ${pendingCount} changes pending (NOT SAVED)`);
 
       // Check if all faces are now confirmed/rejected
       const allDone = detectedFaces.every(f => f.is_confirmed || f.is_rejected);
@@ -598,8 +602,9 @@ export default {
       console.log(`[ReviewModule] Rejecting face ${face.face_id} (pending save)`);
 
       // Mark as rejected locally (not saved to database yet)
-      detectedFaces[index].is_confirmed = false;
+      detectedFaces[index].is_confirmed = true; // Mark as "reviewed"
       detectedFaces[index].is_rejected = true;
+      detectedFaces[index].person_name = '(ignored)'; // Show "(ignored)" in UI
 
       // Add to pending ignores
       const existingIndex = pendingIgnores.findIndex(p => p.face_id === face.face_id);
@@ -612,9 +617,9 @@ export default {
 
       // Re-render
       renderFaceGrid();
-      const confirmedCount = detectedFaces.filter(f => f.is_confirmed).length;
+      const reviewedCount = detectedFaces.filter(f => f.is_confirmed).length;
       const pendingCount = pendingConfirmations.length + pendingIgnores.length;
-      updateStatus(`${confirmedCount}/${detectedFaces.length} confirmed | ${pendingCount} changes pending (NOT SAVED)`);
+      updateStatus(`${reviewedCount}/${detectedFaces.length} reviewed | ${pendingCount} changes pending (NOT SAVED)`);
 
       // Check if all faces are now confirmed/rejected
       const allDone = detectedFaces.every(f => f.is_confirmed || f.is_rejected);
@@ -709,8 +714,9 @@ export default {
       detectedFaces.forEach(face => {
         if (face.is_rejected) {
           face.is_rejected = false;
-        }
-        if (face.is_confirmed) {
+          face.is_confirmed = false;
+          face.person_name = null;
+        } else if (face.is_confirmed) {
           face.is_confirmed = false;
           face.person_name = null;
         }
