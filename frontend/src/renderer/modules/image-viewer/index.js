@@ -12,6 +12,19 @@ export default {
   id: 'image-viewer',
   title: 'Image Viewer',
   defaultSize: { width: 800, height: 600 },
+  preferredSize: {
+    width: null,        // No preferred width - takes remaining space
+    minWidth: 200,      // Minimum width
+    maxWidth: null,     // No maximum - can grow indefinitely
+    flexGrow: 1         // 1 = grows to fill available space
+  },
+  defaultLayout: {
+    row: 1,             // Main row (top)
+    col: 2,             // Right column (after review)
+    colSpan: 1,         // Single column
+    ratio: 0.85,        // 85% of row width (takes remaining space)
+    rowRatio: 1.0       // Full height when only row
+  },
 
   /**
    * Initialize image viewer module

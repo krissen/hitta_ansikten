@@ -9,6 +9,19 @@ export default {
   id: 'statistics-dashboard',
   title: 'Statistics Dashboard',
   defaultSize: { width: 900, height: 700 },
+  preferredSize: {
+    width: 500,         // Preferred width in pixels
+    minWidth: 300,      // Minimum width
+    maxWidth: null,     // No maximum
+    flexGrow: 0.5       // Grows moderately
+  },
+  defaultLayout: {
+    row: 2,             // Secondary row (bottom)
+    col: 1,             // First column
+    colSpan: 'full',    // Full width (spans all columns)
+    ratio: 1.0,         // 100% of row width
+    rowRatio: 0.3       // 30% of total height
+  },
 
   /**
    * Initialize statistics dashboard module

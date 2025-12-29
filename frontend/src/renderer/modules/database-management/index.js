@@ -9,6 +9,19 @@ export default {
   id: 'database-management',
   title: 'Database Management',
   defaultSize: { width: 700, height: 800 },
+  preferredSize: {
+    width: 400,         // Preferred width in pixels
+    minWidth: 250,      // Minimum width
+    maxWidth: 600,      // Maximum width
+    flexGrow: 0.3       // Grows slowly
+  },
+  defaultLayout: {
+    row: 1,             // Main row (can also be in side panel)
+    col: 3,             // Right side
+    colSpan: 1,         // Single column
+    ratio: 0.3,         // 30% of row width
+    rowRatio: 1.0       // Full height when in main row
+  },
 
   /**
    * Initialize database management module

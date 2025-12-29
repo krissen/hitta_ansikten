@@ -14,6 +14,19 @@ export default {
   id: 'review-module',
   title: 'Face Review',
   defaultSize: { width: 400, height: 600 },
+  preferredSize: {
+    width: 200,       // Preferred width in pixels
+    minWidth: 120,    // Minimum width
+    maxWidth: 400,    // Maximum width
+    flexGrow: 0       // 0 = fixed size, doesn't grow with available space
+  },
+  defaultLayout: {
+    row: 1,           // Main row (top)
+    col: 1,           // Left column
+    colSpan: 1,       // Single column
+    ratio: 0.15,      // 15% of row width
+    rowRatio: 1.0     // Full height when only row
+  },
 
   /**
    * Initialize Review Module

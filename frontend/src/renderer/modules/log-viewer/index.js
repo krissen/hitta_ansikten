@@ -11,6 +11,19 @@ export default {
   id: 'log-viewer',
   title: 'Backend Logs',
   defaultSize: { width: 600, height: 400 },
+  preferredSize: {
+    width: 400,         // Preferred width in pixels
+    minWidth: 200,      // Minimum width
+    maxWidth: 800,      // Maximum width
+    flexGrow: 0.5       // Grows moderately
+  },
+  defaultLayout: {
+    row: 2,             // Secondary row (bottom)
+    col: 1,             // First column
+    colSpan: 'full',    // Full width (spans all columns)
+    ratio: 1.0,         // 100% of row width
+    rowRatio: 0.25      // 25% of total height
+  },
 
   /**
    * Initialize Log Viewer Module
