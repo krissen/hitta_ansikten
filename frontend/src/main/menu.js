@@ -14,15 +14,16 @@ const { Menu, shell } = require('electron');
 function createApplicationMenu(mainWindow) {
   const isMac = process.platform === 'darwin';
 
-  // Helper: Check if DevTools is open before sending menu commands
+  // Helper: Check if DevTools has focus before sending menu commands
   const sendMenuCommand = (command) => {
-    // If DevTools is open, don't send keyboard shortcut commands
+    // If DevTools is focused (active), don't send keyboard shortcut commands
     // This prevents shortcuts from triggering when typing in DevTools console
-    if (mainWindow.webContents.isDevToolsOpened()) {
-      console.log(`[Main] Menu command "${command}" blocked - DevTools is open`);
+    // But allows shortcuts when DevTools is open but main window is focused
+    if (mainWindow.webContents.isDevToolsFocused()) {
+      console.log(`[Main] Menu command "${command}" blocked - DevTools is focused`);
       return;
     }
-    sendMenuCommand( command);
+    mainWindow.webContents.send('menu-command', command);
   };
 
   const template = [
