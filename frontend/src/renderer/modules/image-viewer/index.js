@@ -16,7 +16,7 @@ export default {
    * Initialize image viewer module
    * @param {HTMLElement} container - Module container
    * @param {object} api - Module API
-   * @returns {Promise<Function>} Cleanup function
+   * @returns {Promise<object>} Object with cleanup function and renderer
    */
   async init(container, api) {
     console.log('[ImageViewer] Initializing...');
@@ -265,18 +265,21 @@ export default {
       showPlaceholder(container);
     }
 
-    // Cleanup function
-    return () => {
-      console.log('[ImageViewer] Cleaning up...');
-      document.removeEventListener('keydown', keyboardHandler);
-      document.removeEventListener('keyup', keyupHandler);
-      if (zoomDelayTimeout) {
-        clearTimeout(zoomDelayTimeout);
-      }
-      if (zoomAnimationId) {
-        cancelAnimationFrame(zoomAnimationId);
-      }
-      renderer.cleanup();
+    // Return object with cleanup function and renderer reference
+    return {
+      cleanup: () => {
+        console.log('[ImageViewer] Cleaning up...');
+        document.removeEventListener('keydown', keyboardHandler);
+        document.removeEventListener('keyup', keyupHandler);
+        if (zoomDelayTimeout) {
+          clearTimeout(zoomDelayTimeout);
+        }
+        if (zoomAnimationId) {
+          cancelAnimationFrame(zoomAnimationId);
+        }
+        renderer.cleanup();
+      },
+      renderer // Expose renderer for state management
     };
   },
 

@@ -210,12 +210,25 @@ function moveActivePanel(direction) {
 
   // Save module state before removing
   let savedState = null;
-  if (activePanel.api && activePanel.api.module && typeof activePanel.api.module.getState === 'function') {
-    try {
-      savedState = activePanel.api.module.getState();
-      console.log(`[Workspace] Saved state for panel ${activePanel.id}`);
-    } catch (err) {
-      console.warn(`[Workspace] Failed to save state for panel ${activePanel.id}:`, err);
+  const moduleInstance = moduleInstances.get(activePanel.id);
+  if (moduleInstance) {
+    // Try renderer's getState first (for image-viewer), fallback to module's getState
+    if (moduleInstance.renderer && typeof moduleInstance.renderer.getState === 'function') {
+      try {
+        savedState = moduleInstance.renderer.getState();
+        console.log(`[Workspace] Saved renderer state for panel ${activePanel.id}:`, savedState);
+      } catch (err) {
+        console.warn(`[Workspace] Failed to save renderer state for panel ${activePanel.id}:`, err);
+      }
+    } else if (moduleInstance.module && typeof moduleInstance.module.getState === 'function') {
+      try {
+        savedState = moduleInstance.module.getState();
+        console.log(`[Workspace] Saved module state for panel ${activePanel.id}:`, savedState);
+      } catch (err) {
+        console.warn(`[Workspace] Failed to save module state for panel ${activePanel.id}:`, err);
+      }
+    } else {
+      console.warn(`[Workspace] No getState() method found for panel ${activePanel.id}`);
     }
   }
 
@@ -241,12 +254,23 @@ function moveActivePanel(direction) {
   // Restore module state after a brief delay to let the module initialize
   if (savedState && newPanel) {
     setTimeout(() => {
-      if (newPanel.api && newPanel.api.module && typeof newPanel.api.module.setState === 'function') {
-        try {
-          newPanel.api.module.setState(savedState);
-          console.log(`[Workspace] Restored state for panel ${newPanel.id}`);
-        } catch (err) {
-          console.warn(`[Workspace] Failed to restore state for panel ${newPanel.id}:`, err);
+      const newModuleInstance = moduleInstances.get(newPanel.id);
+      if (newModuleInstance) {
+        // Try renderer's setState first (for image-viewer), fallback to module's setState
+        if (newModuleInstance.renderer && typeof newModuleInstance.renderer.setState === 'function') {
+          try {
+            newModuleInstance.renderer.setState(savedState);
+            console.log(`[Workspace] Restored renderer state for panel ${newPanel.id}`);
+          } catch (err) {
+            console.warn(`[Workspace] Failed to restore renderer state for panel ${newPanel.id}:`, err);
+          }
+        } else if (newModuleInstance.module && typeof newModuleInstance.module.setState === 'function') {
+          try {
+            newModuleInstance.module.setState(savedState);
+            console.log(`[Workspace] Restored module state for panel ${newPanel.id}`);
+          } catch (err) {
+            console.warn(`[Workspace] Failed to restore module state for panel ${newPanel.id}:`, err);
+          }
         }
       }
     }, 100);
@@ -762,17 +786,31 @@ function createModuleComponent(options) {
         module,
         api,
         container,
-        cleanup: null // Will be set after init completes
+        cleanup: null, // Will be set after init completes
+        renderer: null // Will be set if module exposes renderer
       });
 
       // Initialize module
-      module.init(container, api).then(cleanupFn => {
-        cleanup = cleanupFn;
+      module.init(container, api).then(result => {
+        // Handle both old format (function) and new format (object with cleanup + renderer)
+        if (typeof result === 'function') {
+          // Old format: just a cleanup function
+          cleanup = result;
+        } else if (result && typeof result === 'object') {
+          // New format: object with cleanup and optionally renderer
+          cleanup = result.cleanup;
+
+          // Update stored instance with renderer reference if available
+          const instance = moduleInstances.get(id);
+          if (instance && result.renderer) {
+            instance.renderer = result.renderer;
+          }
+        }
 
         // Update cleanup function in stored instance
         const instance = moduleInstances.get(id);
         if (instance) {
-          instance.cleanup = cleanupFn;
+          instance.cleanup = cleanup;
         }
 
         console.log(`[Workspace] Module ${name} initialized`);
