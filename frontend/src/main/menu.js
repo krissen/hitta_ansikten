@@ -217,6 +217,40 @@ function createApplicationMenu(mainWindow) {
       label: 'Window',
       submenu: [
         {
+          label: 'Layout Templates',
+          submenu: [
+            {
+              label: 'Review Mode',
+              accelerator: 'CmdOrCtrl+1',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'layout-template-review');
+              }
+            },
+            {
+              label: 'Comparison Mode',
+              accelerator: 'CmdOrCtrl+2',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'layout-template-comparison');
+              }
+            },
+            {
+              label: 'Full Image',
+              accelerator: 'CmdOrCtrl+3',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'layout-template-full-image');
+              }
+            },
+            {
+              label: 'Statistics Mode',
+              accelerator: 'CmdOrCtrl+4',
+              click: () => {
+                mainWindow.webContents.send('menu-command', 'layout-template-stats');
+              }
+            }
+          ]
+        },
+        { type: 'separator' },
+        {
           label: 'Reset Layout',
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {

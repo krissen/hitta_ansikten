@@ -77,9 +77,74 @@ export class LayoutManager {
    * Image viewer (left) + Review module (right)
    */
   loadDefault() {
-    console.log('[LayoutManager] Loading default layout');
+    this.loadTemplate('review');
+  }
 
-    // Create default layout: Image viewer (left) + Review module (right)
+  /**
+   * Load a predefined layout template
+   * @param {string} templateName - Template name: 'review', 'comparison', 'full-image', 'stats'
+   */
+  loadTemplate(templateName) {
+    console.log(`[LayoutManager] Loading template: ${templateName}`);
+
+    // Clear existing panels first
+    const panels = [...this.dockview.panels];
+    panels.forEach(panel => this.dockview.removePanel(panel));
+
+    switch (templateName) {
+      case 'review':
+        // Default: Image viewer (left) + Review module (right)
+        this.loadReviewTemplate();
+        break;
+
+      case 'comparison':
+        // Image viewer (left) + Review module (top right) + Original view (bottom right)
+        this.loadComparisonTemplate();
+        break;
+
+      case 'full-image':
+        // Just image viewer (maximized)
+        this.loadFullImageTemplate();
+        break;
+
+      case 'stats':
+        // Image viewer (left) + Stats dashboard (top right) + Database mgmt (bottom right)
+        this.loadStatsTemplate();
+        break;
+
+      default:
+        console.warn(`[LayoutManager] Unknown template: ${templateName}, loading default`);
+        this.loadReviewTemplate();
+    }
+
+    this.save();
+  }
+
+  /**
+   * Review Mode Template
+   * Image viewer (70% left) + Review module (30% right)
+   */
+  loadReviewTemplate() {
+    const imagePanel = this.dockview.addPanel({
+      id: 'image-viewer-main',
+      component: 'image-viewer',
+      params: { isMain: true },
+      title: 'Image Viewer'
+    });
+
+    this.dockview.addPanel({
+      id: 'review-module-main',
+      component: 'review-module',
+      position: { referencePanel: imagePanel, direction: 'right' },
+      title: 'Face Review'
+    });
+  }
+
+  /**
+   * Comparison Mode Template
+   * Image viewer (left 50%) + Review module (top right 25%) + Original view (bottom right 25%)
+   */
+  loadComparisonTemplate() {
     const imagePanel = this.dockview.addPanel({
       id: 'image-viewer-main',
       component: 'image-viewer',
@@ -94,8 +159,52 @@ export class LayoutManager {
       title: 'Face Review'
     });
 
-    // Save default layout
-    this.save();
+    this.dockview.addPanel({
+      id: 'original-view-main',
+      component: 'original-view',
+      position: { referencePanel: reviewPanel, direction: 'below' },
+      title: 'Original View'
+    });
+  }
+
+  /**
+   * Full Image Template
+   * Just image viewer (maximized)
+   */
+  loadFullImageTemplate() {
+    this.dockview.addPanel({
+      id: 'image-viewer-main',
+      component: 'image-viewer',
+      params: { isMain: true },
+      title: 'Image Viewer'
+    });
+  }
+
+  /**
+   * Stats Template
+   * Image viewer (left 60%) + Stats (top right 20%) + Database (bottom right 20%)
+   */
+  loadStatsTemplate() {
+    const imagePanel = this.dockview.addPanel({
+      id: 'image-viewer-main',
+      component: 'image-viewer',
+      params: { isMain: true },
+      title: 'Image Viewer'
+    });
+
+    const statsPanel = this.dockview.addPanel({
+      id: 'statistics-dashboard-main',
+      component: 'statistics-dashboard',
+      position: { referencePanel: imagePanel, direction: 'right' },
+      title: 'Statistics'
+    });
+
+    this.dockview.addPanel({
+      id: 'database-management-main',
+      component: 'database-management',
+      position: { referencePanel: statsPanel, direction: 'below' },
+      title: 'Database'
+    });
   }
 
   /**

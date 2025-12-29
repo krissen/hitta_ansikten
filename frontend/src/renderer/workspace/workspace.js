@@ -152,12 +152,82 @@ function setupWorkspaceKeyboardShortcuts() {
       return;
     }
 
+    // Cmd+Arrow keys - Move active panel in grid
+    if (event.metaKey || event.ctrlKey) {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveActivePanel('above');
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveActivePanel('below');
+        return;
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        moveActivePanel('left');
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        moveActivePanel('right');
+        return;
+      }
+    }
+
     // Cmd+O (macOS) or Ctrl+O (Windows/Linux) - Open file
     if ((event.metaKey || event.ctrlKey) && event.key === 'o') {
       event.preventDefault();
       await openFileDialog();
     }
   });
+}
+
+/**
+ * Move active panel in the specified direction
+ * @param {string} direction - 'above', 'below', 'left', 'right'
+ */
+function moveActivePanel(direction) {
+  const activePanel = dockview.activePanel;
+  if (!activePanel) {
+    console.warn('[Workspace] No active panel to move');
+    return;
+  }
+
+  console.log(`[Workspace] Moving panel ${activePanel.id} ${direction}`);
+
+  // Get all panels to find a reference panel in the target direction
+  const panels = dockview.panels;
+
+  // Simple heuristic: find first panel that's not the active one
+  const referencePanel = panels.find(p => p.id !== activePanel.id);
+
+  if (!referencePanel) {
+    console.warn('[Workspace] No reference panel found');
+    return;
+  }
+
+  // Remove the panel from its current position
+  const panelParams = {
+    id: activePanel.id,
+    component: activePanel.api?.component || activePanel.params?.component,
+    params: activePanel.params,
+    title: activePanel.title
+  };
+
+  dockview.removePanel(activePanel);
+
+  // Re-add in new position
+  dockview.addPanel({
+    ...panelParams,
+    position: {
+      referencePanel: referencePanel,
+      direction: direction
+    }
+  });
+
+  console.log(`[Workspace] Panel ${panelParams.id} moved ${direction}`);
 }
 
 /**
@@ -436,6 +506,22 @@ async function initWorkspace() {
           } else {
             openModule('review-module', { title: 'Review Module' });
           }
+          break;
+
+        case 'layout-template-review':
+          layoutManager.loadTemplate('review');
+          break;
+
+        case 'layout-template-comparison':
+          layoutManager.loadTemplate('comparison');
+          break;
+
+        case 'layout-template-full-image':
+          layoutManager.loadTemplate('full-image');
+          break;
+
+        case 'layout-template-stats':
+          layoutManager.loadTemplate('stats');
           break;
 
         case 'reset-layout':
