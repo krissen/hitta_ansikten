@@ -26,7 +26,19 @@ export class LayoutManager {
       };
 
       localStorage.setItem(this.storageKey, JSON.stringify(state));
-      console.log('[LayoutManager] Saved workspace layout');
+
+      // Log panel configuration
+      const panels = this.dockview.panels || [];
+      const panelInfo = panels.map(p => ({
+        id: p.id,
+        title: p.title,
+        size: p.api?.width + 'x' + p.api?.height
+      }));
+      console.log('[LayoutManager] Saved workspace layout:', {
+        panels: panelInfo.length,
+        config: panelInfo,
+        timestamp: new Date(state.timestamp).toLocaleTimeString()
+      });
     } catch (err) {
       console.error('[LayoutManager] Failed to save layout:', err);
     }
@@ -48,6 +60,8 @@ export class LayoutManager {
     try {
       const state = JSON.parse(saved);
 
+      console.log('[LayoutManager] Found saved layout from:', new Date(state.timestamp).toLocaleString());
+
       // Check version and migrate if needed
       if (state.version !== this.currentVersion) {
         console.warn(`[LayoutManager] Layout version mismatch (${state.version} vs ${this.currentVersion}), loading default`);
@@ -65,7 +79,16 @@ export class LayoutManager {
         return;
       }
 
-      console.log('[LayoutManager] Loaded workspace layout');
+      // Log loaded panel configuration
+      const panels = this.dockview.panels || [];
+      const panelInfo = panels.map(p => ({
+        id: p.id,
+        title: p.title
+      }));
+      console.log('[LayoutManager] Loaded workspace layout successfully:', {
+        panels: panelInfo.length,
+        config: panelInfo
+      });
     } catch (err) {
       console.error('[LayoutManager] Failed to load layout:', err);
       this.loadDefault();

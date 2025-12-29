@@ -152,8 +152,32 @@ function setupWorkspaceKeyboardShortcuts() {
       return;
     }
 
-    // Cmd+Arrow keys - Move active panel in grid
-    if (event.metaKey || event.ctrlKey) {
+    // Cmd+Shift+Arrow keys - Group active panel as tab
+    if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        groupActivePanel('above');
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        groupActivePanel('below');
+        return;
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        groupActivePanel('left');
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        groupActivePanel('right');
+        return;
+      }
+    }
+
+    // Cmd+Arrow keys - Move active panel in grid (swap)
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey) {
       if (event.key === 'ArrowUp') {
         event.preventDefault();
         moveActivePanel('above');
@@ -185,7 +209,107 @@ function setupWorkspaceKeyboardShortcuts() {
 }
 
 /**
- * Move active panel in the specified direction
+ * Group active panel as tab with panel in specified direction
+ * @param {string} direction - 'above', 'below', 'left', 'right'
+ */
+function groupActivePanel(direction) {
+  const activePanel = dockview.activePanel;
+  if (!activePanel) {
+    console.warn('[Workspace] No active panel to group');
+    return;
+  }
+
+  console.log(`[Workspace] Grouping panel ${activePanel.id} with panel ${direction}`);
+
+  // Get all panels to find a reference panel in the target direction
+  const panels = dockview.panels;
+
+  // Simple heuristic: find first panel that's not the active one
+  // TODO: In future, could find panel that's actually in the specified direction
+  const referencePanel = panels.find(p => p.id !== activePanel.id);
+
+  if (!referencePanel) {
+    console.warn('[Workspace] No reference panel found');
+    return;
+  }
+
+  // Save module state before removing
+  let savedState = null;
+  const moduleInstance = moduleInstances.get(activePanel.id);
+  if (moduleInstance) {
+    // Try instance-level getState first (from init return), then renderer, then module
+    if (moduleInstance.getState && typeof moduleInstance.getState === 'function') {
+      try {
+        savedState = moduleInstance.getState();
+        console.log(`[Workspace] Saved instance state for panel ${activePanel.id}`);
+      } catch (err) {
+        console.warn(`[Workspace] Failed to save instance state for panel ${activePanel.id}:`, err);
+      }
+    } else if (moduleInstance.renderer && typeof moduleInstance.renderer.getState === 'function') {
+      try {
+        savedState = moduleInstance.renderer.getState();
+        console.log(`[Workspace] Saved renderer state for panel ${activePanel.id}`);
+      } catch (err) {
+        console.warn(`[Workspace] Failed to save renderer state for panel ${activePanel.id}:`, err);
+      }
+    }
+  }
+
+  // Remove the panel from its current position
+  const panelParams = {
+    id: activePanel.id,
+    component: activePanel.api?.component || activePanel.params?.component,
+    params: activePanel.params,
+    title: activePanel.title
+  };
+
+  dockview.removePanel(activePanel);
+
+  // Re-add as tab in reference panel's group using 'center' direction
+  const newPanel = dockview.addPanel({
+    ...panelParams,
+    position: {
+      referencePanel: referencePanel,
+      direction: 'within' // Add as tab in same group
+    }
+  });
+
+  // Restore module state
+  if (savedState && newPanel) {
+    setTimeout(() => {
+      const newModuleInstance = moduleInstances.get(newPanel.id);
+      if (newModuleInstance) {
+        // Try instance-level setState first
+        if (newModuleInstance.setState && typeof newModuleInstance.setState === 'function') {
+          try {
+            newModuleInstance.setState(savedState);
+            console.log(`[Workspace] Restored instance state for panel ${newPanel.id}`);
+          } catch (err) {
+            console.warn(`[Workspace] Failed to restore instance state for panel ${newPanel.id}:`, err);
+          }
+        } else if (newModuleInstance.renderer && typeof newModuleInstance.renderer.setState === 'function') {
+          try {
+            newModuleInstance.renderer.setState(savedState);
+            console.log(`[Workspace] Restored renderer state for panel ${newPanel.id}`);
+
+            // Remove placeholder if it exists (for image-viewer)
+            const placeholder = newModuleInstance.container.querySelector('.image-viewer-placeholder');
+            if (placeholder) {
+              placeholder.remove();
+            }
+          } catch (err) {
+            console.warn(`[Workspace] Failed to restore renderer state for panel ${newPanel.id}:`, err);
+          }
+        }
+      }
+    }, 100);
+  }
+
+  console.log(`[Workspace] Panel ${panelParams.id} grouped as tab`);
+}
+
+/**
+ * Move active panel in the specified direction (swap positions)
  * @param {string} direction - 'above', 'below', 'left', 'right'
  */
 function moveActivePanel(direction) {
@@ -421,6 +545,22 @@ async function initWorkspace() {
 
   // Setup auto-save on layout changes
   dockview.onDidLayoutChange(() => {
+    // Log final layout result
+    const panels = dockview.panels || [];
+    const groups = dockview.groups || [];
+
+    console.log('[Workspace] Layout changed - Final result:', {
+      panels: panels.length,
+      groups: groups.length,
+      panelList: panels.map(p => p.id),
+      groupSizes: groups.map((g, i) => ({
+        group: i,
+        panels: g.panels?.length || 0,
+        width: g.api?.width,
+        height: g.api?.height
+      }))
+    });
+
     layoutManager.save();
   });
 
