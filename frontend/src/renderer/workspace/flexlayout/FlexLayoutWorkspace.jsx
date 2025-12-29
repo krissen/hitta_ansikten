@@ -169,6 +169,117 @@ export function FlexLayoutWorkspace() {
     );
   }, [openModule, closePanel]);
 
+  // Get tabset position in layout (using bounding rect)
+  const getTabsetPosition = useCallback((tabset) => {
+    if (!layoutRef.current) return { x: 0, y: 0 };
+
+    // Find the DOM element for this tabset
+    const tabsetId = tabset.getId();
+    const element = document.querySelector(`[data-layout-path*="${tabsetId}"]`);
+    if (!element) return { x: 0, y: 0 };
+
+    const rect = element.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+      rect
+    };
+  }, []);
+
+  // Find tabset in direction based on position
+  const findTabsetInDirection = useCallback((fromTabset, direction) => {
+    const tabsets = [];
+    model.visitNodes((node) => {
+      if (node.getType() === 'tabset') {
+        tabsets.push(node);
+      }
+    });
+
+    if (tabsets.length < 2) return null;
+
+    const fromPos = getTabsetPosition(fromTabset);
+
+    // Filter tabsets in the specified direction
+    const candidates = tabsets.filter(ts => {
+      if (ts.getId() === fromTabset.getId()) return false;
+      const pos = getTabsetPosition(ts);
+
+      switch (direction) {
+        case 'left':
+          return pos.x < fromPos.x;
+        case 'right':
+          return pos.x > fromPos.x;
+        case 'up':
+          return pos.y < fromPos.y;
+        case 'down':
+          return pos.y > fromPos.y;
+        default:
+          return false;
+      }
+    });
+
+    if (candidates.length === 0) return null;
+
+    // Sort by distance and return nearest
+    candidates.sort((a, b) => {
+      const posA = getTabsetPosition(a);
+      const posB = getTabsetPosition(b);
+      const distA = Math.sqrt(Math.pow(posA.x - fromPos.x, 2) + Math.pow(posA.y - fromPos.y, 2));
+      const distB = Math.sqrt(Math.pow(posB.x - fromPos.x, 2) + Math.pow(posB.y - fromPos.y, 2));
+      return distA - distB;
+    });
+
+    return candidates[0];
+  }, [model, getTabsetPosition]);
+
+  // Add a new tabset (column or row)
+  const addTabset = useCallback((direction) => {
+    const activeTabset = model.getActiveTabset();
+    if (!activeTabset) return;
+
+    // Get the active tab to use as reference
+    const activeTab = activeTabset.getSelectedNode();
+    if (!activeTab) return;
+
+    // FlexLayout's addNode with 'right' or 'bottom' location creates new tabset
+    const location = direction === 'column' ? 'right' : 'bottom';
+
+    // Create a placeholder tab in the new tabset
+    const placeholderTab = {
+      type: 'tab',
+      name: 'New Tab',
+      component: 'image-viewer',
+      config: { moduleId: 'image-viewer' }
+    };
+
+    model.doAction(Actions.addNode(placeholderTab, activeTabset.getId(), location, -1));
+    console.log(`[FlexLayoutWorkspace] Added new ${direction}`);
+  }, [model]);
+
+  // Remove empty tabset
+  const removeEmptyTabset = useCallback(() => {
+    const activeTabset = model.getActiveTabset();
+    if (!activeTabset) return false;
+
+    const children = activeTabset.getChildren();
+    if (children.length === 0) {
+      // Empty tabset - can't directly delete, but FlexLayout handles this
+      console.log('[FlexLayoutWorkspace] Cannot remove empty tabset directly');
+      return false;
+    }
+
+    if (children.length === 1) {
+      // Remove the single tab, which may remove the tabset
+      const tabId = children[0].getId();
+      model.doAction(Actions.deleteTab(tabId));
+      console.log(`[FlexLayoutWorkspace] Removed last tab from tabset`);
+      return true;
+    }
+
+    console.log(`[FlexLayoutWorkspace] Tabset has ${children.length} tabs, not removing`);
+    return false;
+  }, [model]);
+
   // Keyboard navigation
   useEffect(() => {
     if (!model || !ready) return;
@@ -179,25 +290,69 @@ export function FlexLayoutWorkspace() {
         return;
       }
 
-      // Cmd/Ctrl + Arrow: Navigate between tabs
+      // Cmd+Shift+R / Ctrl+Shift+R - Hard reload
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'r') {
+        event.preventDefault();
+        window.location.reload(true);
+        return;
+      }
+
+      // Cmd+R / Ctrl+R - Reload
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'r' && !event.shiftKey) {
+        event.preventDefault();
+        window.location.reload();
+        return;
+      }
+
+      // Cmd+Shift+]/[ - Add/remove column
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey) {
+        if (event.key === ']') {
+          event.preventDefault();
+          addTabset('column');
+          return;
+        }
+        if (event.key === '[') {
+          event.preventDefault();
+          removeEmptyTabset();
+          return;
+        }
+        // Cmd+Shift+}/{ - Add/remove row (Shift+] is }, Shift+[ is {)
+        if (event.key === '}') {
+          event.preventDefault();
+          addTabset('row');
+          return;
+        }
+        if (event.key === '{') {
+          event.preventDefault();
+          removeEmptyTabset();
+          return;
+        }
+      }
+
+      // Cmd/Ctrl + Arrow: Navigate between tabsets
       if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
         const activeTabset = model.getActiveTabset();
         if (!activeTabset) return;
 
         if (event.key === 'ArrowLeft') {
           event.preventDefault();
-          model.doAction(Actions.selectTab(activeTabset.getSelectedNode()?.getId()));
-          // Navigate to previous tab or tabset
           navigateToDirection('left');
-        } else if (event.key === 'ArrowRight') {
+          return;
+        }
+        if (event.key === 'ArrowRight') {
           event.preventDefault();
           navigateToDirection('right');
-        } else if (event.key === 'ArrowUp') {
+          return;
+        }
+        if (event.key === 'ArrowUp') {
           event.preventDefault();
           navigateToDirection('up');
-        } else if (event.key === 'ArrowDown') {
+          return;
+        }
+        if (event.key === 'ArrowDown') {
           event.preventDefault();
           navigateToDirection('down');
+          return;
         }
       }
 
@@ -209,41 +364,50 @@ export function FlexLayoutWorkspace() {
     };
 
     const navigateToDirection = (direction) => {
-      // FlexLayout navigation - find adjacent tabset
       const activeTabset = model.getActiveTabset();
       if (!activeTabset) return;
 
-      // Get all tabsets
-      const tabsets = [];
-      model.visitNodes((node) => {
-        if (node.getType() === 'tabset') {
-          tabsets.push(node);
+      // Try position-based navigation first
+      const targetTabset = findTabsetInDirection(activeTabset, direction);
+
+      if (targetTabset) {
+        const selectedNode = targetTabset.getSelectedNode();
+        if (selectedNode) {
+          model.doAction(Actions.selectTab(selectedNode.getId()));
+          console.log(`[FlexLayoutWorkspace] Navigated ${direction} to ${selectedNode.getId()}`);
         }
-      });
+      } else {
+        // Fallback: cycle through all tabsets
+        const tabsets = [];
+        model.visitNodes((node) => {
+          if (node.getType() === 'tabset') {
+            tabsets.push(node);
+          }
+        });
 
-      if (tabsets.length < 2) return;
+        if (tabsets.length < 2) return;
 
-      // Find current tabset index and navigate
-      const currentIndex = tabsets.findIndex(ts => ts.getId() === activeTabset.getId());
-      let nextIndex;
+        const currentIndex = tabsets.findIndex(ts => ts.getId() === activeTabset.getId());
+        let nextIndex;
 
-      switch (direction) {
-        case 'left':
-        case 'up':
-          nextIndex = (currentIndex - 1 + tabsets.length) % tabsets.length;
-          break;
-        case 'right':
-        case 'down':
-          nextIndex = (currentIndex + 1) % tabsets.length;
-          break;
-        default:
-          return;
-      }
+        switch (direction) {
+          case 'left':
+          case 'up':
+            nextIndex = (currentIndex - 1 + tabsets.length) % tabsets.length;
+            break;
+          case 'right':
+          case 'down':
+            nextIndex = (currentIndex + 1) % tabsets.length;
+            break;
+          default:
+            return;
+        }
 
-      const nextTabset = tabsets[nextIndex];
-      const selectedNode = nextTabset.getSelectedNode();
-      if (selectedNode) {
-        model.doAction(Actions.selectTab(selectedNode.getId()));
+        const nextTabset = tabsets[nextIndex];
+        const selectedNode = nextTabset.getSelectedNode();
+        if (selectedNode) {
+          model.doAction(Actions.selectTab(selectedNode.getId()));
+        }
       }
     };
 
@@ -269,7 +433,7 @@ export function FlexLayoutWorkspace() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [model, ready]);
+  }, [model, ready, findTabsetInDirection, addTabset, removeEmptyTabset]);
 
   // Setup IPC listeners
   useEffect(() => {
@@ -365,6 +529,9 @@ export function FlexLayoutWorkspace() {
       openModule,
       closePanel,
       loadLayout,
+      addColumn: () => addTabset('column'),
+      addRow: () => addTabset('row'),
+      removeTabset: removeEmptyTabset,
       apiClient,
       preferences
     };
@@ -372,7 +539,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, closePanel, loadLayout]);
+  }, [model, openModule, closePanel, loadLayout, addTabset, removeEmptyTabset]);
 
   if (!model) {
     return (
