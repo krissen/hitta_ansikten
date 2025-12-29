@@ -61,6 +61,7 @@ export class PreferencesUI {
         <div class="pref-tabs">
           <button class="pref-tab active" data-tab="general">General</button>
           <button class="pref-tab" data-tab="appearance">Appearance</button>
+          <button class="pref-tab" data-tab="layout">Layout</button>
           <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
           <button class="pref-tab" data-tab="review">Review</button>
         </div>
@@ -222,6 +223,52 @@ export class PreferencesUI {
               </div>
             </div>
           </div>
+          </div>
+
+          <!-- Layout Tab Panel -->
+          <div class="pref-tab-panel" data-tab="layout">
+            <div class="pref-section">
+              <h3>Default Layout Settings</h3>
+
+              <div class="pref-field">
+                <label>Default Layout Template</label>
+                <select id="pref-layout-defaultTemplate">
+                  <option value="review">Review Mode</option>
+                  <option value="comparison">Comparison Mode</option>
+                  <option value="full-image">Full Image</option>
+                  <option value="stats">Statistics Mode</option>
+                </select>
+                <small>Layout to use when resetting or first launch.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>Default Grid Preset</label>
+                <select id="pref-layout-defaultGridPreset">
+                  <option value="50-50">50% / 50%</option>
+                  <option value="60-40">60% / 40%</option>
+                  <option value="70-30">70% / 30%</option>
+                  <option value="30-70">30% / 70%</option>
+                  <option value="40-60">40% / 60%</option>
+                </select>
+                <small>Default panel size ratio for new layouts.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-layout-autoSaveLayout" />
+                  Auto-save layout on changes
+                </label>
+                <small>Automatically save panel positions and sizes when changed.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-layout-rememberPanelSizes" />
+                  Remember panel sizes across sessions
+                </label>
+                <small>Restore exact panel dimensions when reopening the application.</small>
+              </div>
+            </div>
           </div>
 
           <!-- Image Viewer Tab Panel -->
@@ -923,6 +970,12 @@ export class PreferencesUI {
     this.setValue('reviewModule-defaultAction', this.tempPrefs.reviewModule.defaultAction);
     this.setValue('reviewModule-showConfidenceScores', this.tempPrefs.reviewModule.showConfidenceScores);
     this.setValue('reviewModule-saveMode', this.tempPrefs.reviewModule.saveMode);
+
+    // Layout settings
+    this.setValue('layout-defaultGridPreset', this.tempPrefs.layout.defaultGridPreset);
+    this.setValue('layout-defaultTemplate', this.tempPrefs.layout.defaultTemplate);
+    this.setValue('layout-autoSaveLayout', this.tempPrefs.layout.autoSaveLayout);
+    this.setValue('layout-rememberPanelSizes', this.tempPrefs.layout.rememberPanelSizes);
   }
 
   /**
@@ -1001,6 +1054,11 @@ export class PreferencesUI {
     this.tempPrefs.reviewModule.defaultAction = this.getValue('reviewModule-defaultAction');
     this.tempPrefs.reviewModule.showConfidenceScores = this.getValue('reviewModule-showConfidenceScores');
     this.tempPrefs.reviewModule.saveMode = this.getValue('reviewModule-saveMode');
+
+    this.tempPrefs.layout.defaultGridPreset = this.getValue('layout-defaultGridPreset');
+    this.tempPrefs.layout.defaultTemplate = this.getValue('layout-defaultTemplate');
+    this.tempPrefs.layout.autoSaveLayout = this.getValue('layout-autoSaveLayout');
+    this.tempPrefs.layout.rememberPanelSizes = this.getValue('layout-rememberPanelSizes');
 
     // Save to preferences manager
     preferences.setAll(this.tempPrefs);

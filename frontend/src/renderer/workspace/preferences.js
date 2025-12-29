@@ -55,6 +55,12 @@ export class PreferencesManager {
         defaultAction: 'next', // 'next' | 'stay' after confirming face
         showConfidenceScores: true,
         saveMode: 'per-image' // 'per-face' | 'per-image' - how to write review results
+      },
+      layout: {
+        defaultGridPreset: '70-30', // Default grid split ratio: '50-50', '60-40', '70-30', '30-70', '40-60'
+        defaultTemplate: 'review', // Default layout template: 'review', 'comparison', 'full-image', 'stats'
+        autoSaveLayout: true, // Auto-save layout on changes
+        rememberPanelSizes: true // Remember panel sizes across sessions
       }
     };
 
