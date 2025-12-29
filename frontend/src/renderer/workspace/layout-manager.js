@@ -455,45 +455,40 @@ export class LayoutManager {
   }
 
   /**
-   * Set ratios for all groups
-   * Handles nested grid structures by finding the correct branch
+   * Set ratios for all groups using direct resize API (no panel recreation)
    * @param {number[]} ratios - Array of ratios (0-1) for each group (must sum to ~1)
    */
   setRatios(ratios) {
-    const layout = this.dockview.toJSON();
-    if (!layout.grid || !layout.grid.root) return;
+    const groups = this.dockview.groups;
 
-    const groupCount = this.dockview.groups.length;
-    const branch = this.findGroupBranch(layout.grid.root, groupCount);
-
-    let targetBranch = branch;
-    if (!targetBranch) {
-      // Try root as fallback
-      targetBranch = layout.grid.root;
-    }
-
-    if (targetBranch.type !== 'branch' || !targetBranch.data) {
-      layoutWarn(' No valid branch found for ratios');
+    if (groups.length < 2) {
+      layoutWarn('Need at least 2 groups to set ratios');
       return;
     }
 
-    // Check if counts match
-    if (ratios.length !== targetBranch.data.length) {
-      layoutWarn(` Ratio count mismatch: ${ratios.length} vs ${targetBranch.data.length}`);
-      // Try to apply to whatever we have
-      const minLen = Math.min(ratios.length, targetBranch.data.length);
-      const totalSize = targetBranch.data.reduce((sum, child) => sum + (child.size || 1), 0);
-      for (let i = 0; i < minLen; i++) {
-        targetBranch.data[i].size = Math.floor(totalSize * ratios[i]);
-      }
-    } else {
-      const totalSize = targetBranch.data.reduce((sum, child) => sum + (child.size || 1), 0);
-      ratios.forEach((ratio, i) => {
-        targetBranch.data[i].size = Math.floor(totalSize * ratio);
-      });
+    if (ratios.length !== groups.length) {
+      layoutWarn(`Ratio count mismatch: ${ratios.length} ratios vs ${groups.length} groups`);
+      return;
     }
 
-    this.dockview.fromJSON(layout);
+    // Get total available width
+    const totalWidth = this.dockview.width;
+    if (!totalWidth || totalWidth <= 0) {
+      layoutWarn('Invalid dockview width');
+      return;
+    }
+
+    // Resize each group using the direct API (no fromJSON recreation!)
+    groups.forEach((group, i) => {
+      const targetWidth = Math.floor(totalWidth * ratios[i]);
+      try {
+        group.api.setSize({ width: targetWidth });
+        layoutDebug(`Set group ${i} width to ${targetWidth}px (ratio: ${ratios[i]})`);
+      } catch (err) {
+        layoutWarn(`Failed to resize group ${i}:`, err);
+      }
+    });
+
     this.save();
   }
 

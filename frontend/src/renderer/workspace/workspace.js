@@ -454,10 +454,10 @@ function moveActivePanel(direction) {
     restoreModuleStateWithRetry(newPanel.id, savedState, 5, 100);
   }
 
-  // NOTE: We intentionally do NOT call applyModuleBasedRatios() here.
-  // That function uses setRatios() -> fromJSON() which destroys ALL panels,
-  // causing state loss for panels that weren't moved.
-  // TODO: Implement proper ratio-following without fromJSON recreation.
+  // Apply ratios based on module defaults (uses direct resize API, no panel recreation)
+  setTimeout(() => {
+    applyModuleBasedRatios();
+  }, 50);
 
   workspaceLog(`Panel ${panelParams.id} moved ${direction}`);
 }
