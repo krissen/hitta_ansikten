@@ -223,6 +223,18 @@ function createApplicationMenu(mainWindow) {
             mainWindow.webContents.send('menu-command', 'reset-layout');
           }
         },
+        {
+          label: 'Export Layout...',
+          click: () => {
+            mainWindow.webContents.send('menu-command', 'export-layout');
+          }
+        },
+        {
+          label: 'Import Layout...',
+          click: () => {
+            mainWindow.webContents.send('menu-command', 'import-layout');
+          }
+        },
         { type: 'separator' },
         {
           label: 'Minimize',

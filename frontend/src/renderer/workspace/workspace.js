@@ -444,6 +444,14 @@ async function initWorkspace() {
           }
           break;
 
+        case 'export-layout':
+          exportLayoutToFile();
+          break;
+
+        case 'import-layout':
+          importLayoutFromFile();
+          break;
+
         case 'show-keyboard-shortcuts':
           showKeyboardShortcuts();
           break;
@@ -484,6 +492,54 @@ async function reloadDatabase() {
     console.error('[Workspace] Failed to reload database:', err);
     alert('Failed to reload database. Check console for details.');
   }
+}
+
+/**
+ * Export layout to JSON file
+ */
+function exportLayoutToFile() {
+  try {
+    const layoutJSON = layoutManager.exportLayout();
+    const blob = new Blob([layoutJSON], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bildvisare-layout-${Date.now()}.json`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+    console.log('[Workspace] Layout exported successfully');
+  } catch (err) {
+    console.error('[Workspace] Failed to export layout:', err);
+    alert('Failed to export layout. Check console for details.');
+  }
+}
+
+/**
+ * Import layout from JSON file
+ */
+function importLayoutFromFile() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+
+  input.onchange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      layoutManager.importLayout(text);
+      console.log('[Workspace] Layout imported successfully');
+      alert('Layout imported successfully!');
+    } catch (err) {
+      console.error('[Workspace] Failed to import layout:', err);
+      alert('Failed to import layout. Check console for details.');
+    }
+  };
+
+  input.click();
 }
 
 /**
