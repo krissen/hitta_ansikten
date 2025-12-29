@@ -8,6 +8,8 @@
  * - Supports person name input with autocomplete
  */
 
+import { devToolsFocus } from '../../shared/devtools-focus.js';
+
 export default {
   id: 'review-module',
   title: 'Face Review',
@@ -324,17 +326,14 @@ export default {
      * Keyboard shortcuts
      */
     function handleKeyboard(event) {
+      // Check if keyboard event should be ignored (DevTools focused or input focused)
+      if (devToolsFocus.shouldIgnoreKeyboardEvent(event)) {
+        return;
+      }
+
       // Don't handle if focus is on an input (except for Enter and Escape)
       const activeElement = document.activeElement;
       const isInput = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
-
-      // Check for contenteditable (DevTools console)
-      if (activeElement && (activeElement.isContentEditable || activeElement.getAttribute('contenteditable') === 'true')) {
-        return;
-      }
-      if (event.target && (event.target.isContentEditable || event.target.getAttribute('contenteditable') === 'true')) {
-        return;
-      }
 
       // Navigation shortcuts (work everywhere)
       if (event.key === 'Tab') {

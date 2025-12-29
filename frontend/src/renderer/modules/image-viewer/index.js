@@ -6,6 +6,7 @@
  */
 
 import { CanvasRenderer } from './canvas-renderer.js';
+import { devToolsFocus } from '../../shared/devtools-focus.js';
 
 export default {
   id: 'image-viewer',
@@ -50,17 +51,8 @@ export default {
 
     // Keyboard shortcuts
     const keyboardHandler = (event) => {
-      // Only handle if this module is focused or no input is focused
-      const activeElement = document.activeElement;
-      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-        return; // Don't interfere with text input
-      }
-
-      // Check for contenteditable (DevTools console)
-      if (activeElement && (activeElement.isContentEditable || activeElement.getAttribute('contenteditable') === 'true')) {
-        return;
-      }
-      if (event.target && (event.target.isContentEditable || event.target.getAttribute('contenteditable') === 'true')) {
+      // Check if keyboard event should be ignored (DevTools focused or input focused)
+      if (devToolsFocus.shouldIgnoreKeyboardEvent(event)) {
         return;
       }
 

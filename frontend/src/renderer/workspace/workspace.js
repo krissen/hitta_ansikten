@@ -10,6 +10,7 @@ import { registerModule, getModule } from './module-registry.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from './preferences.js';
 import { preferencesUI } from './preferences-ui.js';
+import { devToolsFocus } from '../shared/devtools-focus.js';
 
 // Import modules
 import imageViewerModule from '../modules/image-viewer/index.js';
@@ -146,21 +147,8 @@ function setupWorkspaceKeyboardShortcuts() {
       return;
     }
 
-    // Only handle remaining shortcuts if no input is focused
-    const activeElement = document.activeElement;
-    if (activeElement) {
-      // Check for regular inputs
-      if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
-        return;
-      }
-      // Check for contenteditable (used by DevTools console)
-      if (activeElement.isContentEditable || activeElement.getAttribute('contenteditable') === 'true') {
-        return;
-      }
-    }
-
-    // Also check event target for contenteditable
-    if (event.target && (event.target.isContentEditable || event.target.getAttribute('contenteditable') === 'true')) {
+    // Check if keyboard event should be ignored (DevTools focused or input focused)
+    if (devToolsFocus.shouldIgnoreKeyboardEvent(event)) {
       return;
     }
 

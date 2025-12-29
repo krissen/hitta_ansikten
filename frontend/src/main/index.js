@@ -17,6 +17,7 @@ let mainWindow = null;
 let backendService = null;
 let initialFilePath = null;
 let isQuitting = false;
+let isDevToolsFocused = false;
 
 /**
  * Create the main workspace window
@@ -59,6 +60,28 @@ function createWorkspaceWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+
+  // Track DevTools focus state to prevent keyboard shortcuts interference
+  mainWindow.webContents.on('devtools-focused', () => {
+    isDevToolsFocused = true;
+    console.log('[Main] DevTools focused');
+    mainWindow.webContents.send('devtools-focus-changed', true);
+  });
+
+  mainWindow.webContents.on('devtools-closed', () => {
+    isDevToolsFocused = false;
+    console.log('[Main] DevTools closed');
+    mainWindow.webContents.send('devtools-focus-changed', false);
+  });
+
+  // Track when main window regains focus from DevTools
+  mainWindow.on('focus', () => {
+    if (isDevToolsFocused && !mainWindow.webContents.isDevToolsFocused()) {
+      isDevToolsFocused = false;
+      console.log('[Main] Main window focused (DevTools lost focus)');
+      mainWindow.webContents.send('devtools-focus-changed', false);
+    }
   });
 
   console.log('[Main] Workspace window created');
@@ -158,6 +181,10 @@ app.on('will-quit', () => {
 });
 
 // IPC Handlers
+ipcMain.handle('is-devtools-focused', async () => {
+  return mainWindow && mainWindow.webContents.isDevToolsFocused();
+});
+
 ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
