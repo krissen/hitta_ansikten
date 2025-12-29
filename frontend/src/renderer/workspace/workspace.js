@@ -422,6 +422,22 @@ async function initWorkspace() {
           openModule('log-viewer', { title: 'Log Viewer' });
           break;
 
+        case 'open-review-module':
+          // Open Review Module to the right of Image Viewer if it exists
+          const imageViewerPanelForReview = dockview.panels.find(p => p.id === 'image-viewer-main');
+          if (imageViewerPanelForReview) {
+            openModule('review-module', {
+              title: 'Review Module',
+              position: {
+                referencePanel: imageViewerPanelForReview,
+                direction: 'right'
+              }
+            });
+          } else {
+            openModule('review-module', { title: 'Review Module' });
+          }
+          break;
+
         case 'reset-layout':
           if (confirm('Reset workspace layout to default?\n\nThis will close all panels and restore the default layout.')) {
             layoutManager.reset();

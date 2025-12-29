@@ -174,6 +174,13 @@ function createApplicationMenu(mainWindow) {
             mainWindow.webContents.send('menu-command', 'open-log-viewer');
           }
         },
+        {
+          label: 'Open Review Module',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => {
+            mainWindow.webContents.send('menu-command', 'open-review-module');
+          }
+        },
         { type: 'separator' },
         {
           label: 'Statistics Dashboard',
