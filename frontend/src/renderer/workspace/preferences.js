@@ -24,6 +24,23 @@ export class PreferencesManager {
         showWelcome: true, // Show welcome message on first launch
         logLevel: 'info' // 'debug' | 'info' | 'warn' | 'error'
       },
+      appearance: {
+        // Sizes and spacing
+        tabsHeight: 28, // Tab height in pixels (20-40)
+        tabsFontSize: 13, // Tab font size in pixels (10-16)
+        tabPaddingLeft: 8, // Left padding in tab (0-20)
+        tabPaddingRight: 6, // Right padding in tab (0-20)
+        tabMinGap: 10, // Minimum gap between text and close button (0-30)
+        tabMinWidth: 0, // Minimum tab width override (0 = auto based on content)
+
+        // Colors
+        activeTabBackground: '#f5f5f5',
+        inactiveTabBackground: '#e0e0e0',
+        activeTabColor: '#1a1a1a',
+        inactiveTabColor: '#888888',
+        tabContainerBackground: '#d0d0d0',
+        groupBorderColor: 'rgba(128, 128, 128, 0.2)'
+      },
       imageViewer: {
         zoomSpeed: 1.07, // Zoom factor per step
         maxZoom: 10, // Maximum zoom level

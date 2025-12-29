@@ -132,7 +132,21 @@ class ModuleAPI {
  */
 function setupWorkspaceKeyboardShortcuts() {
   document.addEventListener('keydown', async (event) => {
-    // Only handle if no input is focused
+    // Cmd+Shift+R / Ctrl+Shift+R - Hard reload (clear cache) - check first
+    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'r') {
+      event.preventDefault();
+      window.location.reload(true);
+      return;
+    }
+
+    // Cmd+R / Ctrl+R - Reload window (allow in inputs for this one)
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'r' && !event.shiftKey) {
+      event.preventDefault();
+      window.location.reload();
+      return;
+    }
+
+    // Only handle remaining shortcuts if no input is focused
     const activeElement = document.activeElement;
     if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
       return;
@@ -177,6 +191,27 @@ async function openFileDialog() {
 }
 
 /**
+ * Apply UI preferences to CSS variables
+ */
+function applyUIPreferences() {
+  const tabsHeight = preferences.get('appearance.tabsHeight') || 28;
+  const tabsFontSize = preferences.get('appearance.tabsFontSize') || 13;
+  const tabPaddingLeft = preferences.get('appearance.tabPaddingLeft') || 8;
+  const tabPaddingRight = preferences.get('appearance.tabPaddingRight') || 6;
+  const tabMinGap = preferences.get('appearance.tabMinGap') || 10;
+
+  document.documentElement.style.setProperty('--dv-tabs-height', `${tabsHeight}px`);
+  document.documentElement.style.setProperty('--dv-tabs-font-size', `${tabsFontSize}px`);
+  document.documentElement.style.setProperty('--dv-tab-padding-left', `${tabPaddingLeft}px`);
+  document.documentElement.style.setProperty('--dv-tab-padding-right', `${tabPaddingRight}px`);
+  document.documentElement.style.setProperty('--dv-tab-min-gap', `${tabMinGap}px`);
+
+  console.log(`[Workspace] Applied appearance preferences:`, {
+    tabsHeight, tabsFontSize, tabPaddingLeft, tabPaddingRight, tabMinGap
+  });
+}
+
+/**
  * Initialize workspace
  */
 async function initWorkspace() {
@@ -197,6 +232,9 @@ async function initWorkspace() {
       return createModuleComponent(options);
     }
   });
+
+  // Apply UI preferences to CSS
+  applyUIPreferences();
 
   // Create layout manager
   layoutManager = new LayoutManager(dockview);
@@ -232,7 +270,8 @@ async function initWorkspace() {
     getModuleInstances: () => moduleInstances,
     apiClient, // Expose API client for debugging
     preferences, // Expose preferences for debugging and module access
-    preferencesUI // Expose preferences UI for debugging
+    preferencesUI, // Expose preferences UI for debugging
+    applyUIPreferences // Expose for reapplying after preference changes
   };
 
   // Listen for initial file path from main process

@@ -121,6 +121,56 @@ export class PreferencesUI {
             </div>
           </div>
 
+          <!-- Appearance Settings -->
+          <div class="pref-section">
+            <h3>Appearance</h3>
+
+            <div class="pref-field">
+              <label>Tab Height (px)</label>
+              <div class="slider-input-group">
+                <input type="range" id="pref-appearance-tabsHeight-slider" min="20" max="40" step="1" />
+                <input type="number" id="pref-appearance-tabsHeight" min="20" max="40" step="1" />
+              </div>
+              <small>Height of panel tabs.</small>
+            </div>
+
+            <div class="pref-field">
+              <label>Tab Font Size (px)</label>
+              <div class="slider-input-group">
+                <input type="range" id="pref-appearance-tabsFontSize-slider" min="10" max="16" step="1" />
+                <input type="number" id="pref-appearance-tabsFontSize" min="10" max="16" step="1" />
+              </div>
+              <small>Font size of tab text.</small>
+            </div>
+
+            <div class="pref-field">
+              <label>Tab Padding Left (px)</label>
+              <div class="slider-input-group">
+                <input type="range" id="pref-appearance-tabPaddingLeft-slider" min="0" max="20" step="1" />
+                <input type="number" id="pref-appearance-tabPaddingLeft" min="0" max="20" step="1" />
+              </div>
+              <small>Left padding inside tabs.</small>
+            </div>
+
+            <div class="pref-field">
+              <label>Tab Padding Right (px)</label>
+              <div class="slider-input-group">
+                <input type="range" id="pref-appearance-tabPaddingRight-slider" min="0" max="20" step="1" />
+                <input type="number" id="pref-appearance-tabPaddingRight" min="0" max="20" step="1" />
+              </div>
+              <small>Right padding inside tabs.</small>
+            </div>
+
+            <div class="pref-field">
+              <label>Tab Min Gap (px)</label>
+              <div class="slider-input-group">
+                <input type="range" id="pref-appearance-tabMinGap-slider" min="0" max="30" step="1" />
+                <input type="number" id="pref-appearance-tabMinGap" min="0" max="30" step="1" />
+              </div>
+              <small>Minimum space between text and close button.</small>
+            </div>
+          </div>
+
           <!-- Image Viewer Settings -->
           <div class="pref-section">
             <h3>Image Viewer</h3>
@@ -504,9 +554,21 @@ export class PreferencesUI {
     });
 
     // Sync sliders with number inputs
+    this.setupSliderSync('appearance-tabsHeight');
+    this.setupSliderSync('appearance-tabsFontSize');
+    this.setupSliderSync('appearance-tabPaddingLeft');
+    this.setupSliderSync('appearance-tabPaddingRight');
+    this.setupSliderSync('appearance-tabMinGap');
     this.setupSliderSync('imageViewer-zoomSpeed');
     this.setupSliderSync('imageViewer-maxZoom');
     this.setupSliderSync('imageViewer-minZoom');
+
+    // Setup live preview for appearance settings
+    this.setupLivePreview('appearance-tabsHeight', '--dv-tabs-height', 'px');
+    this.setupLivePreview('appearance-tabsFontSize', '--dv-tabs-font-size', 'px');
+    this.setupLivePreview('appearance-tabPaddingLeft', '--dv-tab-padding-left', 'px');
+    this.setupLivePreview('appearance-tabPaddingRight', '--dv-tab-padding-right', 'px');
+    this.setupLivePreview('appearance-tabMinGap', '--dv-tab-min-gap', 'px');
   }
 
   /**
@@ -526,6 +588,41 @@ export class PreferencesUI {
     // Number input -> slider
     numberInput.addEventListener('input', () => {
       slider.value = numberInput.value;
+    });
+  }
+
+  /**
+   * Setup live preview for CSS variable changes
+   */
+  setupLivePreview(id, cssVariable, unit) {
+    const slider = this.modal.querySelector(`#pref-${id}-slider`);
+    const numberInput = this.modal.querySelector(`#pref-${id}`);
+
+    if (!slider || !numberInput) return;
+
+    const updateCSS = (value) => {
+      document.documentElement.style.setProperty(cssVariable, `${value}${unit}`);
+
+      // Also update tempPrefs so Save button saves the correct value
+      const path = id.replace(/-/g, '.');
+      const keys = path.split('.');
+      const lastKey = keys.pop();
+      let target = this.tempPrefs;
+      for (const key of keys) {
+        if (!target[key]) target[key] = {};
+        target = target[key];
+      }
+      target[lastKey] = parseFloat(value);
+    };
+
+    // Update on slider change
+    slider.addEventListener('input', () => {
+      updateCSS(slider.value);
+    });
+
+    // Update on number input change
+    numberInput.addEventListener('input', () => {
+      updateCSS(numberInput.value);
     });
   }
 
@@ -607,6 +704,12 @@ export class PreferencesUI {
     this.tempPrefs.ui.showWelcome = this.getValue('ui-showWelcome');
     this.tempPrefs.ui.logLevel = this.getValue('ui-logLevel');
 
+    this.tempPrefs.appearance.tabsHeight = this.getValue('appearance-tabsHeight');
+    this.tempPrefs.appearance.tabsFontSize = this.getValue('appearance-tabsFontSize');
+    this.tempPrefs.appearance.tabPaddingLeft = this.getValue('appearance-tabPaddingLeft');
+    this.tempPrefs.appearance.tabPaddingRight = this.getValue('appearance-tabPaddingRight');
+    this.tempPrefs.appearance.tabMinGap = this.getValue('appearance-tabMinGap');
+
     this.tempPrefs.imageViewer.zoomSpeed = this.getValue('imageViewer-zoomSpeed');
     this.tempPrefs.imageViewer.maxZoom = this.getValue('imageViewer-maxZoom');
     this.tempPrefs.imageViewer.minZoom = this.getValue('imageViewer-minZoom');
@@ -622,6 +725,11 @@ export class PreferencesUI {
 
     // Save to preferences manager
     preferences.setAll(this.tempPrefs);
+
+    // Apply UI preferences immediately
+    if (window.workspace && window.workspace.applyUIPreferences) {
+      window.workspace.applyUIPreferences();
+    }
 
     // Check if restart is needed (backend settings changed)
     const needsRestart = this.checkIfRestartNeeded();
@@ -641,6 +749,38 @@ export class PreferencesUI {
     preferences.reset();
     this.tempPrefs = preferences.getAll();
     this.populateForm();
+
+    // Manually sync sliders after populating form
+    this.syncAllSliders();
+
+    // Apply appearance preferences immediately
+    if (window.workspace && window.workspace.applyUIPreferences) {
+      window.workspace.applyUIPreferences();
+    }
+  }
+
+  /**
+   * Sync all sliders with their number inputs
+   */
+  syncAllSliders() {
+    const sliderIds = [
+      'appearance-tabsHeight',
+      'appearance-tabsFontSize',
+      'appearance-tabPaddingLeft',
+      'appearance-tabPaddingRight',
+      'appearance-tabMinGap',
+      'imageViewer-zoomSpeed',
+      'imageViewer-maxZoom',
+      'imageViewer-minZoom'
+    ];
+
+    sliderIds.forEach(id => {
+      const numberInput = this.modal.querySelector(`#pref-${id}`);
+      const slider = this.modal.querySelector(`#pref-${id}-slider`);
+      if (numberInput && slider) {
+        slider.value = numberInput.value;
+      }
+    });
   }
 
   /**
