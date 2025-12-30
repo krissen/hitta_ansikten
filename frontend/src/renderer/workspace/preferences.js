@@ -37,11 +37,16 @@ export class PreferencesManager {
         tabMinGap: 10, // Minimum gap between text and close button (0-30)
         tabMinWidth: 0, // Minimum tab width override (0 = auto based on content)
 
-        // Colors
-        activeTabBackground: '#f5f5f5',
-        inactiveTabBackground: '#e0e0e0',
-        activeTabColor: '#1a1a1a',
-        inactiveTabColor: '#888888',
+        // Tab colors - three states:
+        // 1. Focused: selected tab in the focused panel (keyboard focus)
+        // 2. Visible: selected tab in non-focused panels
+        // 3. Hidden: unselected tabs (behind other tabs in same panel)
+        focusedTabBackground: '#ffffff',
+        focusedTabColor: '#1a1a1a',
+        visibleTabBackground: '#e8e8e8',
+        visibleTabColor: '#555555',
+        hiddenTabBackground: '#d8d8d8',
+        hiddenTabColor: '#999999',
         tabContainerBackground: '#d0d0d0',
         groupBorderColor: 'rgba(128, 128, 128, 0.2)'
       },
@@ -225,6 +230,14 @@ export class PreferencesManager {
    */
   getAll() {
     return JSON.parse(JSON.stringify(this.preferences));
+  }
+
+  /**
+   * Get default preferences (without modifying current preferences)
+   * @returns {object} Default preferences
+   */
+  getDefaults() {
+    return JSON.parse(JSON.stringify(this.defaults));
   }
 
   /**
