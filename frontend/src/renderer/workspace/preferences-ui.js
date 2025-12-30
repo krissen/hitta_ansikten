@@ -5,6 +5,7 @@
  */
 
 import { preferences } from './preferences.js';
+import { getCategories, setCategories, resetCategories } from '../shared/debug.js';
 
 export class PreferencesUI {
   constructor() {
@@ -69,6 +70,7 @@ export class PreferencesUI {
           <button class="pref-tab" data-tab="layout">Layout</button>
           <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
           <button class="pref-tab" data-tab="review">Review</button>
+          <button class="pref-tab" data-tab="advanced">Advanced</button>
         </div>
 
         <div class="preferences-content">
@@ -124,16 +126,6 @@ export class PreferencesUI {
                 <input type="checkbox" id="pref-ui-showWelcome" />
                 Show welcome message on startup
               </label>
-            </div>
-
-            <div class="pref-field">
-              <label>Log Level</label>
-              <select id="pref-ui-logLevel">
-                <option value="debug">Debug (verbose)</option>
-                <option value="info">Info</option>
-                <option value="warn">Warning</option>
-                <option value="error">Error</option>
-              </select>
             </div>
           </div>
           </div>
@@ -390,6 +382,41 @@ export class PreferencesUI {
               <small>How review results are written to database</small>
             </div>
           </div>
+          </div>
+
+          <!-- Advanced Tab Panel -->
+          <div class="pref-tab-panel" data-tab="advanced">
+            <div class="pref-section">
+              <h3>Logging</h3>
+
+              <div class="pref-field">
+                <label>Log Level</label>
+                <select id="pref-ui-logLevel">
+                  <option value="debug">Debug (verbose)</option>
+                  <option value="info">Info</option>
+                  <option value="warn">Warning</option>
+                  <option value="error">Error</option>
+                </select>
+                <small>Minimum severity level for console output.</small>
+              </div>
+            </div>
+
+            <div class="pref-section">
+              <h3>Debug Categories</h3>
+              <small style="display:block; margin-bottom:12px; color:#666;">
+                Enable/disable debug output per category. Warnings and errors always show.
+              </small>
+
+              <div class="debug-category-grid" id="debug-categories-container">
+                <!-- Populated dynamically -->
+              </div>
+
+              <div class="pref-field" style="margin-top: 16px;">
+                <button class="btn btn-secondary btn-reset-debug" type="button">
+                  Reset Debug Categories to Defaults
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -717,6 +744,46 @@ export class PreferencesUI {
       .pref-tab-panel.active {
         display: block;
       }
+
+      /* Debug Categories Grid */
+      .debug-category-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px 16px;
+      }
+
+      .debug-category-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        background: #f8f8f8;
+      }
+
+      .debug-category-item:hover {
+        background: #f0f0f0;
+      }
+
+      .debug-category-item input[type="checkbox"] {
+        margin: 0;
+      }
+
+      .debug-category-item label {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 400;
+        color: #333;
+        cursor: pointer;
+      }
+
+      .debug-category-item.enabled {
+        background: #e3f2fd;
+      }
+
+      .btn-reset-debug {
+        font-size: 13px;
+      }
     `;
     this.modal.appendChild(style);
   }
@@ -788,6 +855,12 @@ export class PreferencesUI {
       if (confirm('Reset all preferences to defaults?\n\nThis will discard your current settings.')) {
         this.reset();
       }
+    });
+
+    // Reset Debug Categories button
+    this.modal.querySelector('.btn-reset-debug').addEventListener('click', () => {
+      resetCategories();
+      this.populateDebugCategories();
     });
 
     // Sync sliders with number inputs
@@ -998,6 +1071,64 @@ export class PreferencesUI {
     this.setValue('layout-defaultTemplate', this.tempPrefs.layout.defaultTemplate);
     this.setValue('layout-autoSaveLayout', this.tempPrefs.layout.autoSaveLayout);
     this.setValue('layout-rememberPanelSizes', this.tempPrefs.layout.rememberPanelSizes);
+
+    // Debug categories (separate from preferences - stored in debug.js)
+    this.populateDebugCategories();
+  }
+
+  /**
+   * Populate debug categories checkboxes
+   */
+  populateDebugCategories() {
+    const container = this.modal.querySelector('#debug-categories-container');
+    if (!container) return;
+
+    const categories = getCategories();
+    container.innerHTML = '';
+
+    // Group categories by type for better organization
+    const groups = {
+      'Core Systems': ['FlexLayout', 'Backend', 'WebSocket'],
+      'Communication': ['ModuleAPI', 'ModuleEvent', 'IPC'],
+      'Modules': ['FileQueue', 'ImageViewer', 'ReviewModule', 'OriginalView', 'LogViewer', 'Statistics', 'DatabaseMgmt'],
+      'Subsystems': ['Preferences', 'NEFConvert', 'FaceDetection']
+    };
+
+    for (const [groupName, categoryNames] of Object.entries(groups)) {
+      // Add group header
+      const groupHeader = document.createElement('div');
+      groupHeader.style.cssText = 'grid-column: 1 / -1; font-weight: 600; font-size: 12px; color: #666; margin-top: 8px; margin-bottom: 4px;';
+      groupHeader.textContent = groupName;
+      container.appendChild(groupHeader);
+
+      // Add categories in this group
+      for (const name of categoryNames) {
+        if (!(name in categories)) continue;
+
+        const enabled = categories[name];
+        const item = document.createElement('div');
+        item.className = `debug-category-item ${enabled ? 'enabled' : ''}`;
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `debug-cat-${name}`;
+        checkbox.checked = enabled;
+        checkbox.addEventListener('change', () => {
+          const newState = {};
+          newState[name] = checkbox.checked;
+          setCategories(newState);
+          item.classList.toggle('enabled', checkbox.checked);
+        });
+
+        const label = document.createElement('label');
+        label.htmlFor = `debug-cat-${name}`;
+        label.textContent = name;
+
+        item.appendChild(checkbox);
+        item.appendChild(label);
+        container.appendChild(item);
+      }
+    }
   }
 
   /**
