@@ -35,10 +35,15 @@ export function useModuleEvent(eventName, handler, deps = []) {
   useEffect(() => {
     if (!eventName || !handler) return;
 
+    console.log(`[useModuleEvent] Subscribing to "${eventName}"`);
+
     // on() returns an unsubscribe function
     const unsubscribe = on(eventName, handler);
 
-    return unsubscribe;
+    return () => {
+      console.log(`[useModuleEvent] Unsubscribing from "${eventName}"`);
+      unsubscribe();
+    };
   }, [eventName, on, ...deps]);
 }
 

@@ -260,6 +260,70 @@ export const fullReviewLayout = {
 };
 
 /**
+ * Queue review layout: File Queue | Review | Image Viewer
+ *
+ * ┌──────────┬─────────┬─────────────┐
+ * │FileQueue │ Review  │ ImageViewer │
+ * │  (15%)   │ (15%)   │   (70%)     │
+ * └──────────┴─────────┴─────────────┘
+ */
+export const queueReviewLayout = {
+  global: {
+    tabEnableClose: true,
+    tabSetEnableMaximize: true,
+    tabSetEnableDrag: true,
+    tabSetEnableDrop: true,
+    tabSetMinWidth: 100,
+    tabSetMinHeight: 100,
+    borderMinSize: 100,
+    splitterSize: 4,
+    enableEdgeDock: true
+  },
+  layout: {
+    type: 'row',
+    weight: 100,
+    children: [
+      {
+        type: 'tabset',
+        weight: 15,
+        children: [
+          {
+            type: 'tab',
+            name: 'File Queue',
+            component: 'file-queue',
+            config: { moduleId: 'file-queue' }
+          }
+        ]
+      },
+      {
+        type: 'tabset',
+        weight: 15,
+        children: [
+          {
+            type: 'tab',
+            name: 'Review',
+            component: 'review-module',
+            config: { moduleId: 'review-module' }
+          }
+        ]
+      },
+      {
+        type: 'tabset',
+        weight: 70,
+        children: [
+          {
+            type: 'tab',
+            name: 'Image Viewer',
+            component: 'image-viewer',
+            config: { moduleId: 'image-viewer' }
+          }
+        ]
+      }
+    ]
+  }
+};
+
+/**
  * Database management layout
  */
 export const databaseLayout = {
@@ -317,6 +381,7 @@ export function getLayoutByName(name) {
     'review-with-logs': reviewWithLogsLayout,
     'comparison': comparisonLayout,
     'full-review': fullReviewLayout,
+    'queue-review': queueReviewLayout,
     'database': databaseLayout
   };
 
@@ -331,6 +396,7 @@ export const layoutNames = [
   'review-with-logs',
   'comparison',
   'full-review',
+  'queue-review',
   'database'
 ];
 
@@ -339,6 +405,7 @@ export default {
   reviewWithLogsLayout,
   comparisonLayout,
   fullReviewLayout,
+  queueReviewLayout,
   databaseLayout,
   getLayoutByName,
   layoutNames

@@ -39,7 +39,8 @@ export function ModuleAPIProvider({ children }) {
    */
   const emit = useCallback((eventName, data) => {
     const handlers = eventBusRef.current.get(eventName);
-    if (!handlers) return;
+    console.log(`[ModuleAPI] emit("${eventName}") - ${handlers ? handlers.length : 0} handlers`);
+    if (!handlers || handlers.length === 0) return;
 
     handlers.forEach(handler => {
       try {
@@ -62,6 +63,8 @@ export function ModuleAPIProvider({ children }) {
     }
 
     eventBusRef.current.get(eventName).push(handler);
+    const count = eventBusRef.current.get(eventName).length;
+    console.log(`[ModuleAPI] on("${eventName}") - now ${count} handlers`);
 
     // Return unsubscribe function
     return () => {
@@ -70,6 +73,7 @@ export function ModuleAPIProvider({ children }) {
         const index = handlers.indexOf(handler);
         if (index > -1) {
           handlers.splice(index, 1);
+          console.log(`[ModuleAPI] off("${eventName}") - now ${handlers.length} handlers`);
         }
       }
     };

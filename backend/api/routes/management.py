@@ -84,7 +84,7 @@ class OperationResponse(BaseModel):
 class RecentFile(BaseModel):
     """Recently processed file"""
     name: str
-    hash: str
+    hash: Optional[str] = None  # Some legacy entries may lack hash
 
 
 # ============ API Endpoints ============

@@ -232,12 +232,18 @@ export function ReviewModule() {
     const hasChanges = pendingConfirmations.length > 0 || pendingIgnores.length > 0;
 
     if (allDone && hasChanges) {
-      const timeout = setTimeout(() => {
-        saveAllChanges();
+      const timeout = setTimeout(async () => {
+        await saveAllChanges();
+        // Emit review-complete event for FileQueue auto-advance
+        emit('review-complete', {
+          imagePath: currentImagePath,
+          facesReviewed: detectedFaces.length,
+          success: true
+        });
       }, 500);
       return () => clearTimeout(timeout);
     }
-  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges]);
+  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, emit, currentImagePath]);
 
   /**
    * Update status when pending changes

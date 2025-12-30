@@ -245,6 +245,13 @@ function createApplicationMenu(mainWindow) {
             sendMenuCommand( 'open-database-management');
           }
         },
+        {
+          label: 'File Queue',
+          accelerator: 'CmdOrCtrl+Shift+U',
+          click: () => {
+            sendMenuCommand('open-file-queue');
+          }
+        },
         { type: 'separator' },
         {
           label: 'Toggle Developer Tools',
@@ -296,6 +303,13 @@ function createApplicationMenu(mainWindow) {
               accelerator: 'CmdOrCtrl+4',
               click: () => {
                 sendMenuCommand( 'layout-template-stats');
+              }
+            },
+            {
+              label: 'Queue Review Mode',
+              accelerator: 'CmdOrCtrl+5',
+              click: () => {
+                sendMenuCommand('layout-queue-review');
               }
             }
           ]

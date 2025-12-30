@@ -194,6 +194,57 @@ ipcMain.handle('open-file-dialog', async () => {
   return result.filePaths[0];
 });
 
+// Multi-file dialog for File Queue
+ipcMain.handle('open-multi-file-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'RAW Images', extensions: ['nef', 'NEF', 'cr2', 'CR2', 'arw', 'ARW'] },
+      { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'nef', 'cr2', 'arw'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (result.canceled) {
+    return null;
+  }
+
+  return result.filePaths;
+});
+
+// Folder dialog for File Queue
+ipcMain.handle('open-folder-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory']
+  });
+
+  if (result.canceled) {
+    return null;
+  }
+
+  // Find all supported image files in the folder
+  const folderPath = result.filePaths[0];
+  const supportedExtensions = ['.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.tiff'];
+
+  const files = [];
+  try {
+    const entries = fs.readdirSync(folderPath);
+    for (const entry of entries) {
+      const ext = path.extname(entry).toLowerCase();
+      if (supportedExtensions.includes(ext)) {
+        files.push(path.join(folderPath, entry));
+      }
+    }
+    // Sort by filename
+    files.sort();
+  } catch (err) {
+    console.error('[Main] Failed to read folder:', err);
+    return null;
+  }
+
+  return files;
+});
+
 // NEF to JPG conversion
 ipcMain.handle('convert-nef', async (event, nefPath) => {
   console.log('[Main] Converting NEF to JPG:', nefPath);

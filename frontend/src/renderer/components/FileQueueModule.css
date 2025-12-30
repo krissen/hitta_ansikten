@@ -1,0 +1,306 @@
+/**
+ * FileQueueModule Styles
+ */
+
+.file-queue-module {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #f5f5f5;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+/* Header */
+.file-queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: #e0e0e0;
+  border-bottom: 1px solid #ccc;
+}
+
+.file-queue-title {
+  font-weight: 600;
+  color: #333;
+}
+
+.file-queue-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.file-queue-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-queue-btn.add {
+  background: #4a90d9;
+  color: white;
+}
+
+.file-queue-btn.add:hover {
+  background: #3a7bc8;
+}
+
+.file-queue-btn.settings {
+  background: #888;
+  color: white;
+}
+
+.file-queue-btn.settings:hover {
+  background: #666;
+}
+
+/* Toolbar */
+.file-queue-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: #eee;
+  border-bottom: 1px solid #ddd;
+}
+
+.fix-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #666;
+  cursor: pointer;
+}
+
+.fix-mode-toggle input {
+  margin: 0;
+}
+
+.clear-completed-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  border: 1px solid #ccc;
+  background: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #666;
+}
+
+.clear-completed-btn:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.clear-completed-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* File list */
+.file-queue-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.file-queue-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #999;
+  text-align: center;
+}
+
+.file-queue-empty p {
+  margin: 4px 0;
+}
+
+.file-queue-empty .hint {
+  font-size: 11px;
+  color: #aaa;
+}
+
+/* File item */
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin-bottom: 2px;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.file-item:hover {
+  background: #f0f8ff;
+  border-color: #c0d8f0;
+}
+
+.file-item.active {
+  background: #e3f2fd;
+  border-color: #90caf9;
+}
+
+.file-item.completed {
+  background: #e8f5e9;
+}
+
+.file-item.error {
+  background: #ffebee;
+}
+
+.file-item.already-processed:not(.completed) {
+  background: #fff8e1;
+}
+
+/* Status icons */
+.status-icon {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.status-icon.completed {
+  color: #4caf50;
+}
+
+.status-icon.active {
+  color: #2196f3;
+}
+
+.status-icon.pending {
+  color: #9e9e9e;
+}
+
+.status-icon.processed {
+  color: #ff9800;
+}
+
+.status-icon.error {
+  color: #f44336;
+}
+
+/* File name */
+.file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+}
+
+.processed-marker {
+  color: #ff9800;
+  margin-left: 2px;
+}
+
+/* File status text */
+.file-status {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #888;
+  min-width: 50px;
+  text-align: right;
+}
+
+/* Remove button */
+.remove-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.file-item:hover .remove-btn {
+  opacity: 1;
+}
+
+.remove-btn:hover {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+/* Footer */
+.file-queue-footer {
+  padding: 8px 10px;
+  background: #e0e0e0;
+  border-top: 1px solid #ccc;
+}
+
+/* Progress */
+.file-queue-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: #666;
+  min-width: 35px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 6px;
+  background: #ccc;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #4caf50;
+  transition: width 0.3s;
+}
+
+/* Controls */
+.file-queue-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.control-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #888;
+  color: white;
+}
+
+.control-btn:hover {
+  background: #666;
+}
+
+.control-btn.start {
+  background: #4a90d9;
+}
+
+.control-btn.start:hover {
+  background: #3a7bc8;
+}

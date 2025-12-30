@@ -18,6 +18,7 @@ import { LogViewer } from '../../components/LogViewer.jsx';
 import { StatisticsDashboard } from '../../components/StatisticsDashboard.jsx';
 import { ReviewModule } from '../../components/ReviewModule.jsx';
 import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
+import { FileQueueModule } from '../../components/FileQueueModule.jsx';
 
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
@@ -29,7 +30,8 @@ const MODULE_COMPONENTS = {
   'log-viewer': LogViewer,
   'statistics-dashboard': StatisticsDashboard,
   'review-module': ReviewModule,
-  'database-management': DatabaseManagement
+  'database-management': DatabaseManagement,
+  'file-queue': FileQueueModule
 };
 
 // Module titles
@@ -39,7 +41,8 @@ const MODULE_TITLES = {
   'log-viewer': 'Backend Logs',
   'statistics-dashboard': 'Statistics Dashboard',
   'review-module': 'Face Review',
-  'database-management': 'Database Management'
+  'database-management': 'Database Management',
+  'file-queue': 'File Queue'
 };
 
 // Module-specific default layout ratios
@@ -76,6 +79,11 @@ const MODULE_LAYOUT = {
     widthRatio: 0.50,     // 50% when sharing row
     heightRatio: 0.30,    // Secondary row
     row: 2
+  },
+  'file-queue': {
+    widthRatio: 0.15,     // 15% width in sidebar
+    heightRatio: 0.70,    // Primary row
+    row: 1
   }
 };
 
@@ -297,7 +305,7 @@ export function FlexLayoutWorkspace() {
     // Find target tabset or use active one
     const activeTabset = model.getActiveTabset();
     if (activeTabset) {
-      model.doAction(Actions.addNode(tabJson, activeTabset.getId(), 'center', -1));
+      model.doAction(Actions.addNode(tabJson, activeTabset.getId(), DockLocation.CENTER, -1));
     }
 
     console.log(`[FlexLayoutWorkspace] Opened module: ${moduleId}`);
@@ -892,6 +900,12 @@ export function FlexLayoutWorkspace() {
           break;
         case 'open-database-management':
           openModule('database-management');
+          break;
+        case 'open-file-queue':
+          openModule('file-queue');
+          break;
+        case 'layout-queue-review':
+          loadLayout('queue-review');
           break;
 
         case 'open-preferences':
