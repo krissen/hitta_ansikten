@@ -795,11 +795,19 @@ export function FlexLayoutWorkspace() {
   useEffect(() => {
     if (!ready || !window.bildvisareAPI) return;
 
-    // Listen for initial file path
-    const handleInitialFile = (filePath) => {
-      console.log('[FlexLayoutWorkspace] Received initial file:', filePath);
-      moduleAPI.emit('load-image', { imagePath: filePath });
+    // Request initial file path (if app was launched with a file argument)
+    const loadInitialFile = async () => {
+      try {
+        const filePath = await window.bildvisareAPI.invoke('get-initial-file');
+        if (filePath) {
+          console.log('[FlexLayoutWorkspace] Loading initial file:', filePath);
+          moduleAPI.emit('load-image', { imagePath: filePath });
+        }
+      } catch (err) {
+        console.error('[FlexLayoutWorkspace] Failed to get initial file:', err);
+      }
     };
+    loadInitialFile();
 
     // Listen for menu commands
     const handleMenuCommand = async (command) => {
@@ -896,7 +904,6 @@ export function FlexLayoutWorkspace() {
       }
     };
 
-    window.bildvisareAPI.on('load-initial-file', handleInitialFile);
     window.bildvisareAPI.on('menu-command', handleMenuCommand);
 
     return () => {

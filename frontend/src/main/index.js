@@ -50,13 +50,8 @@ function createWorkspaceWindow() {
   console.log(`[Main] Loading ${USE_FLEXLAYOUT ? 'FlexLayout' : 'Dockview'} workspace:`, workspaceHtml);
   mainWindow.loadFile(workspaceHtml);
 
-  // Send initial file path to renderer when ready
-  if (initialFilePath) {
-    mainWindow.webContents.once('did-finish-load', () => {
-      console.log('[Main] Sending initial file path to renderer:', initialFilePath);
-      mainWindow.webContents.send('load-initial-file', initialFilePath);
-    });
-  }
+  // Note: Initial file path is now requested by renderer via IPC when ready
+  // This avoids race conditions where the event was sent before React mounted
 
   // Open DevTools in development (disabled - user can open with Cmd+Option+I)
   // if (!app.isPackaged) {
@@ -173,6 +168,16 @@ app.on('will-quit', () => {
 });
 
 // IPC Handlers
+
+// Get initial file path (if app was launched with a file argument)
+ipcMain.handle('get-initial-file', () => {
+  const filePath = initialFilePath;
+  console.log('[Main] Renderer requested initial file:', filePath || '(none)');
+  // Clear it after first request to avoid reloading on window refresh
+  initialFilePath = null;
+  return filePath;
+});
+
 ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],

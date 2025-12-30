@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld("bildvisareAPI", {
 
   // Invoke IPC handlers (request-response pattern)
   invoke: (channel, ...args) => {
-    const allowedChannels = ["open-file-dialog", "check-file-changed", "convert-nef"];
+    const allowedChannels = ["open-file-dialog", "check-file-changed", "convert-nef", "get-initial-file"];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
     }
