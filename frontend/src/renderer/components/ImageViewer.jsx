@@ -51,8 +51,8 @@ export function ImageViewer() {
   const [activeFaceIndex, setActiveFaceIndex] = useState(0);
   const previousFaceBoxModeRef = useRef('all');
 
-  // Auto-center state
-  const [autoCenterOnFace, setAutoCenterOnFace] = useState(false);
+  // Auto-center state (enabled by default for review workflow)
+  const [autoCenterOnFace, setAutoCenterOnFace] = useState(true);
 
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
@@ -378,11 +378,28 @@ export function ImageViewer() {
   // Auto-center on face
   // ============================================
 
-  const centerOnActiveFace = useCallback(() => {
-    if (!faces || faces.length === 0 || zoomMode === 'auto' || !image) return;
+  const centerOnActiveFace = useCallback((faceIndex = null) => {
+    // Debug: Log why centering might be skipped
+    if (!faces || faces.length === 0) {
+      console.log('[ImageViewer] centerOnActiveFace: No faces');
+      return;
+    }
+    if (zoomMode === 'auto') {
+      console.log('[ImageViewer] centerOnActiveFace: Skipped (zoom mode is auto-fit, zoom in first)');
+      return;
+    }
+    if (!image) {
+      console.log('[ImageViewer] centerOnActiveFace: No image loaded');
+      return;
+    }
 
-    const face = faces[activeFaceIndex];
-    if (!face) return;
+    // Use provided index or fall back to current activeFaceIndex
+    const indexToUse = faceIndex !== null ? faceIndex : activeFaceIndex;
+    const face = faces[indexToUse];
+    if (!face) {
+      console.log('[ImageViewer] centerOnActiveFace: Face not found at index', indexToUse);
+      return;
+    }
 
     const bbox = face.bounding_box;
     const faceCenterX = bbox.x + bbox.width / 2;
@@ -391,14 +408,17 @@ export function ImageViewer() {
     const viewportCenterX = dimensions.width / 2;
     const viewportCenterY = dimensions.height / 2;
 
-    setPan({
+    const newPan = {
       x: viewportCenterX - (faceCenterX * zoomFactor),
       y: viewportCenterY - (faceCenterY * zoomFactor)
-    });
+    };
+    console.log(`[ImageViewer] Centering on face ${indexToUse}: pan to`, newPan);
+    setPan(newPan);
   }, [faces, activeFaceIndex, zoomMode, zoomFactor, dimensions, image]);
 
   const toggleAutoCenterOnFace = useCallback((enable) => {
     const newValue = enable === undefined ? !autoCenterOnFace : enable;
+    console.log(`[ImageViewer] Auto-center ${newValue ? 'ENABLED' : 'DISABLED'}`);
     setAutoCenterOnFace(newValue);
     if (newValue) {
       centerOnActiveFace();
@@ -521,11 +541,13 @@ export function ImageViewer() {
 
   // Listen for active-face-changed events
   useModuleEvent('active-face-changed', ({ index }) => {
+    console.log(`[ImageViewer] active-face-changed: index=${index}, autoCenterOnFace=${autoCenterOnFace}`);
     setActiveFaceIndex(index);
     if (autoCenterOnFace) {
-      centerOnActiveFace();
+      console.log('[ImageViewer] Centering on face', index);
+      centerOnActiveFace(index);
     }
-  });
+  }, [autoCenterOnFace, centerOnActiveFace]);
 
   // Listen for sync-zoom events
   useModuleEvent('sync-zoom', ({ zoomFactor: newZoom, pan: newPan }) => {
