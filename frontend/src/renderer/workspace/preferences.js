@@ -5,6 +5,8 @@
  * Supports dot notation for nested access (e.g., 'backend.port').
  */
 
+import { debug, debugWarn, debugError } from '../shared/debug.js';
+
 export class PreferencesManager {
   constructor() {
     this.storageKey = 'bildvisare-preferences';
@@ -132,7 +134,7 @@ export class PreferencesManager {
       const stored = localStorage.getItem(this.storageKey);
 
       if (!stored) {
-        console.log('[Preferences] No saved preferences, using defaults');
+        debug('Preferences', 'No saved preferences, using defaults');
         this.preferences = JSON.parse(JSON.stringify(this.defaults));
         return;
       }
@@ -141,16 +143,16 @@ export class PreferencesManager {
 
       // Version migration
       if (parsed.version !== this.version) {
-        console.log(`[Preferences] Migrating from v${parsed.version} to v${this.version}`);
+        debug('Preferences', `Migrating from v${parsed.version} to v${this.version}`);
         this.preferences = this.migrate(parsed);
       } else {
         // Merge with defaults to handle new keys
         this.preferences = this.mergeWithDefaults(parsed);
       }
 
-      console.log('[Preferences] Loaded preferences from localStorage');
+      debug('Preferences', 'Loaded preferences from localStorage');
     } catch (err) {
-      console.error('[Preferences] Failed to load preferences, using defaults:', err);
+      debugError('Preferences', 'Failed to load preferences, using defaults:', err);
       this.preferences = JSON.parse(JSON.stringify(this.defaults));
     }
   }
@@ -162,10 +164,10 @@ export class PreferencesManager {
     try {
       this.preferences.version = this.version;
       localStorage.setItem(this.storageKey, JSON.stringify(this.preferences));
-      console.log('[Preferences] Saved preferences to localStorage');
+      debug('Preferences', 'Saved preferences to localStorage');
       return true;
     } catch (err) {
-      console.error('[Preferences] Failed to save preferences:', err);
+      debugError('Preferences', 'Failed to save preferences:', err);
       return false;
     }
   }
@@ -219,7 +221,7 @@ export class PreferencesManager {
    * Reset preferences to defaults
    */
   reset() {
-    console.log('[Preferences] Resetting to defaults');
+    debug('Preferences', 'Resetting to defaults');
     this.preferences = JSON.parse(JSON.stringify(this.defaults));
     this.save();
   }
@@ -281,7 +283,7 @@ export class PreferencesManager {
     // Currently only v1 exists, but this is where migration logic would go
     // Example: if (old.version === 0) { /* migrate v0 -> v1 */ }
 
-    console.log('[Preferences] No migration needed, merging with defaults');
+    debug('Preferences', 'No migration needed, merging with defaults');
     return this.mergeWithDefaults(old);
   }
 
@@ -303,10 +305,10 @@ export class PreferencesManager {
       const imported = JSON.parse(json);
       this.preferences = this.mergeWithDefaults(imported);
       this.save();
-      console.log('[Preferences] Imported preferences');
+      debug('Preferences', 'Imported preferences');
       return true;
     } catch (err) {
-      console.error('[Preferences] Failed to import preferences:', err);
+      debugError('Preferences', 'Failed to import preferences:', err);
       return false;
     }
   }

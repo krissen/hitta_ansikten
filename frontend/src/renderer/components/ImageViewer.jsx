@@ -12,6 +12,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useModuleAPI, useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './ImageViewer.css';
 
 // Constants (will be user-configurable in Phase 4)
@@ -75,15 +76,15 @@ export function ImageViewer() {
     // Check if NEF file - convert to JPG first
     if (filepath.toLowerCase().endsWith('.nef')) {
       try {
-        console.log('[ImageViewer] NEF file detected, converting...');
+        debug('ImageViewer', 'NEF file detected, converting...');
         setIsLoading(true);
         setLoadingMessage('Converting NEF file...');
 
         loadPath = await window.bildvisareAPI.invoke('convert-nef', filepath);
-        console.log('[ImageViewer] NEF converted to:', loadPath);
+        debug('ImageViewer', 'NEF converted to:', loadPath);
       } catch (err) {
         setIsLoading(false);
-        console.error('[ImageViewer] NEF conversion failed:', err);
+        debugError('ImageViewer', 'NEF conversion failed:', err);
         throw new Error(`Failed to convert NEF file: ${err.message}`);
       }
     }
@@ -106,7 +107,7 @@ export function ImageViewer() {
 
       img.onerror = (err) => {
         setIsLoading(false);
-        console.error('[ImageViewer] Failed to load image:', loadPath, err);
+        debugError('ImageViewer', 'Failed to load image:', loadPath, err);
         reject(new Error(`Failed to load image: ${loadPath}`));
       };
 
@@ -408,15 +409,15 @@ export function ImageViewer() {
   const centerOnActiveFace = useCallback((faceIndex = null) => {
     // Debug: Log why centering might be skipped
     if (!faces || faces.length === 0) {
-      console.log('[ImageViewer] centerOnActiveFace: No faces');
+      debug('ImageViewer', 'centerOnActiveFace: No faces');
       return;
     }
     if (zoomMode === 'auto') {
-      console.log('[ImageViewer] centerOnActiveFace: Skipped (zoom mode is auto-fit, zoom in first)');
+      debug('ImageViewer', 'centerOnActiveFace: Skipped (zoom mode is auto-fit, zoom in first)');
       return;
     }
     if (!image) {
-      console.log('[ImageViewer] centerOnActiveFace: No image loaded');
+      debug('ImageViewer', 'centerOnActiveFace: No image loaded');
       return;
     }
 
@@ -424,7 +425,7 @@ export function ImageViewer() {
     const indexToUse = faceIndex !== null ? faceIndex : activeFaceIndex;
     const face = faces[indexToUse];
     if (!face) {
-      console.log('[ImageViewer] centerOnActiveFace: Face not found at index', indexToUse);
+      debug('ImageViewer', 'centerOnActiveFace: Face not found at index', indexToUse);
       return;
     }
 
@@ -439,13 +440,13 @@ export function ImageViewer() {
       x: viewportCenterX - (faceCenterX * zoomFactor),
       y: viewportCenterY - (faceCenterY * zoomFactor)
     };
-    console.log(`[ImageViewer] Centering on face ${indexToUse}: pan to`, newPan);
+    debug('ImageViewer', `Centering on face ${indexToUse}: pan to`, newPan);
     setPan(newPan);
   }, [faces, activeFaceIndex, zoomMode, zoomFactor, dimensions, image]);
 
   const toggleAutoCenterOnFace = useCallback((enable) => {
     const newValue = enable === undefined ? !autoCenterOnFace : enable;
-    console.log(`[ImageViewer] Auto-center ${newValue ? 'ENABLED' : 'DISABLED'}`);
+    debug('ImageViewer', `Auto-center ${newValue ? 'ENABLED' : 'DISABLED'}`);
     setAutoCenterOnFace(newValue);
     // Sync menu state
     updateMenuState('auto-center', newValue);
@@ -557,13 +558,13 @@ export function ImageViewer() {
   useModuleEvent('load-image', async ({ imagePath: path }) => {
     try {
       await loadImage(path);
-      console.log('[ImageViewer] Loaded image:', path);
+      debug('ImageViewer', 'Loaded image:', path);
       emit('image-loaded', {
         imagePath: originalImagePath || path,
         dimensions: { width: image?.width, height: image?.height }
       });
     } catch (err) {
-      console.error('[ImageViewer] Failed to load image:', err);
+      debugError('ImageViewer', 'Failed to load image:', err);
     }
   });
 
@@ -574,10 +575,10 @@ export function ImageViewer() {
 
   // Listen for active-face-changed events
   useModuleEvent('active-face-changed', ({ index }) => {
-    console.log(`[ImageViewer] active-face-changed: index=${index}, autoCenterOnFace=${autoCenterOnFace}`);
+    debug('ImageViewer', `active-face-changed: index=${index}, autoCenterOnFace=${autoCenterOnFace}`);
     setActiveFaceIndex(index);
     if (autoCenterOnFace) {
-      console.log('[ImageViewer] Centering on face', index);
+      debug('ImageViewer', 'Centering on face', index);
       centerOnActiveFace(index);
     }
   }, [autoCenterOnFace, centerOnActiveFace]);

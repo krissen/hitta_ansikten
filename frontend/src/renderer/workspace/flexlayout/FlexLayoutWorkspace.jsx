@@ -10,6 +10,7 @@ import { reviewLayout, getLayoutByName } from './layouts.js';
 import { preferences } from '../preferences.js';
 import { preferencesUI } from '../preferences-ui.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
+import { debug, debugWarn, debugError } from '../../shared/debug.js';
 
 // Import React components directly
 import { ImageViewer } from '../../components/ImageViewer.jsx';
@@ -100,7 +101,7 @@ const MODULE_RATIOS = Object.fromEntries(
 function applyUIPreferences(overrides = null) {
   const layoutEl = document.querySelector('.flexlayout__layout');
   if (!layoutEl) {
-    console.log('[FlexLayoutWorkspace] Layout element not found, will retry');
+    debug('FlexLayout', 'Layout element not found, will retry');
     return false;
   }
 
@@ -192,7 +193,7 @@ function applyUIPreferences(overrides = null) {
     }
   `;
 
-  console.log('[FlexLayoutWorkspace] Applied UI preferences');
+  debug('FlexLayout', 'Applied UI preferences');
   return true;
 }
 
@@ -212,17 +213,17 @@ export function FlexLayoutWorkspace() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        console.log('[FlexLayoutWorkspace] Loading saved layout');
+        debug('FlexLayout', 'Loading saved layout');
         layoutConfig = JSON.parse(saved);
       }
     } catch (err) {
-      console.warn('[FlexLayoutWorkspace] Failed to load saved layout:', err);
+      debugWarn('FlexLayout', 'Failed to load saved layout:', err);
     }
 
     // Fall back to default layout
     if (!layoutConfig) {
       const defaultLayout = preferences.get('workspace.defaultLayout') || 'review';
-      console.log('[FlexLayoutWorkspace] Using default layout:', defaultLayout);
+      debug('FlexLayout', 'Using default layout:', defaultLayout);
       layoutConfig = getLayoutByName(defaultLayout);
     }
 
@@ -231,9 +232,9 @@ export function FlexLayoutWorkspace() {
       const newModel = Model.fromJson(layoutConfig);
       setModel(newModel);
       setReady(true);
-      console.log('[FlexLayoutWorkspace] Model created');
+      debug('FlexLayout', 'Model created');
     } catch (err) {
-      console.error('[FlexLayoutWorkspace] Failed to create model:', err);
+      debugError('FlexLayout', 'Failed to create model:', err);
       // Fall back to default
       setModel(Model.fromJson(reviewLayout));
       setReady(true);
@@ -281,7 +282,7 @@ export function FlexLayoutWorkspace() {
       const json = newModel.toJson();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(json));
     } catch (err) {
-      console.warn('[FlexLayoutWorkspace] Failed to save layout:', err);
+      debugWarn('FlexLayout', 'Failed to save layout:', err);
     }
   }, []);
 
@@ -291,7 +292,7 @@ export function FlexLayoutWorkspace() {
 
     const ModuleComponent = MODULE_COMPONENTS[moduleId];
     if (!ModuleComponent) {
-      console.error(`[FlexLayoutWorkspace] Module not found: ${moduleId}`);
+      debugError('FlexLayout', `Module not found: ${moduleId}`);
       return;
     }
 
@@ -308,7 +309,7 @@ export function FlexLayoutWorkspace() {
       model.doAction(Actions.addNode(tabJson, activeTabset.getId(), DockLocation.CENTER, -1));
     }
 
-    console.log(`[FlexLayoutWorkspace] Opened module: ${moduleId}`);
+    debug('FlexLayout', `Opened module: ${moduleId}`);
   }, [model]);
 
   // Close a panel by ID
@@ -318,7 +319,7 @@ export function FlexLayoutWorkspace() {
     const node = model.getNodeById(panelId);
     if (node) {
       model.doAction(Actions.deleteTab(panelId));
-      console.log(`[FlexLayoutWorkspace] Closed panel: ${panelId}`);
+      debug('FlexLayout', `Closed panel: ${panelId}`);
     }
   }, [model]);
 
@@ -440,7 +441,7 @@ export function FlexLayoutWorkspace() {
   const addTabset = useCallback((direction) => {
     const activeTabset = model.getActiveTabset();
     if (!activeTabset) {
-      console.log('[FlexLayoutWorkspace] No active tabset for adding', direction);
+      debug('FlexLayout', 'No active tabset for adding', direction);
       return;
     }
 
@@ -456,7 +457,7 @@ export function FlexLayoutWorkspace() {
     };
 
     model.doAction(Actions.addNode(placeholderTab, activeTabset.getId(), location, -1));
-    console.log(`[FlexLayoutWorkspace] Added new ${direction}`);
+    debug('FlexLayout', `Added new ${direction}`);
   }, [model]);
 
   // Remove empty tabset
@@ -466,7 +467,7 @@ export function FlexLayoutWorkspace() {
 
     const children = activeTabset.getChildren();
     if (children.length === 0) {
-      console.log('[FlexLayoutWorkspace] Cannot remove empty tabset directly');
+      debug('FlexLayout', 'Cannot remove empty tabset directly');
       return false;
     }
 
@@ -474,23 +475,23 @@ export function FlexLayoutWorkspace() {
       // Remove the single tab, which may remove the tabset
       const tabId = children[0].getId();
       model.doAction(Actions.deleteTab(tabId));
-      console.log(`[FlexLayoutWorkspace] Removed last tab from tabset`);
+      debug('FlexLayout', 'Removed last tab from tabset');
       return true;
     }
 
-    console.log(`[FlexLayoutWorkspace] Tabset has ${children.length} tabs, not removing`);
+    debug('FlexLayout', `Tabset has ${children.length} tabs, not removing`);
     return false;
   }, [model]);
 
   // Load a preset layout
   const loadLayout = useCallback((layoutName) => {
-    console.log(`[FlexLayoutWorkspace] Loading layout: ${layoutName}`);
+    debug('FlexLayout', `Loading layout: ${layoutName}`);
     const layoutConfig = getLayoutByName(layoutName);
     try {
       const newModel = Model.fromJson(layoutConfig);
       setModel(newModel);
     } catch (err) {
-      console.error('[FlexLayoutWorkspace] Failed to load layout:', err);
+      debugError('FlexLayout', 'Failed to load layout:', err);
     }
   }, []);
 
@@ -537,7 +538,7 @@ export function FlexLayoutWorkspace() {
       tabsetsWithModules.forEach(t => {
         const weight = Math.round((t.ratio / totalRatio) * 100);
         model.doAction(Actions.updateNodeAttributes(t.node.getId(), { weight }));
-        console.log(`[FlexLayoutWorkspace] Set ${t.moduleId} width weight to ${weight}`);
+        debug('FlexLayout', `Set ${t.moduleId} width weight to ${weight}`);
       });
     };
 
@@ -567,7 +568,7 @@ export function FlexLayoutWorkspace() {
       rowHeights.forEach(r => {
         const weight = Math.round((r.heightRatio / totalHeight) * 100);
         model.doAction(Actions.updateNodeAttributes(r.node.getId(), { weight }));
-        console.log(`[FlexLayoutWorkspace] Set row height weight to ${weight}`);
+        debug('FlexLayout', `Set row height weight to ${weight}`);
       });
     };
 
@@ -586,7 +587,7 @@ export function FlexLayoutWorkspace() {
       applyWidthRatios(tabsets);
     }
 
-    console.log('[FlexLayoutWorkspace] Applied module-based ratios');
+    debug('FlexLayout', 'Applied module-based ratios');
   }, [model]);
 
   // Swap active panel with panel in specified direction (Cmd+Arrow)
@@ -594,20 +595,20 @@ export function FlexLayoutWorkspace() {
   const swapActivePanel = useCallback((direction) => {
     const activeTabset = model.getActiveTabset();
     if (!activeTabset) {
-      console.log('[FlexLayoutWorkspace] No active tabset');
+      debug('FlexLayout', 'No active tabset');
       return;
     }
 
     const activeTab = activeTabset.getSelectedNode();
     if (!activeTab) {
-      console.log('[FlexLayoutWorkspace] No active tab to swap');
+      debug('FlexLayout', 'No active tab to swap');
       return;
     }
 
     // Find target tabset in direction
     const targetTabset = findTabsetInDirection(activeTabset, direction);
     if (!targetTabset) {
-      console.log('[FlexLayoutWorkspace] No tabset found in direction:', direction);
+      debug('FlexLayout', 'No tabset found in direction:', direction);
       return;
     }
 
@@ -628,7 +629,7 @@ export function FlexLayoutWorkspace() {
       applyModuleBasedRatios();
     }, 50);
 
-    console.log('[FlexLayoutWorkspace] Swapped panel', direction);
+    debug('FlexLayout', 'Swapped panel', direction);
   }, [model, findTabsetInDirection, getDockLocation, applyModuleBasedRatios]);
 
   // Move active panel to new tabset in direction (Cmd+Alt+Arrow)
@@ -655,7 +656,7 @@ export function FlexLayoutWorkspace() {
       applyModuleBasedRatios();
     }, 50);
 
-    console.log('[FlexLayoutWorkspace] Moved panel to new tabset', direction);
+    debug('FlexLayout', 'Moved panel to new tabset', direction);
   }, [model, getDockLocation, applyModuleBasedRatios]);
 
   // Group active panel as tab with panel in direction (Cmd+Shift+Arrow)
@@ -669,7 +670,7 @@ export function FlexLayoutWorkspace() {
     // Find target tabset in direction
     const targetTabset = findTabsetInDirection(activeTabset, direction);
     if (!targetTabset) {
-      console.log('[FlexLayoutWorkspace] No tabset found in direction:', direction);
+      debug('FlexLayout', 'No tabset found in direction:', direction);
       return;
     }
 
@@ -681,7 +682,7 @@ export function FlexLayoutWorkspace() {
       -1,
       true
     ));
-    console.log('[FlexLayoutWorkspace] Grouped panel as tab in direction', direction);
+    debug('FlexLayout', 'Grouped panel as tab in direction', direction);
   }, [model, findTabsetInDirection]);
 
   // Keyboard shortcuts
@@ -788,10 +789,10 @@ export function FlexLayoutWorkspace() {
         const filePath = await window.bildvisareAPI?.invoke('open-file-dialog');
         if (!filePath) return;
 
-        console.log(`[FlexLayoutWorkspace] Opening file: ${filePath}`);
+        debug('FlexLayout', `Opening file: ${filePath}`);
         moduleAPI.emit('load-image', { imagePath: filePath });
       } catch (err) {
-        console.error('[FlexLayoutWorkspace] Failed to open file:', err);
+        debugError('FlexLayout', 'Failed to open file:', err);
       }
     };
 
@@ -808,18 +809,18 @@ export function FlexLayoutWorkspace() {
       try {
         const filePath = await window.bildvisareAPI.invoke('get-initial-file');
         if (filePath) {
-          console.log('[FlexLayoutWorkspace] Loading initial file:', filePath);
+          debug('FlexLayout', 'Loading initial file:', filePath);
           moduleAPI.emit('load-image', { imagePath: filePath });
         }
       } catch (err) {
-        console.error('[FlexLayoutWorkspace] Failed to get initial file:', err);
+        debugError('FlexLayout', 'Failed to get initial file:', err);
       }
     };
     loadInitialFile();
 
     // Listen for menu commands
     const handleMenuCommand = async (command) => {
-      console.log('[FlexLayoutWorkspace] Menu command:', command);
+      debug('FlexLayout', 'Menu command:', command);
 
       switch (command) {
         // File commands

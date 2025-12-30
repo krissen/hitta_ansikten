@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './FileQueueModule.css';
 
 // Generate simple unique ID
@@ -45,11 +46,11 @@ export function FileQueueModule() {
       if (response && Array.isArray(response)) {
         const fileNames = new Set(response.map(f => f.name));
         setProcessedFiles(fileNames);
-        console.log('[FileQueue] Loaded', fileNames.size, 'processed files');
+        debug('FileQueue', 'Loaded', fileNames.size, 'processed files');
       }
     } catch (err) {
       // Non-fatal error - processed files indicator will be missing
-      console.warn('[FileQueue] Could not load processed files (non-fatal):', err.message);
+      debugWarn('FileQueue', 'Could not load processed files (non-fatal):', err.message);
     }
   }, [api]);
 
@@ -68,11 +69,11 @@ export function FileQueueModule() {
           setCurrentIndex(parsed.currentIndex ?? -1);
           setAutoAdvance(parsed.autoAdvance ?? true);
           setFixMode(parsed.fixMode ?? false);
-          console.log('[FileQueue] Restored queue with', parsed.queue.length, 'files');
+          debug('FileQueue', 'Restored queue with', parsed.queue.length, 'files');
         }
       }
     } catch (err) {
-      console.error('[FileQueue] Failed to load saved queue:', err);
+      debugError('FileQueue', 'Failed to load saved queue:', err);
     }
   }, []);
 
@@ -86,7 +87,7 @@ export function FileQueueModule() {
         fixMode
       }));
     } catch (err) {
-      console.error('[FileQueue] Failed to save queue:', err);
+      debugError('FileQueue', 'Failed to save queue:', err);
     }
   }, [queue, currentIndex, autoAdvance, fixMode]);
 
@@ -122,7 +123,7 @@ export function FileQueueModule() {
       return [...prev, ...uniqueNew];
     });
 
-    console.log('[FileQueue] Added', newItems.length, 'files at', position);
+    debug('FileQueue', 'Added', newItems.length, 'files at', position);
   }, [isFileProcessed]);
 
   // Remove file from queue
@@ -153,7 +154,7 @@ export function FileQueueModule() {
   const loadFile = useCallback(async (index) => {
     const currentQueue = queueRef.current;
     if (index < 0 || index >= currentQueue.length) {
-      console.log('[FileQueue] loadFile: Invalid index', index, 'queue length:', currentQueue.length);
+      debug('FileQueue', 'loadFile: Invalid index', index, 'queue length:', currentQueue.length);
       return;
     }
 
@@ -169,14 +170,14 @@ export function FileQueueModule() {
     // If fix mode and file is already processed, undo it first
     if (fixMode && item.isAlreadyProcessed) {
       try {
-        console.log('[FileQueue] Undoing file for fix mode:', item.fileName);
+        debug('FileQueue', 'Undoing file for fix mode:', item.fileName);
         await api.post('/api/management/undo-file', {
           filename_pattern: item.fileName
         });
         // Refresh processed files list
         await loadProcessedFiles();
       } catch (err) {
-        console.error('[FileQueue] Failed to undo file:', err);
+        debugError('FileQueue', 'Failed to undo file:', err);
         // Continue anyway
       }
     }
@@ -191,7 +192,7 @@ export function FileQueueModule() {
     currentFileRef.current = item.filePath;
 
     // Emit load-image event
-    console.log('[FileQueue] Emitting load-image for:', item.filePath);
+    debug('FileQueue', 'Emitting load-image for:', item.filePath);
     emit('load-image', { imagePath: item.filePath });
   }, [fixMode, api, loadProcessedFiles, emit]);
 
@@ -205,7 +206,7 @@ export function FileQueueModule() {
     if (nextIndex >= 0) {
       loadFile(nextIndex);
     } else {
-      console.log('[FileQueue] All files completed');
+      debug('FileQueue', 'All files completed');
       setCurrentIndex(-1);
     }
   }, [currentIndex, loadFile]);
@@ -217,7 +218,7 @@ export function FileQueueModule() {
 
   // Listen for review-complete event
   useModuleEvent('review-complete', useCallback(({ imagePath, success }) => {
-    console.log('[FileQueue] Review complete:', imagePath, success);
+    debug('FileQueue', 'Review complete:', imagePath, success);
 
     // Mark current file as completed
     if (currentFileRef.current === imagePath) {
@@ -228,7 +229,7 @@ export function FileQueueModule() {
         i > currentIdx && item.status !== 'completed' && item.filePath !== imagePath
       );
 
-      console.log('[FileQueue] Current index:', currentIdx, 'Next index:', nextIdx, 'Queue length:', currentQueue.length);
+      debug('FileQueue', 'Current index:', currentIdx, 'Next index:', nextIdx, 'Queue length:', currentQueue.length);
 
       setQueue(prev => prev.map(item => {
         if (item.filePath === imagePath) {
@@ -242,10 +243,10 @@ export function FileQueueModule() {
 
       // Auto-advance to next
       if (autoAdvance && nextIdx >= 0) {
-        console.log('[FileQueue] Auto-advancing to index:', nextIdx);
+        debug('FileQueue', 'Auto-advancing to index:', nextIdx);
         setTimeout(() => loadFile(nextIdx), 300);
       } else if (nextIdx < 0) {
-        console.log('[FileQueue] No more pending files');
+        debug('FileQueue', 'No more pending files');
         setCurrentIndex(-1);
       }
     }
@@ -274,14 +275,14 @@ export function FileQueueModule() {
         }
       }
     } catch (err) {
-      console.error('[FileQueue] Failed to open file dialog:', err);
+      debugError('FileQueue', 'Failed to open file dialog:', err);
     }
   }, [addFiles, queue.length, loadFile]);
 
   // Listen for files from main process (command line arguments)
   useEffect(() => {
     const handleQueueFiles = ({ files, position, startQueue }) => {
-      console.log(`[FileQueue] Received ${files.length} files from main process (position: ${position})`);
+      debug('FileQueue', `Received ${files.length} files from main process (position: ${position})`);
       addFiles(files, position || 'end');
       if (startQueue && files.length > 0) {
         setTimeout(() => loadFile(0), 100);
@@ -301,9 +302,9 @@ export function FileQueueModule() {
         const files = await window.bildvisareAPI?.invoke('expand-glob', pattern);
         if (files && files.length > 0) {
           addFiles(files, position);
-          console.log(`[FileQueue] Expanded glob "${pattern}" to ${files.length} files`);
+          debug('FileQueue', `Expanded glob "${pattern}" to ${files.length} files`);
         } else {
-          console.warn(`[FileQueue] No files matched pattern "${pattern}"`);
+          debugWarn('FileQueue', `No files matched pattern "${pattern}"`);
         }
       } else {
         // Direct path(s)

@@ -5,6 +5,8 @@
  * Enables tiling window manager-like ratio preservation.
  */
 
+import { debug, debugWarn, debugError } from '../shared/debug.js';
+
 export class LayoutStateTracker {
   constructor() {
     this.ratioHistory = [];      // Stack of previous ratio states
@@ -19,7 +21,7 @@ export class LayoutStateTracker {
     try {
       const layout = dockview.toJSON();
       if (!layout.grid || !layout.grid.root) {
-        console.warn('[LayoutState] No grid root found');
+        debugWarn('FlexLayout', 'No grid root found');
         return;
       }
 
@@ -36,9 +38,9 @@ export class LayoutStateTracker {
         this.ratioHistory.shift();
       }
 
-      console.log('[LayoutState] Captured state:', state.ratios);
+      debug('FlexLayout', 'Captured state:', state.ratios);
     } catch (err) {
-      console.error('[LayoutState] Failed to capture state:', err);
+      debugError('FlexLayout', 'Failed to capture state:', err);
     }
   }
 
@@ -104,7 +106,7 @@ export class LayoutStateTracker {
     try {
       const layout = dockview.toJSON();
       if (!layout.grid || !layout.grid.root) {
-        console.warn('[LayoutState] No grid root for ratio application');
+        debugWarn('FlexLayout', 'No grid root for ratio application');
         return;
       }
 
@@ -113,9 +115,9 @@ export class LayoutStateTracker {
 
       // Restore the modified layout
       dockview.fromJSON(layout);
-      console.log('[LayoutState] Applied ratios');
+      debug('FlexLayout', 'Applied ratios');
     } catch (err) {
-      console.error('[LayoutState] Failed to apply ratios:', err);
+      debugError('FlexLayout', 'Failed to apply ratios:', err);
     }
   }
 
@@ -152,13 +154,13 @@ export class LayoutStateTracker {
   restoreRatiosAfterRemove(dockview) {
     const lastState = this.popState();
     if (!lastState) {
-      console.log('[LayoutState] No previous state to restore');
+      debug('FlexLayout', 'No previous state to restore');
       return;
     }
 
     // Only restore if we're going from more groups to fewer
     if (dockview.groups.length >= lastState.groupCount) {
-      console.log('[LayoutState] Group count increased, not restoring');
+      debug('FlexLayout', 'Group count increased, not restoring');
       return;
     }
 
@@ -206,7 +208,7 @@ export class LayoutStateTracker {
           const originalSize = child.size || 1;
           child.size = Math.floor(originalSize * (1 - ratio));
           // New panel will be added with size = floor(originalSize * ratio)
-          console.log(`[LayoutState] Adjusted reference group size: ${originalSize} -> ${child.size}`);
+          debug('FlexLayout', `Adjusted reference group size: ${originalSize} -> ${child.size}`);
           return true;
         }
 
@@ -238,6 +240,6 @@ export class LayoutStateTracker {
    */
   clearHistory() {
     this.ratioHistory = [];
-    console.log('[LayoutState] History cleared');
+    debug('FlexLayout', 'History cleared');
   }
 }

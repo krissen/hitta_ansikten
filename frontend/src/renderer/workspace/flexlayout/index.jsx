@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { FlexLayoutWorkspace } from './FlexLayoutWorkspace.jsx';
 import { ModuleAPIProvider } from '../../context/ModuleAPIContext.jsx';
 import { BackendProvider } from '../../context/BackendContext.jsx';
+import { debug, debugWarn, debugError } from '../../shared/debug.js';
 
 // Import FlexLayout CSS
 import 'flexlayout-react/style/light.css';
@@ -18,11 +19,11 @@ import 'flexlayout-react/style/light.css';
  * Initialize the FlexLayout workspace
  */
 function initFlexLayoutWorkspace() {
-  console.log('[FlexLayout] Initializing workspace...');
+  debug('FlexLayout', 'Initializing workspace...');
 
   const rootElement = document.getElementById('workspace-root');
   if (!rootElement) {
-    console.error('[FlexLayout] Root element not found!');
+    debugError('FlexLayout', 'Root element not found!');
     return;
   }
 
@@ -39,7 +40,7 @@ function initFlexLayoutWorkspace() {
     </StrictMode>
   );
 
-  console.log('[FlexLayout] Workspace initialized');
+  debug('FlexLayout', 'Workspace initialized');
 }
 
 // Initialize when DOM is ready

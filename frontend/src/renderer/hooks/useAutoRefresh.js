@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 
 /**
  * Hook for auto-refresh functionality
@@ -47,7 +48,7 @@ export function useAutoRefresh(refreshFn, options = {}) {
       await refreshFnRef.current();
       setLastRefresh(new Date());
     } catch (err) {
-      console.error('[useAutoRefresh] Refresh failed:', err);
+      debugError('Backend', 'Refresh failed:', err);
     } finally {
       setIsRefreshing(false);
     }
@@ -118,7 +119,7 @@ export function usePolledData(fetchFn, options = {}) {
       setError(null);
     } catch (err) {
       setError(err);
-      console.error('[usePolledData] Fetch failed:', err);
+      debugError('Backend', 'Fetch failed:', err);
     }
   }, [fetchFn]);
 

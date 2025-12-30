@@ -9,6 +9,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { apiClient } from '../shared/api-client.js';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 
 // Create the context
 export const BackendContext = createContext(null);
@@ -33,9 +34,9 @@ export function BackendProvider({ children }) {
     try {
       await apiClient.connectWebSocket();
       setIsConnected(true);
-      console.log('[BackendContext] Connected to backend');
+      debug('Backend', 'Connected to backend');
     } catch (err) {
-      console.error('[BackendContext] Connection failed:', err);
+      debugError('Backend', 'Connection failed:', err);
       setConnectionError(err);
       setIsConnected(false);
     } finally {
@@ -49,7 +50,7 @@ export function BackendProvider({ children }) {
   const disconnect = useCallback(() => {
     apiClient.disconnectWebSocket();
     setIsConnected(false);
-    console.log('[BackendContext] Disconnected from backend');
+    debug('Backend', 'Disconnected from backend');
   }, []);
 
   // Auto-connect on mount
@@ -68,7 +69,7 @@ export function BackendProvider({ children }) {
       try {
         return await apiClient.get(path, params);
       } catch (err) {
-        console.error(`[BackendContext] GET ${path} failed:`, err);
+        debugError('Backend', `GET ${path} failed:`, err);
         throw err;
       }
     },
@@ -76,7 +77,7 @@ export function BackendProvider({ children }) {
       try {
         return await apiClient.post(path, body);
       } catch (err) {
-        console.error(`[BackendContext] POST ${path} failed:`, err);
+        debugError('Backend', `POST ${path} failed:`, err);
         throw err;
       }
     }

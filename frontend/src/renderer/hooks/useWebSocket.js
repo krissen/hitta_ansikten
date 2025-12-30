@@ -7,6 +7,7 @@
 
 import { useEffect, useCallback } from 'react';
 import { apiClient } from '../shared/api-client.js';
+import { debugError } from '../shared/debug.js';
 
 /**
  * Hook for subscribing to WebSocket events
@@ -62,7 +63,7 @@ export function useWebSocketConnection() {
     // Connect on mount if not already connected
     if (!apiClient.isConnected()) {
       apiClient.connectWebSocket().catch(err => {
-        console.error('[useWebSocketConnection] Failed to connect:', err);
+        debugError('WebSocket', 'Failed to connect:', err);
       });
     }
 
@@ -74,7 +75,7 @@ export function useWebSocketConnection() {
       await apiClient.connectWebSocket();
       return true;
     } catch (err) {
-      console.error('[useWebSocketConnection] Connect failed:', err);
+      debugError('WebSocket', 'Connect failed:', err);
       return false;
     }
   }, []);

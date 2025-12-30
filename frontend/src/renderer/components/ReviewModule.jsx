@@ -13,6 +13,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './ReviewModule.css';
 
 /**
@@ -45,7 +46,7 @@ export function ReviewModule() {
       const response = await api.get('/api/database/people/names');
       setPeople(response || []);
     } catch (err) {
-      console.error('[ReviewModule] Failed to load people names:', err);
+      debugError('ReviewModule', 'Failed to load people names:', err);
     }
   }, [api]);
 
@@ -76,7 +77,7 @@ export function ReviewModule() {
       // Emit faces to Image Viewer for bounding box overlay
       emit('faces-detected', { faces });
     } catch (err) {
-      console.error('[ReviewModule] Face detection failed:', err);
+      debugError('ReviewModule', 'Face detection failed:', err);
       setStatus('Detection failed');
     } finally {
       setIsLoading(false);
@@ -198,7 +199,7 @@ export function ReviewModule() {
       await loadPeopleNames();
       setStatus(`Saved ${totalChanges} changes!`);
     } catch (err) {
-      console.error('[ReviewModule] Failed to save:', err);
+      debugError('ReviewModule', 'Failed to save:', err);
       setStatus('Error saving changes');
     }
   }, [pendingConfirmations, pendingIgnores, api, loadPeopleNames]);
@@ -374,7 +375,7 @@ export function ReviewModule() {
    * WebSocket events
    */
   useWebSocket('face-detected', useCallback((data) => {
-    console.log('[ReviewModule] Face detected event:', data);
+    debug('ReviewModule', 'Face detected event:', data);
   }, []));
 
   return (

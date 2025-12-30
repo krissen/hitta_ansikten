@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './DatabaseManagement.css';
 
 /**
@@ -43,7 +44,7 @@ export function DatabaseManagement() {
       const response = await api.get('/api/management/database-state');
       setDatabaseState(response);
     } catch (err) {
-      console.error('[DatabaseManagement] Failed to load:', err);
+      debugError('DatabaseMgmt', 'Failed to load:', err);
       showError('Failed to load database state: ' + err.message);
     } finally {
       setIsLoading(false);

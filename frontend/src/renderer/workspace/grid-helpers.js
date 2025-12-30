@@ -5,6 +5,8 @@
  * for the Dockview workspace grid.
  */
 
+import { debug, debugWarn, debugError } from '../shared/debug.js';
+
 /**
  * Find the nearest group in a specific direction from the given group
  * @param {DockviewComponent} dockview - Dockview instance
@@ -183,7 +185,7 @@ export function removeActiveGroup(dockview, force = false) {
 
   // Don't remove last group
   if (dockview.groups.length <= 1) {
-    console.warn('[GridHelpers] Cannot remove last group');
+    debugWarn('FlexLayout', 'Cannot remove last group');
     return false;
   }
 

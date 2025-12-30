@@ -7,6 +7,7 @@
 
 import { useEffect, useCallback, useContext } from 'react';
 import { ModuleAPIContext } from '../context/ModuleAPIContext.jsx';
+import { debug } from '../shared/debug.js';
 
 /**
  * Hook to access the module API context
@@ -35,13 +36,13 @@ export function useModuleEvent(eventName, handler, deps = []) {
   useEffect(() => {
     if (!eventName || !handler) return;
 
-    console.log(`[useModuleEvent] Subscribing to "${eventName}"`);
+    debug('ModuleEvent', `Subscribing to "${eventName}"`);
 
     // on() returns an unsubscribe function
     const unsubscribe = on(eventName, handler);
 
     return () => {
-      console.log(`[useModuleEvent] Unsubscribing from "${eventName}"`);
+      debug('ModuleEvent', `Unsubscribing from "${eventName}"`);
       unsubscribe();
     };
   }, [eventName, on, ...deps]);

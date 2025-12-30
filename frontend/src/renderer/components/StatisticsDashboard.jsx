@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './StatisticsDashboard.css';
 
 /**
@@ -52,7 +53,7 @@ export function StatisticsDashboard() {
       setError(null);
       setIsLoading(false);
     } catch (err) {
-      console.error('[StatsDashboard] Failed to fetch statistics:', err);
+      debugError('Statistics', 'Failed to fetch statistics:', err);
       setError(err.message);
       setIsLoading(false);
     }

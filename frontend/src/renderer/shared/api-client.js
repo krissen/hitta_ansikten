@@ -5,6 +5,8 @@
  * Provides methods for REST API calls and WebSocket event streaming.
  */
 
+import { debug, debugWarn, debugError } from './debug.js';
+
 export class APIClient {
   constructor(baseUrl = 'http://127.0.0.1:5001') {
     this.baseUrl = baseUrl;
@@ -44,7 +46,7 @@ export class APIClient {
 
       return await response.json();
     } catch (err) {
-      console.error(`[APIClient] GET ${path} failed:`, err);
+      debugError('Backend', `GET ${path} failed:`, err);
       throw err;
     }
   }
@@ -73,7 +75,7 @@ export class APIClient {
 
       return await response.json();
     } catch (err) {
-      console.error(`[APIClient] POST ${path} failed:`, err);
+      debugError('Backend', `POST ${path} failed:`, err);
       throw err;
     }
   }
@@ -97,12 +99,12 @@ export class APIClient {
    */
   connectWebSocket() {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log('[APIClient] WebSocket already connected');
+      debug('WebSocket', 'WebSocket already connected');
       return Promise.resolve();
     }
 
     if (this.isConnecting) {
-      console.log('[APIClient] WebSocket connection already in progress');
+      debug('WebSocket', 'WebSocket connection already in progress');
       return Promise.resolve();
     }
 
@@ -112,12 +114,12 @@ export class APIClient {
       const wsUrl = this.baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
       const url = `${wsUrl}/ws/progress`;
 
-      console.log('[APIClient] Connecting to WebSocket:', url);
+      debug('WebSocket', 'Connecting to WebSocket:', url);
 
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        console.log('[APIClient] WebSocket connected');
+        debug('WebSocket', 'WebSocket connected');
         this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
         this.isConnecting = false;
@@ -135,23 +137,23 @@ export class APIClient {
               try {
                 callback(data);
               } catch (err) {
-                console.error(`[APIClient] Error in WebSocket handler for ${eventName}:`, err);
+                debugError('WebSocket', `Error in WebSocket handler for ${eventName}:`, err);
               }
             });
           }
         } catch (err) {
-          console.error('[APIClient] Error parsing WebSocket message:', err);
+          debugError('WebSocket', 'Error parsing WebSocket message:', err);
         }
       };
 
       this.ws.onerror = (error) => {
-        console.error('[APIClient] WebSocket error:', error);
+        debugError('WebSocket', 'WebSocket error:', error);
         this.isConnecting = false;
         reject(error);
       };
 
       this.ws.onclose = () => {
-        console.log('[APIClient] WebSocket disconnected');
+        debug('WebSocket', 'WebSocket disconnected');
         this.isConnecting = false;
 
         // Attempt reconnection with exponential backoff
@@ -159,15 +161,15 @@ export class APIClient {
           this.reconnectAttempts++;
           const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
 
-          console.log(`[APIClient] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+          debug('WebSocket', `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
           setTimeout(() => {
             this.connectWebSocket().catch(err => {
-              console.error('[APIClient] Reconnection failed:', err);
+              debugError('WebSocket', 'Reconnection failed:', err);
             });
           }, delay);
         } else {
-          console.error('[APIClient] Max reconnection attempts reached');
+          debugError('WebSocket', 'Max reconnection attempts reached');
         }
       };
     });

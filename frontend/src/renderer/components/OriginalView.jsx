@@ -11,6 +11,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
+import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './OriginalView.css';
 
 // Constants
@@ -62,7 +63,7 @@ export function OriginalView() {
                   imagePath.includes('_converted.jpg');
 
     if (!isNef) {
-      console.log('[OriginalView] Not a NEF file, skipping');
+      debug('OriginalView', 'Not a NEF file, skipping');
       setImage(null);
       setPlaceholder('Not a NEF file');
       return;
@@ -71,7 +72,7 @@ export function OriginalView() {
     // Determine original NEF path
     let nefPath = imagePath;
     if (imagePath.includes('_converted.jpg')) {
-      console.log('[OriginalView] Converted JPG detected, original path unknown');
+      debug('OriginalView', 'Converted JPG detected, original path unknown');
       setPlaceholder('Original NEF path unknown');
       return;
     }
@@ -81,7 +82,7 @@ export function OriginalView() {
     setPlaceholder('Loading original...');
 
     try {
-      console.log(`[OriginalView] Loading original: ${nefPath}`);
+      debug('OriginalView', `Loading original: ${nefPath}`);
 
       // Request backend to convert NEF
       const jpgPath = await window.bildvisareAPI.invoke('convert-nef', nefPath);
@@ -102,9 +103,9 @@ export function OriginalView() {
       setIsLoading(false);
       setPlaceholder(null);
 
-      console.log('[OriginalView] Original loaded successfully');
+      debug('OriginalView', 'Original loaded successfully');
     } catch (err) {
-      console.error('[OriginalView] Failed to load original:', err);
+      debugError('OriginalView', 'Failed to load original:', err);
       setIsLoading(false);
       setPlaceholder(`Error: ${err.message}`);
     }
@@ -285,7 +286,7 @@ export function OriginalView() {
 
   // Listen for image-loaded events from Image Viewer
   useModuleEvent('image-loaded', ({ imagePath }) => {
-    console.log('[OriginalView] Image loaded event received:', imagePath);
+    debug('OriginalView', 'Image loaded event received:', imagePath);
     loadOriginal(imagePath);
   });
 
@@ -302,7 +303,7 @@ export function OriginalView() {
 
   // Request current image on mount
   useEffect(() => {
-    console.log('[OriginalView] Requesting current image...');
+    debug('OriginalView', 'Requesting current image...');
     emit('request-current-image', {});
 
     // Retry after a delay
