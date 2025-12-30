@@ -2,9 +2,31 @@
  * Application Menu
  *
  * Defines the main application menu with all available commands and keyboard shortcuts.
+ * Toggle menu items use checkboxes to show current state.
  */
 
-const { Menu, shell } = require('electron');
+const { Menu, shell, ipcMain } = require('electron');
+
+// Store references to toggle menu items for state updates
+const menuItemRefs = {};
+
+/**
+ * Update menu item checked state
+ * Called from renderer via IPC when state changes
+ * @param {string} id - Menu item ID (e.g., 'auto-center', 'boxes-visible')
+ * @param {boolean} checked - New checked state
+ */
+function updateMenuItemState(id, checked) {
+  const menuItem = menuItemRefs[id];
+  if (menuItem) {
+    menuItem.checked = checked;
+  }
+}
+
+// IPC handler for menu state updates from renderer
+ipcMain.on('update-menu-state', (event, { id, checked }) => {
+  updateMenuItemState(id, checked);
+});
 
 /**
  * Create application menu
@@ -128,17 +150,23 @@ function createApplicationMenu(mainWindow) {
       label: 'View',
       submenu: [
         {
-          label: 'Toggle Single/All Boxes',
-          accelerator: 'b',
-          click: () => {
-            sendMenuCommand( 'toggle-single-all-boxes');
+          id: 'boxes-visible',
+          label: 'Show Bounding Boxes',
+          accelerator: 'Shift+B',
+          type: 'checkbox',
+          checked: true, // Default: visible
+          click: (menuItem) => {
+            sendMenuCommand(menuItem.checked ? 'boxes-show' : 'boxes-hide');
           }
         },
         {
-          label: 'Toggle Boxes On/Off',
-          accelerator: 'Shift+B',
-          click: () => {
-            sendMenuCommand( 'toggle-boxes-on-off');
+          id: 'boxes-all-faces',
+          label: 'Show All Faces',
+          accelerator: 'b',
+          type: 'checkbox',
+          checked: true, // Default: all faces (unchecked = single face)
+          click: (menuItem) => {
+            sendMenuCommand(menuItem.checked ? 'boxes-all' : 'boxes-single');
           }
         },
         { type: 'separator' },
@@ -172,17 +200,13 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Enable Auto-Center on Face',
+          id: 'auto-center',
+          label: 'Auto-Center on Face',
           accelerator: 'c',
-          click: () => {
-            sendMenuCommand( 'auto-center-enable');
-          }
-        },
-        {
-          label: 'Disable Auto-Center on Face',
-          accelerator: 'Shift+C',
-          click: () => {
-            sendMenuCommand( 'auto-center-disable');
+          type: 'checkbox',
+          checked: true, // Default: enabled
+          click: (menuItem) => {
+            sendMenuCommand(menuItem.checked ? 'auto-center-enable' : 'auto-center-disable');
           }
         },
         { type: 'separator' },
@@ -448,7 +472,28 @@ function createApplicationMenu(mainWindow) {
     }
   ];
 
-  return Menu.buildFromTemplate(template);
+  const menu = Menu.buildFromTemplate(template);
+
+  // Store references to checkbox menu items for state synchronization
+  // Menu.getMenuItemById requires the menu to be set as application menu first,
+  // so we iterate through the template to find items with IDs
+  const findMenuItemsWithId = (items) => {
+    for (const item of items) {
+      if (item.id) {
+        // Find the actual MenuItem in the built menu
+        const menuItem = menu.getMenuItemById(item.id);
+        if (menuItem) {
+          menuItemRefs[item.id] = menuItem;
+        }
+      }
+      if (item.submenu && Array.isArray(item.submenu)) {
+        findMenuItemsWithId(item.submenu);
+      }
+    }
+  };
+  findMenuItemsWithId(template);
+
+  return menu;
 }
 
 module.exports = { createApplicationMenu };

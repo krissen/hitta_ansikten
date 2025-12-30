@@ -352,27 +352,51 @@ export function ImageViewer() {
   }, []);
 
   // ============================================
+  // Menu State Sync Helper
+  // ============================================
+
+  const updateMenuState = useCallback((id, checked) => {
+    if (window.bildvisareAPI?.send) {
+      window.bildvisareAPI.send('update-menu-state', { id, checked });
+    }
+  }, []);
+
+  // ============================================
   // Face Box Toggle Functions
   // ============================================
 
+  const setBoxMode = useCallback((mode) => {
+    setFaceBoxMode(mode);
+    // Sync menu states
+    updateMenuState('boxes-visible', mode !== 'none');
+    updateMenuState('boxes-all-faces', mode === 'all');
+  }, [updateMenuState]);
+
   const toggleSingleAll = useCallback(() => {
     setFaceBoxMode(mode => {
-      if (mode === 'single') return 'all';
-      if (mode === 'all') return 'single';
-      return 'all';
+      const newMode = mode === 'single' ? 'all' : (mode === 'all' ? 'single' : 'all');
+      // Sync menu state
+      updateMenuState('boxes-all-faces', newMode === 'all');
+      return newMode;
     });
-  }, []);
+  }, [updateMenuState]);
 
   const toggleOnOff = useCallback(() => {
     setFaceBoxMode(mode => {
       if (mode === 'none') {
-        return previousFaceBoxModeRef.current || 'all';
+        const newMode = previousFaceBoxModeRef.current || 'all';
+        // Sync menu states
+        updateMenuState('boxes-visible', true);
+        updateMenuState('boxes-all-faces', newMode === 'all');
+        return newMode;
       } else {
         previousFaceBoxModeRef.current = mode;
+        // Sync menu state
+        updateMenuState('boxes-visible', false);
         return 'none';
       }
     });
-  }, []);
+  }, [updateMenuState]);
 
   // ============================================
   // Auto-center on face
@@ -420,10 +444,12 @@ export function ImageViewer() {
     const newValue = enable === undefined ? !autoCenterOnFace : enable;
     console.log(`[ImageViewer] Auto-center ${newValue ? 'ENABLED' : 'DISABLED'}`);
     setAutoCenterOnFace(newValue);
+    // Sync menu state
+    updateMenuState('auto-center', newValue);
     if (newValue) {
       centerOnActiveFace();
     }
-  }, [autoCenterOnFace, centerOnActiveFace]);
+  }, [autoCenterOnFace, centerOnActiveFace, updateMenuState]);
 
   // ============================================
   // Event Handlers
@@ -569,14 +595,29 @@ export function ImageViewer() {
   });
 
   // Menu command events
-  useModuleEvent('toggle-single-all-boxes', toggleSingleAll);
-  useModuleEvent('toggle-boxes-on-off', toggleOnOff);
+  useModuleEvent('toggle-single-all-boxes', toggleSingleAll); // Legacy support
+  useModuleEvent('toggle-boxes-on-off', toggleOnOff); // Legacy support
+  useModuleEvent('boxes-show', () => setBoxMode(previousFaceBoxModeRef.current || 'all'));
+  useModuleEvent('boxes-hide', () => setBoxMode('none'));
+  useModuleEvent('boxes-all', () => setBoxMode('all'));
+  useModuleEvent('boxes-single', () => setBoxMode('single'));
   useModuleEvent('zoom-in', () => zoom(ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y));
   useModuleEvent('zoom-out', () => zoom(1 / ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y));
   useModuleEvent('reset-zoom', resetZoom);
   useModuleEvent('auto-fit', autoFit);
   useModuleEvent('auto-center-enable', () => toggleAutoCenterOnFace(true));
   useModuleEvent('auto-center-disable', () => toggleAutoCenterOnFace(false));
+
+  // ============================================
+  // Sync menu state on mount
+  // ============================================
+
+  useEffect(() => {
+    // Sync initial state to menu
+    updateMenuState('auto-center', autoCenterOnFace);
+    updateMenuState('boxes-visible', faceBoxMode !== 'none');
+    updateMenuState('boxes-all-faces', faceBoxMode === 'all');
+  }, []); // Only on mount
 
   // ============================================
   // Render on state change
