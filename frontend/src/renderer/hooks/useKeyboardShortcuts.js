@@ -92,7 +92,10 @@ export function useKeyboardShortcuts(shortcuts, options = {}, deps = []) {
  */
 export function useKeyHold(key, callbacks, options = {}) {
   const { holdDelay = 200, repeatInterval = 16 } = options;
-  const { onStart, onHold, onEnd } = callbacks;
+
+  // Use refs to store latest callbacks to avoid re-subscribing on every render
+  const callbacksRef = useRef(callbacks);
+  callbacksRef.current = callbacks;
 
   const isHoldingRef = useRef(false);
   const holdTimeoutRef = useRef(null);
@@ -107,16 +110,20 @@ export function useKeyHold(key, callbacks, options = {}) {
       event.preventDefault();
 
       // Call onStart immediately
-      if (onStart) onStart(event);
+      if (callbacksRef.current.onStart) {
+        callbacksRef.current.onStart(event);
+      }
 
       // Start hold detection after delay
       holdTimeoutRef.current = setTimeout(() => {
         isHoldingRef.current = true;
-        if (onHold) {
-          // Call onHold repeatedly
+        if (callbacksRef.current.onHold) {
+          // Call onHold immediately when hold starts
+          callbacksRef.current.onHold(event);
+          // Then call repeatedly
           repeatIntervalRef.current = setInterval(() => {
-            if (isHoldingRef.current) {
-              onHold(event);
+            if (isHoldingRef.current && callbacksRef.current.onHold) {
+              callbacksRef.current.onHold(event);
             }
           }, repeatInterval);
         }
@@ -140,7 +147,9 @@ export function useKeyHold(key, callbacks, options = {}) {
       const wasHolding = isHoldingRef.current;
       isHoldingRef.current = false;
 
-      if (onEnd) onEnd(event, wasHolding);
+      if (callbacksRef.current.onEnd) {
+        callbacksRef.current.onEnd(event, wasHolding);
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -154,7 +163,7 @@ export function useKeyHold(key, callbacks, options = {}) {
       if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
       if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current);
     };
-  }, [key, onStart, onHold, onEnd, holdDelay, repeatInterval]);
+  }, [key, holdDelay, repeatInterval]); // Only re-subscribe when key or timing options change
 }
 
 export default useKeyboardShortcuts;
