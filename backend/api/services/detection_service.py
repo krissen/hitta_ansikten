@@ -288,8 +288,31 @@ class DetectionService:
         width = bounding_box['width']
         height = bounding_box['height']
 
-        # Crop to bounding box
-        cropped = rgb[y:y+height, x:x+width]
+        # Get image dimensions
+        img_height, img_width = rgb.shape[:2]
+
+        # Handle negative coordinates or out-of-bounds by padding with black
+        # Calculate the valid region within the image
+        src_x1 = max(0, x)
+        src_y1 = max(0, y)
+        src_x2 = min(img_width, x + width)
+        src_y2 = min(img_height, y + height)
+
+        # Calculate where to place in the output canvas
+        dst_x1 = src_x1 - x
+        dst_y1 = src_y1 - y
+        dst_x2 = dst_x1 + (src_x2 - src_x1)
+        dst_y2 = dst_y1 + (src_y2 - src_y1)
+
+        # Create black canvas of requested size
+        import numpy as np
+        cropped = np.zeros((height, width, 3), dtype=np.uint8)
+
+        # Copy the valid region if there's any overlap
+        if src_x2 > src_x1 and src_y2 > src_y1:
+            cropped[dst_y1:dst_y2, dst_x1:dst_x2] = rgb[src_y1:src_y2, src_x1:src_x2]
+        else:
+            logger.warning(f"[DetectionService] Bounding box completely outside image: ({x},{y},{width},{height})")
 
         # Convert to PIL Image
         img = Image.fromarray(cropped)
