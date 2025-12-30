@@ -382,6 +382,19 @@ export class PreferencesUI {
               <small>How review results are written to database</small>
             </div>
           </div>
+
+            <!-- File Queue Settings -->
+            <div class="pref-section">
+              <h3>File Queue</h3>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-fileQueue-autoLoadOnStartup" />
+                  Auto-load from queue on startup
+                </label>
+                <small>Automatically load first pending file when app starts with files in queue</small>
+              </div>
+            </div>
           </div>
 
           <!-- Advanced Tab Panel -->
@@ -1066,6 +1079,9 @@ export class PreferencesUI {
     this.setValue('reviewModule-showConfidenceScores', this.tempPrefs.reviewModule.showConfidenceScores);
     this.setValue('reviewModule-saveMode', this.tempPrefs.reviewModule.saveMode);
 
+    // File Queue settings
+    this.setValue('fileQueue-autoLoadOnStartup', this.tempPrefs.fileQueue?.autoLoadOnStartup ?? true);
+
     // Layout settings
     this.setValue('layout-defaultGridPreset', this.tempPrefs.layout.defaultGridPreset);
     this.setValue('layout-defaultTemplate', this.tempPrefs.layout.defaultTemplate);
@@ -1209,6 +1225,10 @@ export class PreferencesUI {
     this.tempPrefs.reviewModule.defaultAction = this.getValue('reviewModule-defaultAction');
     this.tempPrefs.reviewModule.showConfidenceScores = this.getValue('reviewModule-showConfidenceScores');
     this.tempPrefs.reviewModule.saveMode = this.getValue('reviewModule-saveMode');
+
+    // File Queue settings
+    if (!this.tempPrefs.fileQueue) this.tempPrefs.fileQueue = {};
+    this.tempPrefs.fileQueue.autoLoadOnStartup = this.getValue('fileQueue-autoLoadOnStartup');
 
     this.tempPrefs.layout.defaultGridPreset = this.getValue('layout-defaultGridPreset');
     this.tempPrefs.layout.defaultTemplate = this.getValue('layout-defaultTemplate');

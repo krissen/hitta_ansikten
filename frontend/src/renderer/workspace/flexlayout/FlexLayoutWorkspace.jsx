@@ -952,6 +952,67 @@ export function FlexLayoutWorkspace() {
     };
   }, [model, openModule, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
 
+  // Track if we've already done the startup auto-load
+  const startupAutoLoadDone = useRef(false);
+
+  // Auto-load first file from queue on startup (runs at app level, not inside FileQueue)
+  useEffect(() => {
+    if (!model || !moduleAPI) return;
+    if (startupAutoLoadDone.current) return;
+    startupAutoLoadDone.current = true;
+
+    // Check if auto-load is enabled in preferences
+    let autoLoadEnabled = true;
+    try {
+      const prefs = localStorage.getItem('bildvisare-preferences');
+      if (prefs) {
+        const parsed = JSON.parse(prefs);
+        autoLoadEnabled = parsed.fileQueue?.autoLoadOnStartup ?? true;
+      }
+    } catch (e) { /* ignore */ }
+
+    if (!autoLoadEnabled) {
+      debug('FlexLayout', 'Queue auto-load disabled in preferences');
+      return;
+    }
+
+    // Check for saved queue
+    try {
+      const saved = localStorage.getItem('bildvisare-file-queue');
+      if (!saved) return;
+
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed.queue) || parsed.queue.length === 0) return;
+
+      // Find first pending file
+      let indexToLoad = parsed.currentIndex ?? -1;
+      if (indexToLoad < 0 || indexToLoad >= parsed.queue.length) {
+        indexToLoad = parsed.queue.findIndex(item => item.status === 'pending');
+      }
+      if (indexToLoad >= 0 && parsed.queue[indexToLoad]?.status === 'completed') {
+        const nextPending = parsed.queue.findIndex((item, i) => i > indexToLoad && item.status === 'pending');
+        indexToLoad = nextPending >= 0 ? nextPending : parsed.queue.findIndex(item => item.status === 'pending');
+      }
+
+      if (indexToLoad >= 0) {
+        const item = parsed.queue[indexToLoad];
+        debug('FlexLayout', 'Auto-loading file from queue:', item.filePath);
+
+        // Delay to ensure modules are mounted and ready
+        setTimeout(() => {
+          moduleAPI.emit('load-image', { imagePath: item.filePath });
+
+          // Update queue state in localStorage to mark as active
+          parsed.currentIndex = indexToLoad;
+          parsed.queue[indexToLoad].status = 'active';
+          localStorage.setItem('bildvisare-file-queue', JSON.stringify(parsed));
+        }, 500);
+      }
+    } catch (err) {
+      debugError('FlexLayout', 'Failed to auto-load from queue:', err);
+    }
+  }, [model, moduleAPI]); // Only run once when model and moduleAPI are ready
+
   if (!model) {
     return (
       <div style={{

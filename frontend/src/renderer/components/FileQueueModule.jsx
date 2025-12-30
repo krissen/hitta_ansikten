@@ -15,6 +15,20 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './FileQueueModule.css';
 
+// Read preference directly from localStorage to avoid circular dependency
+const getAutoLoadPreference = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      return prefs.fileQueue?.autoLoadOnStartup ?? true;
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return true; // Default to enabled
+};
+
 // Generate simple unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -37,6 +51,10 @@ export function FileQueueModule() {
   const currentFileRef = useRef(null);
   const queueRef = useRef(queue); // Keep current queue in ref for callbacks
   queueRef.current = queue; // Sync on every render (not just in useEffect)
+
+  // Auto-load state for restoration
+  const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
+  const savedIndexRef = useRef(-1);
 
   // Load processed files from backend on mount
   const loadProcessedFiles = useCallback(async () => {
@@ -64,18 +82,59 @@ export function FileQueueModule() {
       const saved = localStorage.getItem('bildvisare-file-queue');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.queue)) {
+        if (Array.isArray(parsed.queue) && parsed.queue.length > 0) {
           setQueue(parsed.queue);
-          setCurrentIndex(parsed.currentIndex ?? -1);
+          // Don't restore currentIndex - we'll auto-load in a separate effect
           setAutoAdvance(parsed.autoAdvance ?? true);
           setFixMode(parsed.fixMode ?? false);
-          debug('FileQueue', 'Restored queue with', parsed.queue.length, 'files');
+          // Save the index we want to resume from
+          savedIndexRef.current = parsed.currentIndex ?? -1;
+          setShouldAutoLoad(true);
+          debug('FileQueue', 'Restored queue with', parsed.queue.length, 'files, will auto-load');
         }
       }
     } catch (err) {
       debugError('FileQueue', 'Failed to load saved queue:', err);
     }
   }, []);
+
+  // State to store pending auto-load index (triggers effect when set)
+  const [pendingAutoLoad, setPendingAutoLoad] = useState(-1);
+
+  // Auto-load effect - runs after queue is restored from localStorage
+  // Sets pendingAutoLoad, actual load happens in a later effect
+  useEffect(() => {
+    if (shouldAutoLoad && queue.length > 0) {
+      setShouldAutoLoad(false);
+
+      // Check if auto-load is enabled in preferences
+      if (!getAutoLoadPreference()) {
+        debug('FileQueue', 'Auto-load disabled in preferences');
+        return;
+      }
+
+      // Determine which file to load
+      let indexToLoad = savedIndexRef.current;
+
+      // Validate the saved index
+      if (indexToLoad < 0 || indexToLoad >= queue.length) {
+        indexToLoad = queue.findIndex(item => item.status === 'pending');
+      }
+
+      // If saved index was completed, find next pending
+      if (indexToLoad >= 0 && queue[indexToLoad]?.status === 'completed') {
+        const nextPending = queue.findIndex((item, i) => i > indexToLoad && item.status === 'pending');
+        indexToLoad = nextPending >= 0 ? nextPending : queue.findIndex(item => item.status === 'pending');
+      }
+
+      if (indexToLoad >= 0) {
+        debug('FileQueue', 'Will auto-load file at index', indexToLoad);
+        setPendingAutoLoad(indexToLoad);
+      } else {
+        debug('FileQueue', 'No pending files to auto-load');
+      }
+    }
+  }, [shouldAutoLoad, queue]);
 
   // Save queue to localStorage on change
   useEffect(() => {
@@ -158,11 +217,24 @@ export function FileQueueModule() {
       return;
     }
 
-    // Ensure ImageViewer is open (it needs to be mounted to receive events)
-    if (window.workspace?.openModule) {
-      window.workspace.openModule('image-viewer');
-      // Small delay to let it mount
-      await new Promise(resolve => setTimeout(resolve, 50));
+    // Check if ImageViewer already exists in the workspace
+    const workspace = window.workspace;
+    let hasImageViewer = false;
+
+    if (workspace?.model) {
+      // FlexLayout model - find existing image-viewer tab
+      workspace.model.visitNodes(node => {
+        if (node.getComponent?.() === 'image-viewer') {
+          hasImageViewer = true;
+        }
+      });
+    }
+
+    // Only open a new ImageViewer if none exists (manual file selection, not auto-load)
+    if (!hasImageViewer && workspace?.openModule) {
+      debug('FileQueue', 'No ImageViewer found, opening one');
+      workspace.openModule('image-viewer');
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     const item = currentQueue[index];
@@ -195,6 +267,28 @@ export function FileQueueModule() {
     debug('FileQueue', 'Emitting load-image for:', item.filePath);
     emit('load-image', { imagePath: item.filePath });
   }, [fixMode, api, loadProcessedFiles, emit]);
+
+  // Execute pending auto-load (after loadFile is defined)
+  useEffect(() => {
+    if (pendingAutoLoad >= 0) {
+      const indexToLoad = pendingAutoLoad;
+      setPendingAutoLoad(-1); // Clear to prevent re-trigger
+
+      // Wait for workspace to be fully ready before loading
+      const waitForWorkspace = () => {
+        if (window.workspace?.openModule) {
+          debug('FileQueue', 'Workspace ready, auto-loading file at index', indexToLoad);
+          loadFile(indexToLoad);
+        } else {
+          debug('FileQueue', 'Waiting for workspace to be ready...');
+          setTimeout(waitForWorkspace, 100);
+        }
+      };
+
+      // Initial delay to let FlexLayout fully initialize
+      setTimeout(waitForWorkspace, 500);
+    }
+  }, [pendingAutoLoad, loadFile]);
 
   // Advance to next file
   const advanceToNext = useCallback(() => {
