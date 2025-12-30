@@ -106,6 +106,7 @@ export function useKeyHold(key, callbacks, options = {}) {
   const lastTapTimeRef = useRef(0);
   const doubleTapTimeoutRef = useRef(null);
   const pendingSingleTapRef = useRef(null);
+  const justDoubleTappedRef = useRef(false); // Prevent extra tap after double-tap
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -116,17 +117,19 @@ export function useKeyHold(key, callbacks, options = {}) {
       event.preventDefault();
 
       const now = Date.now();
-      const timeSinceLastTap = now - lastTapTimeRef.current;
 
-      // Check for double-tap
-      if (timeSinceLastTap < doubleTapDelay && callbacksRef.current.onDoubleTap) {
-        // Cancel pending single tap
+      // Check for double-tap: if there's a pending single tap waiting, this is the second tap
+      if (pendingSingleTapRef.current && callbacksRef.current.onDoubleTap) {
+        // Cancel pending single tap timeout
         if (doubleTapTimeoutRef.current) {
           clearTimeout(doubleTapTimeoutRef.current);
           doubleTapTimeoutRef.current = null;
         }
+        // Fire double-tap callback
+        callbacksRef.current.onDoubleTap(event);
         pendingSingleTapRef.current = null;
         lastTapTimeRef.current = 0; // Reset to prevent triple-tap issues
+        justDoubleTappedRef.current = true; // Flag to skip keyUp handling
         // Don't start hold detection for double-tap
         return;
       }
@@ -141,6 +144,13 @@ export function useKeyHold(key, callbacks, options = {}) {
       // Start hold detection after delay
       holdTimeoutRef.current = setTimeout(() => {
         isHoldingRef.current = true;
+        // Cancel pending single tap if we're now holding
+        if (doubleTapTimeoutRef.current) {
+          clearTimeout(doubleTapTimeoutRef.current);
+          doubleTapTimeoutRef.current = null;
+        }
+        pendingSingleTapRef.current = null;
+
         if (callbacksRef.current.onHold) {
           // Call onHold immediately when hold starts
           callbacksRef.current.onHold(event);
@@ -170,23 +180,23 @@ export function useKeyHold(key, callbacks, options = {}) {
       const wasHolding = isHoldingRef.current;
       isHoldingRef.current = false;
 
-      const now = Date.now();
-      const timeSinceLastTap = now - lastTapTimeRef.current;
+      // If we just processed a double-tap, ignore this keyUp
+      if (justDoubleTappedRef.current) {
+        justDoubleTappedRef.current = false;
+        return;
+      }
 
-      // If this is a quick tap (not held) and we have double-tap handler
-      if (!wasHolding && callbacksRef.current.onDoubleTap && timeSinceLastTap < doubleTapDelay) {
-        // Check if there was a recent tap (this could be the second tap)
-        if (pendingSingleTapRef.current) {
-          // This is a double-tap - cancel pending single tap and fire double-tap
-          clearTimeout(doubleTapTimeoutRef.current);
-          doubleTapTimeoutRef.current = null;
-          pendingSingleTapRef.current = null;
-          lastTapTimeRef.current = 0;
-          callbacksRef.current.onDoubleTap(event);
-          return;
+      // If we're holding, just call onEnd and done
+      if (wasHolding) {
+        if (callbacksRef.current.onEnd) {
+          callbacksRef.current.onEnd(event, true);
         }
+        return;
+      }
 
-        // First tap - wait to see if there's a second
+      // Not holding - this is a tap
+      // If we have double-tap handler, wait to see if there's a second tap
+      if (callbacksRef.current.onDoubleTap) {
         pendingSingleTapRef.current = event;
         doubleTapTimeoutRef.current = setTimeout(() => {
           // No second tap came - fire single tap
@@ -199,9 +209,9 @@ export function useKeyHold(key, callbacks, options = {}) {
         return;
       }
 
-      // Normal end (was holding or no double-tap handler)
+      // No double-tap handler, just fire onEnd immediately
       if (callbacksRef.current.onEnd) {
-        callbacksRef.current.onEnd(event, wasHolding);
+        callbacksRef.current.onEnd(event, false);
       }
     };
 
