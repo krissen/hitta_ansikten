@@ -35,6 +35,7 @@ export function ReviewModule() {
   // Refs
   const gridRef = useRef(null);
   const inputRefs = useRef({});
+  const cardRefs = useRef({});
 
   /**
    * Load people names for autocomplete
@@ -253,6 +254,16 @@ export function ReviewModule() {
   }, [detectedFaces, pendingConfirmations.length, pendingIgnores.length]);
 
   /**
+   * Auto-scroll to active face when navigating
+   */
+  useEffect(() => {
+    const cardEl = cardRefs.current[currentFaceIndex];
+    if (cardEl) {
+      cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [currentFaceIndex]);
+
+  /**
    * Keyboard handler
    */
   useEffect(() => {
@@ -380,6 +391,7 @@ export function ReviewModule() {
               isActive={index === currentFaceIndex}
               imagePath={currentImagePath}
               people={people}
+              cardRef={(el) => { cardRefs.current[index] = el; }}
               inputRef={(el) => { inputRefs.current[index] = el; }}
               onSelect={() => {
                 setCurrentFaceIndex(index);
@@ -398,7 +410,7 @@ export function ReviewModule() {
 /**
  * FaceCard Component
  */
-function FaceCard({ face, index, isActive, imagePath, people, inputRef, onSelect, onConfirm, onIgnore }) {
+function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore }) {
   const [inputValue, setInputValue] = useState(face.person_name || '');
   const { api } = useBackend();
 
@@ -418,7 +430,7 @@ function FaceCard({ face, index, isActive, imagePath, people, inputRef, onSelect
   ].filter(Boolean).join(' ');
 
   return (
-    <div className={cardClass} onClick={onSelect}>
+    <div ref={cardRef} className={cardClass} onClick={onSelect}>
       <div className="face-number">{index + 1}</div>
       {isActive && (
         <div className="keyboard-hint">R=Write A=Accept I=Ignore</div>
