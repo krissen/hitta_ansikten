@@ -99,6 +99,8 @@ export function ImageViewer() {
         setZoomFactor(1);
         setPan({ x: 0, y: 0 });
         setIsLoading(false);
+
+
         resolve();
       };
 
@@ -288,6 +290,7 @@ export function ImageViewer() {
 
   const zoom = useCallback((factor, centerX = null, centerY = null) => {
     if (!image) return;
+    const startTime = performance.now();
 
     let newZoomFactor = zoomFactor;
     let newPan = { ...pan };
@@ -630,6 +633,32 @@ export function ImageViewer() {
   useEffect(() => {
     render();
   }, [render]);
+
+  // ============================================
+  // Warm-up: JIT-compile zoom code on first image load
+  // ============================================
+
+  const hasWarmedUpRef = useRef(false);
+
+  useEffect(() => {
+    if (!image || hasWarmedUpRef.current) return;
+
+    // Wait for first render, then do a tiny zoom to trigger JIT compilation
+    const warmupTimer = setTimeout(() => {
+      if (!hasWarmedUpRef.current) {
+        hasWarmedUpRef.current = true;
+        // Trigger zoom code path with imperceptible zoom
+        zoom(1.0001);
+        // Immediately reset
+        requestAnimationFrame(() => {
+          setZoomMode('auto');
+          setPan({ x: 0, y: 0 });
+        });
+      }
+    }, 100);
+
+    return () => clearTimeout(warmupTimer);
+  }, [image, zoom]);
 
   // ============================================
   // Render

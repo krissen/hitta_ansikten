@@ -142,6 +142,7 @@ export function useKeyHold(key, callbacks, options = {}) {
       }
 
       // Start hold detection after delay
+      const holdStartTime = performance.now();
       holdTimeoutRef.current = setTimeout(() => {
         isHoldingRef.current = true;
         // Cancel pending single tap if we're now holding
@@ -154,12 +155,27 @@ export function useKeyHold(key, callbacks, options = {}) {
         if (callbacksRef.current.onHold) {
           // Call onHold immediately when hold starts
           callbacksRef.current.onHold(event);
-          // Then call repeatedly
-          repeatIntervalRef.current = setInterval(() => {
-            if (isHoldingRef.current && callbacksRef.current.onHold) {
-              callbacksRef.current.onHold(event);
+
+          // Use requestAnimationFrame for smoother animation than setInterval
+          let lastCallTime = performance.now();
+          const animationLoop = () => {
+            if (!isHoldingRef.current) return;
+
+            const now = performance.now();
+            const elapsed = now - lastCallTime;
+
+            // Call onHold at roughly repeatInterval rate
+            if (elapsed >= repeatInterval) {
+              if (callbacksRef.current.onHold) {
+                callbacksRef.current.onHold(event);
+              }
+              lastCallTime = now;
             }
-          }, repeatInterval);
+
+            // Continue the loop
+            repeatIntervalRef.current = requestAnimationFrame(animationLoop);
+          };
+          repeatIntervalRef.current = requestAnimationFrame(animationLoop);
         }
       }, holdDelay);
     };
@@ -173,7 +189,7 @@ export function useKeyHold(key, callbacks, options = {}) {
         holdTimeoutRef.current = null;
       }
       if (repeatIntervalRef.current) {
-        clearInterval(repeatIntervalRef.current);
+        cancelAnimationFrame(repeatIntervalRef.current);
         repeatIntervalRef.current = null;
       }
 
