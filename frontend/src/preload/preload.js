@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld("bildvisareAPI", {
   },
 
   on: (channel, callback) => {
-    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed"];
+    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files"];
     if (allowedChannels.includes(channel)) {
       // Strip event object for security
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld("bildvisareAPI", {
       "open-file-dialog",
       "open-multi-file-dialog",
       "open-folder-dialog",
+      "expand-glob",
       "check-file-changed",
       "convert-nef",
       "get-initial-file"

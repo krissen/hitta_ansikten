@@ -96,7 +96,8 @@ export function FileQueueModule() {
   }, [processedFiles]);
 
   // Add files to queue
-  const addFiles = useCallback((filePaths) => {
+  // position: 'end' (default) or 'start'
+  const addFiles = useCallback((filePaths, position = 'end') => {
     if (!filePaths || filePaths.length === 0) return;
 
     const newItems = filePaths.map(filePath => {
@@ -115,10 +116,13 @@ export function FileQueueModule() {
       // Dedupe by filePath
       const existingPaths = new Set(prev.map(item => item.filePath));
       const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
+      if (position === 'start') {
+        return [...uniqueNew, ...prev];
+      }
       return [...prev, ...uniqueNew];
     });
 
-    console.log('[FileQueue] Added', newItems.length, 'files');
+    console.log('[FileQueue] Added', newItems.length, 'files at', position);
   }, [isFileProcessed]);
 
   // Remove file from queue
@@ -273,6 +277,53 @@ export function FileQueueModule() {
       console.error('[FileQueue] Failed to open file dialog:', err);
     }
   }, [addFiles, queue.length, loadFile]);
+
+  // Listen for files from main process (command line arguments)
+  useEffect(() => {
+    const handleQueueFiles = ({ files, position, startQueue }) => {
+      console.log(`[FileQueue] Received ${files.length} files from main process (position: ${position})`);
+      addFiles(files, position || 'end');
+      if (startQueue && files.length > 0) {
+        setTimeout(() => loadFile(0), 100);
+      }
+    };
+
+    window.bildvisareAPI?.on('queue-files', handleQueueFiles);
+    // Note: No cleanup needed as Electron IPC listeners persist
+  }, [addFiles, loadFile]);
+
+  // Expose fileQueue API globally for programmatic access
+  useEffect(() => {
+    // Helper to expand glob patterns
+    const expandAndAdd = async (pattern, position) => {
+      if (pattern.includes('*') || pattern.includes('?')) {
+        // It's a glob pattern - expand it
+        const files = await window.bildvisareAPI?.invoke('expand-glob', pattern);
+        if (files && files.length > 0) {
+          addFiles(files, position);
+          console.log(`[FileQueue] Expanded glob "${pattern}" to ${files.length} files`);
+        } else {
+          console.warn(`[FileQueue] No files matched pattern "${pattern}"`);
+        }
+      } else {
+        // Direct path(s)
+        addFiles(Array.isArray(pattern) ? pattern : [pattern], position);
+      }
+    };
+
+    window.fileQueue = {
+      add: (pattern, position = 'end') => expandAndAdd(pattern, position),
+      addToStart: (pattern) => expandAndAdd(pattern, 'start'),
+      addToEnd: (pattern) => expandAndAdd(pattern, 'end'),
+      clear: clearQueue,
+      clearCompleted: clearCompleted,
+      loadFile: loadFile,
+      start: () => { if (queueRef.current.length > 0) loadFile(0); },
+      getQueue: () => queueRef.current,
+      getCurrentIndex: () => currentIndex
+    };
+    return () => { delete window.fileQueue; };
+  }, [addFiles, clearQueue, clearCompleted, loadFile, currentIndex]);
 
   // Scroll active item into view
   useEffect(() => {
