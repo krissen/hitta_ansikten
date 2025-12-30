@@ -286,7 +286,18 @@ export function FlexLayoutWorkspace() {
     }
   }, []);
 
-  // Open a new module tab
+  // Modules that are singletons (only one instance allowed, switch to existing)
+  // These modules show content related to "the current file" or global state
+  const SINGLETON_MODULES = new Set([
+    'image-viewer',    // Shows current file being reviewed
+    'review-module',   // Shows faces for current file
+    'file-queue',      // Only one queue exists
+    'original-view'    // Shows original of current file
+  ]);
+
+  // Open a module tab
+  // - Singleton modules: reuses existing if found (unless forceNew is true)
+  // - Non-singleton modules: always creates new instance
   const openModule = useCallback((moduleId, options = {}) => {
     if (!model || !layoutRef.current) return;
 
@@ -294,6 +305,24 @@ export function FlexLayoutWorkspace() {
     if (!ModuleComponent) {
       debugError('FlexLayout', `Module not found: ${moduleId}`);
       return;
+    }
+
+    // Check if module is a singleton and already exists
+    const isSingleton = SINGLETON_MODULES.has(moduleId);
+    if (isSingleton && !options.forceNew) {
+      let existingTab = null;
+      model.visitNodes(node => {
+        if (node.getComponent?.() === moduleId && node.getType() === 'tab') {
+          existingTab = node;
+        }
+      });
+
+      if (existingTab) {
+        // Select the existing tab instead of creating a new one
+        model.doAction(Actions.selectTab(existingTab.getId()));
+        debug('FlexLayout', `Focused existing singleton module: ${moduleId}`);
+        return;
+      }
     }
 
     const tabJson = {
@@ -309,7 +338,7 @@ export function FlexLayoutWorkspace() {
       model.doAction(Actions.addNode(tabJson, activeTabset.getId(), DockLocation.CENTER, -1));
     }
 
-    debug('FlexLayout', `Opened module: ${moduleId}`);
+    debug('FlexLayout', `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`);
   }, [model]);
 
   // Close a panel by ID
