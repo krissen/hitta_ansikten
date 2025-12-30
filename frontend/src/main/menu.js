@@ -206,18 +206,8 @@ function createApplicationMenu(mainWindow) {
           type: 'checkbox',
           checked: true, // Default: enabled
           click: (menuItem) => {
+            // Menu click toggles the setting
             sendMenuCommand(menuItem.checked ? 'auto-center-enable' : 'auto-center-disable');
-          }
-        },
-        {
-          label: 'Disable Auto-Center',
-          accelerator: 'Shift+C',
-          click: () => {
-            // Uncheck the auto-center checkbox
-            if (menuItemRefs['auto-center']) {
-              menuItemRefs['auto-center'].checked = false;
-            }
-            sendMenuCommand('auto-center-disable');
           }
         },
         { type: 'separator' },

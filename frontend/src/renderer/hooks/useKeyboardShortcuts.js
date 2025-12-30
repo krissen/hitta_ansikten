@@ -84,14 +84,17 @@ export function useKeyboardShortcuts(shortcuts, options = {}, deps = []) {
 }
 
 /**
- * Hook for key hold detection (e.g., zoom on +/- hold)
+ * Hook for key hold detection with double-tap support
  *
  * @param {string} key - The key to detect
- * @param {object} callbacks - { onStart, onHold, onEnd }
- * @param {object} options - { holdDelay: ms before hold starts, repeatInterval: ms between repeats }
+ * @param {object} callbacks - { onStart, onHold, onEnd, onDoubleTap }
+ * @param {object} options - { holdDelay, repeatInterval, doubleTapDelay }
+ *   - holdDelay: ms before hold starts (default: 200)
+ *   - repeatInterval: ms between repeats during hold (default: 16)
+ *   - doubleTapDelay: ms window for double-tap detection (default: 300)
  */
 export function useKeyHold(key, callbacks, options = {}) {
-  const { holdDelay = 200, repeatInterval = 16 } = options;
+  const { holdDelay = 200, repeatInterval = 16, doubleTapDelay = 300 } = options;
 
   // Use refs to store latest callbacks to avoid re-subscribing on every render
   const callbacksRef = useRef(callbacks);
@@ -100,6 +103,9 @@ export function useKeyHold(key, callbacks, options = {}) {
   const isHoldingRef = useRef(false);
   const holdTimeoutRef = useRef(null);
   const repeatIntervalRef = useRef(null);
+  const lastTapTimeRef = useRef(0);
+  const doubleTapTimeoutRef = useRef(null);
+  const pendingSingleTapRef = useRef(null);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -108,6 +114,24 @@ export function useKeyHold(key, callbacks, options = {}) {
       if (event.repeat) return; // Ignore OS key repeat
 
       event.preventDefault();
+
+      const now = Date.now();
+      const timeSinceLastTap = now - lastTapTimeRef.current;
+
+      // Check for double-tap
+      if (timeSinceLastTap < doubleTapDelay && callbacksRef.current.onDoubleTap) {
+        // Cancel pending single tap
+        if (doubleTapTimeoutRef.current) {
+          clearTimeout(doubleTapTimeoutRef.current);
+          doubleTapTimeoutRef.current = null;
+        }
+        pendingSingleTapRef.current = null;
+        lastTapTimeRef.current = 0; // Reset to prevent triple-tap issues
+        // Don't start hold detection for double-tap
+        return;
+      }
+
+      lastTapTimeRef.current = now;
 
       // Call onStart immediately
       if (callbacksRef.current.onStart) {
@@ -133,7 +157,7 @@ export function useKeyHold(key, callbacks, options = {}) {
     const handleKeyUp = (event) => {
       if (event.key !== key) return;
 
-      // Clear timers
+      // Clear hold timers
       if (holdTimeoutRef.current) {
         clearTimeout(holdTimeoutRef.current);
         holdTimeoutRef.current = null;
@@ -143,10 +167,39 @@ export function useKeyHold(key, callbacks, options = {}) {
         repeatIntervalRef.current = null;
       }
 
-      // If we weren't holding, this was a tap
       const wasHolding = isHoldingRef.current;
       isHoldingRef.current = false;
 
+      const now = Date.now();
+      const timeSinceLastTap = now - lastTapTimeRef.current;
+
+      // If this is a quick tap (not held) and we have double-tap handler
+      if (!wasHolding && callbacksRef.current.onDoubleTap && timeSinceLastTap < doubleTapDelay) {
+        // Check if there was a recent tap (this could be the second tap)
+        if (pendingSingleTapRef.current) {
+          // This is a double-tap - cancel pending single tap and fire double-tap
+          clearTimeout(doubleTapTimeoutRef.current);
+          doubleTapTimeoutRef.current = null;
+          pendingSingleTapRef.current = null;
+          lastTapTimeRef.current = 0;
+          callbacksRef.current.onDoubleTap(event);
+          return;
+        }
+
+        // First tap - wait to see if there's a second
+        pendingSingleTapRef.current = event;
+        doubleTapTimeoutRef.current = setTimeout(() => {
+          // No second tap came - fire single tap
+          if (pendingSingleTapRef.current && callbacksRef.current.onEnd) {
+            callbacksRef.current.onEnd(pendingSingleTapRef.current, false);
+          }
+          pendingSingleTapRef.current = null;
+          doubleTapTimeoutRef.current = null;
+        }, doubleTapDelay);
+        return;
+      }
+
+      // Normal end (was holding or no double-tap handler)
       if (callbacksRef.current.onEnd) {
         callbacksRef.current.onEnd(event, wasHolding);
       }
@@ -162,8 +215,9 @@ export function useKeyHold(key, callbacks, options = {}) {
       // Cleanup timers
       if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
       if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current);
+      if (doubleTapTimeoutRef.current) clearTimeout(doubleTapTimeoutRef.current);
     };
-  }, [key, holdDelay, repeatInterval]); // Only re-subscribe when key or timing options change
+  }, [key, holdDelay, repeatInterval, doubleTapDelay]); // Only re-subscribe when key or timing options change
 }
 
 export default useKeyboardShortcuts;

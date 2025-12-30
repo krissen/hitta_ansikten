@@ -512,7 +512,8 @@ export function ImageViewer() {
   // Keyboard Shortcuts
   // ============================================
 
-  // Hold detection for continuous zoom
+  // Hold detection for continuous zoom with double-tap support
+  // Single tap: zoom step, Hold: continuous zoom, Double-tap +: 100% zoom
   useKeyHold('+', {
     onStart: () => {},
     onHold: () => zoom(CONTINUOUS_ZOOM_FACTOR, mousePosRef.current.x, mousePosRef.current.y),
@@ -520,9 +521,11 @@ export function ImageViewer() {
       if (!wasHolding) {
         zoom(ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y);
       }
-    }
+    },
+    onDoubleTap: () => resetZoom() // Double-tap + → 100% (1:1) zoom
   }, { holdDelay: ZOOM_HOLD_DELAY });
 
+  // Single tap: zoom step, Hold: continuous zoom, Double-tap -: fit-to-window
   useKeyHold('-', {
     onStart: () => {},
     onHold: () => zoom(1 / CONTINUOUS_ZOOM_FACTOR, mousePosRef.current.x, mousePosRef.current.y),
@@ -530,7 +533,8 @@ export function ImageViewer() {
       if (!wasHolding) {
         zoom(1 / ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y);
       }
-    }
+    },
+    onDoubleTap: () => autoFit() // Double-tap - → fit-to-window
   }, { holdDelay: ZOOM_HOLD_DELAY });
 
   useKeyboardShortcuts({
