@@ -311,3 +311,26 @@
 .control-btn.start:hover {
   background: #3a7bc8;
 }
+
+/* Preprocessing indicator */
+.preprocess-indicator {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.preprocess-indicator.loading {
+  color: #ff9800;
+  animation: spin 1s linear infinite;
+}
+
+.preprocess-indicator.error {
+  color: #f44336;
+  font-weight: bold;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
