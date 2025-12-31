@@ -2,3 +2,6 @@ node_modules
 Bildvisare-darwin-arm64
 Bildvisare-darwin-x64
 scripts/__pycache__/
+
+# Build output
+src/renderer/workspace/dist/

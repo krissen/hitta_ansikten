@@ -13,12 +13,9 @@ class DevToolsFocusManager {
     // Listen for DevTools open/close state from main process
     if (window.bildvisareAPI) {
       window.bildvisareAPI.on('devtools-state-changed', (isOpen) => {
-        console.log('[DevToolsFocus] DevTools state changed - open:', isOpen);
         this.isDevToolsOpen = isOpen;
         this.notifyListeners();
       });
-    } else {
-      console.warn('[DevToolsFocus] bildvisareAPI not available');
     }
   }
 
@@ -61,9 +58,8 @@ class DevToolsFocusManager {
    * Returns true if event should be ignored (DevTools is open OR input is focused)
    */
   shouldIgnoreKeyboardEvent(event) {
-    // DevTools is open - always ignore to prevent interference
+    // DevTools is open - ignore to prevent interference
     if (this.isDevToolsOpen) {
-      console.log('[DevToolsFocus] → Ignoring keyboard shortcut (DevTools is open):', event.key);
       return true;
     }
 

@@ -4,137 +4,148 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Bildvisare is an Electron-based image viewer for macOS with a unique capability: it monitors image files for changes and automatically refreshes the display.
+Bildvisare is an Electron-based modular workspace for image viewing and face review. It serves as the frontend companion to [hitta_ansikten](https://github.com/krissen/hitta_ansikten), a face detection application.
 
-**Relationship to hitta_ansikten:**
-This app serves as a companion viewer to [hitta_ansikten](https://github.com/krissen/hitta_ansikten) (located at `~/dev/hitta_ansikten`), a face detection application that processes photos. The typical workflow is:
-1. `hitta_ansikten` processes images, detects faces, and exports results
-2. `bildvisare` displays the processed images and automatically refreshes when files are updated
-3. User can press 'O' to open the original NEF file side-by-side for comparison
-4. Both windows can be synchronized for zoom/pan, enabling detailed comparison of before/after
+**Architecture:**
+- **Default mode**: Modular workspace with FlexLayout (React-based docking panels)
+- **Legacy mode**: Single-window image viewer (set `BILDVISARE_LEGACY=1`)
 
-The application supports a master-slave architecture where:
-- **Master window**: Displays processed images and watches for updates
-- **Slave window**: Displays original images (with NEF-to-JPG conversion support)
-- Windows can be synchronized (zoom, pan, scroll) or detached for independent viewing
-
-## Core Architecture
-
-### File Structure
-- `main.js` - Electron main process: window management, file watching, NEF conversion, IPC handling
-- `renderer.js` - Renderer process: image display, zoom controls, view synchronization
-- `index.html` - Minimal HTML shell for the image viewer
-- `package.json` - Project dependencies (Electron only)
-- `scripts/nef2jpg.py` - Python script for converting Nikon RAW (NEF) files to JPG
-- `assets/` - Application assets and resources
-
-### Key Features
-1. **File Monitoring**: Watches image files and reloads when modified (1-second polling in renderer.js:324-347)
-2. **Dual Instance Support**: Main and slave instances communicate via IPC and status files
-3. **NEF Conversion**: Automatically converts Nikon RAW files to JPG using external Python script
-4. **View Synchronization**: Master and slave windows sync zoom/pan in real-time (can be detached with 'X' key)
-5. **Status Files**: Communication between instances via JSON files in `~/Library/Application Support/bildvisare/`
-
-### Status File System
-- `status.json` - Current state of main window (file opened, timestamps)
-- `original_status.json` - Slave window status (source NEF, exported JPG path)
-- Main instance polls `original_status.json` every 1.5s to auto-launch slave viewers
-
-### External Dependencies
-
-**hitta_ansikten repository:**
-- Location: `~/dev/hitta_ansikten`
-- This is the companion face detection application that bildvisare is designed to work with
-- Bildvisare works as a viewer for images processed by hitta_ansikten
-
-**Python dependencies for NEF conversion:**
-- Python interpreter: `/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3` (hardcoded in main.js:41)
-- Conversion script: `scripts/nef2jpg.py` (located in this repository)
-- Required Python packages: `rawpy`, `pillow` (PIL)
-- The script converts Nikon RAW (NEF) files to JPG for display in the slave viewer
-- Install dependencies: `pip install rawpy pillow`
-
-**Testing NEF conversion:**
-- Test NEF files available in: `~/Pictures/nerladdat/`
-- Test script directly:
-  ```bash
-  # Basic conversion
-  python3 scripts/nef2jpg.py ~/Pictures/nerladdat/[some-file].NEF /tmp/output.jpg
-
-  # With verbose logging
-  python3 scripts/nef2jpg.py --verbose ~/Pictures/nerladdat/[some-file].NEF /tmp/output.jpg
-
-  # With custom quality
-  python3 scripts/nef2jpg.py --quality 85 ~/Pictures/nerladdat/[some-file].NEF /tmp/output.jpg
-  ```
+The typical workflow:
+1. `hitta_ansikten` (backend) processes images, detects faces
+2. Bildvisare displays the processed images with face bounding boxes
+3. User reviews faces, confirms/rejects matches
+4. Changes saved back to the database
 
 ## Development Commands
 
-### Run the app
+### Run the app (default: workspace mode)
 ```bash
+cd frontend
+npm run build:workspace  # Build FlexLayout bundle
 npx electron .
+```
+
+### Run legacy mode
+```bash
+BILDVISARE_LEGACY=1 npx electron .
+```
+
+### Watch mode (auto-rebuild on changes)
+```bash
+npm run watch:workspace
 ```
 
 ### Build for distribution
 ```bash
-# Install electron-packager if needed
 npm install --save-dev electron-packager
-
-# Build for macOS (both architectures)
 npx electron-packager . Bildvisare --platform=darwin --arch=x64,arm64 --overwrite
 ```
 
-### Open with a specific image
-```bash
-npx electron . /path/to/image.jpg
+## Core Architecture
+
+### File Structure
+
+**Main Process:**
+- `main.js` - Bootstrap (workspace vs legacy mode selector)
+- `src/main/index.js` - Workspace main process
+- `src/main/menu.js` - Application menu with keyboard shortcuts
+- `src/main/backend-service.js` - FastAPI backend auto-start
+
+**Renderer (FlexLayout Workspace):**
+- `src/renderer/workspace-flex.html` - FlexLayout HTML entry
+- `src/renderer/workspace/flexlayout/` - React components
+  - `FlexLayoutWorkspace.jsx` - Main layout component
+  - `ModuleWrapper.jsx` - Wrapper for vanilla JS modules
+  - `layouts.js` - Preset layout configurations
+  - `index.jsx` - React entry point
+
+**Modules (vanilla JS, wrapped by React):**
+- `src/renderer/modules/image-viewer/` - Canvas-based image display
+- `src/renderer/modules/review-module/` - Face review UI
+- `src/renderer/modules/log-viewer/` - Frontend + backend logs
+- `src/renderer/modules/original-view/` - NEF comparison
+- `src/renderer/modules/statistics-dashboard/` - Stats display
+- `src/renderer/modules/database-management/` - DB admin
+
+**Build:**
+- `scripts/build-workspace.js` - esbuild bundler for JSX
+- `src/renderer/workspace/dist/` - Build output (gitignored)
+
+### Backend Integration
+
+The workspace auto-starts a FastAPI backend on `http://127.0.0.1:5001`:
+- REST API for database operations
+- WebSocket for real-time updates
+- Backend code in `../backend/` directory
+
+## Key Keyboard Shortcuts
+
+**Navigation:**
+- `Cmd+Arrow` - Navigate between panels (position-based)
+- `Cmd+Shift+]` / `[` - Add/remove column
+- `Cmd+Shift+}` / `{` - Add/remove row
+
+**View:**
+- `+` / `-` - Zoom in/out (hold for continuous)
+- `=` - Reset to 1:1 zoom
+- `0` - Auto-fit
+- `b` - Toggle single/all bounding boxes
+- `B` - Toggle boxes on/off
+- `c` / `C` - Enable/disable auto-center on face
+
+**File:**
+- `Cmd+O` - Open image file
+- `Cmd+R` - Reload window
+- `Cmd+Shift+R` - Hard reload
+
+**Layout Templates:**
+- `Cmd+1` - Review mode
+- `Cmd+2` - Comparison mode
+- `Cmd+3` - Full image
+- `Cmd+4` - Statistics mode
+
+## Layout System
+
+FlexLayout uses a tree-based model:
 ```
+Row (vertical or horizontal)
+├── TabSet (container for tabs)
+│   └── Tab (individual panel)
+└── TabSet
+    └── Tab
+```
+
+**Available preset layouts:**
+- `review` - Review (15%) | Image Viewer (85%)
+- `review-with-logs` - Review | Image above, full-width Log Viewer below
+- `comparison` - Image Viewer (50%) | Original View (50%)
+- `full-review` - 2x2 grid with all modules
+- `database` - Database Management | Statistics
 
 ## Git Workflow
 
-**IMPORTANT:** The `master` branch is locked for direct pushes. All changes must be made through the `dev` branch and pull requests.
+**IMPORTANT:** The `master` branch is protected.
 
-### Standard workflow:
-1. Make changes on the `dev` branch
-2. Commit changes to `dev`
-3. Push to `dev`
-4. Create a pull request from `dev` to `master`
-5. Merge after review
+1. Make changes on feature branches or `dev`
+2. Commit and push
+3. Create PR to `master`
+4. Merge after review
 
-Never attempt to push directly to `master`.
+## Module API
 
-## Key Keyboard Controls
+Each module receives a `ModuleAPI` instance with:
+```javascript
+api.emit(eventName, data)      // Broadcast to other modules
+api.on(eventName, callback)    // Listen for events
+api.http.get/post(path, data)  // Backend HTTP calls
+api.ws.on/off(event, callback) // WebSocket events
+api.workspace.openModule(id)   // Open another module
+api.ipc.send/invoke(channel)   // IPC to main process
+```
 
-Implemented in both main.js and renderer.js:
-- **O** - Open slave viewer with original image (triggers NEF conversion if needed)
-- **ESC** - Close all slave instances and current window
-- **Q** - Close current window
-- **+** - Zoom in (hold for continuous zoom)
-- **-** - Zoom out (hold for continuous zoom)
-- **=** - Reset to 1:1 zoom
-- **A** - Auto-fit zoom mode
-- **X** - (Slave only) Toggle detached mode to stop syncing with master
-
-## IPC Communication
-
-### Main → Renderer
-- `show-wait-overlay` - Display conversion waiting overlay
-- `hide-wait-overlay` - Hide conversion overlay
-- `apply-view` - Apply zoom/scroll from other window
-
-### Renderer → Main
-- `bild-visad` - Image loaded notification
-- `sync-view` - Send zoom/scroll state to sync with other window
-
-## Development Notes
-
-- Debug logging controlled by `DEBUG` constant in both main.js and renderer.js
-- Zoom implementation uses two modes: "auto" (fit-to-window) and "manual" (fixed size with scroll)
-- Zoom factor stored separately from display mode for seamless switching
-- Mouse position tracking enables zoom-to-cursor behavior
-- Slave instances launched via `spawn()` with `--slave` flag and `BILDVISARE_SLAVE=1` env var
-
-## Code Style (from AGENTS.md)
+## Code Style
 
 - Follow KISS and DRY principles
-- All comments and documentation must be in English
-- Comment all code for clarity
+- All comments and documentation in English
+- Comment code for clarity
+- Use JSX for React components, vanilla JS for modules

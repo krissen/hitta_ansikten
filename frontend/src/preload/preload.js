@@ -7,14 +7,14 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("bildvisareAPI", {
   // IPC communication - only specific channels allowed
   send: (channel, data) => {
-    const allowedChannels = ["bild-visad", "sync-view"];
+    const allowedChannels = ["bild-visad", "sync-view", "renderer-log", "update-menu-state"];
     if (allowedChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
 
   on: (channel, callback) => {
-    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed"];
+    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files"];
     if (allowedChannels.includes(channel)) {
       // Strip event object for security
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
@@ -23,7 +23,15 @@ contextBridge.exposeInMainWorld("bildvisareAPI", {
 
   // Invoke IPC handlers (request-response pattern)
   invoke: (channel, ...args) => {
-    const allowedChannels = ["open-file-dialog", "check-file-changed", "convert-nef"];
+    const allowedChannels = [
+      "open-file-dialog",
+      "open-multi-file-dialog",
+      "open-folder-dialog",
+      "expand-glob",
+      "check-file-changed",
+      "convert-nef",
+      "get-initial-file"
+    ];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
     }

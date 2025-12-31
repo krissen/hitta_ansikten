@@ -1,8 +1,8 @@
 /**
  * Main Process - Modular Workspace Mode
  *
- * Entry point for the new modular workspace architecture.
- * This file is loaded when BILDVISARE_WORKSPACE=1
+ * Entry point for the modular workspace architecture.
+ * Uses FlexLayout for layout management.
  */
 
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
@@ -16,7 +16,91 @@ const { createApplicationMenu } = require('./menu');
 let mainWindow = null;
 let backendService = null;
 let initialFilePath = null;
+let initialQueueFiles = [];
 let isQuitting = false;
+
+// Parse command line arguments
+function parseCommandLineArgs(argv) {
+  const result = {
+    files: [],
+    queuePosition: null,  // null = open directly, 'start' or 'end' = add to queue
+    startQueue: false
+  };
+
+  let i = 0;
+  // Skip electron path and app path
+  while (i < argv.length && (argv[i].includes('electron') || argv[i].includes('Electron') || argv[i] === '.')) {
+    i++;
+  }
+
+  for (; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--queue' || arg === '-q') {
+      result.queuePosition = 'end';
+    } else if (arg === '--queue-start' || arg === '-qs') {
+      result.queuePosition = 'start';
+    } else if (arg === '--start' || arg === '-s') {
+      result.startQueue = true;
+    } else if (!arg.startsWith('-')) {
+      // It's a file path or glob
+      result.files.push(arg);
+    }
+  }
+
+  return result;
+}
+
+// Expand globs and resolve paths
+async function expandFilePaths(patterns) {
+  const files = [];
+  for (const pattern of patterns) {
+    // Expand ~ to home directory
+    let expandedPattern = pattern;
+    if (pattern.startsWith('~')) {
+      expandedPattern = path.join(os.homedir(), pattern.slice(1));
+    }
+
+    if (pattern.includes('*') || pattern.includes('?')) {
+      // Glob pattern
+      try {
+        const dir = path.dirname(expandedPattern);
+        const patternBase = path.basename(expandedPattern);
+        const regexPattern = patternBase
+          .replace(/\./g, '\\.')
+          .replace(/\*/g, '.*')
+          .replace(/\?/g, '.');
+        const regex = new RegExp(`^${regexPattern}$`, 'i');
+
+        const entries = fs.readdirSync(dir);
+        for (const entry of entries) {
+          if (regex.test(entry)) {
+            const fullPath = path.join(dir, entry);
+            if (fs.statSync(fullPath).isFile()) {
+              files.push(fullPath);
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[Main] Failed to expand glob "${pattern}":`, err.message);
+      }
+    } else {
+      // Direct path
+      const resolved = path.resolve(expandedPattern);
+      if (fs.existsSync(resolved)) {
+        files.push(resolved);
+      }
+    }
+  }
+  return files.sort();
+}
+
+// Send files to renderer's file queue
+function sendFilesToQueue(files, position, startQueue) {
+  if (!mainWindow || files.length === 0) return;
+
+  console.log(`[Main] Sending ${files.length} files to queue (position: ${position}, start: ${startQueue})`);
+  mainWindow.webContents.send('queue-files', { files, position, startQueue });
+}
 
 /**
  * Create the main workspace window
@@ -41,16 +125,12 @@ function createWorkspaceWindow() {
   Menu.setApplicationMenu(menu);
 
   // Load workspace HTML
-  const workspaceHtml = path.join(__dirname, '../renderer/index.html');
+  const workspaceHtml = path.join(__dirname, '../renderer', 'workspace-flex.html');
+  console.log('[Main] Loading FlexLayout workspace:', workspaceHtml);
   mainWindow.loadFile(workspaceHtml);
 
-  // Send initial file path to renderer when ready
-  if (initialFilePath) {
-    mainWindow.webContents.once('did-finish-load', () => {
-      console.log('[Main] Sending initial file path to renderer:', initialFilePath);
-      mainWindow.webContents.send('load-initial-file', initialFilePath);
-    });
-  }
+  // Note: Initial file path is now requested by renderer via IPC when ready
+  // This avoids race conditions where the event was sent before React mounted
 
   // Open DevTools in development (disabled - user can open with Cmd+Option+I)
   // if (!app.isPackaged) {
@@ -61,38 +141,64 @@ function createWorkspaceWindow() {
     mainWindow = null;
   });
 
-  // Track when DevTools is opened/closed (not just focused)
-  // Disable ALL shortcuts when DevTools is open to prevent interference
-  console.log('[Main] Attaching DevTools event listeners...');
-
+  // Track DevTools open/close state for renderer
   mainWindow.webContents.on('devtools-opened', () => {
-    console.log('[Main] ✓ devtools-opened EVENT FIRED!');
-    console.log('[Main] DevTools opened - disabling shortcuts');
     mainWindow.webContents.send('devtools-state-changed', true);
   });
 
   mainWindow.webContents.on('devtools-closed', () => {
-    console.log('[Main] ✓ devtools-closed EVENT FIRED!');
-    console.log('[Main] DevTools closed - enabling shortcuts');
     mainWindow.webContents.send('devtools-state-changed', false);
   });
 
-  console.log('[Main] DevTools event listeners attached');
   console.log('[Main] Workspace window created');
 }
 
-// Get initial file path from command line arguments
-// process.argv[0] is electron, process.argv[1] is the app, process.argv[2] is the file
-if (process.argv.length > 2) {
-  const argPath = process.argv[2];
-  // Check if it's a file path (not a flag)
-  if (!argPath.startsWith('-') && fs.existsSync(argPath)) {
-    initialFilePath = path.resolve(argPath);
-    console.log('[Main] Initial file path from args:', initialFilePath);
-  }
+// Parse initial command line arguments
+const initialArgs = parseCommandLineArgs(process.argv);
+console.log('[Main] Initial args:', initialArgs);
+
+// Request single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // Another instance is running - it will receive our args via second-instance event
+  console.log('[Main] Another instance is running, sending args and quitting...');
+  app.quit();
+  process.exit(0);
 }
 
-// App lifecycle
+// Handle second instance launching (receives args from new instance)
+app.on('second-instance', async (event, argv, workingDirectory) => {
+  console.log('[Main] Second instance launched with argv:', JSON.stringify(argv));
+  console.log('[Main] Working directory:', workingDirectory);
+
+  // Filter out the working directory from argv if it's included
+  const filteredArgv = argv.filter(arg => arg !== workingDirectory);
+  console.log('[Main] Filtered argv:', JSON.stringify(filteredArgv));
+
+  const args = parseCommandLineArgs(filteredArgv);
+  console.log('[Main] Parsed args:', JSON.stringify(args));
+
+  if (args.files.length > 0) {
+    const files = await expandFilePaths(args.files);
+    console.log('[Main] Expanded files:', JSON.stringify(files));
+    if (args.queuePosition) {
+      sendFilesToQueue(files, args.queuePosition, args.startQueue);
+    } else if (files.length === 1) {
+      // Single file without queue flag - open directly
+      mainWindow?.webContents.send('menu-command', 'load-image');
+      // TODO: Actually load the file
+    }
+  }
+
+  // Focus main window
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
+// App lifecycle - only runs if we got the lock
 app.whenReady().then(async () => {
   console.log('[Main] App ready, starting backend...');
 
@@ -108,6 +214,24 @@ app.whenReady().then(async () => {
 
   // Create workspace window
   createWorkspaceWindow();
+
+  // Handle initial files from command line
+  if (initialArgs.files.length > 0) {
+    const files = await expandFilePaths(initialArgs.files);
+    if (files.length > 0) {
+      if (initialArgs.queuePosition) {
+        // Add to queue - wait for renderer to be ready
+        mainWindow.webContents.once('did-finish-load', () => {
+          setTimeout(() => {
+            sendFilesToQueue(files, initialArgs.queuePosition, initialArgs.startQueue);
+          }, 1000); // Give FileQueueModule time to mount
+        });
+      } else if (files.length === 1) {
+        // Single file without queue flag - set as initial file
+        initialFilePath = files[0];
+      }
+    }
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -175,6 +299,16 @@ app.on('will-quit', () => {
 });
 
 // IPC Handlers
+
+// Get initial file path (if app was launched with a file argument)
+ipcMain.handle('get-initial-file', () => {
+  const filePath = initialFilePath;
+  console.log('[Main] Renderer requested initial file:', filePath || '(none)');
+  // Clear it after first request to avoid reloading on window refresh
+  initialFilePath = null;
+  return filePath;
+});
+
 ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
@@ -189,6 +323,107 @@ ipcMain.handle('open-file-dialog', async () => {
   }
 
   return result.filePaths[0];
+});
+
+// Multi-file dialog for File Queue
+ipcMain.handle('open-multi-file-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'RAW Images', extensions: ['nef', 'NEF', 'cr2', 'CR2', 'arw', 'ARW'] },
+      { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'nef', 'cr2', 'arw'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+
+  if (result.canceled) {
+    return null;
+  }
+
+  return result.filePaths;
+});
+
+// Expand glob pattern to file paths
+ipcMain.handle('expand-glob', async (event, pattern) => {
+  const fs = require('fs');
+  const path = require('path');
+
+  // Expand ~ to home directory
+  let expandedPattern = pattern;
+  if (pattern.startsWith('~')) {
+    expandedPattern = path.join(require('os').homedir(), pattern.slice(1));
+  }
+
+  try {
+    // Use Node.js 22+ built-in glob
+    const { glob } = require('fs').promises;
+    if (glob) {
+      const files = [];
+      for await (const file of glob(expandedPattern)) {
+        files.push(file);
+      }
+      return files.sort();
+    }
+  } catch (err) {
+    // Fallback: try synchronous glob from fs
+  }
+
+  // Fallback for patterns - use simple directory listing with filter
+  try {
+    const dir = path.dirname(expandedPattern);
+    const patternBase = path.basename(expandedPattern);
+
+    // Convert glob pattern to regex
+    const regexPattern = patternBase
+      .replace(/\./g, '\\.')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.');
+    const regex = new RegExp(`^${regexPattern}$`, 'i');
+
+    const files = fs.readdirSync(dir)
+      .filter(f => regex.test(f))
+      .map(f => path.join(dir, f))
+      .filter(f => fs.statSync(f).isFile())
+      .sort();
+
+    return files;
+  } catch (err) {
+    console.error('[Main] Failed to expand glob:', err);
+    return [];
+  }
+});
+
+// Folder dialog for File Queue
+ipcMain.handle('open-folder-dialog', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory']
+  });
+
+  if (result.canceled) {
+    return null;
+  }
+
+  // Find all supported image files in the folder
+  const folderPath = result.filePaths[0];
+  const supportedExtensions = ['.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.tiff'];
+
+  const files = [];
+  try {
+    const entries = fs.readdirSync(folderPath);
+    for (const entry of entries) {
+      const ext = path.extname(entry).toLowerCase();
+      if (supportedExtensions.includes(ext)) {
+        files.push(path.join(folderPath, entry));
+      }
+    }
+    // Sort by filename
+    files.sort();
+  } catch (err) {
+    console.error('[Main] Failed to read folder:', err);
+    return null;
+  }
+
+  return files;
 });
 
 // NEF to JPG conversion
@@ -245,6 +480,50 @@ ipcMain.handle('convert-nef', async (event, nefPath) => {
       reject(err);
     });
   });
+});
+
+// Renderer log file handling
+let rendererLogStream = null;
+
+function getRendererLogPath() {
+  // Use ~/Library/Logs/Bildvisare on macOS, %APPDATA%/Bildvisare/logs on Windows
+  const logDir = process.platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Logs', 'Bildvisare')
+    : path.join(app.getPath('userData'), 'logs');
+
+  // Ensure directory exists
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
+  // Use date-based log file
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  return path.join(logDir, `renderer-${today}.log`);
+}
+
+function ensureLogStream() {
+  const logPath = getRendererLogPath();
+
+  // Create new stream if none exists or if date changed
+  if (!rendererLogStream || rendererLogStream.path !== logPath) {
+    if (rendererLogStream) {
+      rendererLogStream.end();
+    }
+    rendererLogStream = fs.createWriteStream(logPath, { flags: 'a' });
+    console.log('[Main] Renderer log file:', logPath);
+  }
+
+  return rendererLogStream;
+}
+
+// IPC handler for renderer logs
+ipcMain.on('renderer-log', (event, { level, message }) => {
+  try {
+    const stream = ensureLogStream();
+    stream.write(`[${level.toUpperCase()}] ${message}\n`);
+  } catch (err) {
+    console.error('[Main] Failed to write renderer log:', err);
+  }
 });
 
 console.log('[Main] Workspace mode initialized');

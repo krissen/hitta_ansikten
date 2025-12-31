@@ -5,6 +5,8 @@
  * Supports dot notation for nested access (e.g., 'backend.port').
  */
 
+import { debug, debugWarn, debugError } from '../shared/debug.js';
+
 export class PreferencesManager {
   constructor() {
     this.storageKey = 'bildvisare-preferences';
@@ -24,6 +26,10 @@ export class PreferencesManager {
         showWelcome: true, // Show welcome message on first launch
         logLevel: 'info' // 'debug' | 'info' | 'warn' | 'error'
       },
+      debug: {
+        enabled: false, // Enable debug logging
+        logToFile: false // Also write logs to file (requires enabled=true)
+      },
       appearance: {
         // Sizes and spacing
         tabsHeight: 28, // Tab height in pixels (20-40)
@@ -33,11 +39,16 @@ export class PreferencesManager {
         tabMinGap: 10, // Minimum gap between text and close button (0-30)
         tabMinWidth: 0, // Minimum tab width override (0 = auto based on content)
 
-        // Colors
-        activeTabBackground: '#f5f5f5',
-        inactiveTabBackground: '#e0e0e0',
-        activeTabColor: '#1a1a1a',
-        inactiveTabColor: '#888888',
+        // Tab colors - three states:
+        // 1. Focused: selected tab in the focused panel (keyboard focus)
+        // 2. Visible: selected tab in non-focused panels
+        // 3. Hidden: unselected tabs (behind other tabs in same panel)
+        focusedTabBackground: '#ffffff',
+        focusedTabColor: '#1a1a1a',
+        visibleTabBackground: '#e8e8e8',
+        visibleTabColor: '#555555',
+        hiddenTabBackground: '#d8d8d8',
+        hiddenTabColor: '#999999',
         tabContainerBackground: '#d0d0d0',
         groupBorderColor: 'rgba(128, 128, 128, 0.2)'
       },
@@ -56,11 +67,57 @@ export class PreferencesManager {
         showConfidenceScores: true,
         saveMode: 'per-image' // 'per-face' | 'per-image' - how to write review results
       },
+      fileQueue: {
+        autoLoadOnStartup: true // Auto-load first file from queue on startup/reload
+      },
       layout: {
         defaultGridPreset: '70-30', // Default grid split ratio: '50-50', '60-40', '70-30', '30-70', '40-60'
         defaultTemplate: 'review', // Default layout template: 'review', 'comparison', 'full-image', 'stats'
         autoSaveLayout: true, // Auto-save layout on changes
         rememberPanelSizes: true // Remember panel sizes across sessions
+      },
+      // Preset-specific layout configurations
+      // Each preset can override module positions and ratios
+      layouts: {
+        presets: {
+          review: {
+            // Review mode: sidebar + main viewer
+            modules: {
+              'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 1.0 },
+              'image-viewer': { row: 1, col: 2, ratio: 0.85, rowRatio: 1.0 }
+            }
+          },
+          comparison: {
+            // Comparison mode: three-column
+            modules: {
+              'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 1.0 },
+              'image-viewer': { row: 1, col: 2, ratio: 0.50, rowRatio: 1.0 },
+              'original-view': { row: 1, col: 3, ratio: 0.35, rowRatio: 1.0 }
+            }
+          },
+          'full-image': {
+            // Full image mode: maximized viewer
+            modules: {
+              'image-viewer': { row: 1, col: 1, ratio: 1.0, rowRatio: 1.0 }
+            }
+          },
+          stats: {
+            // Stats mode: viewer + stats panels
+            modules: {
+              'image-viewer': { row: 1, col: 1, ratio: 0.6, rowRatio: 0.7 },
+              'statistics-dashboard': { row: 1, col: 2, ratio: 0.4, rowRatio: 0.7 },
+              'database-management': { row: 2, col: 1, colSpan: 'full', ratio: 1.0, rowRatio: 0.3 }
+            }
+          },
+          'review-with-logs': {
+            // Review mode with log viewer at bottom
+            modules: {
+              'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 0.75 },
+              'image-viewer': { row: 1, col: 2, ratio: 0.85, rowRatio: 0.75 },
+              'log-viewer': { row: 2, col: 1, colSpan: 'full', ratio: 1.0, rowRatio: 0.25 }
+            }
+          }
+        }
       }
     };
 
@@ -80,7 +137,7 @@ export class PreferencesManager {
       const stored = localStorage.getItem(this.storageKey);
 
       if (!stored) {
-        console.log('[Preferences] No saved preferences, using defaults');
+        debug('Preferences', 'No saved preferences, using defaults');
         this.preferences = JSON.parse(JSON.stringify(this.defaults));
         return;
       }
@@ -89,16 +146,16 @@ export class PreferencesManager {
 
       // Version migration
       if (parsed.version !== this.version) {
-        console.log(`[Preferences] Migrating from v${parsed.version} to v${this.version}`);
+        debug('Preferences', `Migrating from v${parsed.version} to v${this.version}`);
         this.preferences = this.migrate(parsed);
       } else {
         // Merge with defaults to handle new keys
         this.preferences = this.mergeWithDefaults(parsed);
       }
 
-      console.log('[Preferences] Loaded preferences from localStorage');
+      debug('Preferences', 'Loaded preferences from localStorage');
     } catch (err) {
-      console.error('[Preferences] Failed to load preferences, using defaults:', err);
+      debugError('Preferences', 'Failed to load preferences, using defaults:', err);
       this.preferences = JSON.parse(JSON.stringify(this.defaults));
     }
   }
@@ -110,10 +167,10 @@ export class PreferencesManager {
     try {
       this.preferences.version = this.version;
       localStorage.setItem(this.storageKey, JSON.stringify(this.preferences));
-      console.log('[Preferences] Saved preferences to localStorage');
+      debug('Preferences', 'Saved preferences to localStorage');
       return true;
     } catch (err) {
-      console.error('[Preferences] Failed to save preferences:', err);
+      debugError('Preferences', 'Failed to save preferences:', err);
       return false;
     }
   }
@@ -167,7 +224,7 @@ export class PreferencesManager {
    * Reset preferences to defaults
    */
   reset() {
-    console.log('[Preferences] Resetting to defaults');
+    debug('Preferences', 'Resetting to defaults');
     this.preferences = JSON.parse(JSON.stringify(this.defaults));
     this.save();
   }
@@ -178,6 +235,14 @@ export class PreferencesManager {
    */
   getAll() {
     return JSON.parse(JSON.stringify(this.preferences));
+  }
+
+  /**
+   * Get default preferences (without modifying current preferences)
+   * @returns {object} Default preferences
+   */
+  getDefaults() {
+    return JSON.parse(JSON.stringify(this.defaults));
   }
 
   /**
@@ -221,7 +286,7 @@ export class PreferencesManager {
     // Currently only v1 exists, but this is where migration logic would go
     // Example: if (old.version === 0) { /* migrate v0 -> v1 */ }
 
-    console.log('[Preferences] No migration needed, merging with defaults');
+    debug('Preferences', 'No migration needed, merging with defaults');
     return this.mergeWithDefaults(old);
   }
 
@@ -243,10 +308,10 @@ export class PreferencesManager {
       const imported = JSON.parse(json);
       this.preferences = this.mergeWithDefaults(imported);
       this.save();
-      console.log('[Preferences] Imported preferences');
+      debug('Preferences', 'Imported preferences');
       return true;
     } catch (err) {
-      console.error('[Preferences] Failed to import preferences:', err);
+      debugError('Preferences', 'Failed to import preferences:', err);
       return false;
     }
   }

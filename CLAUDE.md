@@ -26,9 +26,25 @@ GIMP-like modular workspace with dockable panels for interactive face review:
 **IMPORTANT: Repository Rules**
 - The `master` branch is protected and requires all changes to be made through pull requests
 - **DO NOT commit directly to master** - commits will be rejected on push
-- Always create a feature branch for changes: `git checkout -b feature/description`
-- Push the branch and create a PR: `git push -u origin feature/description`
 - Follow the commit message conventions from `~/.claude/CLAUDE.md`
+
+**Feature Branch Workflow**
+- `dev` is the main development branch - all feature work branches from and merges back to `dev`
+- For new features/fixes, create a branch from dev:
+  ```bash
+  git checkout dev
+  git checkout -b feature/description   # or fix/description, refactor/description, etc.
+  ```
+- Work on the feature branch, commit changes
+- When done, merge back to dev (or create PR if preferred):
+  ```bash
+  git checkout dev
+  git merge feature/description
+  git branch -d feature/description         # delete local feature branch
+  git push origin --delete feature/description  # delete remote feature branch (if pushed)
+  ```
+- Only merge `dev` to `master` via PR when ready for release
+- **NEVER delete `master` or `dev` branches** - locally or remotely
 
 **CRITICAL: Commit and PR Message Rules**
 - **ABSOLUTELY NO Claude references** in commit messages or PR descriptions

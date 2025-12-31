@@ -5,6 +5,7 @@
  */
 
 import { preferences } from './preferences.js';
+import { getCategories, setCategories, resetCategories } from '../shared/debug.js';
 
 export class PreferencesUI {
   constructor() {
@@ -32,11 +33,16 @@ export class PreferencesUI {
   }
 
   /**
-   * Hide preferences modal
+   * Hide preferences modal (cancels without saving)
+   * @param {boolean} wasSaved - true if hide was called after saving
    */
-  hide() {
+  hide(wasSaved = false) {
     if (this.modal) {
       this.modal.style.display = 'none';
+      // Dispatch cancel event to restore original preferences (only if not saved)
+      if (!wasSaved) {
+        window.dispatchEvent(new CustomEvent('preferences-cancelled'));
+      }
     }
   }
 
@@ -64,6 +70,7 @@ export class PreferencesUI {
           <button class="pref-tab" data-tab="layout">Layout</button>
           <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
           <button class="pref-tab" data-tab="review">Review</button>
+          <button class="pref-tab" data-tab="advanced">Advanced</button>
         </div>
 
         <div class="preferences-content">
@@ -120,16 +127,6 @@ export class PreferencesUI {
                 Show welcome message on startup
               </label>
             </div>
-
-            <div class="pref-field">
-              <label>Log Level</label>
-              <select id="pref-ui-logLevel">
-                <option value="debug">Debug (verbose)</option>
-                <option value="info">Info</option>
-                <option value="warn">Warning</option>
-                <option value="error">Error</option>
-              </select>
-            </div>
           </div>
           </div>
 
@@ -184,29 +181,44 @@ export class PreferencesUI {
             </div>
 
             <div class="pref-section">
-              <h3>Colors</h3>
+              <h3>Tab Colors</h3>
+              <small style="display:block; margin-bottom:12px; color:#666;">
+                Focused = active panel's tab. Visible = other panels' tabs. Hidden = background tabs.
+              </small>
 
-              <!-- Tab Background Colors -->
+              <!-- Focused Tab (selected tab in focused panel) -->
               <div class="pref-field-row">
                 <div class="pref-field-color">
-                  <label>Active Tab Background</label>
-                  <input type="color" id="pref-appearance-activeTabBackground" />
+                  <label>Focused Tab Background</label>
+                  <input type="color" id="pref-appearance-focusedTabBackground" />
                 </div>
                 <div class="pref-field-color">
-                  <label>Inactive Tab Background</label>
-                  <input type="color" id="pref-appearance-inactiveTabBackground" />
+                  <label>Focused Tab Text</label>
+                  <input type="color" id="pref-appearance-focusedTabColor" />
                 </div>
               </div>
 
-              <!-- Tab Text Colors -->
+              <!-- Visible Tab (selected tab in non-focused panels) -->
               <div class="pref-field-row">
                 <div class="pref-field-color">
-                  <label>Active Tab Text</label>
-                  <input type="color" id="pref-appearance-activeTabColor" />
+                  <label>Visible Tab Background</label>
+                  <input type="color" id="pref-appearance-visibleTabBackground" />
                 </div>
                 <div class="pref-field-color">
-                  <label>Inactive Tab Text</label>
-                  <input type="color" id="pref-appearance-inactiveTabColor" />
+                  <label>Visible Tab Text</label>
+                  <input type="color" id="pref-appearance-visibleTabColor" />
+                </div>
+              </div>
+
+              <!-- Hidden Tab (unselected/background tabs) -->
+              <div class="pref-field-row">
+                <div class="pref-field-color">
+                  <label>Hidden Tab Background</label>
+                  <input type="color" id="pref-appearance-hiddenTabBackground" />
+                </div>
+                <div class="pref-field-color">
+                  <label>Hidden Tab Text</label>
+                  <input type="color" id="pref-appearance-hiddenTabColor" />
                 </div>
               </div>
 
@@ -370,6 +382,54 @@ export class PreferencesUI {
               <small>How review results are written to database</small>
             </div>
           </div>
+
+            <!-- File Queue Settings -->
+            <div class="pref-section">
+              <h3>File Queue</h3>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-fileQueue-autoLoadOnStartup" />
+                  Auto-load from queue on startup
+                </label>
+                <small>Automatically load first pending file when app starts with files in queue</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Tab Panel -->
+          <div class="pref-tab-panel" data-tab="advanced">
+            <div class="pref-section">
+              <h3>Logging</h3>
+
+              <div class="pref-field">
+                <label>Log Level</label>
+                <select id="pref-ui-logLevel">
+                  <option value="debug">Debug (verbose)</option>
+                  <option value="info">Info</option>
+                  <option value="warn">Warning</option>
+                  <option value="error">Error</option>
+                </select>
+                <small>Minimum severity level for console output.</small>
+              </div>
+            </div>
+
+            <div class="pref-section">
+              <h3>Debug Categories</h3>
+              <small style="display:block; margin-bottom:12px; color:#666;">
+                Enable/disable debug output per category. Warnings and errors always show.
+              </small>
+
+              <div class="debug-category-grid" id="debug-categories-container">
+                <!-- Populated dynamically -->
+              </div>
+
+              <div class="pref-field" style="margin-top: 16px;">
+                <button class="btn btn-secondary btn-reset-debug" type="button">
+                  Reset Debug Categories to Defaults
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -697,6 +757,46 @@ export class PreferencesUI {
       .pref-tab-panel.active {
         display: block;
       }
+
+      /* Debug Categories Grid */
+      .debug-category-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px 16px;
+      }
+
+      .debug-category-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        background: #f8f8f8;
+      }
+
+      .debug-category-item:hover {
+        background: #f0f0f0;
+      }
+
+      .debug-category-item input[type="checkbox"] {
+        margin: 0;
+      }
+
+      .debug-category-item label {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 400;
+        color: #333;
+        cursor: pointer;
+      }
+
+      .debug-category-item.enabled {
+        background: #e3f2fd;
+      }
+
+      .btn-reset-debug {
+        font-size: 13px;
+      }
     `;
     this.modal.appendChild(style);
   }
@@ -770,6 +870,12 @@ export class PreferencesUI {
       }
     });
 
+    // Reset Debug Categories button
+    this.modal.querySelector('.btn-reset-debug').addEventListener('click', () => {
+      resetCategories();
+      this.populateDebugCategories();
+    });
+
     // Sync sliders with number inputs
     this.setupSliderSync('appearance-tabsHeight');
     this.setupSliderSync('appearance-tabsFontSize');
@@ -787,13 +893,15 @@ export class PreferencesUI {
     this.setupLivePreview('appearance-tabPaddingRight', '--dv-tab-padding-right', 'px');
     this.setupLivePreview('appearance-tabMinGap', '--dv-tab-min-gap', 'px');
 
-    // Setup live preview for color settings
-    this.setupColorLivePreview('appearance-activeTabBackground', '--dv-active-tab-background');
-    this.setupColorLivePreview('appearance-inactiveTabBackground', '--dv-inactive-tab-background');
-    this.setupColorLivePreview('appearance-activeTabColor', '--dv-active-tab-color');
-    this.setupColorLivePreview('appearance-inactiveTabColor', '--dv-inactive-tab-color');
-    this.setupColorLivePreview('appearance-tabContainerBackground', '--dv-tab-container-background');
-    this.setupColorLivePreview('appearance-groupBorderColor', '--dv-group-border-color', true);
+    // Setup live preview for color settings (three tab states)
+    this.setupColorLivePreview('appearance-focusedTabBackground');
+    this.setupColorLivePreview('appearance-focusedTabColor');
+    this.setupColorLivePreview('appearance-visibleTabBackground');
+    this.setupColorLivePreview('appearance-visibleTabColor');
+    this.setupColorLivePreview('appearance-hiddenTabBackground');
+    this.setupColorLivePreview('appearance-hiddenTabColor');
+    this.setupColorLivePreview('appearance-tabContainerBackground');
+    this.setupColorLivePreview('appearance-groupBorderColor', null, true);
   }
 
   /**
@@ -826,13 +934,7 @@ export class PreferencesUI {
     if (!slider || !numberInput) return;
 
     const updateCSS = (value) => {
-      // Set on .bildvisare-workspace element, not :root
-      const workspaceRoot = document.querySelector('.bildvisare-workspace');
-      if (workspaceRoot) {
-        workspaceRoot.style.setProperty(cssVariable, `${value}${unit}`);
-      }
-
-      // Also update tempPrefs so Save button saves the correct value
+      // Update tempPrefs so Save button saves the correct value
       const path = id.replace(/-/g, '.');
       const keys = path.split('.');
       const lastKey = keys.pop();
@@ -842,6 +944,11 @@ export class PreferencesUI {
         target = target[key];
       }
       target[lastKey] = parseFloat(value);
+
+      // Dispatch event for live preview with full tempPrefs
+      window.dispatchEvent(new CustomEvent('preferences-preview', {
+        detail: { tempPrefs: this.tempPrefs }
+      }));
     };
 
     // Update on slider change
@@ -874,13 +981,7 @@ export class PreferencesUI {
         cssValue = `rgba(${r}, ${g}, ${b}, 0.2)`;
       }
 
-      // Set on .bildvisare-workspace element, not :root
-      const workspaceRoot = document.querySelector('.bildvisare-workspace');
-      if (workspaceRoot) {
-        workspaceRoot.style.setProperty(cssVariable, cssValue);
-      }
-
-      // Also update tempPrefs so Save button saves the correct value
+      // Update tempPrefs so Save button saves the correct value
       const path = id.replace(/-/g, '.');
       const keys = path.split('.');
       const lastKey = keys.pop();
@@ -890,6 +991,11 @@ export class PreferencesUI {
         target = target[key];
       }
       target[lastKey] = isRgba ? cssValue : value;
+
+      // Dispatch event for live preview with full tempPrefs
+      window.dispatchEvent(new CustomEvent('preferences-preview', {
+        detail: { tempPrefs: this.tempPrefs }
+      }));
     };
 
     // Update on color change
@@ -943,11 +1049,13 @@ export class PreferencesUI {
     this.setValue('appearance-tabMinGap', this.tempPrefs.appearance.tabMinGap);
     this.setValue('appearance-tabMinGap-slider', this.tempPrefs.appearance.tabMinGap);
 
-    // Appearance settings - colors
-    this.setValue('appearance-activeTabBackground', this.tempPrefs.appearance.activeTabBackground);
-    this.setValue('appearance-inactiveTabBackground', this.tempPrefs.appearance.inactiveTabBackground);
-    this.setValue('appearance-activeTabColor', this.tempPrefs.appearance.activeTabColor);
-    this.setValue('appearance-inactiveTabColor', this.tempPrefs.appearance.inactiveTabColor);
+    // Appearance settings - colors (three tab states)
+    this.setValue('appearance-focusedTabBackground', this.tempPrefs.appearance.focusedTabBackground);
+    this.setValue('appearance-focusedTabColor', this.tempPrefs.appearance.focusedTabColor);
+    this.setValue('appearance-visibleTabBackground', this.tempPrefs.appearance.visibleTabBackground);
+    this.setValue('appearance-visibleTabColor', this.tempPrefs.appearance.visibleTabColor);
+    this.setValue('appearance-hiddenTabBackground', this.tempPrefs.appearance.hiddenTabBackground);
+    this.setValue('appearance-hiddenTabColor', this.tempPrefs.appearance.hiddenTabColor);
     this.setValue('appearance-tabContainerBackground', this.tempPrefs.appearance.tabContainerBackground);
     // Convert rgba to hex for color picker
     const borderColor = this.rgbaToHex(this.tempPrefs.appearance.groupBorderColor);
@@ -971,11 +1079,72 @@ export class PreferencesUI {
     this.setValue('reviewModule-showConfidenceScores', this.tempPrefs.reviewModule.showConfidenceScores);
     this.setValue('reviewModule-saveMode', this.tempPrefs.reviewModule.saveMode);
 
+    // File Queue settings
+    this.setValue('fileQueue-autoLoadOnStartup', this.tempPrefs.fileQueue?.autoLoadOnStartup ?? true);
+
     // Layout settings
     this.setValue('layout-defaultGridPreset', this.tempPrefs.layout.defaultGridPreset);
     this.setValue('layout-defaultTemplate', this.tempPrefs.layout.defaultTemplate);
     this.setValue('layout-autoSaveLayout', this.tempPrefs.layout.autoSaveLayout);
     this.setValue('layout-rememberPanelSizes', this.tempPrefs.layout.rememberPanelSizes);
+
+    // Debug categories (separate from preferences - stored in debug.js)
+    this.populateDebugCategories();
+  }
+
+  /**
+   * Populate debug categories checkboxes
+   */
+  populateDebugCategories() {
+    const container = this.modal.querySelector('#debug-categories-container');
+    if (!container) return;
+
+    const categories = getCategories();
+    container.innerHTML = '';
+
+    // Group categories by type for better organization
+    const groups = {
+      'Core Systems': ['FlexLayout', 'Backend', 'WebSocket'],
+      'Communication': ['ModuleAPI', 'ModuleEvent', 'IPC'],
+      'Modules': ['FileQueue', 'ImageViewer', 'ReviewModule', 'OriginalView', 'LogViewer', 'Statistics', 'DatabaseMgmt'],
+      'Subsystems': ['Preferences', 'NEFConvert', 'FaceDetection']
+    };
+
+    for (const [groupName, categoryNames] of Object.entries(groups)) {
+      // Add group header
+      const groupHeader = document.createElement('div');
+      groupHeader.style.cssText = 'grid-column: 1 / -1; font-weight: 600; font-size: 12px; color: #666; margin-top: 8px; margin-bottom: 4px;';
+      groupHeader.textContent = groupName;
+      container.appendChild(groupHeader);
+
+      // Add categories in this group
+      for (const name of categoryNames) {
+        if (!(name in categories)) continue;
+
+        const enabled = categories[name];
+        const item = document.createElement('div');
+        item.className = `debug-category-item ${enabled ? 'enabled' : ''}`;
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `debug-cat-${name}`;
+        checkbox.checked = enabled;
+        checkbox.addEventListener('change', () => {
+          const newState = {};
+          newState[name] = checkbox.checked;
+          setCategories(newState);
+          item.classList.toggle('enabled', checkbox.checked);
+        });
+
+        const label = document.createElement('label');
+        label.htmlFor = `debug-cat-${name}`;
+        label.textContent = name;
+
+        item.appendChild(checkbox);
+        item.appendChild(label);
+        container.appendChild(item);
+      }
+    }
   }
 
   /**
@@ -1028,11 +1197,13 @@ export class PreferencesUI {
     this.tempPrefs.appearance.tabPaddingRight = this.getValue('appearance-tabPaddingRight');
     this.tempPrefs.appearance.tabMinGap = this.getValue('appearance-tabMinGap');
 
-    // Appearance colors
-    this.tempPrefs.appearance.activeTabBackground = this.getValue('appearance-activeTabBackground');
-    this.tempPrefs.appearance.inactiveTabBackground = this.getValue('appearance-inactiveTabBackground');
-    this.tempPrefs.appearance.activeTabColor = this.getValue('appearance-activeTabColor');
-    this.tempPrefs.appearance.inactiveTabColor = this.getValue('appearance-inactiveTabColor');
+    // Appearance colors (three tab states)
+    this.tempPrefs.appearance.focusedTabBackground = this.getValue('appearance-focusedTabBackground');
+    this.tempPrefs.appearance.focusedTabColor = this.getValue('appearance-focusedTabColor');
+    this.tempPrefs.appearance.visibleTabBackground = this.getValue('appearance-visibleTabBackground');
+    this.tempPrefs.appearance.visibleTabColor = this.getValue('appearance-visibleTabColor');
+    this.tempPrefs.appearance.hiddenTabBackground = this.getValue('appearance-hiddenTabBackground');
+    this.tempPrefs.appearance.hiddenTabColor = this.getValue('appearance-hiddenTabColor');
     this.tempPrefs.appearance.tabContainerBackground = this.getValue('appearance-tabContainerBackground');
 
     // Convert hex to rgba for groupBorderColor (keep opacity from default)
@@ -1055,6 +1226,10 @@ export class PreferencesUI {
     this.tempPrefs.reviewModule.showConfidenceScores = this.getValue('reviewModule-showConfidenceScores');
     this.tempPrefs.reviewModule.saveMode = this.getValue('reviewModule-saveMode');
 
+    // File Queue settings
+    if (!this.tempPrefs.fileQueue) this.tempPrefs.fileQueue = {};
+    this.tempPrefs.fileQueue.autoLoadOnStartup = this.getValue('fileQueue-autoLoadOnStartup');
+
     this.tempPrefs.layout.defaultGridPreset = this.getValue('layout-defaultGridPreset');
     this.tempPrefs.layout.defaultTemplate = this.getValue('layout-defaultTemplate');
     this.tempPrefs.layout.autoSaveLayout = this.getValue('layout-autoSaveLayout');
@@ -1063,10 +1238,8 @@ export class PreferencesUI {
     // Save to preferences manager
     preferences.setAll(this.tempPrefs);
 
-    // Apply UI preferences immediately
-    if (window.workspace && window.workspace.applyUIPreferences) {
-      window.workspace.applyUIPreferences();
-    }
+    // Dispatch event for listeners (FlexLayout workspace)
+    window.dispatchEvent(new CustomEvent('preferences-changed'));
 
     // Check if restart is needed (backend settings changed)
     const needsRestart = this.checkIfRestartNeeded();
@@ -1076,24 +1249,24 @@ export class PreferencesUI {
       console.log('[PreferencesUI] Preferences saved successfully');
     }
 
-    this.hide();
+    this.hide(true); // true = was saved, don't dispatch cancel event
   }
 
   /**
-   * Reset preferences to defaults
+   * Reset preferences to defaults (preview only - not saved until Save is clicked)
    */
   reset() {
-    preferences.reset();
-    this.tempPrefs = preferences.getAll();
+    // Get defaults without saving - user must click Save to persist
+    this.tempPrefs = preferences.getDefaults();
     this.populateForm();
 
     // Manually sync sliders after populating form
     this.syncAllSliders();
 
-    // Apply appearance preferences immediately
-    if (window.workspace && window.workspace.applyUIPreferences) {
-      window.workspace.applyUIPreferences();
-    }
+    // Dispatch preview event (not preferences-changed) so Cancel can revert
+    window.dispatchEvent(new CustomEvent('preferences-preview', {
+      detail: { tempPrefs: this.tempPrefs }
+    }));
   }
 
   /**

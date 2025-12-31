@@ -2,9 +2,31 @@
  * Application Menu
  *
  * Defines the main application menu with all available commands and keyboard shortcuts.
+ * Toggle menu items use checkboxes to show current state.
  */
 
-const { Menu, shell } = require('electron');
+const { Menu, shell, ipcMain } = require('electron');
+
+// Store references to toggle menu items for state updates
+const menuItemRefs = {};
+
+/**
+ * Update menu item checked state
+ * Called from renderer via IPC when state changes
+ * @param {string} id - Menu item ID (e.g., 'auto-center', 'boxes-visible')
+ * @param {boolean} checked - New checked state
+ */
+function updateMenuItemState(id, checked) {
+  const menuItem = menuItemRefs[id];
+  if (menuItem) {
+    menuItem.checked = checked;
+  }
+}
+
+// IPC handler for menu state updates from renderer
+ipcMain.on('update-menu-state', (event, { id, checked }) => {
+  updateMenuItemState(id, checked);
+});
 
 /**
  * Create application menu
@@ -15,13 +37,10 @@ function createApplicationMenu(mainWindow) {
   const isMac = process.platform === 'darwin';
 
   // Helper: Check if DevTools has focus before sending menu commands
+  // This prevents shortcuts from triggering when typing in DevTools console
   const sendMenuCommand = (command) => {
-    // If DevTools is focused (active), don't send keyboard shortcut commands
-    // This prevents shortcuts from triggering when typing in DevTools console
-    // But allows shortcuts when DevTools is open but main window is focused
     if (mainWindow.webContents.isDevToolsFocused()) {
-      console.log(`[Main] Menu command "${command}" blocked - DevTools is focused`);
-      return;
+      return; // DevTools focused - let it handle input natively
     }
     mainWindow.webContents.send('menu-command', command);
   };
@@ -64,59 +83,20 @@ function createApplicationMenu(mainWindow) {
       ]
     }] : []),
 
-    // Edit menu (needed for copy/paste in DevTools)
+    // Edit menu - uses roles for native focus-aware clipboard handling
+    // Roles automatically route to correct context (main window or DevTools)
     {
       label: 'Edit',
       submenu: [
-        {
-          label: 'Undo',
-          accelerator: 'CmdOrCtrl+Z',
-          click: () => {
-            mainWindow.webContents.undo();
-          }
-        },
-        {
-          label: 'Redo',
-          accelerator: 'Shift+CmdOrCtrl+Z',
-          click: () => {
-            mainWindow.webContents.redo();
-          }
-        },
+        { role: 'undo' },
+        { role: 'redo' },
         { type: 'separator' },
-        {
-          label: 'Cut',
-          accelerator: 'CmdOrCtrl+X',
-          click: () => {
-            mainWindow.webContents.cut();
-          }
-        },
-        {
-          label: 'Copy',
-          accelerator: 'CmdOrCtrl+C',
-          click: () => {
-            mainWindow.webContents.copy();
-          }
-        },
-        {
-          label: 'Paste',
-          accelerator: 'CmdOrCtrl+V',
-          click: () => {
-            mainWindow.webContents.paste();
-          }
-        },
-        {
-          label: 'Delete',
-          click: () => {
-            mainWindow.webContents.delete();
-          }
-        },
-        {
-          label: 'Select All',
-          accelerator: 'CmdOrCtrl+A',
-          click: () => {
-            mainWindow.webContents.selectAll();
-          }
-        }
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' }
       ]
     },
 
@@ -170,17 +150,23 @@ function createApplicationMenu(mainWindow) {
       label: 'View',
       submenu: [
         {
-          label: 'Toggle Single/All Boxes',
-          accelerator: 'b',
-          click: () => {
-            sendMenuCommand( 'toggle-single-all-boxes');
+          id: 'boxes-visible',
+          label: 'Show Bounding Boxes',
+          accelerator: 'Shift+B',
+          type: 'checkbox',
+          checked: true, // Default: visible
+          click: (menuItem) => {
+            sendMenuCommand(menuItem.checked ? 'boxes-show' : 'boxes-hide');
           }
         },
         {
-          label: 'Toggle Boxes On/Off',
-          accelerator: 'Shift+B',
-          click: () => {
-            sendMenuCommand( 'toggle-boxes-on-off');
+          id: 'boxes-all-faces',
+          label: 'Show All Faces',
+          accelerator: 'b',
+          type: 'checkbox',
+          checked: true, // Default: all faces (unchecked = single face)
+          click: (menuItem) => {
+            sendMenuCommand(menuItem.checked ? 'boxes-all' : 'boxes-single');
           }
         },
         { type: 'separator' },
@@ -214,17 +200,14 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Enable Auto-Center on Face',
+          id: 'auto-center',
+          label: 'Auto-Center on Face',
           accelerator: 'c',
-          click: () => {
-            sendMenuCommand( 'auto-center-enable');
-          }
-        },
-        {
-          label: 'Disable Auto-Center on Face',
-          accelerator: 'Shift+C',
-          click: () => {
-            sendMenuCommand( 'auto-center-disable');
+          type: 'checkbox',
+          checked: true, // Default: enabled
+          click: (menuItem) => {
+            // Menu click toggles the setting
+            sendMenuCommand(menuItem.checked ? 'auto-center-enable' : 'auto-center-disable');
           }
         },
         { type: 'separator' },
@@ -260,6 +243,13 @@ function createApplicationMenu(mainWindow) {
           label: 'Database Management',
           click: () => {
             sendMenuCommand( 'open-database-management');
+          }
+        },
+        {
+          label: 'File Queue',
+          accelerator: 'CmdOrCtrl+Shift+U',
+          click: () => {
+            sendMenuCommand('open-file-queue');
           }
         },
         { type: 'separator' },
@@ -314,6 +304,13 @@ function createApplicationMenu(mainWindow) {
               click: () => {
                 sendMenuCommand( 'layout-template-stats');
               }
+            },
+            {
+              label: 'Queue Review Mode',
+              accelerator: 'CmdOrCtrl+5',
+              click: () => {
+                sendMenuCommand('layout-queue-review');
+              }
             }
           ]
         },
@@ -354,6 +351,70 @@ function createApplicationMenu(mainWindow) {
               accelerator: 'CmdOrCtrl+Shift+5',
               click: () => {
                 sendMenuCommand( 'grid-preset-40-60');
+              }
+            }
+          ]
+        },
+        { type: 'separator' },
+        {
+          label: 'Layout',
+          submenu: [
+            {
+              label: 'Add Column',
+              accelerator: 'CmdOrCtrl+Shift+]',
+              click: () => {
+                sendMenuCommand('layout-add-column');
+              }
+            },
+            {
+              label: 'Remove Column',
+              accelerator: 'CmdOrCtrl+Shift+[',
+              click: () => {
+                sendMenuCommand('layout-remove-column');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Add Row',
+              accelerator: 'CmdOrCtrl+Shift+}',
+              click: () => {
+                sendMenuCommand('layout-add-row');
+              }
+            },
+            {
+              label: 'Remove Row',
+              accelerator: 'CmdOrCtrl+Shift+{',
+              click: () => {
+                sendMenuCommand('layout-remove-row');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Move Panel to New Column Left',
+              accelerator: 'CmdOrCtrl+Alt+Left',
+              click: () => {
+                sendMenuCommand('layout-move-new-left');
+              }
+            },
+            {
+              label: 'Move Panel to New Column Right',
+              accelerator: 'CmdOrCtrl+Alt+Right',
+              click: () => {
+                sendMenuCommand('layout-move-new-right');
+              }
+            },
+            {
+              label: 'Move Panel to New Row Above',
+              accelerator: 'CmdOrCtrl+Alt+Up',
+              click: () => {
+                sendMenuCommand('layout-move-new-above');
+              }
+            },
+            {
+              label: 'Move Panel to New Row Below',
+              accelerator: 'CmdOrCtrl+Alt+Down',
+              click: () => {
+                sendMenuCommand('layout-move-new-below');
               }
             }
           ]
@@ -426,7 +487,28 @@ function createApplicationMenu(mainWindow) {
     }
   ];
 
-  return Menu.buildFromTemplate(template);
+  const menu = Menu.buildFromTemplate(template);
+
+  // Store references to checkbox menu items for state synchronization
+  // Menu.getMenuItemById requires the menu to be set as application menu first,
+  // so we iterate through the template to find items with IDs
+  const findMenuItemsWithId = (items) => {
+    for (const item of items) {
+      if (item.id) {
+        // Find the actual MenuItem in the built menu
+        const menuItem = menu.getMenuItemById(item.id);
+        if (menuItem) {
+          menuItemRefs[item.id] = menuItem;
+        }
+      }
+      if (item.submenu && Array.isArray(item.submenu)) {
+        findMenuItemsWithId(item.submenu);
+      }
+    }
+  };
+  findMenuItemsWithId(template);
+
+  return menu;
 }
 
 module.exports = { createApplicationMenu };
