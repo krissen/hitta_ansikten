@@ -227,6 +227,16 @@ export function FlexLayoutWorkspace() {
       layoutConfig = getLayoutByName(defaultLayout);
     }
 
+    // Ensure critical global settings are always applied
+    // (saved layouts may not have newer settings)
+    const criticalSettings = {
+      tabEnableRenderOnDemand: false,  // Keep all tabs mounted for event handling
+      splitterSize: 4,                  // Consistent splitter appearance
+      tabSetMinWidth: 100,              // Prevent panels from becoming too small
+      tabSetMinHeight: 100,
+    };
+    layoutConfig.global = { ...layoutConfig.global, ...criticalSettings };
+
     // Create model from config
     try {
       const newModel = Model.fromJson(layoutConfig);
@@ -1027,15 +1037,19 @@ export function FlexLayoutWorkspace() {
         const item = parsed.queue[indexToLoad];
         debug('FlexLayout', 'Auto-loading file from queue:', item.filePath);
 
-        // Delay to ensure modules are mounted and ready
-        setTimeout(() => {
-          moduleAPI.emit('load-image', { imagePath: item.filePath });
+        // Wait for ImageViewer to register its event handler before emitting
+        moduleAPI.waitForListeners('load-image', 5000).then(found => {
+          if (found) {
+            moduleAPI.emit('load-image', { imagePath: item.filePath });
 
-          // Update queue state in localStorage to mark as active
-          parsed.currentIndex = indexToLoad;
-          parsed.queue[indexToLoad].status = 'active';
-          localStorage.setItem('bildvisare-file-queue', JSON.stringify(parsed));
-        }, 500);
+            // Update queue state in localStorage to mark as active
+            parsed.currentIndex = indexToLoad;
+            parsed.queue[indexToLoad].status = 'active';
+            localStorage.setItem('bildvisare-file-queue', JSON.stringify(parsed));
+          } else {
+            debugWarn('FlexLayout', 'No load-image handlers found after 5s, skipping auto-load');
+          }
+        });
       }
     } catch (err) {
       debugError('FlexLayout', 'Failed to auto-load from queue:', err);

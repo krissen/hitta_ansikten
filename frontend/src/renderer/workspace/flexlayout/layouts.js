@@ -18,7 +18,8 @@ export const reviewLayout = {
     tabSetMinHeight: 100,
     borderMinSize: 100,
     splitterSize: 4,
-    enableEdgeDock: true
+    enableEdgeDock: true,
+    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
   },
   layout: {
     type: 'row',
@@ -71,7 +72,8 @@ export const reviewWithLogsLayout = {
     tabSetMinHeight: 100,
     borderMinSize: 100,
     splitterSize: 4,
-    enableEdgeDock: true
+    enableEdgeDock: true,
+    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
   },
   layout: {
     type: 'row',
@@ -136,7 +138,8 @@ export const comparisonLayout = {
     tabSetMinHeight: 100,
     borderMinSize: 100,
     splitterSize: 4,
-    enableEdgeDock: true
+    enableEdgeDock: true,
+    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
   },
   layout: {
     type: 'row',
@@ -189,7 +192,8 @@ export const fullReviewLayout = {
     tabSetMinHeight: 100,
     borderMinSize: 100,
     splitterSize: 4,
-    enableEdgeDock: true
+    enableEdgeDock: true,
+    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
   },
   layout: {
     type: 'row',
@@ -277,7 +281,8 @@ export const queueReviewLayout = {
     tabSetMinHeight: 100,
     borderMinSize: 100,
     splitterSize: 4,
-    enableEdgeDock: true
+    enableEdgeDock: true,
+    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
   },
   layout: {
     type: 'row',
@@ -336,7 +341,8 @@ export const databaseLayout = {
     tabSetMinHeight: 100,
     borderMinSize: 100,
     splitterSize: 4,
-    enableEdgeDock: true
+    enableEdgeDock: true,
+    tabEnableRenderOnDemand: false  // Keep all tabs mounted for event handling
   },
   layout: {
     type: 'row',

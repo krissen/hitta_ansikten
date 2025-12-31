@@ -53,6 +53,41 @@ export function ModuleAPIProvider({ children }) {
   }, []);
 
   /**
+   * Check if an event has listeners
+   * @param {string} eventName - Event name
+   * @returns {boolean} True if there are listeners
+   */
+  const hasListeners = useCallback((eventName) => {
+    const handlers = eventBusRef.current.get(eventName);
+    return handlers && handlers.length > 0;
+  }, []);
+
+  /**
+   * Wait for listeners to be registered for an event
+   * @param {string} eventName - Event name
+   * @param {number} timeout - Max wait time in ms (default 5000)
+   * @param {number} interval - Check interval in ms (default 50)
+   * @returns {Promise<boolean>} True if listeners found, false if timeout
+   */
+  const waitForListeners = useCallback((eventName, timeout = 5000, interval = 50) => {
+    return new Promise((resolve) => {
+      const startTime = Date.now();
+      const check = () => {
+        if (hasListeners(eventName)) {
+          debug('ModuleAPI', `waitForListeners("${eventName}") - found listeners`);
+          resolve(true);
+        } else if (Date.now() - startTime > timeout) {
+          debug('ModuleAPI', `waitForListeners("${eventName}") - timeout after ${timeout}ms`);
+          resolve(false);
+        } else {
+          setTimeout(check, interval);
+        }
+      };
+      check();
+    });
+  }, [hasListeners]);
+
+  /**
    * Subscribe to an event
    * @param {string} eventName - Event name
    * @param {function} handler - Event handler
@@ -122,11 +157,13 @@ export function ModuleAPIProvider({ children }) {
   const value = useMemo(() => ({
     emit,
     on,
+    hasListeners,
+    waitForListeners,
     http,
     ws,
     ipc,
     backend
-  }), [emit, on, http, ws, ipc, backend]);
+  }), [emit, on, hasListeners, waitForListeners, http, ws, ipc, backend]);
 
   return (
     <ModuleAPIContext.Provider value={value}>
