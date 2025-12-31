@@ -13,6 +13,7 @@ import { useModuleAPI, useModuleEvent, useEmitEvent } from '../hooks/useModuleEv
 import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { apiClient } from '../shared/api-client.js';
 import './ImageViewer.css';
 
 // Constants (will be user-configurable in Phase 4)
@@ -76,15 +77,25 @@ export function ImageViewer() {
     let loadPath = filepath;
     const originalPath = filepath;
 
-    // Check if NEF file - convert to JPG first
+    // Check if NEF file - use preprocessing cache/API for conversion
     if (filepath.toLowerCase().endsWith('.nef')) {
-      try {
-        debug('ImageViewer', 'NEF file detected, converting...');
-        setIsLoading(true);
-        setLoadingMessage('Converting NEF file...');
+      setIsLoading(true);
 
-        loadPath = await window.bildvisareAPI.invoke('convert-nef', filepath);
-        debug('ImageViewer', 'NEF converted to:', loadPath);
+      try {
+        // Call preprocessing API - handles cache check and conversion in one call
+        const result = await apiClient.post('/api/preprocessing/nef', { file_path: filepath });
+
+        if (result.status === 'cached') {
+          debug('ImageViewer', 'Using cached JPG:', result.nef_jpg_path);
+          setLoadingMessage('Loading from cache...');
+        } else if (result.status === 'completed') {
+          debug('ImageViewer', 'NEF converted and cached:', result.nef_jpg_path);
+          setLoadingMessage('Converting NEF file...');
+        } else if (result.status === 'error') {
+          throw new Error(result.error || 'NEF conversion failed');
+        }
+
+        loadPath = result.nef_jpg_path;
       } catch (err) {
         setIsLoading(false);
         debugError('ImageViewer', 'NEF conversion failed:', err);

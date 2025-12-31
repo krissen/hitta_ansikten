@@ -9,13 +9,18 @@ Endpoints for:
 """
 
 import os
+import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
 from ..services.preprocessing_cache import get_cache, PreprocessingCache
+
+# Thread pool for CPU-intensive operations
+_executor = ThreadPoolExecutor(max_workers=4)
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +170,34 @@ async def check_cache(request: CacheCheckRequest):
 # Preprocessing Endpoints
 # ============================================================================
 
+def _convert_nef_sync(file_path: str, file_hash: str, cache) -> dict:
+    """Synchronous NEF conversion - runs in thread pool."""
+    from ..services.detection_service import convert_nef_to_jpg
+
+    jpg_path = None
+    try:
+        logger.info(f"[Preprocessing] Converting NEF: {file_path}")
+        jpg_path = convert_nef_to_jpg(file_path)
+
+        if jpg_path and os.path.exists(jpg_path):
+            with open(jpg_path, 'rb') as f:
+                jpg_data = f.read()
+
+            cached_path = cache.store_nef_conversion(file_hash, file_path, jpg_data)
+            return {'status': 'completed', 'nef_jpg_path': cached_path}
+        else:
+            return {'status': 'error', 'error': 'NEF conversion failed'}
+    except Exception as e:
+        logger.error(f"[Preprocessing] NEF conversion error: {e}")
+        return {'status': 'error', 'error': str(e)}
+    finally:
+        if jpg_path and os.path.exists(jpg_path):
+            try:
+                os.remove(jpg_path)
+            except OSError:
+                pass
+
+
 @router.post("/nef", response_model=PreprocessResponse)
 async def preprocess_nef(request: PreprocessRequest):
     """
@@ -173,8 +206,6 @@ async def preprocess_nef(request: PreprocessRequest):
     If already cached, returns cached path immediately.
     Otherwise, performs conversion and caches result.
     """
-    from ..services.detection_service import convert_nef_to_jpg
-
     cache = get_cache()
     file_path = request.file_path
 
@@ -182,8 +213,13 @@ async def preprocess_nef(request: PreprocessRequest):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
 
-    # Compute or use provided hash
-    file_hash = request.file_hash or PreprocessingCache.compute_file_hash(file_path)
+    # Compute hash (can be blocking for large files, but needed for cache lookup)
+    loop = asyncio.get_event_loop()
+    file_hash = request.file_hash
+    if not file_hash:
+        file_hash = await loop.run_in_executor(
+            _executor, PreprocessingCache.compute_file_hash, file_path
+        )
 
     # Check cache first
     cached_path = cache.get_nef_conversion(file_hash)
@@ -195,35 +231,22 @@ async def preprocess_nef(request: PreprocessRequest):
             nef_jpg_path=cached_path
         )
 
-    # Convert NEF
-    try:
-        logger.info(f"[Preprocessing] Converting NEF: {file_path}")
-        jpg_path = convert_nef_to_jpg(file_path)
+    # Convert NEF in thread pool (non-blocking)
+    result = await loop.run_in_executor(
+        _executor, _convert_nef_sync, file_path, file_hash, cache
+    )
 
-        if jpg_path and os.path.exists(jpg_path):
-            # Read and store in cache
-            with open(jpg_path, 'rb') as f:
-                jpg_data = f.read()
-
-            cached_path = cache.store_nef_conversion(file_hash, file_path, jpg_data)
-
-            return PreprocessResponse(
-                file_hash=file_hash,
-                status='completed',
-                nef_jpg_path=cached_path
-            )
-        else:
-            return PreprocessResponse(
-                file_hash=file_hash,
-                status='error',
-                error='NEF conversion failed'
-            )
-    except Exception as e:
-        logger.error(f"[Preprocessing] NEF conversion error: {e}")
+    if result['status'] == 'completed':
+        return PreprocessResponse(
+            file_hash=file_hash,
+            status='completed',
+            nef_jpg_path=result['nef_jpg_path']
+        )
+    else:
         return PreprocessResponse(
             file_hash=file_hash,
             status='error',
-            error=str(e)
+            error=result.get('error', 'NEF conversion failed')
         )
 
 

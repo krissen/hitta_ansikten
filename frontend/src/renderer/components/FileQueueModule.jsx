@@ -150,6 +150,11 @@ export function FileQueueModule() {
       // Check if auto-load is enabled in preferences
       if (!getAutoLoadPreference()) {
         debug('FileQueue', 'Auto-load disabled in preferences');
+        // Still start preprocessing for all pending items
+        if (preprocessingManager.current) {
+          const pendingItems = queue.filter(item => item.status !== 'completed');
+          pendingItems.forEach(item => preprocessingManager.current.addToQueue(item.filePath));
+        }
         return;
       }
 
@@ -165,6 +170,17 @@ export function FileQueueModule() {
       if (indexToLoad >= 0 && queue[indexToLoad]?.status === 'completed') {
         const nextPending = queue.findIndex((item, i) => i > indexToLoad && item.status === 'pending');
         indexToLoad = nextPending >= 0 ? nextPending : queue.findIndex(item => item.status === 'pending');
+      }
+
+      // Start preprocessing for restored queue items (skip completed and the file we're about to load)
+      if (preprocessingManager.current) {
+        const pendingItems = queue.filter((item, i) =>
+          item.status !== 'completed' && i !== indexToLoad
+        );
+        debug('FileQueue', 'Starting preprocessing for', pendingItems.length, 'items (skipping active/completed)');
+        pendingItems.forEach(item => {
+          preprocessingManager.current.addToQueue(item.filePath);
+        });
       }
 
       if (indexToLoad >= 0) {
@@ -235,6 +251,12 @@ export function FileQueueModule() {
 
   // Remove file from queue
   const removeFile = useCallback((id) => {
+    // Find the file to get its path before removing
+    const fileToRemove = queue.find(item => item.id === id);
+    if (fileToRemove && preprocessingManager.current) {
+      preprocessingManager.current.removeFromQueue(fileToRemove.filePath);
+    }
+
     setQueue(prev => prev.filter(item => item.id !== id));
     // Adjust currentIndex if needed
     setCurrentIndex(prev => {
@@ -247,6 +269,10 @@ export function FileQueueModule() {
 
   // Clear all files
   const clearQueue = useCallback(() => {
+    // Stop all preprocessing
+    if (preprocessingManager.current) {
+      preprocessingManager.current.stop();
+    }
     setQueue([]);
     setCurrentIndex(-1);
   }, []);
@@ -329,19 +355,18 @@ export function FileQueueModule() {
       const indexToLoad = pendingAutoLoad;
       setPendingAutoLoad(-1); // Clear to prevent re-trigger
 
-      // Wait for workspace to be fully ready before loading
+      // Wait for workspace to be ready - check immediately, then poll quickly
       const waitForWorkspace = () => {
         if (window.workspace?.openModule) {
           debug('FileQueue', 'Workspace ready, auto-loading file at index', indexToLoad);
           loadFile(indexToLoad);
         } else {
-          debug('FileQueue', 'Waiting for workspace to be ready...');
-          setTimeout(waitForWorkspace, 100);
+          setTimeout(waitForWorkspace, 50); // Fast polling
         }
       };
 
-      // Initial delay to let FlexLayout fully initialize
-      setTimeout(waitForWorkspace, 500);
+      // Start checking immediately (no initial delay)
+      waitForWorkspace();
     }
   }, [pendingAutoLoad, loadFile]);
 
@@ -682,8 +707,13 @@ function FileQueueItem({ item, isActive, onClick, onRemove, fixMode, preprocessi
 
   // Get preprocessing indicator
   const getPreprocessingIndicator = () => {
-    if (!preprocessingStatus || preprocessingStatus === PreprocessingStatus.COMPLETED) {
+    // No status recorded yet
+    if (!preprocessingStatus) {
       return null;
+    }
+    // Show checkmark for completed preprocessing
+    if (preprocessingStatus === PreprocessingStatus.COMPLETED) {
+      return <span className="preprocess-indicator completed" title="Preprocessed (cached)">⚡</span>;
     }
     if (preprocessingStatus === PreprocessingStatus.ERROR) {
       return <span className="preprocess-indicator error" title="Preprocessing failed">!</span>;
@@ -700,7 +730,6 @@ function FileQueueItem({ item, isActive, onClick, onRemove, fixMode, preprocessi
       {getStatusIcon()}
       <span className="file-name" title={item.filePath}>
         {item.fileName}
-        {item.isAlreadyProcessed && <span className="processed-marker">*</span>}
       </span>
       {getPreprocessingIndicator()}
       <span className="file-status">{getStatusText()}</span>

@@ -32,9 +32,9 @@ export class PreprocessingManager {
     this.maxWorkers = options.maxWorkers || 2;
     this.enabled = options.enabled !== false;
     this.steps = {
-      nefConversion: options.steps?.nefConversion !== false,
-      faceDetection: options.steps?.faceDetection !== false,
-      thumbnails: options.steps?.thumbnails !== false
+      nefConversion: options.steps?.nefConversion ?? true,
+      faceDetection: options.steps?.faceDetection ?? true,
+      thumbnails: options.steps?.thumbnails ?? true
     };
 
     // State
@@ -182,43 +182,41 @@ export class PreprocessingManager {
   }
 
   /**
-   * Process next item in queue
+   * Process next item(s) in queue - launches multiple workers in parallel
    * @private
    */
-  async _processNext() {
-    // Check if we can start more workers
-    if (this.activeWorkers >= this.maxWorkers) {
-      return;
-    }
+  _processNext() {
+    // Start as many workers as we have capacity for
+    while (this.activeWorkers < this.maxWorkers && this.queue.length > 0) {
+      const filePath = this.queue.shift();
+      if (!filePath) {
+        break;
+      }
 
-    // Get next item from queue
-    const filePath = this.queue.shift();
-    if (!filePath) {
-      return;
-    }
-
-    // Start processing
-    this.activeWorkers++;
-    this.processing.set(filePath, {
-      status: PreprocessingStatus.HASHING,
-      startTime: Date.now()
-    });
-
-    this.emit('status-change', { filePath, status: PreprocessingStatus.HASHING });
-
-    try {
-      await this._processFile(filePath);
-    } catch (err) {
-      debugError('Preprocessing', `Error processing ${filePath}:`, err);
+      // Start processing
+      this.activeWorkers++;
       this.processing.set(filePath, {
-        status: PreprocessingStatus.ERROR,
-        error: err.message
+        status: PreprocessingStatus.HASHING,
+        startTime: Date.now()
       });
-      this.emit('error', { filePath, error: err.message });
-    } finally {
-      this.activeWorkers--;
-      // Process next in queue
-      this._processNext();
+
+      this.emit('status-change', { filePath, status: PreprocessingStatus.HASHING });
+
+      // Launch processing without awaiting - allows parallel execution
+      this._processFile(filePath)
+        .catch((err) => {
+          debugError('Preprocessing', `Error processing ${filePath}:`, err);
+          this.processing.set(filePath, {
+            status: PreprocessingStatus.ERROR,
+            error: err.message
+          });
+          this.emit('error', { filePath, error: err.message });
+        })
+        .finally(() => {
+          this.activeWorkers--;
+          // Try to start more workers if capacity available
+          this._processNext();
+        });
     }
   }
 
@@ -253,14 +251,27 @@ export class PreprocessingManager {
       return;
     }
 
+    // Track actual status after each step
+    const actualStatus = {
+      has_nef_conversion: cacheCheck.has_nef_conversion,
+      has_face_detection: cacheCheck.has_face_detection,
+      has_thumbnails: cacheCheck.has_thumbnails,
+      nef_jpg_path: cacheCheck.nef_jpg_path
+    };
+    let hasErrors = false;
+
     // Step 3: NEF conversion (if needed and enabled)
     if (this.steps.nefConversion && this._isRawFile(filePath) && !cacheCheck.has_nef_conversion) {
       this._updateStatus(filePath, PreprocessingStatus.NEF_CONVERTING);
       try {
-        await apiClient.post('/api/preprocessing/nef', {
+        const result = await apiClient.post('/api/preprocessing/nef', {
           file_path: filePath,
           file_hash: fileHash
         });
+        if (result.status === 'completed' || result.status === 'cached') {
+          actualStatus.has_nef_conversion = true;
+          actualStatus.nef_jpg_path = result.nef_jpg_path;
+        }
         debug('Preprocessing', `NEF converted: ${filePath}`);
       } catch (err) {
         debugWarn('Preprocessing', `NEF conversion failed: ${err.message}`);
@@ -272,13 +283,20 @@ export class PreprocessingManager {
     if (this.steps.faceDetection && !cacheCheck.has_face_detection) {
       this._updateStatus(filePath, PreprocessingStatus.DETECTING_FACES);
       try {
-        await apiClient.post('/api/preprocessing/faces', {
+        const result = await apiClient.post('/api/preprocessing/faces', {
           file_path: filePath,
           file_hash: fileHash
         });
+        if (result.status === 'completed' || result.status === 'cached') {
+          actualStatus.has_face_detection = true;
+        } else if (result.status === 'error') {
+          hasErrors = true;
+          debugError('Preprocessing', `Face detection error: ${result.error}`);
+        }
         debug('Preprocessing', `Faces detected: ${filePath}`);
       } catch (err) {
-        debugWarn('Preprocessing', `Face detection failed: ${err.message}`);
+        hasErrors = true;
+        debugError('Preprocessing', `Face detection failed: ${err.message}`);
       }
     }
 
@@ -286,18 +304,33 @@ export class PreprocessingManager {
     if (this.steps.thumbnails && !cacheCheck.has_thumbnails) {
       this._updateStatus(filePath, PreprocessingStatus.GENERATING_THUMBNAILS);
       try {
-        await apiClient.post('/api/preprocessing/thumbnails', {
+        const result = await apiClient.post('/api/preprocessing/thumbnails', {
           file_path: filePath,
           file_hash: fileHash
         });
+        if (result.status === 'completed' || result.status === 'cached') {
+          actualStatus.has_thumbnails = true;
+        } else if (result.status === 'error') {
+          hasErrors = true;
+          debugError('Preprocessing', `Thumbnail error: ${result.error}`);
+        }
         debug('Preprocessing', `Thumbnails generated: ${filePath}`);
       } catch (err) {
-        debugWarn('Preprocessing', `Thumbnail generation failed: ${err.message}`);
+        hasErrors = true;
+        debugError('Preprocessing', `Thumbnail generation failed: ${err.message}`);
       }
     }
 
-    // Mark as complete
-    this._completeFile(filePath, fileHash, cacheCheck);
+    // Mark as complete or error based on actual results
+    if (hasErrors) {
+      this.processing.set(filePath, {
+        status: PreprocessingStatus.ERROR,
+        error: 'One or more preprocessing steps failed'
+      });
+      this.emit('error', { filePath, error: 'Preprocessing partially failed' });
+    } else {
+      this._completeFile(filePath, fileHash, actualStatus);
+    }
   }
 
   /**

@@ -24,6 +24,8 @@ import rawpy
 from PIL import Image
 import numpy as np
 
+from .preprocessing_cache import get_cache as get_preprocessing_cache
+
 logger = logging.getLogger(__name__)
 
 class DetectionService:
@@ -92,10 +94,27 @@ class DetectionService:
             return hashlib.sha1(f.read()).hexdigest()
 
     def _load_image(self, image_path: Path) -> np.ndarray:
-        """Load image as RGB array (supports NEF and standard formats)"""
+        """Load image as RGB array (supports NEF and standard formats)
+
+        For RAW formats, checks preprocessing cache first for cached JPG.
+        """
         ext = image_path.suffix.lower()
 
         if ext in ['.nef', '.cr2', '.arw']:  # RAW formats
+            # Check preprocessing cache for converted JPG
+            try:
+                cache = get_preprocessing_cache()
+                file_hash = cache.compute_file_hash(str(image_path))
+                cached_jpg = cache.get_nef_conversion(file_hash)
+
+                if cached_jpg and os.path.exists(cached_jpg):
+                    logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
+                    img = Image.open(cached_jpg)
+                    return np.array(img.convert('RGB'))
+            except Exception as e:
+                logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
+
+            # No cache hit - process RAW directly
             logger.debug(f"[DetectionService] Loading RAW image: {image_path}")
             with rawpy.imread(str(image_path)) as raw:
                 rgb = raw.postprocess()
