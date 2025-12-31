@@ -5,6 +5,7 @@ Wraps existing face detection logic from hitta_ansikten.
 """
 
 import logging
+import os
 import sys
 import time
 import hashlib
@@ -442,3 +443,177 @@ class DetectionService:
 
 # Singleton instance
 detection_service = DetectionService()
+
+
+# ============================================================================
+# Module-level helper functions for preprocessing
+# ============================================================================
+
+def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> Optional[str]:
+    """
+    Convert NEF (or other RAW) file to JPG.
+
+    Args:
+        nef_path: Path to NEF file
+        output_path: Optional output path. If None, creates temp file.
+
+    Returns:
+        Path to JPG file, or None if conversion failed
+    """
+    import tempfile
+    import io
+
+    path = Path(nef_path)
+    if not path.exists():
+        logger.error(f"[convert_nef_to_jpg] File not found: {nef_path}")
+        return None
+
+    try:
+        # Load RAW image
+        rgb = detection_service._load_image(path)
+
+        # Convert to PIL Image
+        img = Image.fromarray(rgb)
+
+        # Determine output path
+        if output_path is None:
+            fd, output_path = tempfile.mkstemp(suffix='.jpg', prefix='nef_')
+            os.close(fd)
+
+        # Save as JPG (high quality)
+        img.save(output_path, format='JPEG', quality=95)
+        logger.info(f"[convert_nef_to_jpg] Converted {path.name} -> {output_path}")
+
+        return output_path
+    except Exception as e:
+        logger.error(f"[convert_nef_to_jpg] Failed to convert {nef_path}: {e}")
+        return None
+
+
+def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> Dict[str, Any]:
+    """
+    Detect faces in an image without database matching.
+
+    Args:
+        image_path: Path to image file
+        include_encodings: Whether to include face encodings in result
+
+    Returns:
+        Dict with faces list and image dimensions
+    """
+    import cv2
+
+    path = Path(image_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Image not found: {image_path}")
+
+    # Load image
+    rgb = detection_service._load_image(path)
+    height, width = rgb.shape[:2]
+
+    # Resize for detection if needed
+    max_dimension = 4500
+    if max(height, width) > max_dimension:
+        scale = max_dimension / max(height, width)
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        rgb_resized = cv2.resize(rgb, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        scale_factor = 1 / scale
+    else:
+        rgb_resized = rgb
+        scale_factor = 1.0
+
+    # Detect faces
+    detection_model = detection_service.config.get('detection_model', 'hog')
+    face_locations, face_encodings = detection_service.backend.detect_faces(
+        rgb_resized,
+        model=detection_model,
+        upsample=0
+    )
+
+    faces = []
+    for i, (location, encoding) in enumerate(zip(face_locations, face_encodings)):
+        top, right, bottom, left = location
+
+        face_data = {
+            'face_id': f"face_{i}",
+            'bounding_box': {
+                'x': int(left * scale_factor),
+                'y': int(top * scale_factor),
+                'width': int((right - left) * scale_factor),
+                'height': int((bottom - top) * scale_factor)
+            },
+            'confidence': 1.0  # Detection confidence (placeholder)
+        }
+
+        if include_encodings:
+            face_data['encoding'] = encoding.tolist()
+
+        faces.append(face_data)
+
+    logger.info(f"[detect_faces_in_image] Detected {len(faces)} faces in {path.name}")
+
+    return {
+        'faces': faces,
+        'image_width': width,
+        'image_height': height
+    }
+
+
+def generate_face_thumbnails(image_path: str, faces: List[Dict], size: int = 150) -> List[bytes]:
+    """
+    Generate thumbnails for detected faces.
+
+    Args:
+        image_path: Path to source image
+        faces: List of face dicts with 'bounding_box' keys
+        size: Thumbnail size (default 150x150)
+
+    Returns:
+        List of JPEG thumbnail bytes
+    """
+    import io
+
+    path = Path(image_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Image not found: {image_path}")
+
+    # Load image once
+    rgb = detection_service._load_image(path)
+    img_height, img_width = rgb.shape[:2]
+
+    thumbnails = []
+    for face in faces:
+        bbox = face.get('bounding_box', {})
+        x = bbox.get('x', 0)
+        y = bbox.get('y', 0)
+        width = bbox.get('width', 100)
+        height = bbox.get('height', 100)
+
+        # Handle out-of-bounds with padding
+        src_x1 = max(0, x)
+        src_y1 = max(0, y)
+        src_x2 = min(img_width, x + width)
+        src_y2 = min(img_height, y + height)
+
+        dst_x1 = src_x1 - x
+        dst_y1 = src_y1 - y
+        dst_x2 = dst_x1 + (src_x2 - src_x1)
+        dst_y2 = dst_y1 + (src_y2 - src_y1)
+
+        # Create canvas and copy valid region
+        cropped = np.zeros((height, width, 3), dtype=np.uint8)
+        if src_x2 > src_x1 and src_y2 > src_y1:
+            cropped[dst_y1:dst_y2, dst_x1:dst_x2] = rgb[src_y1:src_y2, src_x1:src_x2]
+
+        # Convert to PIL, resize, and encode
+        img = Image.fromarray(cropped)
+        img.thumbnail((size, size), Image.Resampling.LANCZOS)
+
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=85)
+        buffer.seek(0)
+        thumbnails.append(buffer.read())
+
+    logger.info(f"[generate_face_thumbnails] Generated {len(thumbnails)} thumbnails")
+    return thumbnails
