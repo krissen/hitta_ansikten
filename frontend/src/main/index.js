@@ -1,13 +1,9 @@
 /**
  * Main Process - Modular Workspace Mode
  *
- * Entry point for the modular workspace architecture (default mode).
- * Uses FlexLayout by default for better layout capabilities.
- *
- * Set BILDVISARE_DOCKVIEW=1 to use legacy Dockview instead of FlexLayout
+ * Entry point for the modular workspace architecture.
+ * Uses FlexLayout for layout management.
  */
-
-const USE_FLEXLAYOUT = process.env.BILDVISARE_DOCKVIEW !== '1';
 
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
 const path = require('path');
@@ -128,10 +124,9 @@ function createWorkspaceWindow() {
   const menu = createApplicationMenu(mainWindow);
   Menu.setApplicationMenu(menu);
 
-  // Load workspace HTML (FlexLayout or Dockview)
-  const htmlFile = USE_FLEXLAYOUT ? 'workspace-flex.html' : 'index.html';
-  const workspaceHtml = path.join(__dirname, '../renderer', htmlFile);
-  console.log(`[Main] Loading ${USE_FLEXLAYOUT ? 'FlexLayout' : 'Dockview'} workspace:`, workspaceHtml);
+  // Load workspace HTML
+  const workspaceHtml = path.join(__dirname, '../renderer', 'workspace-flex.html');
+  console.log('[Main] Loading FlexLayout workspace:', workspaceHtml);
   mainWindow.loadFile(workspaceHtml);
 
   // Note: Initial file path is now requested by renderer via IPC when ready

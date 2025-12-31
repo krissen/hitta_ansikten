@@ -666,7 +666,7 @@ export function ImageViewer() {
   // ============================================
 
   return (
-    <div ref={containerRef} className="image-viewer">
+    <div ref={containerRef} className="image-viewer" tabIndex={-1}>
       <canvas
         ref={canvasRef}
         style={{ cursor: zoomMode === 'manual' ? 'grab' : 'default' }}

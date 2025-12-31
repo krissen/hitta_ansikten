@@ -210,6 +210,14 @@ export class APIClient {
   }
 
   /**
+   * Check if WebSocket is connected
+   * @returns {boolean}
+   */
+  isConnected() {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  /**
    * Detect faces in an image
    * @param {string} imagePath - Path to image file
    * @param {boolean} forceReprocess - Force reprocessing even if cached

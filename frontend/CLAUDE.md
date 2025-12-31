@@ -30,11 +30,6 @@ npx electron .
 BILDVISARE_LEGACY=1 npx electron .
 ```
 
-### Run with Dockview instead of FlexLayout
-```bash
-BILDVISARE_DOCKVIEW=1 npx electron .
-```
-
 ### Watch mode (auto-rebuild on changes)
 ```bash
 npm run watch:workspace

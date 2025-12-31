@@ -273,14 +273,19 @@ export function ReviewModule() {
 
   /**
    * Keyboard handler
-   * CRITICAL: Only process review commands when focus is within this module
-   * to prevent accidental confirmations/ignores from other tabs
+   * Review shortcuts work when focus is in ReviewModule OR ImageViewer
+   * This allows seamless workflow: view image, confirm/ignore faces
+   * Shortcuts are blocked in other modules (LogViewer, etc.) to prevent accidents
    */
   useEffect(() => {
     const handleKeyboard = (e) => {
-      // CRITICAL: Only handle keyboard when focus is within ReviewModule
-      // This prevents accidental face confirmations from other tabs
-      if (!moduleRef.current?.contains(document.activeElement)) {
+      // Check if focus is in ReviewModule or ImageViewer
+      const activeEl = document.activeElement;
+      const inReviewModule = moduleRef.current?.contains(activeEl);
+      const inImageViewer = activeEl?.closest('.image-viewer') !== null;
+
+      // Only handle shortcuts when in ReviewModule or ImageViewer
+      if (!inReviewModule && !inImageViewer) {
         return;
       }
 
