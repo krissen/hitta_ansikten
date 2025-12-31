@@ -272,14 +272,26 @@ export function ReviewModule() {
   }, [detectedFaces, pendingConfirmations.length, pendingIgnores.length]);
 
   /**
-   * Auto-scroll to active face when navigating
+   * Auto-scroll and focus active face when navigating
    */
   useEffect(() => {
     const cardEl = cardRefs.current[currentFaceIndex];
     if (cardEl) {
       cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [currentFaceIndex]);
+
+    // Focus the input for the new active face (if not confirmed)
+    const face = detectedFaces[currentFaceIndex];
+    if (face && !face.is_confirmed) {
+      const input = inputRefs.current[currentFaceIndex];
+      if (input) {
+        // Small delay to ensure DOM is updated after state change
+        requestAnimationFrame(() => {
+          input.focus();
+        });
+      }
+    }
+  }, [currentFaceIndex, detectedFaces]);
 
   /**
    * Keyboard handler
