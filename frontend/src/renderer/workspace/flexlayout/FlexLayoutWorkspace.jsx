@@ -39,7 +39,7 @@ const MODULE_COMPONENTS = {
 const MODULE_TITLES = {
   'image-viewer': 'Image Viewer',
   'original-view': 'Original View',
-  'log-viewer': 'Backend Logs',
+  'log-viewer': 'Logs',
   'statistics-dashboard': 'Statistics Dashboard',
   'review-module': 'Face Review',
   'database-management': 'Database Management',

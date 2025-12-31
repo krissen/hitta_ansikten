@@ -34,6 +34,7 @@ export function ReviewModule() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Refs
+  const moduleRef = useRef(null);
   const gridRef = useRef(null);
   const inputRefs = useRef({});
   const cardRefs = useRef({});
@@ -272,10 +273,18 @@ export function ReviewModule() {
 
   /**
    * Keyboard handler
+   * CRITICAL: Only process review commands when focus is within this module
+   * to prevent accidental confirmations/ignores from other tabs
    */
   useEffect(() => {
     const handleKeyboard = (e) => {
-      // Skip if in input
+      // CRITICAL: Only handle keyboard when focus is within ReviewModule
+      // This prevents accidental face confirmations from other tabs
+      if (!moduleRef.current?.contains(document.activeElement)) {
+        return;
+      }
+
+      // Skip if in input (for letter keys only, not navigation)
       const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
 
       // Navigation
@@ -379,7 +388,7 @@ export function ReviewModule() {
   }, []));
 
   return (
-    <div className="review-module">
+    <div ref={moduleRef} className="review-module" tabIndex={-1}>
       <div className="review-header">
         <div className="review-status">{status}</div>
       </div>
