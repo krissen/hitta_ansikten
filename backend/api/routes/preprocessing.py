@@ -11,7 +11,6 @@ Endpoints for:
 import os
 import logging
 from typing import Optional, List
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
@@ -379,7 +378,8 @@ async def preprocess_all(request: PreprocessRequest):
     Steps: NEF conversion → Face detection → Thumbnails
     Uses cache where available.
     """
-    cache = get_cache()
+    # Initialize cache (used by sub-functions)
+    get_cache()
     file_path = request.file_path
     steps = request.steps or ['nef', 'faces', 'thumbs']
 
