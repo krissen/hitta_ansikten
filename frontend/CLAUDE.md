@@ -7,8 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Bildvisare is an Electron-based modular workspace for image viewing and face review. It serves as the frontend companion to [hitta_ansikten](https://github.com/krissen/hitta_ansikten), a face detection application.
 
 **Architecture:**
-- **Default mode**: Modular workspace with FlexLayout (React-based docking panels)
-- **Legacy mode**: Single-window image viewer (set `BILDVISARE_LEGACY=1`)
+- Modular workspace with FlexLayout (React-based docking panels)
 
 The typical workflow:
 1. `hitta_ansikten` (backend) processes images, detects faces
@@ -18,16 +17,11 @@ The typical workflow:
 
 ## Development Commands
 
-### Run the app (default: workspace mode)
+### Run the app
 ```bash
 cd frontend
 npm run build:workspace  # Build FlexLayout bundle
 npx electron .
-```
-
-### Run legacy mode
-```bash
-BILDVISARE_LEGACY=1 npx electron .
 ```
 
 ### Watch mode (auto-rebuild on changes)
@@ -46,8 +40,8 @@ npx electron-packager . Bildvisare --platform=darwin --arch=x64,arm64 --overwrit
 ### File Structure
 
 **Main Process:**
-- `main.js` - Bootstrap (workspace vs legacy mode selector)
-- `src/main/index.js` - Workspace main process
+- `main.js` - Electron entry point
+- `src/main/index.js` - Main process logic
 - `src/main/menu.js` - Application menu with keyboard shortcuts
 - `src/main/backend-service.js` - FastAPI backend auto-start
 

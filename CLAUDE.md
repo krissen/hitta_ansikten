@@ -194,8 +194,6 @@ Located in `./preprocessed_cache/` (relative to working directory):
 - **rakna_spelare.py**: Count specific people in images
 - **inspect_encodings.py**: Debug tool for encoding database
 
-**Note**: `nef2jpg.py` has been moved to the bildvisare repo as it's only used by the image viewer.
-
 ### Naming Conventions
 
 Expected filename format: `YYMMDD_HHMMSS[-N][_names].NEF`
