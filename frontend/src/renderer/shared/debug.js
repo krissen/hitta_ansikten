@@ -36,6 +36,10 @@ const DEFAULT_CATEGORIES = {
   'IPC': false,
   'NEFConvert': false,
   'FaceDetection': false,
+
+  // Preprocessing - enabled by default for testing
+  'Preprocessing': true,
+  'Cache': true,
 };
 
 // Storage key
