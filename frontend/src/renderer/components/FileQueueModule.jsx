@@ -293,17 +293,21 @@ export function FileQueueModule() {
   // Advance to next file
   const advanceToNext = useCallback(() => {
     const currentQueue = queueRef.current;
-    const nextIndex = currentQueue.findIndex((item, i) =>
-      i > currentIndex && item.status !== 'completed'
-    );
+    const nextIndex = currentQueue.findIndex((item, i) => {
+      if (i <= currentIndex) return false;
+      if (item.status === 'completed') return false;
+      // Skip already-processed files when fix-mode is OFF
+      if (!fixMode && item.isAlreadyProcessed) return false;
+      return true;
+    });
 
     if (nextIndex >= 0) {
       loadFile(nextIndex);
     } else {
-      debug('FileQueue', 'All files completed');
+      debug('FileQueue', 'All files completed (or skipped due to fix-mode OFF)');
       setCurrentIndex(-1);
     }
-  }, [currentIndex, loadFile]);
+  }, [currentIndex, loadFile, fixMode]);
 
   // Skip current file
   const skipCurrent = useCallback(() => {
@@ -319,11 +323,16 @@ export function FileQueueModule() {
       // Use queueRef for current queue state (avoids stale closure)
       const currentQueue = queueRef.current;
       const currentIdx = currentQueue.findIndex(item => item.filePath === imagePath);
-      const nextIdx = currentQueue.findIndex((item, i) =>
-        i > currentIdx && item.status !== 'completed' && item.filePath !== imagePath
-      );
+      const nextIdx = currentQueue.findIndex((item, i) => {
+        if (i <= currentIdx) return false;
+        if (item.status === 'completed') return false;
+        if (item.filePath === imagePath) return false;
+        // Skip already-processed files when fix-mode is OFF
+        if (!fixMode && item.isAlreadyProcessed) return false;
+        return true;
+      });
 
-      debug('FileQueue', 'Current index:', currentIdx, 'Next index:', nextIdx, 'Queue length:', currentQueue.length);
+      debug('FileQueue', 'Current index:', currentIdx, 'Next index:', nextIdx, 'Queue length:', currentQueue.length, 'fixMode:', fixMode);
 
       setQueue(prev => prev.map(item => {
         if (item.filePath === imagePath) {
@@ -340,11 +349,11 @@ export function FileQueueModule() {
         debug('FileQueue', 'Auto-advancing to index:', nextIdx);
         setTimeout(() => loadFile(nextIdx), 300);
       } else if (nextIdx < 0) {
-        debug('FileQueue', 'No more pending files');
+        debug('FileQueue', 'No more pending files (or all skipped due to fix-mode OFF)');
         setCurrentIndex(-1);
       }
     }
-  }, [autoAdvance, loadFile, loadProcessedFiles]));
+  }, [autoAdvance, loadFile, loadProcessedFiles, fixMode]));
 
   // Open file dialog
   const openFileDialog = useCallback(async () => {
@@ -546,10 +555,19 @@ export function FileQueueModule() {
               <button className="control-btn" onClick={skipCurrent}>
                 Skip ⏭
               </button>
-            ) : queue.some(q => q.status === 'pending') ? (
+            ) : queue.some(q => {
+              if (q.status !== 'pending') return false;
+              // Skip already-processed when fix-mode is OFF
+              if (!fixMode && q.isAlreadyProcessed) return false;
+              return true;
+            }) ? (
               <button className="control-btn start" onClick={() => {
-                const firstPending = queue.findIndex(q => q.status === 'pending');
-                if (firstPending >= 0) loadFile(firstPending);
+                const firstEligible = queue.findIndex(q => {
+                  if (q.status !== 'pending') return false;
+                  if (!fixMode && q.isAlreadyProcessed) return false;
+                  return true;
+                });
+                if (firstEligible >= 0) loadFile(firstEligible);
               }}>
                 Start ▶
               </button>
@@ -575,7 +593,13 @@ function FileQueueItem({ item, isActive, onClick, onRemove, fixMode }) {
         return <span className="status-icon error">✗</span>;
       default:
         if (item.isAlreadyProcessed) {
-          return <span className="status-icon processed">⚠</span>;
+          if (fixMode) {
+            // Fix-mode ON: same icon as pending, but with green tint
+            return <span className="status-icon pending-reprocess">○</span>;
+          } else {
+            // Fix-mode OFF: checkmark to show "already done"
+            return <span className="status-icon already-done">✓</span>;
+          }
         }
         return <span className="status-icon pending">○</span>;
     }
@@ -588,7 +612,7 @@ function FileQueueItem({ item, isActive, onClick, onRemove, fixMode }) {
       case 'error': return 'Error';
       default:
         if (item.isAlreadyProcessed) {
-          return fixMode ? '(fix)' : 'Processed';
+          return fixMode ? 'Queued (reprocess)' : 'Processed';
         }
         return 'Queued';
     }
