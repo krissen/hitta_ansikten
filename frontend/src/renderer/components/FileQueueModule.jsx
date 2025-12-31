@@ -51,6 +51,8 @@ export function FileQueueModule() {
   const currentFileRef = useRef(null);
   const queueRef = useRef(queue); // Keep current queue in ref for callbacks
   queueRef.current = queue; // Sync on every render (not just in useEffect)
+  const fixModeRef = useRef(fixMode); // Keep fixMode in ref for callbacks
+  fixModeRef.current = fixMode; // Sync on every render
 
   // Auto-load state for restoration
   const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
@@ -204,8 +206,15 @@ export function FileQueueModule() {
   }, []);
 
   // Clear completed files
+  // When fix-mode is OFF, also clear already-processed files (they're considered done)
+  // When fix-mode is ON, keep already-processed files (they need reprocessing)
   const clearCompleted = useCallback(() => {
-    setQueue(prev => prev.filter(item => item.status !== 'completed'));
+    const currentFixMode = fixModeRef.current;
+    setQueue(prev => prev.filter(item => {
+      if (item.status === 'completed') return false;
+      if (!currentFixMode && item.isAlreadyProcessed) return false;
+      return true;
+    }));
     setCurrentIndex(-1);
   }, []);
 
@@ -293,11 +302,12 @@ export function FileQueueModule() {
   // Advance to next file
   const advanceToNext = useCallback(() => {
     const currentQueue = queueRef.current;
+    const currentFixMode = fixModeRef.current;
     const nextIndex = currentQueue.findIndex((item, i) => {
       if (i <= currentIndex) return false;
       if (item.status === 'completed') return false;
       // Skip already-processed files when fix-mode is OFF
-      if (!fixMode && item.isAlreadyProcessed) return false;
+      if (!currentFixMode && item.isAlreadyProcessed) return false;
       return true;
     });
 
@@ -307,7 +317,7 @@ export function FileQueueModule() {
       debug('FileQueue', 'All files completed (or skipped due to fix-mode OFF)');
       setCurrentIndex(-1);
     }
-  }, [currentIndex, loadFile, fixMode]);
+  }, [currentIndex, loadFile]);
 
   // Skip current file
   const skipCurrent = useCallback(() => {
@@ -320,19 +330,20 @@ export function FileQueueModule() {
 
     // Mark current file as completed
     if (currentFileRef.current === imagePath) {
-      // Use queueRef for current queue state (avoids stale closure)
+      // Use refs for current state (avoids stale closure)
       const currentQueue = queueRef.current;
+      const currentFixMode = fixModeRef.current;
       const currentIdx = currentQueue.findIndex(item => item.filePath === imagePath);
       const nextIdx = currentQueue.findIndex((item, i) => {
         if (i <= currentIdx) return false;
         if (item.status === 'completed') return false;
         if (item.filePath === imagePath) return false;
         // Skip already-processed files when fix-mode is OFF
-        if (!fixMode && item.isAlreadyProcessed) return false;
+        if (!currentFixMode && item.isAlreadyProcessed) return false;
         return true;
       });
 
-      debug('FileQueue', 'Current index:', currentIdx, 'Next index:', nextIdx, 'Queue length:', currentQueue.length, 'fixMode:', fixMode);
+      debug('FileQueue', 'Current index:', currentIdx, 'Next index:', nextIdx, 'Queue length:', currentQueue.length, 'fixMode:', currentFixMode);
 
       setQueue(prev => prev.map(item => {
         if (item.filePath === imagePath) {
@@ -353,7 +364,7 @@ export function FileQueueModule() {
         setCurrentIndex(-1);
       }
     }
-  }, [autoAdvance, loadFile, loadProcessedFiles, fixMode]));
+  }, [autoAdvance, loadFile, loadProcessedFiles]));
 
   // Open file dialog
   const openFileDialog = useCallback(async () => {
@@ -467,7 +478,11 @@ export function FileQueueModule() {
   }, [advanceToNext, currentIndex, loadFile]);
 
   // Calculate stats
-  const completedCount = queue.filter(q => q.status === 'completed').length;
+  // When fix-mode is OFF, already-processed files count as "done" (they're skipped)
+  // When fix-mode is ON, only actually completed files count
+  const completedCount = queue.filter(q =>
+    q.status === 'completed' || (!fixMode && q.isAlreadyProcessed)
+  ).length;
   const pendingCount = queue.filter(q => q.status === 'pending').length;
   const activeCount = queue.filter(q => q.status === 'active').length;
 

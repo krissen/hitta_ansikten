@@ -77,6 +77,16 @@ export function ReviewModule() {
 
       // Emit faces to Image Viewer for bounding box overlay
       emit('faces-detected', { faces });
+
+      // Auto-focus first face's input after render (enables keyboard shortcuts)
+      if (faces.length > 0) {
+        setTimeout(() => {
+          const firstInput = inputRefs.current[0];
+          if (firstInput) {
+            firstInput.focus();
+          }
+        }, 100);
+      }
     } catch (err) {
       debugError('ReviewModule', 'Face detection failed:', err);
       setStatus('Detection failed');
@@ -318,12 +328,16 @@ export function ReviewModule() {
         return;
       }
 
-      // Enter to confirm
+      // Enter to confirm (works both in input and outside)
       if (e.key === 'Enter') {
         e.preventDefault();
-        const input = inputRefs.current[currentFaceIndex];
-        if (input?.value?.trim()) {
-          confirmFace(currentFaceIndex, input.value);
+        // If we're in an input, use that input's value directly
+        // Otherwise use the current face's input ref
+        const inputValue = isInput
+          ? e.target.value?.trim()
+          : inputRefs.current[currentFaceIndex]?.value?.trim();
+        if (inputValue) {
+          confirmFace(currentFaceIndex, inputValue);
         }
         return;
       }
@@ -487,8 +501,11 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && inputValue.trim()) {
-                onConfirm(inputValue);
+              // Let document handler manage Enter for consistency
+              // Just stop propagation for other keys we don't want bubbling
+              if (e.key === 'Escape') {
+                e.target.blur();
+                e.stopPropagation();
               }
             }}
             list="people-names-datalist"

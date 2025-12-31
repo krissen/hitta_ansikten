@@ -70,6 +70,9 @@ export function ImageViewer() {
   // ============================================
 
   const loadImage = useCallback(async (filepath) => {
+    // Clear bounding boxes immediately before loading new image
+    setFaces([]);
+
     let loadPath = filepath;
     const originalPath = filepath;
 
