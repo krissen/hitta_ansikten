@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket.js';
+import { getLogBuffer, clearLogBuffer } from '../shared/debug.js';
 import './LogViewer.css';
 
 /**
@@ -38,7 +39,7 @@ export function LogViewer() {
   const [filterSource, setFilterSource] = useState('all');
   const autoScrollRef = useRef(true);
   const entriesRef = useRef(null);
-  const originalConsoleRef = useRef(null);
+  const lastBufferLengthRef = useRef(0);
 
   /**
    * Add a log entry
@@ -60,6 +61,8 @@ export function LogViewer() {
    */
   const clearLogs = useCallback(() => {
     setLogs([]);
+    clearLogBuffer();
+    lastBufferLengthRef.current = 0;
   }, []);
 
   /**
@@ -82,58 +85,34 @@ export function LogViewer() {
   }, [logs]);
 
   /**
-   * Console capture - intercept console methods
+   * Poll log buffer for new entries
+   * This approach avoids console interception issues and captures all debug() logs
    */
   useEffect(() => {
-    // Only capture if not already captured
-    if (originalConsoleRef.current) return;
+    // Load initial logs from buffer
+    const initialLogs = getLogBuffer();
+    if (initialLogs.length > 0) {
+      setLogs(initialLogs);
+      lastBufferLengthRef.current = initialLogs.length;
+    }
 
-    const original = {
-      log: console.log.bind(console),
-      warn: console.warn.bind(console),
-      error: console.error.bind(console)
-    };
-    originalConsoleRef.current = original;
-
-    const formatArgs = (args) => {
-      return args.map(arg =>
-        typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-      ).join(' ');
-    };
-
-    console.log = function(...args) {
-      original.log(...args);
-      // Skip LogViewer's own logs to prevent loops
-      const message = formatArgs(args);
-      if (!message.startsWith('[LogViewer]')) {
-        addLogEntry('info', message, null, 'frontend');
+    // Poll for new entries every 100ms
+    const pollInterval = setInterval(() => {
+      const buffer = getLogBuffer();
+      if (buffer.length > lastBufferLengthRef.current) {
+        // Get only new entries
+        const newEntries = buffer.slice(lastBufferLengthRef.current);
+        setLogs(prev => [...prev, ...newEntries]);
+        lastBufferLengthRef.current = buffer.length;
       }
-    };
+    }, 100);
 
-    console.warn = function(...args) {
-      original.warn(...args);
-      addLogEntry('warn', formatArgs(args), null, 'frontend');
-    };
+    console.log('[LogViewer] Initialized - polling debug buffer');
 
-    console.error = function(...args) {
-      original.error(...args);
-      addLogEntry('error', formatArgs(args), null, 'frontend');
-    };
-
-    // Add welcome message
-    original.log('[LogViewer] Initialized - watching backend + frontend logs');
-
-    // Cleanup - restore original console methods
     return () => {
-      if (originalConsoleRef.current) {
-        console.log = originalConsoleRef.current.log;
-        console.warn = originalConsoleRef.current.warn;
-        console.error = originalConsoleRef.current.error;
-        originalConsoleRef.current.log('[LogViewer] Cleanup - restored console methods');
-        originalConsoleRef.current = null;
-      }
+      clearInterval(pollInterval);
     };
-  }, [addLogEntry]);
+  }, []);
 
   /**
    * WebSocket subscriptions for backend logs

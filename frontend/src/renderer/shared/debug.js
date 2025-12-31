@@ -44,6 +44,10 @@ const STORAGE_KEY = 'bildvisare-debug-categories';
 // Current enabled categories (loaded from localStorage)
 let enabledCategories = { ...DEFAULT_CATEGORIES };
 
+// Log buffer for LogViewer to read historical logs
+const LOG_BUFFER_MAX = 500;
+const logBuffer = [];
+
 // Load from localStorage
 function loadCategories() {
   try {
@@ -125,13 +129,48 @@ export function resetCategories() {
 }
 
 /**
+ * Add entry to log buffer
+ */
+function addToBuffer(level, message, source = 'frontend') {
+  const entry = {
+    id: Date.now() + Math.random(),
+    level,
+    message,
+    timestamp: new Date().toISOString(),
+    source
+  };
+  logBuffer.push(entry);
+  // Keep buffer size limited
+  if (logBuffer.length > LOG_BUFFER_MAX) {
+    logBuffer.shift();
+  }
+}
+
+/**
+ * Get buffered log entries (for LogViewer to read on mount)
+ * @returns {Array} Array of log entries
+ */
+export function getLogBuffer() {
+  return [...logBuffer];
+}
+
+/**
+ * Clear log buffer
+ */
+export function clearLogBuffer() {
+  logBuffer.length = 0;
+}
+
+/**
  * Debug log - only shows if category is enabled
  * @param {string} category - Category name (e.g., 'FileQueue', 'ModuleAPI')
  * @param {...any} args - Log arguments
  */
 export function debug(category, ...args) {
   if (enabledCategories[category]) {
+    const message = `[${category}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`;
     console.log(`[${category}]`, ...args);
+    addToBuffer('info', message);
   }
 }
 
@@ -141,7 +180,9 @@ export function debug(category, ...args) {
  * @param {...any} args - Log arguments
  */
 export function debugWarn(category, ...args) {
+  const message = `[${category}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`;
   console.warn(`[${category}]`, ...args);
+  addToBuffer('warn', message);
 }
 
 /**
@@ -150,7 +191,9 @@ export function debugWarn(category, ...args) {
  * @param {...any} args - Log arguments
  */
 export function debugError(category, ...args) {
+  const message = `[${category}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')}`;
   console.error(`[${category}]`, ...args);
+  addToBuffer('error', message);
 }
 
 /**
