@@ -63,6 +63,16 @@
   opacity: 0.7;
 }
 
+.face-card.manual {
+  border-style: dashed;
+  border-color: #9c27b0;
+}
+
+.face-card.manual .face-thumbnail {
+  background: linear-gradient(135deg, #3c3c3c 25%, #4a4a4a 25%, #4a4a4a 50%, #3c3c3c 50%, #3c3c3c 75%, #4a4a4a 75%);
+  background-size: 10px 10px;
+}
+
 .face-number {
   position: absolute;
   top: 4px;
@@ -114,6 +124,11 @@
 .face-confidence {
   font-weight: 600;
   color: #4ec9b0;
+}
+
+.face-confidence.manual {
+  color: #ce93d8;
+  font-style: italic;
 }
 
 .face-actions {

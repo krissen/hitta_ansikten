@@ -186,6 +186,65 @@ export function ReviewModule() {
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
+   * Skip image - save pending changes and advance to next image
+   */
+  const skipImage = useCallback(async () => {
+    if (!currentImagePath) return;
+
+    debug('ReviewModule', 'Skipping image:', currentImagePath);
+
+    // Save any pending changes first
+    if (pendingConfirmations.length > 0 || pendingIgnores.length > 0) {
+      await saveAllChanges();
+    }
+
+    // Emit review-complete to advance to next image
+    emit('review-complete', {
+      imagePath: currentImagePath,
+      facesReviewed: detectedFaces.filter(f => f.is_confirmed).length,
+      skipped: true,
+      success: true
+    });
+
+    setStatus('Image skipped');
+  }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, emit, detectedFaces]);
+
+  /**
+   * Add manual face - for when a person exists but wasn't detected
+   */
+  const addManualFace = useCallback(() => {
+    if (!currentImagePath) return;
+
+    debug('ReviewModule', 'Adding manual face');
+
+    // Create a virtual face with no bounding box
+    const manualFaceId = `manual_${Date.now()}`;
+    const manualFace = {
+      face_id: manualFaceId,
+      bounding_box: null,  // No bounding box
+      confidence: null,    // No confidence
+      person_name: '',
+      is_manual: true,     // Mark as manually added
+      is_confirmed: false
+    };
+
+    setDetectedFaces(prev => [...prev, manualFace]);
+
+    // Focus the new face's input after render
+    const newIndex = detectedFaces.length;
+    setCurrentFaceIndex(newIndex);
+
+    setTimeout(() => {
+      const input = inputRefs.current[newIndex];
+      if (input) {
+        input.focus();
+      }
+    }, 100);
+
+    setStatus('Manual face added - enter name');
+  }, [currentImagePath, detectedFaces.length]);
+
+  /**
    * Save all changes
    */
   const saveAllChanges = useCallback(async () => {
@@ -382,6 +441,20 @@ export function ReviewModule() {
         return;
       }
 
+      // X to skip image (save pending and advance)
+      if ((e.key === 'x' || e.key === 'X') && !isInput) {
+        e.preventDefault();
+        skipImage();
+        return;
+      }
+
+      // M to add manual face
+      if ((e.key === 'm' || e.key === 'M') && !isInput) {
+        e.preventDefault();
+        addManualFace();
+        return;
+      }
+
       // Escape
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -396,7 +469,7 @@ export function ReviewModule() {
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, jumpToFace, confirmFace, ignoreFace, discardChanges]);
+  }, [currentFaceIndex, detectedFaces, navigateToFace, jumpToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
 
   /**
    * Listen for image-loaded events
@@ -461,9 +534,9 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
   const [inputValue, setInputValue] = useState(face.person_name || '');
   const { api } = useBackend();
 
-  // Build thumbnail URL
-  const bbox = face.bounding_box || {};
-  const thumbnailUrl = imagePath ? (
+  // Build thumbnail URL (only for faces with bounding boxes)
+  const bbox = face.bounding_box;
+  const thumbnailUrl = (imagePath && bbox) ? (
     `http://127.0.0.1:5001/api/face-thumbnail?` +
     `image_path=${encodeURIComponent(imagePath)}` +
     `&x=${bbox.x || 0}&y=${bbox.y || 0}&width=${bbox.width || 100}&height=${bbox.height || 100}&size=150`
@@ -473,6 +546,7 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
     'face-card',
     face.is_confirmed && !face.is_rejected ? 'confirmed' : '',
     face.is_rejected ? 'rejected' : '',
+    face.is_manual ? 'manual' : '',
     isActive ? 'active' : ''
   ].filter(Boolean).join(' ');
 
@@ -480,7 +554,7 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
     <div ref={cardRef} className={cardClass} onClick={onSelect}>
       <div className="face-number">{index + 1}</div>
       {isActive && (
-        <div className="keyboard-hint">R=Write A=Accept I=Ignore</div>
+        <div className="keyboard-hint">R=Write A=Accept I=Ignore X=Skip M=Manual</div>
       )}
 
       <div className="face-thumbnail">
@@ -496,9 +570,13 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
       </div>
 
       <div className="face-info">
-        <div className="face-confidence">
-          Confidence: {((face.confidence || 0) * 100).toFixed(1)}%
-        </div>
+        {face.is_manual ? (
+          <div className="face-confidence manual">Manual entry</div>
+        ) : (
+          <div className="face-confidence">
+            Confidence: {((face.confidence || 0) * 100).toFixed(1)}%
+          </div>
+        )}
         {face.person_name && !face.is_rejected && (
           <div>Person: {face.person_name}</div>
         )}
