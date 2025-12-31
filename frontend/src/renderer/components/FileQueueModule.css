@@ -209,11 +209,6 @@
   color: #333;
 }
 
-.processed-marker {
-  color: #ff9800;
-  margin-left: 2px;
-}
-
 /* File status text */
 .file-status {
   flex-shrink: 0;
@@ -310,4 +305,35 @@
 
 .control-btn.start:hover {
   background: #3a7bc8;
+}
+
+/* Preprocessing indicator */
+.preprocess-indicator {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.preprocess-indicator.loading {
+  color: #ff9800;
+  animation: spin 1s linear infinite;
+}
+
+.preprocess-indicator.completed {
+  color: #4caf50;
+}
+
+.preprocess-indicator.error {
+  color: #f44336;
+  font-weight: bold;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

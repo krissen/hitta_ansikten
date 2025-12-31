@@ -13,6 +13,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import './FileQueueModule.css';
 
 // Read preference directly from localStorage to avoid circular dependency
@@ -45,6 +46,13 @@ export function FileQueueModule() {
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [fixMode, setFixMode] = useState(false);
   const [processedFiles, setProcessedFiles] = useState(new Set());
+  const [preprocessingStatus, setPreprocessingStatus] = useState({}); // filePath -> status
+
+  // Get preprocessing manager (singleton)
+  const preprocessingManager = useRef(null);
+  if (!preprocessingManager.current) {
+    preprocessingManager.current = getPreprocessingManager();
+  }
 
   // Refs
   const listRef = useRef(null);
@@ -77,6 +85,36 @@ export function FileQueueModule() {
   useEffect(() => {
     loadProcessedFiles();
   }, [loadProcessedFiles]);
+
+  // Subscribe to preprocessing manager events
+  useEffect(() => {
+    const manager = preprocessingManager.current;
+    if (!manager) return;
+
+    const handleStatusChange = ({ filePath, status }) => {
+      setPreprocessingStatus(prev => ({ ...prev, [filePath]: status }));
+    };
+
+    const handleCompleted = ({ filePath }) => {
+      setPreprocessingStatus(prev => ({ ...prev, [filePath]: PreprocessingStatus.COMPLETED }));
+      debug('FileQueue', 'Preprocessing completed:', filePath);
+    };
+
+    const handleError = ({ filePath, error }) => {
+      setPreprocessingStatus(prev => ({ ...prev, [filePath]: PreprocessingStatus.ERROR }));
+      debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
+    };
+
+    manager.on('status-change', handleStatusChange);
+    manager.on('completed', handleCompleted);
+    manager.on('error', handleError);
+
+    return () => {
+      manager.off('status-change', handleStatusChange);
+      manager.off('completed', handleCompleted);
+      manager.off('error', handleError);
+    };
+  }, []);
 
   // Load queue from localStorage on mount
   useEffect(() => {
@@ -112,6 +150,11 @@ export function FileQueueModule() {
       // Check if auto-load is enabled in preferences
       if (!getAutoLoadPreference()) {
         debug('FileQueue', 'Auto-load disabled in preferences');
+        // Still start preprocessing for all pending items
+        if (preprocessingManager.current) {
+          const pendingItems = queue.filter(item => item.status !== 'completed');
+          pendingItems.forEach(item => preprocessingManager.current.addToQueue(item.filePath));
+        }
         return;
       }
 
@@ -127,6 +170,17 @@ export function FileQueueModule() {
       if (indexToLoad >= 0 && queue[indexToLoad]?.status === 'completed') {
         const nextPending = queue.findIndex((item, i) => i > indexToLoad && item.status === 'pending');
         indexToLoad = nextPending >= 0 ? nextPending : queue.findIndex(item => item.status === 'pending');
+      }
+
+      // Start preprocessing for restored queue items (skip completed and the file we're about to load)
+      if (preprocessingManager.current) {
+        const pendingItems = queue.filter((item, i) =>
+          item.status !== 'completed' && i !== indexToLoad
+        );
+        debug('FileQueue', 'Starting preprocessing for', pendingItems.length, 'items (skipping active/completed)');
+        pendingItems.forEach(item => {
+          preprocessingManager.current.addToQueue(item.filePath);
+        });
       }
 
       if (indexToLoad >= 0) {
@@ -178,6 +232,14 @@ export function FileQueueModule() {
       // Dedupe by filePath
       const existingPaths = new Set(prev.map(item => item.filePath));
       const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
+
+      // Start preprocessing for new files
+      if (preprocessingManager.current) {
+        uniqueNew.forEach(item => {
+          preprocessingManager.current.addToQueue(item.filePath);
+        });
+      }
+
       if (position === 'start') {
         return [...uniqueNew, ...prev];
       }
@@ -189,6 +251,12 @@ export function FileQueueModule() {
 
   // Remove file from queue
   const removeFile = useCallback((id) => {
+    // Find the file to get its path before removing
+    const fileToRemove = queue.find(item => item.id === id);
+    if (fileToRemove && preprocessingManager.current) {
+      preprocessingManager.current.removeFromQueue(fileToRemove.filePath);
+    }
+
     setQueue(prev => prev.filter(item => item.id !== id));
     // Adjust currentIndex if needed
     setCurrentIndex(prev => {
@@ -201,6 +269,10 @@ export function FileQueueModule() {
 
   // Clear all files
   const clearQueue = useCallback(() => {
+    // Stop all preprocessing
+    if (preprocessingManager.current) {
+      preprocessingManager.current.stop();
+    }
     setQueue([]);
     setCurrentIndex(-1);
   }, []);
@@ -283,19 +355,18 @@ export function FileQueueModule() {
       const indexToLoad = pendingAutoLoad;
       setPendingAutoLoad(-1); // Clear to prevent re-trigger
 
-      // Wait for workspace to be fully ready before loading
+      // Wait for workspace to be ready - check immediately, then poll quickly
       const waitForWorkspace = () => {
         if (window.workspace?.openModule) {
           debug('FileQueue', 'Workspace ready, auto-loading file at index', indexToLoad);
           loadFile(indexToLoad);
         } else {
-          debug('FileQueue', 'Waiting for workspace to be ready...');
-          setTimeout(waitForWorkspace, 100);
+          setTimeout(waitForWorkspace, 50); // Fast polling
         }
       };
 
-      // Initial delay to let FlexLayout fully initialize
-      setTimeout(waitForWorkspace, 500);
+      // Start checking immediately (no initial delay)
+      waitForWorkspace();
     }
   }, [pendingAutoLoad, loadFile]);
 
@@ -546,6 +617,7 @@ export function FileQueueModule() {
               onClick={() => loadFile(index)}
               onRemove={() => removeFile(item.id)}
               fixMode={fixMode}
+              preprocessingStatus={preprocessingStatus[item.filePath]}
             />
           ))
         )}
@@ -597,7 +669,7 @@ export function FileQueueModule() {
 /**
  * FileQueueItem Component
  */
-function FileQueueItem({ item, isActive, onClick, onRemove, fixMode }) {
+function FileQueueItem({ item, isActive, onClick, onRemove, fixMode, preprocessingStatus }) {
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
@@ -633,6 +705,23 @@ function FileQueueItem({ item, isActive, onClick, onRemove, fixMode }) {
     }
   };
 
+  // Get preprocessing indicator
+  const getPreprocessingIndicator = () => {
+    // No status recorded yet
+    if (!preprocessingStatus) {
+      return null;
+    }
+    // Show checkmark for completed preprocessing
+    if (preprocessingStatus === PreprocessingStatus.COMPLETED) {
+      return <span className="preprocess-indicator completed" title="Preprocessed (cached)">⚡</span>;
+    }
+    if (preprocessingStatus === PreprocessingStatus.ERROR) {
+      return <span className="preprocess-indicator error" title="Preprocessing failed">!</span>;
+    }
+    // Show spinner for any in-progress state
+    return <span className="preprocess-indicator loading" title={`Preprocessing: ${preprocessingStatus}`}>⟳</span>;
+  };
+
   return (
     <div
       className={`file-item ${item.status} ${isActive ? 'active' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''}`}
@@ -641,8 +730,8 @@ function FileQueueItem({ item, isActive, onClick, onRemove, fixMode }) {
       {getStatusIcon()}
       <span className="file-name" title={item.filePath}>
         {item.fileName}
-        {item.isAlreadyProcessed && <span className="processed-marker">*</span>}
       </span>
+      {getPreprocessingIndicator()}
       <span className="file-status">{getStatusText()}</span>
       <button
         className="remove-btn"

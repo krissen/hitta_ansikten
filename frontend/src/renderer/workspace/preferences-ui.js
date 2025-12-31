@@ -70,6 +70,7 @@ export class PreferencesUI {
           <button class="pref-tab" data-tab="layout">Layout</button>
           <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
           <button class="pref-tab" data-tab="review">Review</button>
+          <button class="pref-tab" data-tab="preprocessing">Preprocessing</button>
           <button class="pref-tab" data-tab="advanced">Advanced</button>
         </div>
 
@@ -393,6 +394,87 @@ export class PreferencesUI {
                   Auto-load from queue on startup
                 </label>
                 <small>Automatically load first pending file when app starts with files in queue</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preprocessing Tab Panel -->
+          <div class="pref-tab-panel" data-tab="preprocessing">
+            <div class="pref-section">
+              <h3>Background Preprocessing</h3>
+              <small style="display:block; margin-bottom:16px; color:#666;">
+                Preprocess queued files in the background to speed up loading.
+                Note: Name matching is NOT preprocessed - it requires the current database.
+              </small>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-preprocessing-enabled" />
+                  Enable background preprocessing
+                </label>
+                <small>Start preprocessing when files are added to queue</small>
+              </div>
+
+              <div class="pref-field">
+                <label>Parallel Workers</label>
+                <div class="slider-input-group">
+                  <input type="range" id="pref-preprocessing-parallelWorkers-slider" min="1" max="8" step="1" />
+                  <input type="number" id="pref-preprocessing-parallelWorkers" min="1" max="8" step="1" />
+                </div>
+                <small>Number of files to preprocess simultaneously (1-8)</small>
+              </div>
+            </div>
+
+            <div class="pref-section">
+              <h3>Preprocessing Steps</h3>
+              <small style="display:block; margin-bottom:12px; color:#666;">
+                Choose which steps to run in the background.
+              </small>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-preprocessing-steps-nefConversion" />
+                  NEF Conversion
+                </label>
+                <small>Convert RAW files (NEF, CR2, ARW) to JPG</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-preprocessing-steps-faceDetection" />
+                  Face Detection
+                </label>
+                <small>Detect faces and bounding boxes</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-preprocessing-steps-thumbnails" />
+                  Face Thumbnails
+                </label>
+                <small>Generate thumbnail images for detected faces</small>
+              </div>
+            </div>
+
+            <div class="pref-section">
+              <h3>Cache Settings</h3>
+
+              <div class="pref-field">
+                <label>Maximum Cache Size (MB)</label>
+                <div class="slider-input-group">
+                  <input type="range" id="pref-preprocessing-cache-maxSizeMB-slider" min="256" max="4096" step="256" />
+                  <input type="number" id="pref-preprocessing-cache-maxSizeMB" min="256" max="4096" step="256" />
+                </div>
+                <small>Cache uses LRU eviction when this limit is exceeded</small>
+              </div>
+
+              <div class="pref-field" style="margin-top: 16px;">
+                <div id="cache-status-display" style="margin-bottom: 12px; padding: 8px; background: #f8f8f8; border-radius: 4px; font-size: 13px;">
+                  <span>Cache status: Loading...</span>
+                </div>
+                <button class="btn btn-secondary" type="button" id="btn-clear-cache">
+                  Clear Preprocessing Cache
+                </button>
               </div>
             </div>
           </div>
@@ -802,6 +884,27 @@ export class PreferencesUI {
   }
 
   /**
+   * Update cache status display
+   */
+  async updateCacheStatus() {
+    const statusEl = this.modal?.querySelector('#cache-status-display');
+    if (!statusEl) return;
+
+    try {
+      const { apiClient } = await import('../shared/api-client.js');
+      const status = await apiClient.getCacheStatus();
+      statusEl.innerHTML = `
+        <span style="font-weight:500;">Cache Status:</span>
+        ${status.total_entries} entries,
+        ${status.total_size_mb} MB / ${status.max_size_mb} MB
+        (${status.usage_percent}%)
+      `;
+    } catch (err) {
+      statusEl.innerHTML = '<span style="color:#999;">Cache status unavailable (backend not running?)</span>';
+    }
+  }
+
+  /**
    * Switch to a specific tab
    */
   switchTab(tabName) {
@@ -885,6 +988,33 @@ export class PreferencesUI {
     this.setupSliderSync('imageViewer-zoomSpeed');
     this.setupSliderSync('imageViewer-maxZoom');
     this.setupSliderSync('imageViewer-minZoom');
+    this.setupSliderSync('preprocessing-parallelWorkers');
+    this.setupSliderSync('preprocessing-cache-maxSizeMB');
+
+    // Clear cache button
+    const clearCacheBtn = this.modal.querySelector('#btn-clear-cache');
+    if (clearCacheBtn) {
+      clearCacheBtn.addEventListener('click', async () => {
+        if (confirm('Clear all cached preprocessing data?\n\nThis will remove all cached NEF conversions, face detections, and thumbnails.')) {
+          try {
+            clearCacheBtn.disabled = true;
+            clearCacheBtn.textContent = 'Clearing...';
+            const { apiClient } = await import('../shared/api-client.js');
+            await apiClient.clearCache();
+            this.updateCacheStatus();
+            clearCacheBtn.textContent = 'Cache Cleared!';
+            setTimeout(() => {
+              clearCacheBtn.textContent = 'Clear Preprocessing Cache';
+              clearCacheBtn.disabled = false;
+            }, 2000);
+          } catch (err) {
+            console.error('[PreferencesUI] Failed to clear cache:', err);
+            clearCacheBtn.textContent = 'Error clearing cache';
+            clearCacheBtn.disabled = false;
+          }
+        }
+      });
+    }
 
     // Setup live preview for appearance settings
     this.setupLivePreview('appearance-tabsHeight', '--dv-tabs-height', 'px');
@@ -1082,6 +1212,20 @@ export class PreferencesUI {
     // File Queue settings
     this.setValue('fileQueue-autoLoadOnStartup', this.tempPrefs.fileQueue?.autoLoadOnStartup ?? true);
 
+    // Preprocessing settings
+    const prep = this.tempPrefs.preprocessing || {};
+    this.setValue('preprocessing-enabled', prep.enabled ?? true);
+    this.setValue('preprocessing-parallelWorkers', prep.parallelWorkers ?? 2);
+    this.setValue('preprocessing-parallelWorkers-slider', prep.parallelWorkers ?? 2);
+    this.setValue('preprocessing-steps-nefConversion', prep.steps?.nefConversion ?? true);
+    this.setValue('preprocessing-steps-faceDetection', prep.steps?.faceDetection ?? true);
+    this.setValue('preprocessing-steps-thumbnails', prep.steps?.thumbnails ?? true);
+    this.setValue('preprocessing-cache-maxSizeMB', prep.cache?.maxSizeMB ?? 1024);
+    this.setValue('preprocessing-cache-maxSizeMB-slider', prep.cache?.maxSizeMB ?? 1024);
+
+    // Update cache status display
+    this.updateCacheStatus();
+
     // Layout settings
     this.setValue('layout-defaultGridPreset', this.tempPrefs.layout.defaultGridPreset);
     this.setValue('layout-defaultTemplate', this.tempPrefs.layout.defaultTemplate);
@@ -1107,7 +1251,8 @@ export class PreferencesUI {
       'Core Systems': ['FlexLayout', 'Backend', 'WebSocket'],
       'Communication': ['ModuleAPI', 'ModuleEvent', 'IPC'],
       'Modules': ['FileQueue', 'ImageViewer', 'ReviewModule', 'OriginalView', 'LogViewer', 'Statistics', 'DatabaseMgmt'],
-      'Subsystems': ['Preferences', 'NEFConvert', 'FaceDetection']
+      'Subsystems': ['Preferences', 'NEFConvert', 'FaceDetection'],
+      'Preprocessing': ['Preprocessing', 'Cache']
     };
 
     for (const [groupName, categoryNames] of Object.entries(groups)) {
@@ -1229,6 +1374,18 @@ export class PreferencesUI {
     // File Queue settings
     if (!this.tempPrefs.fileQueue) this.tempPrefs.fileQueue = {};
     this.tempPrefs.fileQueue.autoLoadOnStartup = this.getValue('fileQueue-autoLoadOnStartup');
+
+    // Preprocessing settings
+    if (!this.tempPrefs.preprocessing) this.tempPrefs.preprocessing = {};
+    if (!this.tempPrefs.preprocessing.steps) this.tempPrefs.preprocessing.steps = {};
+    if (!this.tempPrefs.preprocessing.cache) this.tempPrefs.preprocessing.cache = {};
+
+    this.tempPrefs.preprocessing.enabled = this.getValue('preprocessing-enabled');
+    this.tempPrefs.preprocessing.parallelWorkers = this.getValue('preprocessing-parallelWorkers');
+    this.tempPrefs.preprocessing.steps.nefConversion = this.getValue('preprocessing-steps-nefConversion');
+    this.tempPrefs.preprocessing.steps.faceDetection = this.getValue('preprocessing-steps-faceDetection');
+    this.tempPrefs.preprocessing.steps.thumbnails = this.getValue('preprocessing-steps-thumbnails');
+    this.tempPrefs.preprocessing.cache.maxSizeMB = this.getValue('preprocessing-cache-maxSizeMB');
 
     this.tempPrefs.layout.defaultGridPreset = this.getValue('layout-defaultGridPreset');
     this.tempPrefs.layout.defaultTemplate = this.getValue('layout-defaultTemplate');

@@ -70,6 +70,18 @@ export class PreferencesManager {
       fileQueue: {
         autoLoadOnStartup: true // Auto-load first file from queue on startup/reload
       },
+      preprocessing: {
+        enabled: true,              // Master switch for background preprocessing
+        steps: {
+          nefConversion: true,      // Convert NEF to JPG in background
+          faceDetection: true,      // Detect faces in background
+          thumbnails: true          // Generate face thumbnails in background
+        },
+        parallelWorkers: 2,         // Number of parallel preprocessing jobs (1-8)
+        cache: {
+          maxSizeMB: 1024           // Max cache size in MB (default 1GB)
+        }
+      },
       layout: {
         defaultGridPreset: '70-30', // Default grid split ratio: '50-50', '60-40', '70-30', '30-70', '40-60'
         defaultTemplate: 'review', // Default layout template: 'review', 'comparison', 'full-image', 'stats'

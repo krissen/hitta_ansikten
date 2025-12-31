@@ -284,6 +284,71 @@ export class APIClient {
   async getPeopleNames() {
     return await this.get('/api/database/people/names');
   }
+
+  // ============================================================================
+  // Preprocessing API
+  // ============================================================================
+
+  /**
+   * Get preprocessing cache status
+   * @returns {Promise<object>}
+   */
+  async getCacheStatus() {
+    return await this.get('/api/preprocessing/cache/status');
+  }
+
+  /**
+   * Update cache settings
+   * @param {object} settings - Settings to update
+   * @returns {Promise<object>}
+   */
+  async updateCacheSettings(settings) {
+    return await this.post('/api/preprocessing/cache/settings', settings);
+  }
+
+  /**
+   * Clear preprocessing cache
+   * @returns {Promise<object>}
+   */
+  async clearCache() {
+    const url = new URL('/api/preprocessing/cache', this.baseUrl);
+    const response = await fetch(url.toString(), { method: 'DELETE' });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  }
+
+  /**
+   * Compute file hash
+   * @param {string} filePath - Path to file
+   * @returns {Promise<object>}
+   */
+  async computeFileHash(filePath) {
+    return await this.post('/api/preprocessing/hash', { file_path: filePath });
+  }
+
+  /**
+   * Check what's cached for a file
+   * @param {string} fileHash - File hash
+   * @returns {Promise<object>}
+   */
+  async checkCache(fileHash) {
+    return await this.post('/api/preprocessing/check', { file_hash: fileHash });
+  }
+
+  /**
+   * Preprocess file (all steps)
+   * @param {string} filePath - Path to file
+   * @param {string[]} steps - Optional: specific steps to run
+   * @returns {Promise<object>}
+   */
+  async preprocessFile(filePath, steps = null) {
+    return await this.post('/api/preprocessing/all', {
+      file_path: filePath,
+      steps: steps
+    });
+  }
 }
 
 // Singleton instance
