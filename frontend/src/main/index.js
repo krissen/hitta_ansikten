@@ -426,61 +426,8 @@ ipcMain.handle('open-folder-dialog', async () => {
   return files;
 });
 
-// NEF to JPG conversion
-ipcMain.handle('convert-nef', async (event, nefPath) => {
-  console.log('[Main] Converting NEF to JPG:', nefPath);
-
-  // Use /tmp directly (not os.tmpdir()) to avoid macOS symlink issues
-  const tmpDir = '/tmp';
-  const nefFilename = path.basename(nefPath, '.NEF');
-  const jpgPath = path.join(tmpDir, `${nefFilename}_converted.jpg`);
-
-  // Check if already converted and cached
-  if (fs.existsSync(jpgPath)) {
-    const nefStat = fs.statSync(nefPath);
-    const jpgStat = fs.statSync(jpgPath);
-
-    // If JPG is newer than NEF, use cached version
-    if (jpgStat.mtime > nefStat.mtime) {
-      console.log('[Main] Using cached NEF conversion:', jpgPath);
-      return jpgPath;
-    }
-  }
-
-  // Convert NEF to JPG using Python script
-  const scriptPath = path.join(__dirname, '../../scripts/nef2jpg.py');
-  const pythonPath = '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3';
-
-  return new Promise((resolve, reject) => {
-    const process = spawn(pythonPath, [scriptPath, nefPath, jpgPath]);
-
-    let stdout = '';
-    let stderr = '';
-
-    process.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    process.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    process.on('close', (code) => {
-      if (code === 0) {
-        console.log('[Main] NEF conversion successful:', jpgPath);
-        resolve(jpgPath);
-      } else {
-        console.error('[Main] NEF conversion failed:', stderr);
-        reject(new Error(`NEF conversion failed: ${stderr}`));
-      }
-    });
-
-    process.on('error', (err) => {
-      console.error('[Main] Failed to spawn NEF conversion process:', err);
-      reject(err);
-    });
-  });
-});
+// NOTE: NEF conversion is now handled by the backend preprocessing API
+// See /api/preprocessing/nef endpoint
 
 // Renderer log file handling
 let rendererLogStream = null;

@@ -58,6 +58,7 @@ class PreprocessingCache:
 
     DEFAULT_CACHE_DIR = Path.home() / '.cache' / 'bildvisare'
     DEFAULT_MAX_SIZE_MB = 1024  # 1 GB
+    INDEX_SAVE_INTERVAL = 5.0  # Seconds between index saves
 
     def __init__(self, cache_dir: Optional[Path] = None, max_size_mb: int = DEFAULT_MAX_SIZE_MB):
         self.cache_dir = Path(cache_dir) if cache_dir else self.DEFAULT_CACHE_DIR
@@ -68,6 +69,10 @@ class PreprocessingCache:
         self.nef_dir = self.cache_dir / 'nef'
         self.faces_dir = self.cache_dir / 'faces'
         self.thumbs_dir = self.cache_dir / 'thumbs'
+
+        # Index buffering state
+        self._index_dirty = False
+        self._last_save_time = 0.0
 
         # Ensure directories exist
         self._ensure_dirs()
@@ -105,8 +110,21 @@ class PreprocessingCache:
             logger.error(f"[PreprocessingCache] Failed to load index: {e}")
             return {}
 
-    def _save_index(self):
-        """Save cache index to disk atomically."""
+    def _save_index(self, force: bool = False):
+        """
+        Save cache index to disk atomically.
+
+        Uses buffering to avoid excessive disk writes:
+        - Marks index as dirty
+        - Only writes if force=True or enough time has passed since last save
+        """
+        self._index_dirty = True
+        now = time.time()
+
+        # Skip if not forced and saved recently
+        if not force and (now - self._last_save_time) < self.INDEX_SAVE_INTERVAL:
+            return
+
         try:
             # Write to temp file first
             temp_path = self.index_path.with_suffix('.tmp')
@@ -116,8 +134,16 @@ class PreprocessingCache:
 
             # Atomic rename
             temp_path.replace(self.index_path)
+            self._index_dirty = False
+            self._last_save_time = now
+            logger.debug("[PreprocessingCache] Index saved to disk")
         except IOError as e:
             logger.error(f"[PreprocessingCache] Failed to save index: {e}")
+
+    def flush(self):
+        """Force save the index if dirty."""
+        if self._index_dirty:
+            self._save_index(force=True)
 
     @staticmethod
     def compute_file_hash(file_path: str) -> str:
@@ -134,7 +160,7 @@ class PreprocessingCache:
         entry = self.index.get(file_hash)
         if entry:
             entry.last_accessed = datetime.now().isoformat()
-            self._save_index()
+            self._save_index()  # Buffered - won't write every time
         return entry
 
     def has_nef_conversion(self, file_hash: str) -> bool:
@@ -309,7 +335,7 @@ class PreprocessingCache:
 
         if removed_count > 0:
             logger.info(f"[PreprocessingCache] LRU eviction: removed {removed_count} entries")
-            self._save_index()
+            self._save_index(force=True)  # Force save after eviction
 
     def _remove_entry_files(self, entry: CacheEntry):
         """Remove all files associated with a cache entry."""
@@ -348,7 +374,7 @@ class PreprocessingCache:
 
         self._remove_entry_files(entry)
         del self.index[file_hash]
-        self._save_index()
+        self._save_index(force=True)  # Force save after explicit removal
 
         logger.debug(f"[PreprocessingCache] Removed entry: {file_hash}")
         return True
@@ -359,7 +385,7 @@ class PreprocessingCache:
             self._remove_entry_files(entry)
 
         self.index = {}
-        self._save_index()
+        self._save_index(force=True)  # Force save after clear
 
         logger.info("[PreprocessingCache] Cache cleared")
 

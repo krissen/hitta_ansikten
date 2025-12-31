@@ -29,7 +29,6 @@ contextBridge.exposeInMainWorld("bildvisareAPI", {
       "open-folder-dialog",
       "expand-glob",
       "check-file-changed",
-      "convert-nef",
       "get-initial-file"
     ];
     if (allowedChannels.includes(channel)) {

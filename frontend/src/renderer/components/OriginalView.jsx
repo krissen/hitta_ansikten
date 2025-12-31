@@ -11,6 +11,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
+import { useBackend } from '../context/BackendContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import './OriginalView.css';
 
@@ -25,6 +26,7 @@ const MAX_ZOOM = 10;
 export function OriginalView() {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
+  const { api } = useBackend();
 
   // Image state
   const [image, setImage] = useState(null);
@@ -84,8 +86,15 @@ export function OriginalView() {
     try {
       debug('OriginalView', `Loading original: ${nefPath}`);
 
-      // Request backend to convert NEF
-      const jpgPath = await window.bildvisareAPI.invoke('convert-nef', nefPath);
+      // Use preprocessing API (with caching)
+      const result = await api.post('/api/preprocessing/nef', { file_path: nefPath });
+
+      if (result.status === 'error') {
+        throw new Error(result.error || 'NEF conversion failed');
+      }
+
+      const jpgPath = result.nef_jpg_path;
+      debug('OriginalView', result.status === 'cached' ? 'Using cached conversion' : 'NEF converted');
 
       // Load the image
       const img = new Image();
@@ -109,7 +118,7 @@ export function OriginalView() {
       setIsLoading(false);
       setPlaceholder(`Error: ${err.message}`);
     }
-  }, []);
+  }, [api]);
 
   // ============================================
   // Canvas Rendering

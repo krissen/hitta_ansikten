@@ -250,39 +250,10 @@ async def preprocess_nef(request: PreprocessRequest):
         )
 
 
-@router.post("/faces", response_model=PreprocessResponse)
-async def preprocess_faces(request: PreprocessRequest):
-    """
-    Detect faces with caching.
-
-    If already cached, returns cached results immediately.
-    Otherwise, performs detection and caches result.
-
-    Note: This only caches face locations/bounding boxes, NOT name matching.
-    Name matching must be done at load time with current database.
-    """
+def _detect_faces_sync(file_path: str, file_hash: str, cache) -> dict:
+    """Synchronous face detection - runs in thread pool."""
     from ..services.detection_service import detect_faces_in_image
 
-    cache = get_cache()
-    file_path = request.file_path
-
-    # Validate file exists
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
-
-    # Compute or use provided hash
-    file_hash = request.file_hash or PreprocessingCache.compute_file_hash(file_path)
-
-    # Check cache first
-    if cache.has_face_detection(file_hash):
-        logger.debug(f"[Preprocessing] Faces cache hit: {file_hash}")
-        return PreprocessResponse(
-            file_hash=file_hash,
-            status='cached',
-            faces_cached=True
-        )
-
-    # Detect faces
     try:
         logger.info(f"[Preprocessing] Detecting faces: {file_path}")
 
@@ -309,19 +280,91 @@ async def preprocess_faces(request: PreprocessRequest):
         }
 
         cache.store_face_detection(file_hash, file_path, cacheable_data)
+        return {'status': 'completed'}
+    except Exception as e:
+        logger.error(f"[Preprocessing] Face detection error: {e}")
+        return {'status': 'error', 'error': str(e)}
 
+
+@router.post("/faces", response_model=PreprocessResponse)
+async def preprocess_faces(request: PreprocessRequest):
+    """
+    Detect faces with caching.
+
+    If already cached, returns cached results immediately.
+    Otherwise, performs detection and caches result.
+
+    Note: This only caches face locations/bounding boxes, NOT name matching.
+    Name matching must be done at load time with current database.
+    """
+    cache = get_cache()
+    file_path = request.file_path
+
+    # Validate file exists
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+    # Compute or use provided hash (in executor if needed)
+    loop = asyncio.get_event_loop()
+    file_hash = request.file_hash
+    if not file_hash:
+        file_hash = await loop.run_in_executor(
+            _executor, PreprocessingCache.compute_file_hash, file_path
+        )
+
+    # Check cache first
+    if cache.has_face_detection(file_hash):
+        logger.debug(f"[Preprocessing] Faces cache hit: {file_hash}")
+        return PreprocessResponse(
+            file_hash=file_hash,
+            status='cached',
+            faces_cached=True
+        )
+
+    # Detect faces in thread pool (non-blocking)
+    result = await loop.run_in_executor(
+        _executor, _detect_faces_sync, file_path, file_hash, cache
+    )
+
+    if result['status'] == 'completed':
         return PreprocessResponse(
             file_hash=file_hash,
             status='completed',
             faces_cached=True
         )
-    except Exception as e:
-        logger.error(f"[Preprocessing] Face detection error: {e}")
+    else:
         return PreprocessResponse(
             file_hash=file_hash,
             status='error',
-            error=str(e)
+            error=result.get('error', 'Face detection failed')
         )
+
+
+def _generate_thumbnails_sync(file_path: str, file_hash: str, faces_data: dict, cache) -> dict:
+    """Synchronous thumbnail generation - runs in thread pool."""
+    from ..services.detection_service import generate_face_thumbnails
+
+    try:
+        logger.info(f"[Preprocessing] Generating thumbnails: {file_path}")
+
+        # Use the JPG path if available
+        image_path = file_path
+        cached_jpg = cache.get_nef_conversion(file_hash)
+        if cached_jpg:
+            image_path = cached_jpg
+
+        thumbnails = generate_face_thumbnails(
+            image_path,
+            faces_data.get('faces', [])
+        )
+
+        if thumbnails:
+            cache.store_thumbnails(file_hash, file_path, thumbnails)
+
+        return {'status': 'completed'}
+    except Exception as e:
+        logger.error(f"[Preprocessing] Thumbnail generation error: {e}")
+        return {'status': 'error', 'error': str(e)}
 
 
 @router.post("/thumbnails", response_model=PreprocessResponse)
@@ -331,8 +374,6 @@ async def preprocess_thumbnails(request: PreprocessRequest):
 
     Requires face detection to be cached first.
     """
-    from ..services.detection_service import generate_face_thumbnails
-
     cache = get_cache()
     file_path = request.file_path
 
@@ -340,8 +381,13 @@ async def preprocess_thumbnails(request: PreprocessRequest):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
 
-    # Compute or use provided hash
-    file_hash = request.file_hash or PreprocessingCache.compute_file_hash(file_path)
+    # Compute or use provided hash (in executor if needed)
+    loop = asyncio.get_event_loop()
+    file_hash = request.file_hash
+    if not file_hash:
+        file_hash = await loop.run_in_executor(
+            _executor, PreprocessingCache.compute_file_hash, file_path
+        )
 
     # Check cache first
     if cache.has_thumbnails(file_hash):
@@ -361,35 +407,22 @@ async def preprocess_thumbnails(request: PreprocessRequest):
             error='Face detection required before thumbnail generation'
         )
 
-    # Generate thumbnails
-    try:
-        logger.info(f"[Preprocessing] Generating thumbnails: {file_path}")
+    # Generate thumbnails in thread pool (non-blocking)
+    result = await loop.run_in_executor(
+        _executor, _generate_thumbnails_sync, file_path, file_hash, faces_data, cache
+    )
 
-        # Use the JPG path if available
-        image_path = file_path
-        cached_jpg = cache.get_nef_conversion(file_hash)
-        if cached_jpg:
-            image_path = cached_jpg
-
-        thumbnails = generate_face_thumbnails(
-            image_path,
-            faces_data.get('faces', [])
-        )
-
-        if thumbnails:
-            cache.store_thumbnails(file_hash, file_path, thumbnails)
-
+    if result['status'] == 'completed':
         return PreprocessResponse(
             file_hash=file_hash,
             status='completed',
             thumbnails_cached=True
         )
-    except Exception as e:
-        logger.error(f"[Preprocessing] Thumbnail generation error: {e}")
+    else:
         return PreprocessResponse(
             file_hash=file_hash,
             status='error',
-            error=str(e)
+            error=result.get('error', 'Thumbnail generation failed')
         )
 
 
@@ -410,8 +443,13 @@ async def preprocess_all(request: PreprocessRequest):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
 
-    # Compute or use provided hash
-    file_hash = request.file_hash or PreprocessingCache.compute_file_hash(file_path)
+    # Compute or use provided hash (in executor if needed)
+    loop = asyncio.get_event_loop()
+    file_hash = request.file_hash
+    if not file_hash:
+        file_hash = await loop.run_in_executor(
+            _executor, PreprocessingCache.compute_file_hash, file_path
+        )
 
     result = PreprocessResponse(
         file_hash=file_hash,
