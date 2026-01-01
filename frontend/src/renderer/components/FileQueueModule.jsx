@@ -187,16 +187,25 @@ export function FileQueueModule() {
     if (!manager) return;
 
     const handleStatusChange = ({ filePath, status }) => {
-      setPreprocessingStatus(prev => ({ ...prev, [filePath]: status }));
+      setPreprocessingStatus(prev => ({
+        ...prev,
+        [filePath]: { ...(prev[filePath] || {}), status }
+      }));
     };
 
-    const handleCompleted = ({ filePath }) => {
-      setPreprocessingStatus(prev => ({ ...prev, [filePath]: PreprocessingStatus.COMPLETED }));
-      debug('FileQueue', 'Preprocessing completed:', filePath);
+    const handleCompleted = ({ filePath, faceCount }) => {
+      setPreprocessingStatus(prev => ({
+        ...prev,
+        [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount }
+      }));
+      debug('FileQueue', 'Preprocessing completed:', filePath, `(${faceCount ?? 0} faces)`);
     };
 
     const handleError = ({ filePath, error }) => {
-      setPreprocessingStatus(prev => ({ ...prev, [filePath]: PreprocessingStatus.ERROR }));
+      setPreprocessingStatus(prev => ({
+        ...prev,
+        [filePath]: { status: PreprocessingStatus.ERROR }
+      }));
       debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
       // Show error toast for preprocessing failure
       const fileName = filePath.split('/').pop();
@@ -204,7 +213,10 @@ export function FileQueueModule() {
     };
 
     const handleFileNotFound = ({ filePath }) => {
-      setPreprocessingStatus(prev => ({ ...prev, [filePath]: PreprocessingStatus.FILE_NOT_FOUND }));
+      setPreprocessingStatus(prev => ({
+        ...prev,
+        [filePath]: { status: PreprocessingStatus.FILE_NOT_FOUND }
+      }));
 
       const autoRemove = getAutoRemoveMissingPreference();
 
@@ -1217,23 +1229,27 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
   };
 
   // Get preprocessing indicator
+  // preprocessingStatus is now an object: { status, faceCount }
+  const ppStatus = preprocessingStatus?.status || preprocessingStatus; // Handle both formats
+  const ppFaceCount = preprocessingStatus?.faceCount;
+
   const getPreprocessingIndicator = () => {
     // No status recorded yet
-    if (!preprocessingStatus) {
+    if (!ppStatus) {
       return null;
     }
     // Show checkmark for completed preprocessing
-    if (preprocessingStatus === PreprocessingStatus.COMPLETED) {
-      return <span className="preprocess-indicator completed" title="Preprocessed (cached)">⚡</span>;
+    if (ppStatus === PreprocessingStatus.COMPLETED) {
+      return <span className="preprocess-indicator completed" title="Cached">⚡</span>;
     }
-    if (preprocessingStatus === PreprocessingStatus.FILE_NOT_FOUND) {
+    if (ppStatus === PreprocessingStatus.FILE_NOT_FOUND) {
       return null; // Status already shown in main icon
     }
-    if (preprocessingStatus === PreprocessingStatus.ERROR) {
+    if (ppStatus === PreprocessingStatus.ERROR) {
       return <span className="preprocess-indicator error" title="Preprocessing failed">!</span>;
     }
     // Show spinner for any in-progress state
-    return <span className="preprocess-indicator loading" title={`Preprocessing: ${preprocessingStatus}`}>⟳</span>;
+    return <span className="preprocess-indicator loading" title={`Preprocessing: ${ppStatus}`}>⟳</span>;
   };
 
   // Truncate filename for display (Unicode-safe, preserves extension)
@@ -1258,9 +1274,15 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
   const nameWouldChange = newName && newName !== item.fileName;
   const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
 
-  // Get face count - distinguish between "not fetched" and "0 faces"
-  const hasFaceInfo = previewInfo?.persons !== undefined || item.reviewedFaces !== undefined;
-  const faceCount = previewInfo?.persons?.length ?? item.reviewedFaces?.length ?? null;
+  // Get face count - prioritize: previewInfo > reviewedFaces > preprocessing cache
+  // This shows DETECTED faces, not just confirmed ones
+  const hasFaceInfo = previewInfo?.persons !== undefined ||
+                      item.reviewedFaces !== undefined ||
+                      ppFaceCount !== undefined;
+  const faceCount = previewInfo?.persons?.length ??
+                    item.reviewedFaces?.length ??
+                    ppFaceCount ??
+                    null;
   const faceNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
 
   return (
