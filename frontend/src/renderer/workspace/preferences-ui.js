@@ -6,6 +6,7 @@
 
 import { preferences } from './preferences.js';
 import { getCategories, setCategories, resetCategories, debugWarn } from '../shared/debug.js';
+import { themeManager } from '../theme-manager.js';
 
 export class PreferencesUI {
   constructor() {
@@ -114,9 +115,11 @@ export class PreferencesUI {
             <div class="pref-field">
               <label>Theme</label>
               <select id="pref-ui-theme">
-                <option value="light">Light</option>
-                <option value="dark">Dark (future)</option>
+                <option value="dark">Dark (CRT Phosphor)</option>
+                <option value="light">Light (Terminal Beige)</option>
+                <option value="system">Follow System</option>
               </select>
+              <small>Application color theme. Dark mode uses CRT terminal aesthetic.</small>
             </div>
 
             <div class="pref-field">
@@ -1454,6 +1457,14 @@ export class PreferencesUI {
       });
     }
 
+    // Theme live preview
+    const themeSelect = this.modal.querySelector('#pref-ui-theme');
+    if (themeSelect) {
+      themeSelect.addEventListener('change', () => {
+        themeManager.setPreference(themeSelect.value);
+      });
+    }
+
     // Setup live preview for appearance settings
     this.setupLivePreview('appearance-tabsHeight', '--dv-tabs-height', 'px');
     this.setupLivePreview('appearance-tabsFontSize', '--dv-tabs-font-size', 'px');
@@ -1820,6 +1831,9 @@ export class PreferencesUI {
     this.tempPrefs.ui.defaultLayout = this.getValue('ui-defaultLayout');
     this.tempPrefs.ui.showWelcome = this.getValue('ui-showWelcome');
     this.tempPrefs.ui.logLevel = this.getValue('ui-logLevel');
+
+    // Apply theme immediately
+    themeManager.setPreference(this.tempPrefs.ui.theme);
 
     this.tempPrefs.appearance.tabsHeight = this.getValue('appearance-tabsHeight');
     this.tempPrefs.appearance.tabsFontSize = this.getValue('appearance-tabsFontSize');

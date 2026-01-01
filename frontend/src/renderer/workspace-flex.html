@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,8 +17,9 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f0f0f0;
+      font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
     }
 
     #workspace-root {
@@ -26,66 +27,93 @@
       height: 100%;
     }
 
-    /* FlexLayout custom theme overrides */
-    .flexlayout__layout {
-      --font-size: 13px;
-      --color-text: #1a1a1a;
-      --color-background: #f5f5f5;
-      --color-1: #e0e0e0;
-      --color-2: #d0d0d0;
-      --color-3: #c0c0c0;
-      --color-4: #b0b0b0;
-      --color-5: #a0a0a0;
-      --color-6: #909090;
-      --color-tabset-background: #e8e8e8;
-      --color-tabset-divider-line: rgba(128, 128, 128, 0.2);
-      --color-tab-selected: #f5f5f5;
-      --color-tab-unselected: #e0e0e0;
-      --color-tab-selected-background: #f5f5f5;
-      --color-tab-unselected-background: #e0e0e0;
-      --color-splitter: rgba(128, 128, 128, 0.3);
-      --color-splitter-drag: rgba(100, 100, 100, 0.5);
-      --color-drag-rect: rgba(100, 149, 237, 0.3);
-      --color-drag-rect-border: cornflowerblue;
-      --color-popup-border: #ccc;
-      --color-popup-unselected: #e0e0e0;
-      --color-edge-marker: cornflowerblue;
+    /* FlexLayout custom theme overrides - Light Mode */
+    :root[data-theme="light"] .flexlayout__layout {
+      --font-size: var(--font-base);
+      --color-text: var(--text-primary);
+      --color-background: var(--bg-primary);
+      --color-1: var(--bg-secondary);
+      --color-2: var(--bg-tertiary);
+      --color-3: var(--bg-hover);
+      --color-4: var(--bg-active);
+      --color-5: var(--border-medium);
+      --color-6: var(--border-strong);
+      --color-tabset-background: var(--bg-tertiary);
+      --color-tabset-divider-line: var(--border-subtle);
+      --color-tab-selected: var(--bg-elevated);
+      --color-tab-unselected: var(--bg-secondary);
+      --color-tab-selected-background: var(--bg-elevated);
+      --color-tab-unselected-background: var(--bg-secondary);
+      --color-splitter: var(--border-subtle);
+      --color-splitter-drag: var(--accent-primary);
+      --color-drag-rect: var(--accent-primary-alpha-20);
+      --color-drag-rect-border: var(--accent-primary);
+      --color-popup-border: var(--border-medium);
+      --color-popup-unselected: var(--bg-secondary);
+      --color-edge-marker: var(--accent-primary);
+    }
+
+    /* FlexLayout custom theme overrides - Dark Mode */
+    :root[data-theme="dark"] .flexlayout__layout,
+    :root:not([data-theme]) .flexlayout__layout {
+      --font-size: var(--font-base);
+      --color-text: var(--text-primary);
+      --color-background: var(--bg-primary);
+      --color-1: var(--bg-secondary);
+      --color-2: var(--bg-tertiary);
+      --color-3: var(--bg-hover);
+      --color-4: var(--bg-active);
+      --color-5: var(--border-medium);
+      --color-6: var(--border-strong);
+      --color-tabset-background: var(--bg-tertiary);
+      --color-tabset-divider-line: var(--border-subtle);
+      --color-tab-selected: var(--bg-elevated);
+      --color-tab-unselected: var(--bg-secondary);
+      --color-tab-selected-background: var(--bg-elevated);
+      --color-tab-unselected-background: var(--bg-secondary);
+      --color-splitter: var(--border-subtle);
+      --color-splitter-drag: var(--accent-primary);
+      --color-drag-rect: var(--accent-primary-alpha-20);
+      --color-drag-rect-border: var(--accent-primary);
+      --color-popup-border: var(--border-medium);
+      --color-popup-unselected: var(--bg-secondary);
+      --color-edge-marker: var(--accent-primary);
     }
 
     /* Tab styling */
     .flexlayout__tab {
-      background-color: #ffffff;
+      background-color: var(--bg-elevated);
       border-radius: 0;
       overflow: hidden;
     }
 
     .flexlayout__tabset-header {
-      background-color: #d0d0d0;
-      padding: 4px 4px 0 4px;
+      background-color: var(--bg-tertiary);
+      padding: var(--space-xs) var(--space-xs) 0 var(--space-xs);
     }
 
     .flexlayout__tab_button {
-      border-radius: 6px 6px 0 0;
-      padding: 4px 12px;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      padding: var(--space-xs) var(--space-md);
       margin-right: 2px;
-      font-size: 13px;
-      transition: background-color 0.1s ease, color 0.1s ease;
+      font-size: var(--font-base);
+      transition: background-color var(--transition-fast), color var(--transition-fast);
     }
 
     .flexlayout__tab_button--selected {
-      background-color: #f5f5f5;
-      color: #1a1a1a;
+      background-color: var(--bg-elevated);
+      color: var(--text-primary);
       font-weight: 500;
     }
 
     .flexlayout__tab_button--unselected {
-      background-color: #e0e0e0;
-      color: #888888;
+      background-color: var(--bg-secondary);
+      color: var(--text-secondary);
     }
 
     .flexlayout__tab_button--unselected:hover {
-      background-color: #eeeeee;
-      color: #333333;
+      background-color: var(--bg-hover);
+      color: var(--text-primary);
     }
 
     /* Splitter styling */
@@ -94,7 +122,7 @@
     }
 
     .flexlayout__splitter:hover {
-      background-color: rgba(100, 149, 237, 0.3);
+      background-color: var(--accent-primary-alpha-20);
     }
 
     /* Tab content area */
@@ -108,12 +136,12 @@
       width: 100%;
       height: 100%;
       position: relative;
-      background-color: #ffffff;
+      background-color: var(--bg-elevated);
     }
 
     /* Border bar styling */
     .flexlayout__border_bar {
-      background-color: #d0d0d0;
+      background-color: var(--bg-tertiary);
     }
 
     /* Remove focus outline */
@@ -125,50 +153,50 @@
     /* Global toast notifications */
     .global-toast-container {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
+      bottom: var(--space-xl);
+      right: var(--space-xl);
       display: flex;
       flex-direction: column-reverse;
-      gap: 8px;
-      z-index: 10000;
+      gap: var(--space-sm);
+      z-index: var(--z-tooltip);
       pointer-events: none;
     }
 
     .global-toast {
-      padding: 12px 18px;
-      border-radius: 8px;
-      font-size: 13px;
+      padding: var(--space-md) var(--space-lg);
+      border-radius: var(--radius-lg);
+      font-size: var(--font-base);
       font-weight: 500;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      box-shadow: var(--shadow-lg);
       max-width: 340px;
       pointer-events: auto;
       opacity: 0.94;
-      animation: toast-slide-in 0.3s ease-out forwards;
-      transition: transform 0.3s ease, opacity 0.3s ease;
+      animation: toast-slide-in var(--transition-slow) forwards;
+      transition: transform var(--transition-slow), opacity var(--transition-slow);
     }
 
     .global-toast.exiting {
-      animation: toast-slide-out 0.3s ease-in forwards;
+      animation: toast-slide-out var(--transition-slow) forwards;
     }
 
     .global-toast.success {
-      background: rgba(76, 175, 80, 0.97);
-      color: white;
+      background: var(--color-success);
+      color: var(--text-inverse);
     }
 
     .global-toast.info {
-      background: rgba(33, 150, 243, 0.97);
-      color: white;
+      background: var(--color-info);
+      color: var(--text-inverse);
     }
 
     .global-toast.warning {
-      background: rgba(255, 152, 0, 0.97);
-      color: white;
+      background: var(--color-warning);
+      color: var(--text-inverse);
     }
 
     .global-toast.error {
-      background: rgba(244, 67, 54, 0.97);
-      color: white;
+      background: var(--color-error);
+      color: var(--text-inverse);
     }
 
     @keyframes toast-slide-in {

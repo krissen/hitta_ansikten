@@ -21,7 +21,7 @@ export class PreferencesManager {
         pythonPath: '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3'
       },
       ui: {
-        theme: 'light', // 'light' | 'dark'
+        theme: 'dark', // 'dark' | 'light' | 'system'
         defaultLayout: 'standard', // 'standard' | 'compact' | 'review-focused'
         showWelcome: true, // Show welcome message on first launch
         logLevel: 'info' // 'debug' | 'info' | 'warn' | 'error'

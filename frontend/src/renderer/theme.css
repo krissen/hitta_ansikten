@@ -1,0 +1,204 @@
+/**
+ * Theme CSS Variables for hitta_ansikten workspace
+ *
+ * Two themes available:
+ * - Light Mode: "Terminal Beige" (retro Commodore/Amiga aesthetic)
+ * - Dark Mode: "CRT Phosphor" (classic terminal with amber/green tones)
+ *
+ * Usage: Set data-theme="light" or data-theme="dark" on <html> element
+ * See: frontend/docs/styling-reference.md for complete documentation
+ */
+
+/* ===========================
+   LIGHT MODE - "Terminal Beige"
+   =========================== */
+:root[data-theme="light"] {
+  /* Backgrounds - Warm retro colors (Commodore/Amiga/Arcade) */
+  --bg-primary: #c8b088;        /* Deep warm gold/bronze */
+  --bg-secondary: #b09060;      /* Dark caramel */
+  --bg-tertiary: #987840;       /* Bronze/copper toolbar */
+  --bg-elevated: #d8c8a0;       /* Light peach for cards */
+  --bg-hover: #a08050;          /* Deep bronze hover */
+  --bg-active: #886830;         /* Dark gold active */
+
+  /* Foreground text - Very dark for contrast */
+  --text-primary: #1a1008;      /* Near black */
+  --text-secondary: #2d1810;    /* Dark brown */
+  --text-tertiary: #483020;     /* Brown */
+  --text-inverse: #f8f0e0;      /* Light yellow text */
+
+  /* Borders & Dividers */
+  --border-subtle: #a08858;     /* Gold */
+  --border-medium: #886830;     /* Deep gold */
+  --border-strong: #684818;     /* Dark brown */
+
+  /* Accent Colors - Strong retro colors */
+  --accent-primary: #38a818;    /* Bright green (Apple II/Arcade) */
+  --accent-primary-hover: #2a8010;
+  --accent-primary-alpha-20: rgba(56, 168, 24, 0.2);
+  --accent-secondary: #e85820;  /* Burning orange (Arcade) */
+  --accent-secondary-hover: #c03810;
+
+  /* Semantic Colors - Intense retro gaming colors */
+  --color-success: #38a818;     /* Bright green */
+  --color-success-bg: #b0e898;  /* Light green with color */
+  --color-warning: #f87820;     /* Intense orange */
+  --color-warning-bg: #ffc898;  /* Peach with color */
+  --color-error: #e83020;       /* Bright red */
+  --color-error-bg: #ffb0a8;    /* Light pink with color */
+  --color-info: #1888d8;        /* Bright blue (Commodore) */
+  --color-info-bg: #a0d0f8;     /* Light blue with color */
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(26, 16, 8, 0.25);
+  --shadow-md: 0 2px 6px rgba(26, 16, 8, 0.30);
+  --shadow-lg: 0 4px 12px rgba(26, 16, 8, 0.35);
+}
+
+/* ===========================
+   DARK MODE - "CRT Phosphor"
+   =========================== */
+:root[data-theme="dark"] {
+  /* Backgrounds - Deep dark (not brown) */
+  --bg-primary: #0f0f0f;        /* Near black */
+  --bg-secondary: #1a1a1a;      /* Dark gray */
+  --bg-tertiary: #252525;       /* Gray toolbar */
+  --bg-elevated: #2a2a2a;       /* Lighter gray for cards */
+  --bg-hover: #303030;          /* Hover */
+  --bg-active: #383838;         /* Active */
+
+  /* Foreground text - Amber/Green CRT */
+  --text-primary: #d4d2c0;      /* Light beige/amber */
+  --text-secondary: #a8a698;    /* Muted amber */
+  --text-tertiary: #7a7870;     /* Very muted */
+  --text-inverse: #0f0f0f;      /* Text on light backgrounds */
+
+  /* Borders & Dividers */
+  --border-subtle: #353535;     /* Subtle gray */
+  --border-medium: #454545;     /* Clearer gray */
+  --border-strong: #555555;     /* Strong gray */
+
+  /* Accent Colors - Retro CRT */
+  --accent-primary: #9acd32;    /* Yellow-green (classic terminal) */
+  --accent-primary-hover: #b8e856;
+  --accent-primary-alpha-20: rgba(154, 205, 50, 0.2);
+  --accent-secondary: #daa520;  /* Goldenrod/amber */
+  --accent-secondary-hover: #eebb30;
+
+  /* Semantic Colors */
+  --color-success: #9acd32;     /* Yellow-green */
+  --color-success-bg: #1a2a1a;  /* Dark green */
+  --color-warning: #ffa500;     /* Orange */
+  --color-warning-bg: #2a2015;  /* Dark orange-brown */
+  --color-error: #ff6347;       /* Tomato red */
+  --color-error-bg: #2a1515;    /* Dark red */
+  --color-info: #87ceeb;        /* Sky blue */
+  --color-info-bg: #15202a;     /* Dark blue */
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.7);
+
+  /* CRT effects (optional glow) */
+  --glow-text: 0 0 2px currentColor;
+  --glow-accent: 0 0 8px var(--accent-primary);
+}
+
+/* ===========================
+   SPACING & LAYOUT SYSTEM
+   =========================== */
+:root {
+  /* Spacing Scale (4px grid) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+
+  /* Border Radius */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-full: 999px;
+
+  /* Font Sizes */
+  --font-xs: 10px;
+  --font-sm: 11px;
+  --font-base: 13px;
+  --font-md: 14px;
+  --font-lg: 16px;
+  --font-xl: 18px;
+  --font-2xl: 22px;
+
+  /* Font Families */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+
+  /* Transitions */
+  --transition-fast: 0.1s ease;
+  --transition-base: 0.15s ease;
+  --transition-slow: 0.3s ease;
+
+  /* Z-index Scale */
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal: 1000;
+  --z-tooltip: 2000;
+}
+
+/* ===========================
+   BASE RESETS
+   =========================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Default to dark theme if no data-theme is set */
+:root:not([data-theme]) {
+  /* Copy dark mode variables as defaults */
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #252525;
+  --bg-elevated: #2a2a2a;
+  --bg-hover: #303030;
+  --bg-active: #383838;
+  --text-primary: #d4d2c0;
+  --text-secondary: #a8a698;
+  --text-tertiary: #7a7870;
+  --text-inverse: #0f0f0f;
+  --border-subtle: #353535;
+  --border-medium: #454545;
+  --border-strong: #555555;
+  --accent-primary: #9acd32;
+  --accent-primary-hover: #b8e856;
+  --accent-primary-alpha-20: rgba(154, 205, 50, 0.2);
+  --accent-secondary: #daa520;
+  --accent-secondary-hover: #eebb30;
+  --color-success: #9acd32;
+  --color-success-bg: #1a2a1a;
+  --color-warning: #ffa500;
+  --color-warning-bg: #2a2015;
+  --color-error: #ff6347;
+  --color-error-bg: #2a1515;
+  --color-info: #87ceeb;
+  --color-info-bg: #15202a;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.7);
+  --glow-text: 0 0 2px currentColor;
+  --glow-accent: 0 0 8px var(--accent-primary);
+}
+
+/* ===========================
+   DARK MODE CRT EFFECTS (Optional)
+   =========================== */
+[data-theme="dark"] .text-glow {
+  text-shadow: var(--glow-text);
+}
+
+[data-theme="dark"] .accent-glow {
+  box-shadow: var(--glow-accent);
+}

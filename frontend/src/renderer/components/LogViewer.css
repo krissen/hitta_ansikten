@@ -1,24 +1,26 @@
 /**
  * LogViewer Styles
+ *
+ * Uses CSS variables from theme.css for theming support
  */
 
 .log-viewer {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #1e1e1e;
-  color: #d4d4d4;
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  font-size: 11px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
   line-height: 1.3;
   user-select: text;
   -webkit-user-select: text;
 }
 
 .log-header {
-  padding: 6px 10px;
-  background: #252526;
-  border-bottom: 1px solid #3e3e42;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-medium);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -27,52 +29,52 @@
 
 .log-header h3 {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-md);
   font-weight: 600;
-  color: #cccccc;
+  color: var(--text-primary);
 }
 
 .log-controls {
   display: flex;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .log-filter {
-  padding: 4px 8px;
-  background: #3c3c3c;
-  border: 1px solid #3e3e42;
-  border-radius: 3px;
-  color: #cccccc;
-  font-size: 11px;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
   cursor: pointer;
 }
 
 .log-filter:focus {
-  outline: 1px solid #007acc;
+  outline: 1px solid var(--accent-primary);
 }
 
 .btn-clear {
-  padding: 4px 12px;
-  background: #3c3c3c;
-  border: 1px solid #3e3e42;
-  border-radius: 3px;
-  color: #cccccc;
-  font-size: 11px;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--bg-hover);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
   cursor: pointer;
 }
 
 .btn-clear:hover {
-  background: #464647;
+  background: var(--bg-active);
 }
 
 .log-entries {
   flex: 1;
   overflow-y: auto;
-  padding: 4px;
+  padding: var(--space-xs);
 }
 
 .log-entry {
-  padding: 1px 6px;
+  padding: 1px var(--space-sm);
   margin-bottom: 0;
   border-left: 2px solid transparent;
   white-space: pre-wrap;
@@ -80,25 +82,25 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .log-entry.info {
-  border-left-color: #4ec9b0;
+  border-left-color: var(--color-info);
 }
 
 .log-entry.warn {
-  border-left-color: #dcdcaa;
-  background: rgba(220, 220, 170, 0.1);
+  border-left-color: var(--color-warning);
+  background: var(--color-warning-bg);
 }
 
 .log-entry.error {
-  border-left-color: #f48771;
-  background: rgba(244, 135, 113, 0.1);
+  border-left-color: var(--color-error);
+  background: var(--color-error-bg);
 }
 
 .log-timestamp {
-  color: #858585;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -108,11 +110,11 @@
 }
 
 .log-source.frontend {
-  color: #569cd6;
+  color: var(--color-info);
 }
 
 .log-source.backend {
-  color: #ce9178;
+  color: var(--accent-secondary);
 }
 
 .log-level {
@@ -123,25 +125,25 @@
 }
 
 .log-level.info {
-  color: #4ec9b0;
+  color: var(--color-info);
 }
 
 .log-level.warn {
-  color: #dcdcaa;
+  color: var(--color-warning);
 }
 
 .log-level.error {
-  color: #f48771;
+  color: var(--color-error);
 }
 
 .log-message {
-  color: #d4d4d4;
+  color: var(--text-primary);
   flex: 1;
   min-width: 0;
 }
 
 .log-empty {
   text-align: center;
-  padding: 32px;
-  color: #858585;
+  padding: var(--space-2xl);
+  color: var(--text-secondary);
 }

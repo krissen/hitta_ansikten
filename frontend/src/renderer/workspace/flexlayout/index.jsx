@@ -13,6 +13,10 @@ import { BackendProvider } from '../../context/BackendContext.jsx';
 import { ToastProvider } from '../../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
 
+// Import theme system (must be first to define CSS variables)
+import '../../theme.css';
+import { themeManager } from '../../theme-manager.js';
+
 // Import FlexLayout CSS
 import 'flexlayout-react/style/light.css';
 
