@@ -1363,7 +1363,7 @@ export function FileQueueModule() {
                 });
                 if (firstEligible >= 0) loadFile(firstEligible);
               }}>
-                Start ▶
+                Start <Icon name="play" size={12} />
               </button>
             ) : null}
           </div>
@@ -1396,13 +1396,13 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
-        return <span className="status-icon completed">✓</span>;
+        return <span className="status-icon completed"><Icon name="check" size={12} /></span>;
       case 'active':
-        return <span className="status-icon active">►</span>;
+        return <span className="status-icon active"><Icon name="play" size={12} /></span>;
       case 'error':
-        return <span className="status-icon error">✗</span>;
+        return <span className="status-icon error"><Icon name="close" size={12} /></span>;
       case 'missing':
-        return <span className="status-icon missing" title="File not found">⚠</span>;
+        return <span className="status-icon missing" title="File not found"><Icon name="warning" size={12} /></span>;
       default:
         if (item.isAlreadyProcessed) {
           if (fixMode) {
@@ -1410,7 +1410,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
             return <span className="status-icon pending-reprocess">○</span>;
           } else {
             // Fix-mode OFF: checkmark to show "already done"
-            return <span className="status-icon already-done">✓</span>;
+            return <span className="status-icon already-done"><Icon name="check" size={12} /></span>;
           }
         }
         return <span className="status-icon pending">○</span>;
@@ -1536,7 +1536,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
         {getPreprocessingIndicator()}
       </span>
       <span className="face-count" title={confirmedNames.length > 0 ? `Confirmed: ${confirmedNames.join(', ')}` : (hasDetectedFaces ? `${detectedFaceCount} detected` : 'Not loaded')}>
-        👤{hasDetectedFaces ? detectedFaceCount : '–'}
+        <Icon name="user" size={12} />{hasDetectedFaces ? detectedFaceCount : '–'}
       </span>
       <span className="file-status">{getStatusText()}</span>
       <button

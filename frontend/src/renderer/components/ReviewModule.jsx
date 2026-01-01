@@ -15,6 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
+import { Icon } from './Icon.jsx';
 import './ReviewModule.css';
 
 /**
@@ -609,6 +610,7 @@ export function ReviewModule() {
  */
 function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, maxAlternatives, onSelectAlternative }) {
   const [inputValue, setInputValue] = useState(face.person_name || '');
+  const [imageError, setImageError] = useState(false);
   const { api } = useBackend();
 
   // Build thumbnail URL (only for faces with bounding boxes)
@@ -636,14 +638,14 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
       <div className="face-number">{index + 1}</div>
 
       <div className="face-thumbnail">
-        {thumbnailUrl ? (
+        {thumbnailUrl && !imageError ? (
           <img
             src={thumbnailUrl}
             alt={face.person_name || 'Unknown'}
-            onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.textContent = '👤'; }}
+            onError={() => setImageError(true)}
           />
         ) : (
-          '👤'
+          <Icon name="user" size={32} />
         )}
       </div>
 
@@ -712,7 +714,11 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
           />
         ) : (
           <div className={`status-text ${face.is_rejected ? 'rejected' : 'confirmed'}`}>
-            {face.is_rejected ? '⊘ Ignored' : `✓ ${face.person_name}`}
+            {face.is_rejected ? (
+              <><Icon name="block" size={12} /> Ignored</>
+            ) : (
+              <><Icon name="check" size={12} /> {face.person_name}</>
+            )}
           </div>
         )}
       </div>
