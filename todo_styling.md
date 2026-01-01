@@ -556,42 +556,75 @@ Skapa `/frontend/src/renderer/theme.css` med alla CSS-variabler definierade ovan
 
 ### 2. Skapa Tema-växlare
 
-Skapa en enkel tema-växlare som uppdaterar `data-theme` attributet:
+Skapa en enkel tema-växlare som uppdaterar `data-theme` attributet och följer systeminställningen när användaren väljer det. Krav:
+
+1. **Preference-tri-state:** `light`, `dark` eller `system`. Sparas i `localStorage`.
+2. **System-sync:** Lyssna på `matchMedia('(prefers-color-scheme: dark)')` och uppdatera temat när systemet byter, så länge preferensen är `system`.
+3. **Event-bus:** Dispatcha `theme-changed` för moduler som behöver reagera på bytet.
+4. **Menu-integration:** Lägg till ett "Follow system"-alternativ i befintlig meny utöver manuella `light`/`dark` val.
 
 ```javascript
 // theme-manager.js
+// Simple, commented manager that supports system-following theme logic
 class ThemeManager {
   constructor() {
-    // Ladda sparad preferens eller använd system
-    this.currentTheme = localStorage.getItem('theme') || 
-                        this.getSystemTheme();
-    this.applyTheme(this.currentTheme);
+    this.storageKey = 'theme-preference';
+    this.systemQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    this.preference = localStorage.getItem(this.storageKey) || 'system';
+
+    // Apply initial theme based on stored preference or system default
+    this.applyFromPreference({ persist: false });
+
+    // Keep UI in sync with system changes when preference === 'system'
+    this.systemQuery.addEventListener('change', (event) => {
+      if (this.preference === 'system') {
+        this.applyTheme(event.matches ? 'dark' : 'light', { persist: false });
+      }
+    });
   }
 
   getSystemTheme() {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches 
-      ? 'dark' 
-      : 'light';
+    return this.systemQuery.matches ? 'dark' : 'light';
   }
 
-  applyTheme(theme) {
-    if (document.documentElement) {
-      document.documentElement.setAttribute('data-theme', theme);
-      localStorage.setItem('theme', theme);
-      this.currentTheme = theme;
-      
-      // Dispatch event för moduler som behöver reagera på tema-byte
-      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
+  applyFromPreference(options = { persist: true }) {
+    const theme = this.preference === 'system'
+      ? this.getSystemTheme()
+      : this.preference;
+    this.applyTheme(theme, options);
+  }
+
+  applyTheme(theme, options = { persist: true }) {
+    if (!document.documentElement) return;
+
+    document.documentElement.setAttribute('data-theme', theme);
+    this.currentTheme = theme;
+
+    if (options.persist) {
+      localStorage.setItem(this.storageKey, this.preference);
     }
+
+    // Dispatch event for modules that need to react to theme changes
+    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
   }
 
-  toggle() {
-    const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
-    this.applyTheme(newTheme);
+  setPreference(preference) {
+    this.preference = preference;
+    localStorage.setItem(this.storageKey, preference);
+    this.applyFromPreference();
+  }
+
+  toggleManualTheme() {
+    const next = this.currentTheme === 'light' ? 'dark' : 'light';
+    this.setPreference(next);
+  }
+
+  followSystem() {
+    this.setPreference('system');
   }
 }
 
-// Exportera singleton
+// Export singleton
 export const themeManager = new ThemeManager();
 ```
 
