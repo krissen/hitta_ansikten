@@ -55,30 +55,31 @@
 }
 
 .file-queue-btn.add {
-  background: #4a90d9;
+  background: #666;
   color: white;
 }
 
 .file-queue-btn.add:hover {
-  background: #3a7bc8;
+  background: #555;
 }
 
 .file-queue-btn.folder {
-  background: #7b68ee;
+  background: #666;
+  color: white;
   font-size: 12px;
 }
 
 .file-queue-btn.folder:hover {
-  background: #6a5acd;
+  background: #555;
 }
 
 .file-queue-btn.settings {
-  background: #888;
+  background: #666;
   color: white;
 }
 
 .file-queue-btn.settings:hover {
-  background: #666;
+  background: #555;
 }
 
 /* Toolbar */
@@ -106,9 +107,6 @@
   margin: 0;
 }
 
-.preview-toggle {
-  color: #7b1fa2;
-}
 
 .clear-btn {
   padding: 3px 8px;
@@ -377,33 +375,17 @@
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  background: #888;
+  background: #666;
   color: white;
   transition: transform 0.1s ease, background 0.15s ease;
 }
 
 .control-btn:hover {
-  background: #666;
+  background: #555;
 }
 
 .control-btn:active:not(:disabled) {
   transform: scale(0.95);
-}
-
-.control-btn.start {
-  background: #4a90d9;
-}
-
-.control-btn.start:hover {
-  background: #3a7bc8;
-}
-
-.control-btn.rename {
-  background: #7b1fa2;
-}
-
-.control-btn.rename:hover:not(:disabled) {
-  background: #6a1b9a;
 }
 
 .control-btn:disabled {
