@@ -1030,20 +1030,20 @@ export function FileQueueModule() {
     }
   }, [autoAdvance, loadFile, loadProcessedFiles, showToast]));
 
-  // Listen for faces-detected event to update face count for active file
+  // Listen for faces-detected event to update face count for the detected file
   // This updates the face count when detection completes (not just from preprocessing)
-  useModuleEvent('faces-detected', useCallback(({ faces }) => {
-    const activePath = currentFileRef.current;
-    if (!activePath) return;
+  // Uses imagePath from event to avoid race conditions when user clicks another file during detection
+  useModuleEvent('faces-detected', useCallback(({ faces, imagePath }) => {
+    if (!imagePath) return;
 
     const faceCount = faces?.length ?? 0;
-    debug('FileQueue', 'Faces detected for active file:', activePath, `(${faceCount} faces)`);
+    debug('FileQueue', 'Faces detected for file:', imagePath, `(${faceCount} faces)`);
 
     // Update preprocessing status with actual detected face count
     setPreprocessingStatus(prev => ({
       ...prev,
-      [activePath]: {
-        ...(prev[activePath] || {}),
+      [imagePath]: {
+        ...(prev[imagePath] || {}),
         status: PreprocessingStatus.COMPLETED,
         faceCount
       }

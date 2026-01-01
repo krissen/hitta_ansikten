@@ -80,7 +80,8 @@ export function ReviewModule() {
       setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
 
       // Emit faces to Image Viewer for bounding box overlay
-      emit('faces-detected', { faces });
+      // Include imagePath so listeners know which file these faces belong to
+      emit('faces-detected', { faces, imagePath });
 
       // Focus the module container (not input) so keyboard shortcuts work
       // User must press 'r' to enter input mode
