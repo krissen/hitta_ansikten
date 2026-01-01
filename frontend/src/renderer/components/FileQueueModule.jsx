@@ -670,6 +670,7 @@ export function FileQueueModule() {
   }, [fixMode, api, loadProcessedFiles, emit, showToast]);
 
   // Handle file item click with modifier key support
+  // Single click = select, Double click = load
   const handleItemClick = useCallback((index, event) => {
     const item = queue[index];
     if (!item) return;
@@ -698,10 +699,15 @@ export function FileQueueModule() {
       return;
     }
 
-    // Normal click: Load the file
+    // Single click: Select the file (clear others, select this one)
     lastSelectedIndexRef.current = index;
+    setSelectedFiles(new Set([item.id]));
+  }, [queue, toggleFileSelection]);
+
+  // Handle double-click to load file
+  const handleItemDoubleClick = useCallback((index) => {
     loadFile(index);
-  }, [queue, toggleFileSelection, loadFile]);
+  }, [loadFile]);
 
   // Execute pending auto-load (after loadFile is defined)
   useEffect(() => {
@@ -1196,6 +1202,7 @@ export function FileQueueModule() {
               isActive={index === currentIndex}
               isSelected={selectedFiles.has(item.id)}
               onClick={(e) => handleItemClick(index, e)}
+              onDoubleClick={() => handleItemDoubleClick(index)}
               onToggleSelect={() => toggleFileSelection(item.id)}
               onRemove={() => removeFile(item.id)}
               fixMode={fixMode}
@@ -1263,7 +1270,7 @@ export function FileQueueModule() {
 /**
  * FileQueueItem Component
  */
-function FileQueueItem({ item, index, isActive, isSelected, onClick, onToggleSelect, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
+function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const itemRef = useRef(null);
@@ -1383,6 +1390,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onToggleSel
       ref={itemRef}
       className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
