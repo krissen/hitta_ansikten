@@ -14,6 +14,7 @@ import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { preferences } from '../workspace/preferences.js';
 import './ReviewModule.css';
 
 /**
@@ -472,10 +473,22 @@ export function ReviewModule() {
         return;
       }
 
-      // Number keys
-      if (e.key >= '1' && e.key <= '9' && !isInput) {
+      // Number keys - select alternative (1-N) for current face
+      const maxAlt = preferences.get('reviewModule.maxAlternatives', 5);
+      if (e.key >= '1' && e.key <= String(maxAlt) && !isInput) {
         e.preventDefault();
-        jumpToFace(parseInt(e.key));
+        const currentFace = detectedFaces[currentFaceIndex];
+        const alternatives = currentFace?.match_alternatives || [];
+        const idx = parseInt(e.key) - 1;
+
+        if (idx < alternatives.length && !currentFace?.is_confirmed) {
+          const alt = alternatives[idx];
+          if (alt.name === 'ign') {
+            ignoreFace(currentFaceIndex);
+          } else {
+            confirmFace(currentFaceIndex, alt.name);
+          }
+        }
         return;
       }
 
@@ -624,6 +637,28 @@ export function ReviewModule() {
         )}
       </div>
 
+      {/* Match alternatives overlay - shows for active unconfirmed face */}
+      {detectedFaces.length > 0 && currentFaceIndex >= 0 && !detectedFaces[currentFaceIndex]?.is_confirmed && (
+        <MatchAlternativesOverlay
+          face={detectedFaces[currentFaceIndex]}
+          maxAlternatives={preferences.get('reviewModule.maxAlternatives', 5)}
+          onSelect={(name) => {
+            // Fill the input with selected name
+            const input = inputRefs.current[currentFaceIndex];
+            if (input) {
+              input.value = name;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            // If it's "ign", ignore the face instead
+            if (name === 'ign') {
+              ignoreFace(currentFaceIndex);
+            } else {
+              confirmFace(currentFaceIndex, name);
+            }
+          }}
+        />
+      )}
+
       {/* Keyboard shortcut overlay - shows after inactivity */}
       {detectedFaces.length > 0 && (
         <ShortcutOverlay visible={showShortcuts} />
@@ -647,11 +682,15 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
     `&x=${bbox.x || 0}&y=${bbox.y || 0}&width=${bbox.width || 100}&height=${bbox.height || 100}&size=150`
   ) : null;
 
+  // Determine if this is a probable-ignore case
+  const isProbableIgnore = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
+
   const cardClass = [
     'face-card',
     face.is_confirmed && !face.is_rejected ? 'confirmed' : '',
     face.is_rejected ? 'rejected' : '',
     face.is_manual ? 'manual' : '',
+    isProbableIgnore && !face.is_confirmed ? 'probable-ignore' : '',
     isActive ? 'active' : ''
   ].filter(Boolean).join(' ');
 
@@ -679,7 +718,21 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
             Confidence: {((face.confidence || 0) * 100).toFixed(1)}%
           </div>
         )}
-        {face.person_name && !face.is_rejected && (
+        {/* Match case indicator */}
+        {face.match_case === 'ign' && !face.is_confirmed && (
+          <div className="match-case probable-ignore">Probable ignore</div>
+        )}
+        {face.match_case === 'uncertain_ign' && !face.is_confirmed && (
+          <div className="match-case uncertain">
+            ign ({face.ignore_confidence}%) / {face.person_name}
+          </div>
+        )}
+        {face.match_case === 'uncertain_name' && !face.is_confirmed && (
+          <div className="match-case uncertain">
+            {face.person_name} / ign ({face.ignore_confidence}%)
+          </div>
+        )}
+        {face.person_name && !face.is_rejected && face.match_case !== 'uncertain_name' && face.match_case !== 'uncertain_ign' && (
           <div>Person: {face.person_name}</div>
         )}
       </div>
@@ -719,6 +772,40 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
           <option key={name} value={name} />
         ))}
       </datalist>
+    </div>
+  );
+}
+
+/**
+ * MatchAlternativesOverlay - Shows match alternatives for the active face
+ */
+function MatchAlternativesOverlay({ face, maxAlternatives, onSelect }) {
+  if (!face?.match_alternatives?.length) return null;
+
+  const alternatives = face.match_alternatives.slice(0, maxAlternatives);
+
+  return (
+    <div className="alternatives-overlay visible">
+      <div className="alternatives-header">Select match:</div>
+      <div className="alternatives-list">
+        {alternatives.map((alt, idx) => (
+          <div
+            key={idx}
+            className={`alternative-item ${idx === 0 ? 'recommended' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(alt.name);
+            }}
+          >
+            <span className="alt-key">{idx + 1}</span>
+            <span className="alt-name">{alt.name}</span>
+            <span className={`alt-confidence ${alt.is_ignored ? 'ignored' : ''}`}>
+              {alt.confidence}%
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="alternatives-hint">1-{Math.min(maxAlternatives, alternatives.length)}=Select  A=Accept #1</div>
     </div>
   );
 }

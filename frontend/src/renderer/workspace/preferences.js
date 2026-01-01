@@ -65,7 +65,8 @@ export class PreferencesManager {
         confirmBeforeSave: false, // Ask confirmation before saving
         defaultAction: 'next', // 'next' | 'stay' after confirming face
         showConfidenceScores: true,
-        saveMode: 'per-image' // 'per-face' | 'per-image' - how to write review results
+        saveMode: 'per-image', // 'per-face' | 'per-image' - how to write review results
+        maxAlternatives: 5 // Number of match alternatives to show (1-9)
       },
       fileQueue: {
         autoLoadOnStartup: true // Auto-load first file from queue on startup/reload

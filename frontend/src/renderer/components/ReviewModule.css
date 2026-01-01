@@ -191,3 +191,120 @@
   color: #707070;
   margin-top: 4px;
 }
+
+/* Probable ignore styling */
+.face-card.probable-ignore {
+  border-color: #9e9e9e;
+  opacity: 0.8;
+}
+
+.face-card.probable-ignore .face-thumbnail {
+  filter: grayscale(50%);
+}
+
+.match-case {
+  font-size: 9px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  margin-top: 2px;
+}
+
+.match-case.probable-ignore {
+  background: rgba(158, 158, 158, 0.3);
+  color: #9e9e9e;
+}
+
+.match-case.uncertain {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+/* Match alternatives overlay */
+.alternatives-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(30, 30, 30, 0.95);
+  border: 1px solid #4e4e52;
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 200px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 200;
+}
+
+.alternatives-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.alternatives-header {
+  font-size: 12px;
+  color: #858585;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.alternatives-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alternative-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.alternative-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.alternative-item.recommended {
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.alt-key {
+  background: #4e4e52;
+  color: #fff;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.alt-name {
+  flex: 1;
+  color: #cccccc;
+  font-size: 12px;
+}
+
+.alt-confidence {
+  color: #4ec9b0;
+  font-size: 11px;
+}
+
+.alt-confidence.ignored {
+  color: #9e9e9e;
+}
+
+.alternatives-hint {
+  font-size: 10px;
+  color: #707070;
+  text-align: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #3e3e42;
+}
