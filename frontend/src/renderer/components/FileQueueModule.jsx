@@ -646,10 +646,11 @@ export function FileQueueModule() {
     const show = e.target.checked;
     setShowPreviewNames(show);
 
-    if (show && !previewData) {
+    // Always fetch fresh preview when toggling on to avoid stale data
+    if (show) {
       await fetchRenamePreview();
     }
-  }, [previewData, fetchRenamePreview]);
+  }, [fetchRenamePreview]);
 
   // Handle rename action
   const handleRename = useCallback(async () => {
@@ -1151,13 +1152,19 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
     return <span className="preprocess-indicator loading" title={`Preprocessing: ${preprocessingStatus}`}>⟳</span>;
   };
 
-  // Truncate filename for display
+  // Truncate filename for display (Unicode-safe, preserves extension)
   const truncateFilename = (name, maxLen = 25) => {
-    if (name.length <= maxLen) return name;
-    const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
-    const base = name.slice(0, name.length - ext.length);
-    const truncated = base.slice(0, maxLen - 3 - ext.length) + '...';
-    return truncated + ext;
+    const chars = [...name]; // Spread to handle multi-byte Unicode correctly
+    if (chars.length <= maxLen) return name;
+    const lastDotIndex = name.lastIndexOf('.');
+    const hasExt = lastDotIndex !== -1;
+    const ext = hasExt ? name.slice(lastDotIndex) : '';
+    const base = hasExt ? name.slice(0, lastDotIndex) : name;
+    const baseChars = [...base];
+    const extLen = [...ext].length;
+    const availableForBase = Math.max(0, maxLen - 3 - extLen);
+    const truncatedBase = baseChars.slice(0, availableForBase).join('');
+    return truncatedBase + '...' + ext;
   };
 
   // Show preview info if available (for completed or already-processed files)
