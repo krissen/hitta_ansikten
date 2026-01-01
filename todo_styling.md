@@ -35,50 +35,50 @@ Inspirerat av klassiska terminal-emulators och retro-datorgränssnitt:
 ## 🌈 Färgpaletter
 
 ### Light Mode - "Terminal Beige"
-Inspirerad av klassiska datorer (Commodore 64, Apple II) med varma, färgrika toner.
+Inspirerad av klassiska datorer (Commodore 64, Amiga, Apple II) med djupt mättade, färgstarka toner.
 
 ```css
 :root[data-theme="light"] {
-  /* Bakgrunder - Mer färgrika, inspirerad av klassiska datorer */
-  --bg-primary: #e8dfc5;        /* Varm beige/sandfärg */
-  --bg-secondary: #d4c5a0;      /* Ljus lergul */
-  --bg-tertiary: #b8a67d;       /* Gyllenbrun toolbar */
-  --bg-elevated: #faf6ed;       /* Ljust elfenben för kort */
-  --bg-hover: #cbb896;          /* Varm hover */
-  --bg-active: #a69370;         /* Djupare aktiv färg */
+  /* Bakgrunder - KRAFTIGT färgade retro (Commodore/Amiga/Arcade) */
+  --bg-primary: #c8b088;        /* Djup varm guld/brons (inte vit!) */
+  --bg-secondary: #b09060;      /* Mörk karamell */
+  --bg-tertiary: #987840;       /* Brons/koppar toolbar */
+  --bg-elevated: #d8c8a0;       /* Ljus persika för kort */
+  --bg-hover: #a08050;          /* Djup brons hover */
+  --bg-active: #886830;         /* Mörk guld aktiv */
   
-  /* Förgrundstext - Djupare för bättre kontrast */
-  --text-primary: #2d1f0f;      /* Mörkbrun, nästan svart */
-  --text-secondary: #4a3820;    /* Medium brun */
-  --text-tertiary: #6b5840;     /* Ljusare brun */
-  --text-inverse: #faf6ed;      /* Ljus text på mörka bakgrunder */
+  /* Förgrundstext - Mycket mörk för kontrast */
+  --text-primary: #1a1008;      /* Nästan svart */
+  --text-secondary: #2d1810;    /* Mörkbrun */
+  --text-tertiary: #483020;     /* Brun */
+  --text-inverse: #f8f0e0;      /* Ljusgul text */
   
-  /* Borders & Dividers - Tydligare */
-  --border-subtle: #c0ab80;     /* Subtila avgränsningar */
-  --border-medium: #a08860;     /* Tydligare borders */
-  --border-strong: #806a45;     /* Starka avgränsningar */
+  /* Borders & Dividers - Tydliga färger */
+  --border-subtle: #a08858;     /* Guld */
+  --border-medium: #886830;     /* Djup guld */
+  --border-strong: #684818;     /* Mörkbrun */
   
-  /* Accent Colors - Retro & Färgstarka */
-  --accent-primary: #5a8c2d;    /* Ljusare olivgrön */
-  --accent-primary-hover: #4a7023;
-  --accent-primary-alpha-20: rgba(90, 140, 45, 0.2);
-  --accent-secondary: #c65d21;  /* Orange/terracotta */
-  --accent-secondary-hover: #a34a1a;
+  /* Accent Colors - MYCKET kraftiga retro-färger */
+  --accent-primary: #38a818;    /* Klargrön (Apple II/Arcade) */
+  --accent-primary-hover: #2a8010;
+  --accent-primary-alpha-20: rgba(56, 168, 24, 0.2);
+  --accent-secondary: #e85820;  /* Brännande orange (Arcade) */
+  --accent-secondary-hover: #c03810;
   
-  /* Semantic Colors - Vibrant retro */
-  --color-success: #5a8c2d;     /* Ljusare olivgrön */
-  --color-success-bg: #d8ebc4;  /* Ljusgrön bakgrund */
-  --color-warning: #d87020;     /* Bright orange */
-  --color-warning-bg: #ffe8d0;  /* Ljus persika */
-  --color-error: #c44a32;       /* Tegelröd */
-  --color-error-bg: #ffd8d0;    /* Ljusrosa */
-  --color-info: #3b7ea1;        /* Stålblå */
-  --color-info-bg: #d0e8f5;     /* Ljusblå */
+  /* Semantic Colors - INTENSIVA färger (retro gaming/computers) */
+  --color-success: #38a818;     /* Klargrön */
+  --color-success-bg: #b0e898;  /* Ljusgrön med ordentlig färg */
+  --color-warning: #f87820;     /* Intensiv orange */
+  --color-warning-bg: #ffc898;  /* Persika med färg */
+  --color-error: #e83020;       /* Klarröd */
+  --color-error-bg: #ffb0a8;    /* Ljusrosa med färg */
+  --color-info: #1888d8;        /* Klarblå (Commodore) */
+  --color-info-bg: #a0d0f8;     /* Ljusblå med färg */
   
   /* Special */
-  --shadow-sm: 0 1px 3px rgba(45, 31, 15, 0.15);
-  --shadow-md: 0 2px 6px rgba(45, 31, 15, 0.20);
-  --shadow-lg: 0 4px 12px rgba(45, 31, 15, 0.25);
+  --shadow-sm: 0 1px 3px rgba(26, 16, 8, 0.25);
+  --shadow-md: 0 2px 6px rgba(26, 16, 8, 0.30);
+  --shadow-lg: 0 4px 12px rgba(26, 16, 8, 0.35);
 }
 ```
 
