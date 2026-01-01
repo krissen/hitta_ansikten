@@ -160,38 +160,6 @@
   grid-column: 1 / -1;
 }
 
-/* Keyboard shortcut overlay - global for review module */
-.shortcut-overlay {
-  position: absolute;
-  top: 40px;  /* Below header */
-  right: 8px;
-  background: rgba(30, 30, 30, 0.85);
-  color: #909090;
-  font-size: 10px;
-  padding: 6px 10px;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-  pointer-events: none;
-  z-index: 100;
-  text-align: right;
-}
-
-.shortcut-overlay.visible {
-  opacity: 1;
-}
-
-.shortcut-overlay .shortcut-text {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  letter-spacing: 0.5px;
-}
-
-.shortcut-overlay .shortcut-hint {
-  font-size: 9px;
-  color: #707070;
-  margin-top: 4px;
-}
-
 /* Probable ignore styling */
 .face-card.probable-ignore {
   border-color: #9e9e9e;
@@ -219,78 +187,67 @@
   color: #ffc107;
 }
 
-/* Match alternatives overlay - positioned at bottom to not cover faces */
-.alternatives-overlay {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  right: 8px;
-  background: rgba(30, 30, 30, 0.95);
-  border: 1px solid #4e4e52;
-  border-radius: 6px;
-  padding: 8px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
-  z-index: 200;
-}
-
-.alternatives-overlay.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* Horizontal alternatives list */
-.alternatives-list {
+/* Face card inline alternatives */
+.face-alternatives {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #4e4e52;
 }
 
-.alternative-item {
+.alt-chip {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 3px 6px;
+  border-radius: 3px;
   cursor: pointer;
   background: rgba(255, 255, 255, 0.05);
+  font-size: 11px;
 }
 
-.alternative-item:hover {
+.alt-chip:hover {
   background: rgba(255, 255, 255, 0.15);
 }
 
-.alternative-item.recommended {
-  background: rgba(76, 175, 80, 0.3);
+.alt-chip.recommended {
+  background: rgba(76, 175, 80, 0.25);
 }
 
-.alt-key {
+.alt-chip.ignored {
+  opacity: 0.7;
+}
+
+.alt-chip .alt-key {
   background: #4e4e52;
   color: #fff;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: bold;
   flex-shrink: 0;
 }
 
-.alt-name {
+.alt-chip .alt-name {
+  flex: 1;
   color: #cccccc;
-  font-size: 11px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.alt-confidence {
+.alt-chip .alt-conf {
   color: #4ec9b0;
   font-size: 10px;
+  flex-shrink: 0;
 }
 
-.alt-confidence.ignored {
+.alt-chip.ignored .alt-conf {
   color: #9e9e9e;
 }
