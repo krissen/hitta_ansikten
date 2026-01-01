@@ -582,6 +582,13 @@ export function FileQueueModule() {
     setSelectedFiles(new Set());
   }, []);
 
+  // Clear selected files
+  const clearSelected = useCallback(() => {
+    setQueue(prev => prev.filter(item => !selectedFiles.has(item.id)));
+    setCurrentIndex(-1);
+    setSelectedFiles(new Set());
+  }, [selectedFiles]);
+
   // Select all files
   const selectAll = useCallback(() => {
     setSelectedFiles(new Set(queue.map(item => item.id)));
@@ -1167,14 +1174,24 @@ export function FileQueueModule() {
         )}
         {queue.length > 0 && (
           <>
-            <button
-              className="clear-btn"
-              onClick={clearCompleted}
-              disabled={completedCount === 0}
-              title="Clear completed files"
-            >
-              Clear done
-            </button>
+            {selectedFiles.size > 0 && (
+              <button
+                className="clear-btn"
+                onClick={clearSelected}
+                title="Clear selected files"
+              >
+                Clear selected
+              </button>
+            )}
+            {completedCount > 0 && selectedFiles.size === 0 && (
+              <button
+                className="clear-btn"
+                onClick={clearCompleted}
+                title="Clear completed files"
+              >
+                Clear done
+              </button>
+            )}
             <button
               className="clear-btn clear-all"
               onClick={clearQueue}
