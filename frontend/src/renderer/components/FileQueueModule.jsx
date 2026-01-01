@@ -89,7 +89,7 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
  * FileQueueModule Component
  */
 export function FileQueueModule() {
-  const { api } = useBackend();
+  const { api, isConnected } = useBackend();
   const emit = useEmitEvent();
 
   // Queue state
@@ -152,6 +152,7 @@ export function FileQueueModule() {
   const savedIndexRef = useRef(-1);
 
   // Load processed files from backend on mount
+  const loadProcessedFilesFailedRef = useRef(false);
   const loadProcessedFiles = useCallback(async () => {
     try {
       // Use smaller n to avoid validation errors with legacy data
@@ -160,12 +161,18 @@ export function FileQueueModule() {
         const fileNames = new Set(response.map(f => f.name));
         setProcessedFiles(fileNames);
         debug('FileQueue', 'Loaded', fileNames.size, 'processed files');
+        loadProcessedFilesFailedRef.current = false; // Reset on success
       }
     } catch (err) {
       // Non-fatal error - processed files indicator will be missing
       debugWarn('FileQueue', 'Could not load processed files (non-fatal):', err.message);
+      // Show toast only once to avoid spam on retries
+      if (!loadProcessedFilesFailedRef.current) {
+        loadProcessedFilesFailedRef.current = true;
+        showToast('⚠️ Could not load processed files status', 'warning', 3000);
+      }
     }
-  }, [api]);
+  }, [api, showToast]);
 
   useEffect(() => {
     loadProcessedFiles();
@@ -188,6 +195,9 @@ export function FileQueueModule() {
     const handleError = ({ filePath, error }) => {
       setPreprocessingStatus(prev => ({ ...prev, [filePath]: PreprocessingStatus.ERROR }));
       debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
+      // Show error toast for preprocessing failure
+      const fileName = filePath.split('/').pop();
+      showToast(`❌ Preprocessing failed: ${fileName}`, 'error', 4000);
     };
 
     const handleFileNotFound = ({ filePath }) => {
@@ -337,6 +347,56 @@ export function FileQueueModule() {
     }
   }, [queue, currentIndex, autoAdvance, fixMode, showPreviewNames]);
 
+  // Track preprocessing completion for toast notification
+  const prevPreprocessingCountRef = useRef({ pending: 0, total: 0 });
+  useEffect(() => {
+    if (queue.length === 0) return;
+
+    // Count files still preprocessing
+    const pendingPreprocessing = queue.filter(item => {
+      const status = preprocessingStatus[item.filePath];
+      // Still preprocessing if no status yet or in progress
+      return !status ||
+             (status !== PreprocessingStatus.COMPLETED &&
+              status !== PreprocessingStatus.ERROR &&
+              status !== PreprocessingStatus.FILE_NOT_FOUND);
+    }).length;
+
+    const prev = prevPreprocessingCountRef.current;
+
+    // Show toast when preprocessing completes (was pending, now all done)
+    if (prev.pending > 0 && pendingPreprocessing === 0 && queue.length > 0) {
+      const completedCount = queue.filter(item =>
+        preprocessingStatus[item.filePath] === PreprocessingStatus.COMPLETED
+      ).length;
+      if (completedCount > 0) {
+        showToast(`⚡ Preprocessing complete (${completedCount} files cached)`, 'success', 3000);
+      }
+    }
+
+    prevPreprocessingCountRef.current = { pending: pendingPreprocessing, total: queue.length };
+  }, [queue, preprocessingStatus, showToast]);
+
+  // Backend connection status tracking
+  const prevConnectedRef = useRef(null);
+  useEffect(() => {
+    // Skip initial render (prevConnectedRef.current is null)
+    if (prevConnectedRef.current === null) {
+      prevConnectedRef.current = isConnected;
+      return;
+    }
+
+    // Only show toast if status actually changed
+    if (prevConnectedRef.current !== isConnected) {
+      if (isConnected) {
+        showToast('🟢 Backend connected', 'success', 2500);
+      } else {
+        showToast('🔴 Backend disconnected', 'error', 4000);
+      }
+      prevConnectedRef.current = isConnected;
+    }
+  }, [isConnected, showToast]);
+
   // Startup toasts - show once after initial load
   const startupToastsShownRef = useRef(false);
   useEffect(() => {
@@ -409,10 +469,12 @@ export function FileQueueModule() {
       };
     });
 
+    let addedCount = 0;
     setQueue(prev => {
       // Dedupe by filePath
       const existingPaths = new Set(prev.map(item => item.filePath));
       const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
+      addedCount = uniqueNew.length;
 
       // Start preprocessing for new files
       if (preprocessingManager.current) {
@@ -427,8 +489,20 @@ export function FileQueueModule() {
       return [...prev, ...uniqueNew];
     });
 
+    // Show toast for added files
+    if (newItems.length > 0) {
+      const dupeCount = newItems.length - addedCount;
+      let msg = `📁 Added ${addedCount} file${addedCount !== 1 ? 's' : ''} to queue`;
+      if (dupeCount > 0) {
+        msg += ` (${dupeCount} duplicate${dupeCount !== 1 ? 's' : ''} skipped)`;
+      }
+      if (addedCount > 0) {
+        showToast(msg, 'info', 3000);
+      }
+    }
+
     debug('FileQueue', 'Added', newItems.length, 'files at', position);
-  }, [isFileProcessed]);
+  }, [isFileProcessed, showToast]);
 
   // Remove file from queue
   const removeFile = useCallback((id) => {
@@ -534,8 +608,10 @@ export function FileQueueModule() {
         });
         // Refresh processed files list
         await loadProcessedFiles();
+        showToast(`🔄 Undid processing for ${item.fileName}`, 'info', 2500);
       } catch (err) {
         debugError('FileQueue', 'Failed to undo file:', err);
+        showToast(`Failed to undo ${item.fileName}`, 'error', 3000);
         // Continue anyway
       }
     }
@@ -552,7 +628,7 @@ export function FileQueueModule() {
     // Emit load-image event
     debug('FileQueue', 'Emitting load-image for:', item.filePath);
     emit('load-image', { imagePath: item.filePath });
-  }, [fixMode, api, loadProcessedFiles, emit]);
+  }, [fixMode, api, loadProcessedFiles, emit, showToast]);
 
   // Execute pending auto-load (after loadFile is defined)
   useEffect(() => {
@@ -743,6 +819,9 @@ export function FileQueueModule() {
       const currentQueue = queueRef.current;
       const currentFixMode = fixModeRef.current;
       const currentIdx = currentQueue.findIndex(item => item.filePath === imagePath);
+      const fileName = imagePath.split('/').pop();
+      const faceCount = reviewedFaces?.length || 0;
+
       const nextIdx = currentQueue.findIndex((item, i) => {
         if (i <= currentIdx) return false;
         if (item.status === 'completed') return false;
@@ -765,6 +844,13 @@ export function FileQueueModule() {
         return item;
       }));
 
+      // Show toast for review result
+      if (success) {
+        showToast(`✓ Saved review for ${fileName} (${faceCount} face${faceCount !== 1 ? 's' : ''})`, 'success', 2500);
+      } else {
+        showToast(`❌ Failed to save review for ${fileName}`, 'error', 4000);
+      }
+
       // Clear preview data when queue changes (force re-fetch)
       setPreviewData(null);
 
@@ -778,9 +864,11 @@ export function FileQueueModule() {
       } else if (nextIdx < 0) {
         debug('FileQueue', 'No more pending files (or all skipped due to fix-mode OFF)');
         setCurrentIndex(-1);
+        // Show queue complete toast
+        showToast('🎉 Queue complete - all files reviewed!', 'success', 4000);
       }
     }
-  }, [autoAdvance, loadFile, loadProcessedFiles]));
+  }, [autoAdvance, loadFile, loadProcessedFiles, showToast]));
 
   // Open file dialog
   const openFileDialog = useCallback(async () => {
