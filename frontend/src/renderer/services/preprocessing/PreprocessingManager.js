@@ -17,7 +17,8 @@ export const PreprocessingStatus = {
   GENERATING_THUMBNAILS: 'generating_thumbnails',
   COMPLETED: 'completed',
   ERROR: 'error',
-  CACHED: 'cached'
+  CACHED: 'cached',
+  FILE_NOT_FOUND: 'file_not_found'
 };
 
 /**
@@ -236,6 +237,16 @@ export class PreprocessingManager {
       fileHash = hashResult.file_hash;
       debug('Preprocessing', `Hash computed: ${filePath} -> ${fileHash.substring(0, 8)}...`);
     } catch (err) {
+      // Check if file doesn't exist (404 error)
+      if (err.message && err.message.includes('404')) {
+        debugWarn('Preprocessing', `File not found: ${filePath}`);
+        this.processing.set(filePath, {
+          status: PreprocessingStatus.FILE_NOT_FOUND,
+          error: 'File not found'
+        });
+        this.emit('file-not-found', { filePath });
+        return; // Don't throw - handled gracefully
+      }
       throw new Error(`Hash computation failed: ${err.message}`);
     }
 

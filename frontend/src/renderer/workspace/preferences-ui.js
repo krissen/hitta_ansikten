@@ -403,6 +403,14 @@ export class PreferencesUI {
                 </label>
                 <small>Automatically load first pending file when app starts with files in queue</small>
               </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-fileQueue-autoRemoveMissing" />
+                  Auto-remove missing files
+                </label>
+                <small>Automatically remove files from queue if they no longer exist on disk</small>
+              </div>
             </div>
 
             <!-- File Rename Settings -->
@@ -1536,6 +1544,7 @@ export class PreferencesUI {
 
     // File Queue settings
     this.setValue('fileQueue-autoLoadOnStartup', this.tempPrefs.fileQueue?.autoLoadOnStartup ?? true);
+    this.setValue('fileQueue-autoRemoveMissing', this.tempPrefs.fileQueue?.autoRemoveMissing ?? true);
 
     // File Rename settings
     const rename = this.tempPrefs.rename || {};
@@ -1731,6 +1740,7 @@ export class PreferencesUI {
     // File Queue settings
     if (!this.tempPrefs.fileQueue) this.tempPrefs.fileQueue = {};
     this.tempPrefs.fileQueue.autoLoadOnStartup = this.getValue('fileQueue-autoLoadOnStartup');
+    this.tempPrefs.fileQueue.autoRemoveMissing = this.getValue('fileQueue-autoRemoveMissing');
 
     // File Rename settings
     if (!this.tempPrefs.rename) this.tempPrefs.rename = {};

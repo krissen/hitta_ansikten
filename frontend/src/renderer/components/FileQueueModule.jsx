@@ -70,6 +70,18 @@ const getRequireRenameConfirmation = () => {
   return true;
 };
 
+// Get auto-remove missing files preference
+const getAutoRemoveMissingPreference = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      return prefs.fileQueue?.autoRemoveMissing ?? true;
+    }
+  } catch (e) {}
+  return true;
+};
+
 // Generate simple unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -92,7 +104,40 @@ export function FileQueueModule() {
   // Rename state
   const [showPreviewNames, setShowPreviewNames] = useState(false);
   const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
-  const [renameInProgress, setRenameInProgress] = useState(false)
+  const [renameInProgress, setRenameInProgress] = useState(false);
+
+  // Toast notification
+  const [toast, setToast] = useState(null); // { message, type: 'success' | 'error' | 'info' | 'warning' }
+  const toastTimeoutRef = useRef(null);
+  const toastQueueRef = useRef([]); // Queue for multiple toasts
+
+  const showToast = useCallback((message, type = 'success', duration = 4000) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      // Show next queued toast if any
+      if (toastQueueRef.current.length > 0) {
+        const next = toastQueueRef.current.shift();
+        setTimeout(() => showToast(next.message, next.type, next.duration), 200);
+      }
+    }, duration);
+  }, []);
+
+  // Queue a toast to show after current one finishes
+  const queueToast = useCallback((message, type = 'info', duration = 4000) => {
+    if (toast) {
+      toastQueueRef.current.push({ message, type, duration });
+    } else {
+      showToast(message, type, duration);
+    }
+  }, [toast, showToast]);
+
+  // Track missing files for batched removal
+  const missingFilesRef = useRef([]);
+  const missingFilesTimeoutRef = useRef(null);
 
   // Get preprocessing manager (singleton)
   const preprocessingManager = useRef(null);
@@ -152,16 +197,53 @@ export function FileQueueModule() {
       debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
     };
 
+    const handleFileNotFound = ({ filePath }) => {
+      setPreprocessingStatus(prev => ({ ...prev, [filePath]: PreprocessingStatus.FILE_NOT_FOUND }));
+
+      const autoRemove = getAutoRemoveMissingPreference();
+
+      if (autoRemove) {
+        // Batch removal - collect missing files and remove after a short delay
+        missingFilesRef.current.push(filePath);
+
+        // Clear existing timeout and set a new one
+        if (missingFilesTimeoutRef.current) {
+          clearTimeout(missingFilesTimeoutRef.current);
+        }
+
+        missingFilesTimeoutRef.current = setTimeout(() => {
+          const count = missingFilesRef.current.length;
+          if (count > 0) {
+            const pathsToRemove = new Set(missingFilesRef.current);
+            setQueue(prev => prev.filter(item => !pathsToRemove.has(item.filePath)));
+            showToast(`Removed ${count} missing file${count > 1 ? 's' : ''} from queue`, 'warning', 3000);
+            debug('FileQueue', `Auto-removed ${count} missing files`);
+            missingFilesRef.current = [];
+          }
+        }, 500); // Wait 500ms to batch multiple removals
+      } else {
+        // Mark file as missing in queue (keep in list)
+        setQueue(prev => prev.map(item =>
+          item.filePath === filePath
+            ? { ...item, status: 'missing', error: 'File not found' }
+            : item
+        ));
+      }
+      debug('FileQueue', 'File not found:', filePath);
+    };
+
     manager.on('status-change', handleStatusChange);
     manager.on('completed', handleCompleted);
     manager.on('error', handleError);
+    manager.on('file-not-found', handleFileNotFound);
 
     return () => {
       manager.off('status-change', handleStatusChange);
       manager.off('completed', handleCompleted);
       manager.off('error', handleError);
+      manager.off('file-not-found', handleFileNotFound);
     };
-  }, []);
+  }, [showToast]);
 
   // Load queue from localStorage on mount
   useEffect(() => {
@@ -254,6 +336,56 @@ export function FileQueueModule() {
       debugError('FileQueue', 'Failed to save queue:', err);
     }
   }, [queue, currentIndex, autoAdvance, fixMode, showPreviewNames]);
+
+  // Startup toasts - show once after initial load
+  const startupToastsShownRef = useRef(false);
+  useEffect(() => {
+    if (startupToastsShownRef.current) return;
+
+    const showStartupToasts = async () => {
+      startupToastsShownRef.current = true;
+
+      // Wait a bit for queue to load
+      await new Promise(r => setTimeout(r, 1000));
+
+      // Show queue count if files are queued
+      if (queue.length > 0) {
+        const pending = queue.filter(q => q.status === 'pending').length;
+        const completed = queue.filter(q => q.status === 'completed').length;
+        if (pending > 0) {
+          queueToast(`📁 ${queue.length} files in queue (${pending} pending)`, 'info', 3000);
+        }
+      }
+
+      // Get database stats (faces loaded)
+      try {
+        const stats = await api.get('/api/management/stats');
+        if (stats && stats.unique_persons > 0) {
+          queueToast(`👤 ${stats.unique_persons} known faces loaded`, 'info', 3000);
+        }
+      } catch (err) {
+        // Non-fatal - skip this toast
+        debug('FileQueue', 'Could not fetch database stats:', err.message);
+      }
+
+      // Check cache status
+      try {
+        const cacheStatus = await api.get('/api/preprocessing/cache/status');
+        if (cacheStatus && cacheStatus.usage_percent > 80) {
+          queueToast(
+            `⚠️ Cache ${Math.round(cacheStatus.usage_percent)}% full (${Math.round(cacheStatus.total_size_mb)}/${cacheStatus.max_size_mb} MB)`,
+            'warning',
+            5000
+          );
+        }
+      } catch (err) {
+        // Non-fatal - skip this toast
+        debug('FileQueue', 'Could not fetch cache status:', err.message);
+      }
+    };
+
+    showStartupToasts();
+  }, [queue, queueToast, api]);
 
   // Check if file is already processed
   const isFileProcessed = useCallback((fileName) => {
@@ -579,23 +711,26 @@ export function FileQueueModule() {
         }));
       }
 
-      // Clear preview data
+      // Refresh preview data to get updated info for renamed files
       setPreviewData(null);
-      setShowPreviewNames(false);
+      if (showPreviewNames) {
+        // Re-fetch after a short delay to allow state to update
+        setTimeout(() => fetchRenamePreview(), 100);
+      }
 
-      // Show summary
-      let message = `Renamed ${renamedCount} file(s)`;
-      if (skippedCount > 0) message += `, skipped ${skippedCount}`;
-      if (errorCount > 0) message += `, ${errorCount} error(s)`;
-      alert(message);
+      // Show toast notification
+      let message = `✓ Renamed ${renamedCount} file(s)`;
+      if (skippedCount > 0) message += ` · ${skippedCount} skipped`;
+      if (errorCount > 0) message += ` · ${errorCount} error(s)`;
+      showToast(message, errorCount > 0 ? 'warning' : 'success');
 
     } catch (err) {
       debugError('FileQueue', 'Rename failed:', err);
-      alert(`Rename failed: ${err.message}`);
+      showToast(`Rename failed: ${err.message}`, 'error');
     } finally {
       setRenameInProgress(false);
     }
-  }, [queue, api]);
+  }, [queue, api, showPreviewNames, fetchRenamePreview, showToast]);
 
   // Listen for review-complete event
   useModuleEvent('review-complete', useCallback(({ imagePath, success, reviewedFaces }) => {
@@ -878,6 +1013,13 @@ export function FileQueueModule() {
         )}
       </div>
 
+      {/* Toast notification */}
+      {toast && (
+        <div className={`file-queue-toast ${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Footer with progress */}
       {queue.length > 0 && (
         <div className="file-queue-footer">
@@ -959,6 +1101,8 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
         return <span className="status-icon active">►</span>;
       case 'error':
         return <span className="status-icon error">✗</span>;
+      case 'missing':
+        return <span className="status-icon missing" title="File not found">⚠</span>;
       default:
         if (item.isAlreadyProcessed) {
           if (fixMode) {
@@ -978,6 +1122,7 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
       case 'completed': return 'Done';
       case 'active': return 'Active';
       case 'error': return 'Error';
+      case 'missing': return 'Not found';
       default:
         if (item.isAlreadyProcessed) {
           return fixMode ? 'Queued (reprocess)' : 'Processed';
@@ -996,6 +1141,9 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
     if (preprocessingStatus === PreprocessingStatus.COMPLETED) {
       return <span className="preprocess-indicator completed" title="Preprocessed (cached)">⚡</span>;
     }
+    if (preprocessingStatus === PreprocessingStatus.FILE_NOT_FOUND) {
+      return null; // Status already shown in main icon
+    }
     if (preprocessingStatus === PreprocessingStatus.ERROR) {
       return <span className="preprocess-indicator error" title="Preprocessing failed">!</span>;
     }
@@ -1013,9 +1161,11 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
   };
 
   // Show preview info if available (for completed or already-processed files)
-  const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
+  // Don't show if new name is identical to current name (nothing would change)
   const newName = previewInfo?.newName;
   const previewStatus = previewInfo?.status;
+  const nameWouldChange = newName && newName !== item.fileName;
+  const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
 
   // Get face count - distinguish between "not fetched" and "0 faces"
   const hasFaceInfo = previewInfo?.persons !== undefined || item.reviewedFaces !== undefined;
@@ -1044,8 +1194,8 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
       <span className="file-name">
         {truncateFilename(item.fileName)}
       </span>
-      {/* Inline preview of new name */}
-      {shouldShowPreview && newName && (
+      {/* Inline preview of new name (only if name would actually change) */}
+      {shouldShowPreview && nameWouldChange && (
         <span className="inline-preview">
           <span className="arrow">→</span>
           <span className="new-name">{truncateFilename(newName, 30)}</span>
@@ -1096,7 +1246,7 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
               <span className="tooltip-value">{faceNames.join(', ') || 'Unknown'}</span>
             </div>
           )}
-          {shouldShowPreview && newName && (
+          {shouldShowPreview && nameWouldChange && (
             <div className="tooltip-row tooltip-newname">
               <span className="tooltip-label">New name:</span>
               <span className="tooltip-value">{newName}</span>

@@ -183,6 +183,16 @@
   background: #ffebee;
 }
 
+.file-item.missing {
+  background: #fff3e0;
+  opacity: 0.7;
+}
+
+.file-item.missing .file-name {
+  text-decoration: line-through;
+  color: #999;
+}
+
 .file-item.selected {
   background: #e8eaf6;
   border-color: #9fa8da;
@@ -220,8 +230,12 @@
 .status-icon {
   flex-shrink: 0;
   width: 16px;
-  text-align: center;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
+  line-height: 1;
 }
 
 .status-icon.completed {
@@ -248,6 +262,10 @@
 
 .status-icon.error {
   color: #f44336;
+}
+
+.status-icon.missing {
+  color: #ff9800;
 }
 
 /* File status text */
@@ -532,4 +550,50 @@
 
 .tooltip-row.tooltip-error .tooltip-value {
   color: #ef9a9a;
+}
+
+/* Toast notification */
+.file-queue-toast {
+  position: absolute;
+  bottom: 60px;
+  right: 10px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  animation: toast-slide-in 0.3s ease-out;
+  z-index: 100;
+  max-width: 280px;
+}
+
+.file-queue-toast.success {
+  background: #4caf50;
+  color: white;
+}
+
+.file-queue-toast.info {
+  background: #2196f3;
+  color: white;
+}
+
+.file-queue-toast.warning {
+  background: #ff9800;
+  color: white;
+}
+
+.file-queue-toast.error {
+  background: #f44336;
+  color: white;
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
