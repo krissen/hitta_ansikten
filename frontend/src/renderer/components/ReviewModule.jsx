@@ -107,13 +107,11 @@ export function ReviewModule() {
       // Emit faces to Image Viewer for bounding box overlay
       emit('faces-detected', { faces });
 
-      // Auto-focus first face's input after render (enables keyboard shortcuts)
+      // Focus the module container (not input) so keyboard shortcuts work
+      // User must press 'r' to enter input mode
       if (faces.length > 0) {
         setTimeout(() => {
-          const firstInput = inputRefs.current[0];
-          if (firstInput) {
-            firstInput.focus();
-          }
+          moduleRef.current?.focus();
         }, 100);
       }
     } catch (err) {
@@ -424,26 +422,15 @@ export function ReviewModule() {
   }, [detectedFaces, pendingConfirmations.length, pendingIgnores.length]);
 
   /**
-   * Auto-scroll and focus active face when navigating
+   * Auto-scroll active face when navigating (but don't focus input)
    */
   useEffect(() => {
     const cardEl = cardRefs.current[currentFaceIndex];
     if (cardEl) {
       cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-
-    // Focus the input for the new active face (if not confirmed)
-    const face = detectedFaces[currentFaceIndex];
-    if (face && !face.is_confirmed) {
-      const input = inputRefs.current[currentFaceIndex];
-      if (input) {
-        // Small delay to ensure DOM is updated after state change
-        requestAnimationFrame(() => {
-          input.focus();
-        });
-      }
-    }
-  }, [currentFaceIndex, detectedFaces]);
+    // Note: We don't auto-focus the input anymore - user must press 'r' to type
+  }, [currentFaceIndex]);
 
   /**
    * Keyboard handler

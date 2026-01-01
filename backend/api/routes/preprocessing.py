@@ -136,6 +136,9 @@ async def compute_file_hash(request: FileHashRequest):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
 
+    if os.path.isdir(file_path):
+        raise HTTPException(status_code=400, detail=f"Path is a directory, not a file: {file_path}")
+
     try:
         file_hash = PreprocessingCache.compute_file_hash(file_path)
         return FileHashResponse(file_path=file_path, file_hash=file_hash)
