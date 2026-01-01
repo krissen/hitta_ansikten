@@ -61,7 +61,7 @@ app.include_router(status.router, prefix="/api", tags=["status"])
 app.include_router(database.router, prefix="/api", tags=["database"])
 app.include_router(statistics.router, prefix="/api", tags=["statistics"])
 app.include_router(management.router, prefix="/api", tags=["management"])
-app.include_router(preprocessing.router, tags=["preprocessing"])
+app.include_router(preprocessing.router, prefix="/api/preprocessing", tags=["preprocessing"])
 app.include_router(files.router, prefix="/api", tags=["files"])
 
 # WebSocket endpoint

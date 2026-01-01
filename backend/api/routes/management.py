@@ -87,7 +87,41 @@ class RecentFile(BaseModel):
     hash: Optional[str] = None  # Some legacy entries may lack hash
 
 
+class StatsResponse(BaseModel):
+    """Quick stats for UI display"""
+    unique_persons: int
+    total_encodings: int
+    ignored_count: int
+    processed_files_count: int
+
+
 # ============ API Endpoints ============
+
+
+@router.get("/management/stats", response_model=StatsResponse)
+async def get_stats():
+    """
+    Get quick database statistics for UI display
+
+    Returns:
+    - unique_persons: Number of distinct people in database
+    - total_encodings: Total number of face encodings
+    - ignored_count: Number of ignored encodings
+    - processed_files_count: Number of processed files
+    """
+    try:
+        state = await management_service.get_database_state()
+        total_encodings = sum(p['encoding_count'] for p in state['people'])
+        return StatsResponse(
+            unique_persons=len(state['people']),
+            total_encodings=total_encodings,
+            ignored_count=state['ignored_count'],
+            processed_files_count=state['processed_files_count']
+        )
+
+    except Exception as e:
+        logger.error(f"[Management] Error getting stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/management/database-state", response_model=DatabaseState)

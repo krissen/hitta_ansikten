@@ -24,7 +24,7 @@ _executor = ThreadPoolExecutor(max_workers=4)
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/preprocessing", tags=["preprocessing"])
+router = APIRouter()
 
 
 # ============================================================================
