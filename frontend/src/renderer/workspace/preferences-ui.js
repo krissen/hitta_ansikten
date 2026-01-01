@@ -721,7 +721,7 @@ export class PreferencesUI {
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         width: 90%;
         max-width: 700px;
-        max-height: 85vh;
+        height: 85vh;
         display: flex;
         flex-direction: column;
       }
@@ -1219,6 +1219,17 @@ export class PreferencesUI {
     this.modal.querySelector('.pref-tabs-arrow-right').addEventListener('click', () => {
       this.cycleTab(1);
     });
+
+    // Scroll wheel navigation for tabs
+    const tabsContainer = this.modal.querySelector('.pref-tabs-container');
+    tabsContainer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (e.deltaY > 0 || e.deltaX > 0) {
+        this.cycleTab(1);
+      } else if (e.deltaY < 0 || e.deltaX < 0) {
+        this.cycleTab(-1);
+      }
+    }, { passive: false });
 
     // ESC key to cancel (same as cancel button)
     document.addEventListener('keydown', (event) => {
