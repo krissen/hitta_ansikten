@@ -528,12 +528,18 @@ export function FileQueueModule() {
     // Show toast for added files
     if (newItems.length > 0) {
       const dupeCount = newItems.length - addedCount;
-      let msg = `📁 Added ${addedCount} file${addedCount !== 1 ? 's' : ''} to queue`;
-      if (dupeCount > 0) {
-        msg += ` (${dupeCount} duplicate${dupeCount !== 1 ? 's' : ''} skipped)`;
-      }
       if (addedCount > 0) {
+        let msg = `📁 Added ${addedCount} file${addedCount !== 1 ? 's' : ''} to queue`;
+        if (dupeCount > 0) {
+          msg += ` (${dupeCount} already in queue)`;
+        }
         showToast(msg, 'info', 3000);
+      } else if (dupeCount > 0) {
+        // All files were duplicates
+        const msg = dupeCount === 1
+          ? '📁 File already in queue'
+          : `📁 All ${dupeCount} files already in queue`;
+        showToast(msg, 'info', 2500);
       }
     }
 
