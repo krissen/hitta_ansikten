@@ -398,12 +398,43 @@
 
 /* File name - simplified layout */
 .file-name {
-  flex: 1;
-  min-width: 0;
+  flex-shrink: 1;
+  min-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #333;
+}
+
+/* Inline preview of new name */
+.inline-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.inline-preview .arrow {
+  flex-shrink: 0;
+  color: #999;
+  font-size: 11px;
+}
+
+.inline-preview .new-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9575cd;
+  font-size: 11px;
+}
+
+.inline-preview.error .preview-error {
+  color: #e57373;
+  font-size: 11px;
+  font-style: italic;
 }
 
 /* Face count badge - fixed width for alignment */
@@ -411,8 +442,8 @@
   flex-shrink: 0;
   width: 32px;
   font-size: 11px;
-  color: #666;
-  background: #e8e8e8;
+  color: #999;
+  background: #f0f0f0;
   padding: 2px 0;
   border-radius: 10px;
   text-align: center;
@@ -421,12 +452,19 @@
   justify-content: center;
 }
 
+/* Face count when info is loaded */
+.file-item.completed .face-count,
+.file-item.already-processed .face-count {
+  background: #e8e8e8;
+  color: #666;
+}
+
 .file-item.completed .face-count {
   background: #c8e6c9;
   color: #2e7d32;
 }
 
-.file-item.already-processed .face-count {
+.file-item.already-processed:not(.completed) .face-count {
   background: #dcedc8;
   color: #558b2f;
 }

@@ -1017,8 +1017,9 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
   const newName = previewInfo?.newName;
   const previewStatus = previewInfo?.status;
 
-  // Get face count from previewInfo or reviewedFaces
-  const faceCount = previewInfo?.persons?.length || item.reviewedFaces?.length || 0;
+  // Get face count - distinguish between "not fetched" and "0 faces"
+  const hasFaceInfo = previewInfo?.persons !== undefined || item.reviewedFaces !== undefined;
+  const faceCount = previewInfo?.persons?.length ?? item.reviewedFaces?.length ?? null;
   const faceNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
 
   return (
@@ -1043,12 +1044,25 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
       <span className="file-name">
         {truncateFilename(item.fileName)}
       </span>
+      {/* Inline preview of new name */}
+      {shouldShowPreview && newName && (
+        <span className="inline-preview">
+          <span className="arrow">→</span>
+          <span className="new-name">{truncateFilename(newName, 30)}</span>
+        </span>
+      )}
+      {shouldShowPreview && !newName && previewStatus && previewStatus !== 'ok' && (
+        <span className="inline-preview error">
+          <span className="arrow">→</span>
+          <span className="preview-error">{previewStatus}</span>
+        </span>
+      )}
       {/* Fixed-width columns for alignment */}
       <span className="preprocess-col">
         {getPreprocessingIndicator()}
       </span>
-      <span className="face-count" title={faceNames.length > 0 ? faceNames.join(', ') : 'No faces'}>
-        👤{faceCount}
+      <span className="face-count" title={faceNames.length > 0 ? faceNames.join(', ') : (hasFaceInfo ? 'No faces' : 'Not loaded')}>
+        👤{hasFaceInfo ? faceCount : '–'}
       </span>
       <span className="file-status">{getStatusText()}</span>
       <button
