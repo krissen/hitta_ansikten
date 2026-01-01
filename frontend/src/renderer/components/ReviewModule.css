@@ -222,8 +222,8 @@
 }
 
 .alt-chip .alt-key {
-  background: var(--border-medium);
-  color: var(--text-inverse);
+  background: var(--bg-active);
+  color: var(--text-primary);
   width: 14px;
   height: 14px;
   border-radius: 2px;
