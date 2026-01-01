@@ -219,17 +219,17 @@
   color: #ffc107;
 }
 
-/* Match alternatives overlay */
+/* Match alternatives overlay - positioned top-right to not cover faces */
 .alternatives-overlay {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 8px;
+  right: 8px;
   background: rgba(30, 30, 30, 0.95);
   border: 1px solid #4e4e52;
   border-radius: 8px;
-  padding: 12px;
-  min-width: 200px;
+  padding: 10px;
+  min-width: 180px;
+  max-width: 220px;
   opacity: 0;
   transition: opacity 0.2s ease;
   pointer-events: none;

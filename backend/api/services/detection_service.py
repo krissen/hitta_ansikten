@@ -195,11 +195,19 @@ class DetectionService:
             if ignore_distance is not None:
                 ignore_confidence = max(0, min(100, int((1.0 - ignore_distance) * 100)))
 
+            # Determine person_name based on match_case
+            # Only suggest a name when it's clearly the best match
+            if match_case in ("name", "uncertain_name"):
+                suggested_name = best_match
+            else:
+                # For ign, uncertain_ign, unknown - don't pre-fill a name
+                suggested_name = None
+
             results.append({
                 "face_id": face_id,
                 "bounding_box": bbox,
                 "confidence": float(1.0 - best_distance) if best_distance is not None else 0.0,
-                "person_name": best_match,
+                "person_name": suggested_name,
                 "match_distance": float(best_distance) if best_distance is not None else None,
                 "is_confirmed": False,  # Always False for new detections
                 # New fields for ignore-awareness and alternatives
