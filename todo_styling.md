@@ -35,50 +35,50 @@ Inspirerat av klassiska terminal-emulators och retro-datorgränssnitt:
 ## 🌈 Färgpaletter
 
 ### Light Mode - "Terminal Beige"
-Inspirerad av gamla terminaler och pappersbaserade gränssnitt.
+Inspirerad av klassiska datorer (Commodore 64, Apple II) med varma, färgrika toner.
 
 ```css
 :root[data-theme="light"] {
-  /* Bakgrunder */
-  --bg-primary: #f5f1e8;        /* Ljus beige/papper */
-  --bg-secondary: #e8e3d8;      /* Mörkare beige för sections */
-  --bg-tertiary: #ddd8cc;       /* Toolbar/headers */
-  --bg-elevated: #ffffff;       /* Kort/modaler */
-  --bg-hover: #e0dbd0;          /* Hover-state */
-  --bg-active: #d5cfc3;         /* Aktivt element */
+  /* Bakgrunder - Mer färgrika, inspirerad av klassiska datorer */
+  --bg-primary: #e8dfc5;        /* Varm beige/sandfärg */
+  --bg-secondary: #d4c5a0;      /* Ljus lergul */
+  --bg-tertiary: #b8a67d;       /* Gyllenbrun toolbar */
+  --bg-elevated: #faf6ed;       /* Ljust elfenben för kort */
+  --bg-hover: #cbb896;          /* Varm hover */
+  --bg-active: #a69370;         /* Djupare aktiv färg */
   
-  /* Förgrundstext */
-  --text-primary: #2c2820;      /* Huvudtext - mörkbrun */
-  --text-secondary: #5a5248;    /* Sekundärtext */
-  --text-tertiary: #7a7268;     /* Disabled/subtle */
-  --text-inverse: #f5f1e8;      /* Text på mörka bakgrunder */
+  /* Förgrundstext - Djupare för bättre kontrast */
+  --text-primary: #2d1f0f;      /* Mörkbrun, nästan svart */
+  --text-secondary: #4a3820;    /* Medium brun */
+  --text-tertiary: #6b5840;     /* Ljusare brun */
+  --text-inverse: #faf6ed;      /* Ljus text på mörka bakgrunder */
   
-  /* Borders & Dividers */
-  --border-subtle: #d0c8b8;     /* Subtila avgränsningar */
-  --border-medium: #b8b0a0;     /* Tydligare borders */
-  --border-strong: #a09888;     /* Starka avgränsningar */
+  /* Borders & Dividers - Tydligare */
+  --border-subtle: #c0ab80;     /* Subtila avgränsningar */
+  --border-medium: #a08860;     /* Tydligare borders */
+  --border-strong: #806a45;     /* Starka avgränsningar */
   
-  /* Accent Colors - Retro */
-  --accent-primary: #6b8e23;    /* Olivgrön - primär action */
-  --accent-primary-hover: #557018;
-  --accent-primary-alpha-20: rgba(107, 142, 35, 0.2);  /* För focus rings */
-  --accent-secondary: #8b7355;  /* Brun - sekundär action */
-  --accent-secondary-hover: #6f5d45;
+  /* Accent Colors - Retro & Färgstarka */
+  --accent-primary: #5a8c2d;    /* Ljusare olivgrön */
+  --accent-primary-hover: #4a7023;
+  --accent-primary-alpha-20: rgba(90, 140, 45, 0.2);
+  --accent-secondary: #c65d21;  /* Orange/terracotta */
+  --accent-secondary-hover: #a34a1a;
   
-  /* Semantic Colors */
-  --color-success: #6b8e23;     /* Olivgrön */
-  --color-success-bg: #e8f0d8;
-  --color-warning: #d2691e;     /* Choklad/orange */
-  --color-warning-bg: #fef3e8;
-  --color-error: #a0522d;       /* Sienna/rödbrun */
-  --color-error-bg: #fde8e0;
-  --color-info: #4682b4;        /* Steel blue */
-  --color-info-bg: #e8f2f8;
+  /* Semantic Colors - Vibrant retro */
+  --color-success: #5a8c2d;     /* Ljusare olivgrön */
+  --color-success-bg: #d8ebc4;  /* Ljusgrön bakgrund */
+  --color-warning: #d87020;     /* Bright orange */
+  --color-warning-bg: #ffe8d0;  /* Ljus persika */
+  --color-error: #c44a32;       /* Tegelröd */
+  --color-error-bg: #ffd8d0;    /* Ljusrosa */
+  --color-info: #3b7ea1;        /* Stålblå */
+  --color-info-bg: #d0e8f5;     /* Ljusblå */
   
   /* Special */
-  --shadow-sm: 0 1px 3px rgba(44, 40, 32, 0.12);
-  --shadow-md: 0 2px 6px rgba(44, 40, 32, 0.16);
-  --shadow-lg: 0 4px 12px rgba(44, 40, 32, 0.20);
+  --shadow-sm: 0 1px 3px rgba(45, 31, 15, 0.15);
+  --shadow-md: 0 2px 6px rgba(45, 31, 15, 0.20);
+  --shadow-lg: 0 4px 12px rgba(45, 31, 15, 0.25);
 }
 ```
 
@@ -861,6 +861,585 @@ För att visuellt se alla färger:
 4. Commit och PR
 
 **Total uppskattad tid: 9-13 timmar**
+
+---
+
+## 🎨 Fas 6: Utveckling av Dedikerad Temamodul (Projektplan)
+
+### Översikt & Motivering
+
+**Varför en dedikerad temamodul?**
+
+Istället för att begränsa tema-hanteringen till grundläggande preferences, utvecklas en fullfjädrad temamodul som ger användarna:
+- Utförlig kontroll över alla aspekter av applikationens utseende
+- Möjlighet att skapa, spara och dela custom teman
+- Export/import av tema-presets för att enkelt byta mellan olika stilar
+- Live preview av ändringar innan de appliceras
+- Bibliotek med fördefinierade teman att välja mellan
+
+Detta gör applikationen mer flexibel och anpassningsbar efter olika arbetsflöden och preferenser.
+
+### Projektmål
+
+1. **Skapande av en självständig workspace-modul för tema-hantering**
+2. **Implementera komplett tema-redigerare med live preview**
+3. **Bygga export/import-system för tema-presets**
+4. **Skapa bibliotek med fördefinierade teman**
+5. **Integrera med befintlig workspace-arkitektur**
+
+### Teknisk Arkitektur
+
+#### Modul-struktur
+
+```
+frontend/src/renderer/components/
+└── ThemeEditor/
+    ├── ThemeEditor.js           # Huvudkomponent
+    ├── ThemeEditor.css          # Modul-specifik styling
+    ├── ColorPicker.js           # Färgväljare för variabler
+    ├── PresetLibrary.js         # Bibliotek med fördefinierade teman
+    ├── ThemePreview.js          # Live preview av tema
+    ├── ExportImport.js          # Export/import funktionalitet
+    └── utils/
+        ├── themeValidator.js    # Validera tema-format
+        ├── themeConverter.js    # Konvertera mellan format
+        └── contrastChecker.js   # WCAG-kontrast validering
+```
+
+#### Datamodell för Tema-Presets
+
+```javascript
+// Theme Preset Format (JSON)
+{
+  "name": "Retro Terminal Green",
+  "version": "1.0",
+  "author": "User Name",
+  "created": "2025-01-01T12:00:00Z",
+  "description": "Classic green phosphor terminal aesthetic",
+  "baseTheme": "dark", // eller "light"
+  "variables": {
+    // Alla CSS-variabler från theme.css
+    "--bg-primary": "#1a1914",
+    "--text-primary": "#d4d2c0",
+    "--accent-primary": "#9acd32",
+    // ... alla andra variabler
+  },
+  "metadata": {
+    "tags": ["retro", "dark", "green", "terminal"],
+    "accessibility": {
+      "wcagAA": true,
+      "wcagAAA": false,
+      "contrastRatios": {
+        "textOnBackground": 7.2,
+        "accentOnBackground": 4.8
+      }
+    }
+  }
+}
+```
+
+### Funktionella Krav
+
+#### 1. Tema-Redigerare (Core Feature)
+
+**UI-komponenter:**
+- **Kategori-navigering**: Tabs/sidebar för olika variabel-grupper
+  - Bakgrunder (Backgrounds)
+  - Text & Typografi (Text & Typography)
+  - Accent-färger (Accent Colors)
+  - Semantiska färger (Semantic Colors)
+  - Borders & Shadows
+  - Spacing & Layout
+
+- **Färgväljare per variabel**:
+  - Standard color picker för varje CSS-variabel
+  - Hex, RGB, HSL input
+  - Opacity/alpha slider
+  - Förslag på relaterade färger
+  - "Kopiera från annan variabel"-funktion
+
+- **Live Preview**:
+  - Mini-versioner av alla moduler som uppdateras i realtid
+  - Toggle mellan olika moduler (FileQueue, Stats, Review, etc.)
+  - Före/efter-jämförelse
+
+- **Kontrast-validering**:
+  - Automatisk WCAG-kontroll för alla text/bakgrund-kombinationer
+  - Varningar vid för låg kontrast
+  - Förslag på bättre färgval
+
+**Implementering:**
+
+```javascript
+// ThemeEditor.js
+class ThemeEditor extends React.Component {
+  state = {
+    currentTheme: { ...defaultTheme },
+    activeCategory: 'backgrounds',
+    previewModule: 'all',
+    isDirty: false,
+    contrastWarnings: []
+  };
+
+  handleColorChange = (variable, newColor) => {
+    const updatedTheme = {
+      ...this.state.currentTheme,
+      variables: {
+        ...this.state.currentTheme.variables,
+        [variable]: newColor
+      }
+    };
+    
+    // Validera kontrast
+    const warnings = this.validateContrast(updatedTheme);
+    
+    this.setState({
+      currentTheme: updatedTheme,
+      isDirty: true,
+      contrastWarnings: warnings
+    });
+    
+    // Applicera tema direkt för live preview
+    this.applyThemePreview(updatedTheme);
+  };
+
+  validateContrast = (theme) => {
+    // Kör kontrast-checker på kritiska kombinationer
+    const checks = [
+      ['--text-primary', '--bg-primary'],
+      ['--text-secondary', '--bg-primary'],
+      ['--accent-primary', '--bg-elevated'],
+      // ...fler kombinationer
+    ];
+    
+    return checks
+      .map(([fg, bg]) => contrastChecker.check(
+        theme.variables[fg], 
+        theme.variables[bg]
+      ))
+      .filter(result => !result.passAA);
+  };
+
+  // ...mer funktionalitet
+}
+```
+
+#### 2. Preset-bibliotek
+
+**Funktioner:**
+- Visa lista med tillgängliga presets
+  - Fördefinierade teman (inkluderade med applikationen)
+  - Importerade teman (från användare eller community)
+  - Användarens egna sparade teman
+  
+- Preview av varje preset
+  - Thumbnail/screenshot av temat
+  - Metadata (namn, författare, tags, beskrivning)
+  - Accessibility-status (WCAG AA/AAA badge)
+
+- Hantering:
+  - Applicera preset direkt
+  - Redigera kopia av preset
+  - Radera importerade/egna teman
+  - Duplicera och modifiera befintligt tema
+
+**Implementering:**
+
+```javascript
+// PresetLibrary.js
+const PresetLibrary = () => {
+  const [presets, setPresets] = useState([]);
+  const [filter, setFilter] = useState({ tags: [], accessibility: 'all' });
+
+  useEffect(() => {
+    // Ladda fördefinierade teman
+    const bundledThemes = loadBundledThemes();
+    // Ladda användarens importerade teman
+    const importedThemes = loadImportedThemes();
+    // Ladda användarens egna teman
+    const customThemes = loadCustomThemes();
+    
+    setPresets([...bundledThemes, ...importedThemes, ...customThemes]);
+  }, []);
+
+  const applyPreset = (preset) => {
+    themeManager.applyTheme(preset);
+    // Dispatcha event för att informera andra komponenter
+    window.dispatchEvent(new CustomEvent('theme-applied', { 
+      detail: { theme: preset } 
+    }));
+  };
+
+  return (
+    <div className="preset-library">
+      <FilterBar filter={filter} onFilterChange={setFilter} />
+      <PresetGrid 
+        presets={filterPresets(presets, filter)}
+        onApply={applyPreset}
+        onEdit={(preset) => openEditor(preset)}
+        onDelete={(preset) => deletePreset(preset)}
+      />
+    </div>
+  );
+};
+```
+
+#### 3. Export/Import System
+
+**Export-funktioner:**
+- **Format**:
+  - JSON (standard, full kontroll)
+  - CSS fil (endast variabler, för manuell integration)
+  - Komprimerad package (.hitheme fil med metadata + preview-bild)
+
+- **Export-options**:
+  - Inkludera metadata (författare, beskrivning, tags)
+  - Generera preview-screenshot automatiskt
+  - Validera innan export (kontrast, komplettering)
+
+**Import-funktioner:**
+- Läs JSON, CSS, eller .hitheme-filer
+- Validera format och version
+- Kontrollera för konflikter med befintliga teman
+- Preview innan import
+- Batch-import (flera teman samtidigt)
+
+**Implementering:**
+
+```javascript
+// ExportImport.js
+class ThemeExporter {
+  async exportTheme(theme, format = 'json') {
+    // Validera tema
+    const validation = themeValidator.validate(theme);
+    if (!validation.valid) {
+      throw new Error(`Invalid theme: ${validation.errors.join(', ')}`);
+    }
+
+    switch(format) {
+      case 'json':
+        return this.exportAsJSON(theme);
+      case 'css':
+        return this.exportAsCSS(theme);
+      case 'package':
+        return await this.exportAsPackage(theme);
+      default:
+        throw new Error(`Unknown format: ${format}`);
+    }
+  }
+
+  exportAsJSON(theme) {
+    const json = JSON.stringify(theme, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const filename = `${theme.name.replace(/\s+/g, '-')}.json`;
+    this.downloadFile(blob, filename);
+  }
+
+  exportAsCSS(theme) {
+    // Konvertera till CSS-format
+    const css = themeConverter.toCSSVariables(theme);
+    const blob = new Blob([css], { type: 'text/css' });
+    const filename = `${theme.name.replace(/\s+/g, '-')}.css`;
+    this.downloadFile(blob, filename);
+  }
+
+  async exportAsPackage(theme) {
+    // Skapa ett komplett package med preview-bild
+    const preview = await this.generatePreview(theme);
+    const package = {
+      theme: theme,
+      preview: preview, // Base64 encoded image
+      version: '1.0',
+      format: 'hitheme'
+    };
+    
+    const json = JSON.stringify(package);
+    const blob = new Blob([json], { type: 'application/json' });
+    const filename = `${theme.name.replace(/\s+/g, '-')}.hitheme`;
+    this.downloadFile(blob, filename);
+  }
+
+  generatePreview(theme) {
+    // Applicera tema temporärt och ta screenshot
+    // Använd html2canvas eller liknande
+    return new Promise((resolve) => {
+      // Implementation...
+      resolve(previewDataURL);
+    });
+  }
+
+  downloadFile(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+class ThemeImporter {
+  async importTheme(file) {
+    const content = await this.readFile(file);
+    const extension = file.name.split('.').pop().toLowerCase();
+
+    let theme;
+    switch(extension) {
+      case 'json':
+        theme = JSON.parse(content);
+        break;
+      case 'css':
+        theme = themeConverter.fromCSSVariables(content);
+        break;
+      case 'hitheme':
+        const package = JSON.parse(content);
+        theme = package.theme;
+        break;
+      default:
+        throw new Error(`Unsupported file format: ${extension}`);
+    }
+
+    // Validera
+    const validation = themeValidator.validate(theme);
+    if (!validation.valid) {
+      throw new Error(`Invalid theme file: ${validation.errors.join(', ')}`);
+    }
+
+    // Spara till lokalt tema-bibliotek
+    await this.saveToLibrary(theme);
+    
+    return theme;
+  }
+
+  readFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  }
+
+  async saveToLibrary(theme) {
+    const existingThemes = await this.loadLibrary();
+    
+    // Kolla efter konflikt (samma namn)
+    if (existingThemes.find(t => t.name === theme.name)) {
+      // Lägg till timestamp för att göra unik
+      theme.name = `${theme.name} (${new Date().toISOString()})`;
+    }
+
+    existingThemes.push(theme);
+    await this.saveLibrary(existingThemes);
+  }
+
+  // LocalStorage eller IndexedDB för persistent lagring
+  async loadLibrary() {
+    const stored = localStorage.getItem('customThemes');
+    return stored ? JSON.parse(stored) : [];
+  }
+
+  async saveLibrary(themes) {
+    localStorage.setItem('customThemes', JSON.stringify(themes));
+  }
+}
+```
+
+#### 4. Fördefinierade Tema-Presets (Bundled)
+
+**Inkluderade teman vid release:**
+
+1. **Terminal Beige** (Light) - Standard light mode
+2. **CRT Phosphor** (Dark) - Standard dark mode
+3. **Commodore 64** - Blå bakgrund med ljusblå text (klassisk)
+4. **Apple II** - Grön på svart terminal
+5. **Amber Monitor** - Orange/amber fosfor på svart
+6. **Solarized Light** - Populärt developer-tema
+7. **Solarized Dark** - Populärt developer-tema
+8. **Nord** - Arktisk, kall färgpalett
+9. **Dracula** - Populärt dark theme
+10. **High Contrast** - Tillgänglighet (svart/vit, WCAG AAA)
+
+**Implementering:**
+
+```javascript
+// bundled-themes.js
+export const BUNDLED_THEMES = [
+  {
+    name: "Terminal Beige",
+    version: "1.0",
+    author: "hitta_ansikten",
+    baseTheme: "light",
+    description: "Warm retro terminal aesthetic with colorful accents",
+    variables: {
+      "--bg-primary": "#e8dfc5",
+      // ... alla variabler från theme-examples.html
+    },
+    metadata: {
+      tags: ["light", "retro", "warm", "default"],
+      accessibility: { wcagAA: true, wcagAAA: false }
+    }
+  },
+  {
+    name: "CRT Phosphor",
+    version: "1.0",
+    author: "hitta_ansikten",
+    baseTheme: "dark",
+    description: "Classic CRT monitor with green/amber phosphor",
+    variables: {
+      "--bg-primary": "#1a1914",
+      // ... alla variabler
+    },
+    metadata: {
+      tags: ["dark", "retro", "crt", "default"],
+      accessibility: { wcagAA: true, wcagAAA: false }
+    }
+  },
+  // ... fler bundled themes
+];
+```
+
+### UI/UX Design
+
+#### Layout i Workspace
+
+Temamodulen ska vara en fullfjädrad panel i workspace:
+
+```
++--------------------------------------------------+
+|  Theme Editor                              [x]   |
++--------------------------------------------------+
+|  [Backgrounds] [Text] [Accents] [Semantic]      |
+|  [Borders] [Spacing] [Preview] [Presets]        |
++--------------------------------------------------+
+|                                                  |
+|  Backgrounds                         Preview    |
+|  +-------------------+               +--------+  |
+|  | bg-primary    [■] |               |        |  |
+|  | #e8dfc5       ... |               | Module |  |
+|  +-------------------+               | Preview|  |
+|  | bg-secondary  [■] |               |        |  |
+|  | #d4c5a0       ... |               +--------+  |
+|  +-------------------+                           |
+|  | bg-tertiary   [■] |               Contrast   |
+|  | #b8a67d       ... |               +--------+  |
+|  +-------------------+               | ✓ AA   |  |
+|                                      | ✗ AAA  |  |
+|  [Save] [Export] [Import] [Reset]   +--------+  |
++--------------------------------------------------+
+```
+
+#### Workflow
+
+1. **Öppna temamodulen** från workspace-menyn
+2. **Välj startpunkt**:
+   - Börja från befintligt tema/preset
+   - Börja från scratch (tom mall)
+3. **Redigera variabler** kategori för kategori
+4. **Se live preview** av ändringar
+5. **Validera accessibility** (automatiskt)
+6. **Spara tema** med namn och metadata
+7. **Exportera eller dela** med andra
+
+### Testplan
+
+#### Enhetstester
+- Validering av tema-format
+- Kontrast-beräkningar
+- Export/import-konvertering
+- CSS-variabel-parsing
+
+#### Integrationstester
+- Theme manager integration med workspace
+- Persistent lagring av teman
+- Live preview-uppdateringar
+- Export/import av olika format
+
+#### Användartest
+- Skapa custom tema från scratch
+- Importera befintligt tema
+- Modifiera bundled tema
+- Exportera och dela tema
+- Accessibility-validering
+
+### Tidsuppskattning
+
+| Fas | Uppgift | Tid |
+|-----|---------|-----|
+| **6.1** | Grundläggande modul-skelett & routing | 4h |
+| **6.2** | Färgväljare-komponenter | 6h |
+| **6.3** | Live preview-system | 8h |
+| **6.4** | Kontrast-validering | 4h |
+| **6.5** | Preset-bibliotek UI | 6h |
+| **6.6** | Export-funktionalitet | 6h |
+| **6.7** | Import-funktionalitet | 6h |
+| **6.8** | Bundled themes creation | 8h |
+| **6.9** | Persistent storage (LocalStorage/IndexedDB) | 4h |
+| **6.10** | Testing & bug fixes | 8h |
+| **6.11** | Dokumentation & guide | 4h |
+| **6.12** | Polish & UX-förbättringar | 6h |
+| | **Total uppskattad tid** | **70 timmar** |
+
+### Milestolpar
+
+1. **M1**: Basic theme editor med färgväljare (10h)
+2. **M2**: Live preview fungerar (18h)
+3. **M3**: Export/Import implementerat (30h)
+4. **M4**: Preset-bibliotek klart (36h)
+5. **M5**: Bundled themes skapade (44h)
+6. **M6**: Testing & polish (60h)
+7. **M7**: Production-ready (70h)
+
+### Success Criteria
+
+✅ Användare kan skapa custom teman från scratch
+✅ Användare kan modifiera befintliga teman
+✅ Användare kan exportera teman till JSON/CSS/.hitheme
+✅ Användare kan importera teman från fil
+✅ Live preview visar ändringar i realtid
+✅ WCAG-validering fungerar och varnar vid problem
+✅ Minst 10 bundled themes inkluderade
+✅ Persistent lagring av custom themes fungerar
+✅ Integration med workspace är sömlös
+✅ Dokumentation finns för alla funktioner
+
+### Riskanalys
+
+| Risk | Sannolikhet | Impact | Mitigering |
+|------|-------------|--------|------------|
+| Performance-problem vid live preview | Medel | Hög | Debounce color changes, optimize render |
+| Kontrast-beräkning fel | Låg | Hög | Använd beprövat library (wcag-contrast) |
+| Import av felaktiga filer | Hög | Medel | Robust validering, error handling |
+| LocalStorage gräns överskridas | Medel | Medel | Använd IndexedDB istället, cleanup gamla teman |
+| UI-komplexitet överväldigande | Medel | Medel | Progressive disclosure, guided tour |
+
+### Framtida Utökningar (Post-MVP)
+
+1. **Community theme marketplace**
+   - Upload teman till central server
+   - Browse och ladda ner community themes
+   - Rating & comments
+
+2. **AI-assisterad tema-skapning**
+   - "Generate theme from image" - extrahera färgpalett från bild
+   - "Suggest complementary colors" - AI-förslag baserat på valda färger
+   - "Auto-fix contrast" - automatiskt justera färger för WCAG
+
+3. **Per-modul tema-override**
+   - Olika teman för olika workspace-moduler
+   - Spara layout + tema som "workspaces"
+
+4. **Animation & transition-inställningar**
+   - Kontrollera hastighet på transitions
+   - Aktivera/inaktivera animationer
+   - Motion-sensitivity mode
+
+5. **Font management**
+   - Custom typsnitt
+   - Per-kategori font settings
+   - Font size scaling
+
+---
 
 ## 📖 Referenser
 
