@@ -38,6 +38,7 @@ class DetectionResult(BaseModel):
     faces: List[DetectedFace]
     processing_time_ms: float
     cached: bool = False
+    file_hash: Optional[str] = None  # SHA1 hash of file (for reuse in mark-review-complete)
 
 class ConfirmIdentityRequest(BaseModel):
     face_id: str
@@ -74,6 +75,7 @@ class ReviewedFace(BaseModel):
 class MarkReviewCompleteRequest(BaseModel):
     image_path: str
     reviewed_faces: List[ReviewedFace]
+    file_hash: Optional[str] = None  # Optional: reuse hash from detection to avoid rehashing
 
 
 class MarkReviewCompleteResponse(BaseModel):
@@ -237,7 +239,8 @@ async def mark_review_complete(request: MarkReviewCompleteRequest):
     try:
         result = await detection_service.mark_review_complete(
             request.image_path,
-            [face.model_dump() for face in request.reviewed_faces]
+            [face.model_dump() for face in request.reviewed_faces],
+            file_hash=request.file_hash
         )
 
         return MarkReviewCompleteResponse(**result)

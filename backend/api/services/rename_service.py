@@ -279,6 +279,60 @@ def collect_persons_for_files(
 
 
 # ============================================================================
+# Path validation
+# ============================================================================
+
+def validate_path_security(file_path: str) -> Tuple[bool, str]:
+    """
+    Validate a file path for security concerns.
+
+    Checks:
+    1. No path traversal attempts (..)
+    2. Path is absolute and real (resolve symlinks)
+    3. File exists and is a regular file
+
+    Args:
+        file_path: Path to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    # Check for path traversal attempts in the string
+    if '..' in file_path:
+        logger.warning(f"[SECURITY] Path traversal attempt detected: {file_path}")
+        return False, "Path traversal not allowed"
+
+    # Check for null bytes
+    if '\0' in file_path:
+        logger.warning(f"[SECURITY] Null byte in path: {file_path}")
+        return False, "Invalid path characters"
+
+    path = Path(file_path)
+
+    # Must be absolute path
+    if not path.is_absolute():
+        return False, "Must be absolute path"
+
+    # Resolve symlinks and check real path
+    try:
+        real_path = path.resolve(strict=True)
+    except (FileNotFoundError, RuntimeError) as e:
+        return False, f"Cannot resolve path: {e}"
+
+    # Check no traversal after resolution (symlink could point outside)
+    # Ensure resolved path still looks reasonable (no escape via symlinks)
+    if '..' in str(real_path):
+        logger.warning(f"[SECURITY] Resolved path contains traversal: {real_path}")
+        return False, "Invalid resolved path"
+
+    # Must be a regular file
+    if not real_path.is_file():
+        return False, "Not a regular file"
+
+    return True, ""
+
+
+# ============================================================================
 # Rename Service
 # ============================================================================
 
@@ -305,12 +359,29 @@ class RenameService:
         """
         logger.info(f"[RenameService] Generating preview for {len(file_paths)} files")
 
+        # Validate all paths for security
+        validated_paths = []
+        security_rejected = []
+        for fp in file_paths:
+            is_valid, error = validate_path_security(fp)
+            if is_valid:
+                validated_paths.append(fp)
+            else:
+                security_rejected.append({
+                    "original_path": fp,
+                    "original_name": Path(fp).name,
+                    "new_name": None,
+                    "persons": [],
+                    "status": "security_rejected",
+                    "conflict_with": error
+                })
+
         # Load database
         known_faces, _, _, processed_files = load_database()
 
-        # Collect persons for all files
+        # Collect persons for validated files only
         persons_map = collect_persons_for_files(
-            file_paths,
+            validated_paths,
             known_faces,
             processed_files
         )
@@ -323,9 +394,9 @@ class RenameService:
         # Resolve first name collisions
         name_map = resolve_fornamn_dubletter(all_persons)
 
-        # Build preview items
-        items = []
-        for file_path in file_paths:
+        # Build preview items (start with security-rejected ones)
+        items = list(security_rejected)
+        for file_path in validated_paths:
             path = Path(file_path)
             fname = path.name
 

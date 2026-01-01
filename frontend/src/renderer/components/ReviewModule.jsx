@@ -25,6 +25,7 @@ export function ReviewModule() {
 
   // State
   const [currentImagePath, setCurrentImagePath] = useState(null);
+  const [currentFileHash, setCurrentFileHash] = useState(null);  // For mark-review-complete optimization
   const [detectedFaces, setDetectedFaces] = useState([]);
   const [people, setPeople] = useState([]);
   const [currentFaceIndex, setCurrentFaceIndex] = useState(0);
@@ -61,6 +62,7 @@ export function ReviewModule() {
    */
   const detectFaces = useCallback(async (imagePath) => {
     setCurrentImagePath(imagePath);
+    setCurrentFileHash(null);  // Clear previous hash
     setIsLoading(true);
     setStatus('Detecting faces...');
     setDetectedFaces([]);
@@ -73,6 +75,7 @@ export function ReviewModule() {
 
       const faces = result.faces || [];
       setDetectedFaces(faces);
+      setCurrentFileHash(result.file_hash || null);  // Store hash for mark-review-complete
       setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
 
       // Emit faces to Image Viewer for bounding box overlay
@@ -200,7 +203,7 @@ export function ReviewModule() {
   /**
    * Mark review as complete (logs to attempt_stats.jsonl for rename)
    */
-  const markReviewComplete = useCallback(async (imagePath, reviewedFaces) => {
+  const markReviewComplete = useCallback(async (imagePath, reviewedFaces, fileHash = null) => {
     try {
       await api.post('/api/mark-review-complete', {
         image_path: imagePath,
@@ -209,7 +212,8 @@ export function ReviewModule() {
           face_id: f.faceId,
           person_name: f.personName,
           is_ignored: f.isIgnored
-        }))
+        })),
+        file_hash: fileHash  // Reuse hash from detection to avoid re-reading file
       });
       debug('ReviewModule', 'Review marked complete for rename');
     } catch (err) {
@@ -286,7 +290,7 @@ export function ReviewModule() {
     const reviewedFaces = buildReviewedFaces();
 
     // Mark review complete (logs to attempt_stats.jsonl)
-    await markReviewComplete(currentImagePath, reviewedFaces);
+    await markReviewComplete(currentImagePath, reviewedFaces, currentFileHash);
 
     // Emit review-complete to advance to next image
     emit('review-complete', {
@@ -350,7 +354,7 @@ export function ReviewModule() {
         const reviewedFaces = buildReviewedFaces();
 
         // Mark review complete (logs to attempt_stats.jsonl)
-        await markReviewComplete(currentImagePath, reviewedFaces);
+        await markReviewComplete(currentImagePath, reviewedFaces, currentFileHash);
 
         // Emit review-complete event for FileQueue auto-advance
         emit('review-complete', {
@@ -362,7 +366,7 @@ export function ReviewModule() {
       }, 500);
       return () => clearTimeout(timeout);
     }
-  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, currentImagePath]);
+  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, currentImagePath, currentFileHash]);
 
   /**
    * Update status when pending changes

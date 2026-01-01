@@ -260,7 +260,8 @@ class DetectionService:
         result = {
             "faces": faces,
             "processing_time_ms": processing_time,
-            "cached": False
+            "cached": False,
+            "file_hash": file_hash  # Include hash for reuse in mark-review-complete
         }
 
         # Cache result
@@ -365,6 +366,16 @@ class DetectionService:
         """
         logger.info(f"[DetectionService] Confirming face {face_id} as {person_name}")
 
+        # Handle manual faces (no encoding to save, just return success)
+        # Manual faces are included in mark_review_complete for rename functionality
+        if face_id.startswith("manual_"):
+            logger.info(f"[DetectionService] Manual face confirmed: {person_name} (no encoding to save)")
+            return {
+                "status": "success",
+                "person_name": person_name,
+                "encodings_count": 0  # No encoding saved for manual faces
+            }
+
         # Get encoding from cache
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -423,6 +434,15 @@ class DetectionService:
         """
         logger.info(f"[DetectionService] Ignoring face {face_id}")
 
+        # Handle manual faces (no encoding to add to ignored list)
+        # Manual faces are included in mark_review_complete for rename functionality
+        if face_id.startswith("manual_"):
+            logger.info(f"[DetectionService] Manual face ignored (no encoding to save)")
+            return {
+                "status": "success",
+                "ignored_count": len(self.ignored_faces)  # Return current count unchanged
+            }
+
         # Get encoding from cache
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -467,7 +487,8 @@ class DetectionService:
     async def mark_review_complete(
         self,
         image_path: str,
-        reviewed_faces: List[Dict[str, Any]]
+        reviewed_faces: List[Dict[str, Any]],
+        file_hash: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Log completed review to attempt_stats.jsonl for rename functionality.
@@ -479,15 +500,19 @@ class DetectionService:
                 - face_id: Face identifier
                 - person_name: Confirmed name (None if ignored)
                 - is_ignored: Whether face was ignored
+            file_hash: Optional pre-computed hash (avoids re-reading file)
 
         Returns:
             Success status
         """
         logger.info(f"[DetectionService] Marking review complete for {image_path}")
 
-        # Get file hash
-        path = Path(image_path)
-        file_hash = get_file_hash(path) if path.exists() else None
+        # Use provided hash or compute if needed
+        if file_hash is None:
+            path = Path(image_path)
+            file_hash = get_file_hash(path) if path.exists() else None
+        else:
+            logger.debug(f"[DetectionService] Using provided file_hash: {file_hash[:8]}...")
 
         # Build labels in expected format: "#1\nPersonName" or "#1\nignorerad"
         labels = []
