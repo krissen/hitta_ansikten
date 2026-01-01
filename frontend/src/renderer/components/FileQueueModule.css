@@ -289,12 +289,12 @@
   color: #ff9800;
 }
 
-/* File status text */
+/* File status text - fixed width for alignment */
 .file-status {
   flex-shrink: 0;
   font-size: 11px;
   color: #888;
-  min-width: 50px;
+  width: 65px;
   text-align: right;
 }
 
@@ -476,10 +476,10 @@
   font-style: normal;
 }
 
-/* Face count badge - fixed width for alignment */
+/* Face count badge - fixed width for alignment (fits emoji + 2-digit number) */
 .face-count {
   flex-shrink: 0;
-  width: 32px;
+  width: 38px;
   font-size: 11px;
   color: #999;
   background: #f0f0f0;
