@@ -413,6 +413,22 @@ export class PreferencesUI {
               </div>
             </div>
 
+            <!-- Notifications Settings -->
+            <div class="pref-section">
+              <h3>Notifications</h3>
+
+              <div class="pref-field">
+                <label for="pref-notifications-toastDuration">Toast duration</label>
+                <select id="pref-notifications-toastDuration">
+                  <option value="0.5">Short (2s)</option>
+                  <option value="1.0">Normal (4s)</option>
+                  <option value="1.5">Long (6s)</option>
+                  <option value="2.0">Very long (8s)</option>
+                </select>
+                <small>How long toast notifications stay visible</small>
+              </div>
+            </div>
+
             <!-- File Rename Settings -->
             <div class="pref-section">
               <h3>File Rename</h3>
@@ -1546,6 +1562,9 @@ export class PreferencesUI {
     this.setValue('fileQueue-autoLoadOnStartup', this.tempPrefs.fileQueue?.autoLoadOnStartup ?? true);
     this.setValue('fileQueue-autoRemoveMissing', this.tempPrefs.fileQueue?.autoRemoveMissing ?? true);
 
+    // Notifications settings
+    this.setValue('notifications-toastDuration', this.tempPrefs.notifications?.toastDuration ?? 1.0);
+
     // File Rename settings
     const rename = this.tempPrefs.rename || {};
     this.setValue('rename-requireConfirmation', rename.requireConfirmation ?? true);
@@ -1741,6 +1760,10 @@ export class PreferencesUI {
     if (!this.tempPrefs.fileQueue) this.tempPrefs.fileQueue = {};
     this.tempPrefs.fileQueue.autoLoadOnStartup = this.getValue('fileQueue-autoLoadOnStartup');
     this.tempPrefs.fileQueue.autoRemoveMissing = this.getValue('fileQueue-autoRemoveMissing');
+
+    // Notifications settings
+    if (!this.tempPrefs.notifications) this.tempPrefs.notifications = {};
+    this.tempPrefs.notifications.toastDuration = parseFloat(this.getValue('notifications-toastDuration')) || 1.0;
 
     // File Rename settings
     if (!this.tempPrefs.rename) this.tempPrefs.rename = {};

@@ -12,6 +12,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
 import './FileQueueModule.css';
@@ -82,6 +83,18 @@ const getAutoRemoveMissingPreference = () => {
   return true;
 };
 
+// Get toast duration multiplier from preferences (1.0 = normal, 2.0 = double)
+const getToastDurationMultiplier = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      return prefs.notifications?.toastDuration ?? 1.0;
+    }
+  } catch (e) {}
+  return 1.0;
+};
+
 // Generate simple unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -91,6 +104,7 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 export function FileQueueModule() {
   const { api, isConnected } = useBackend();
   const emit = useEmitEvent();
+  const globalShowToast = useToast();
 
   // Queue state
   const [queue, setQueue] = useState([]);
@@ -106,24 +120,13 @@ export function FileQueueModule() {
   const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
   const [renameInProgress, setRenameInProgress] = useState(false);
 
-  // Toast notification - supports stacking multiple toasts
-  const [toasts, setToasts] = useState([]); // Array of { id, message, type, exiting }
-  const toastIdRef = useRef(0);
-
-  const showToast = useCallback((message, type = 'success', duration = 4000) => {
-    const id = ++toastIdRef.current;
-    setToasts(prev => [...prev, { id, message, type, exiting: false }]);
-
-    // Auto-remove after duration
-    setTimeout(() => {
-      // Mark as exiting first (for fade-out animation)
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
-      // Remove after animation
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 300);
-    }, duration);
-  }, []);
+  // Toast wrapper that applies duration preference
+  // Base durations are longer now: success=4s, info=4s, warning=5s, error=6s
+  const showToast = useCallback((message, type = 'success', baseDuration = 4000) => {
+    const multiplier = getToastDurationMultiplier();
+    const duration = Math.round(baseDuration * multiplier);
+    globalShowToast(message, type, duration);
+  }, [globalShowToast]);
 
   // Alias for backwards compatibility
   const queueToast = showToast;
@@ -1100,19 +1103,6 @@ export function FileQueueModule() {
             />
           ))
         )}
-      </div>
-
-      {/* Toast notifications - stacked from bottom */}
-      <div className="file-queue-toasts">
-        {toasts.map((t, index) => (
-          <div
-            key={t.id}
-            className={`file-queue-toast ${t.type} ${t.exiting ? 'exiting' : ''}`}
-            style={{ '--toast-index': toasts.length - 1 - index }}
-          >
-            {t.message}
-          </div>
-        ))}
       </div>
 
       {/* Footer with progress */}
