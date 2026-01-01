@@ -233,6 +233,15 @@ export function ImageViewer() {
         labelText = `${face.person_name} / ign (${(face.ignore_confidence || 0)}%)`;
       } else if (face.person_name) {
         labelText = `${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
+      } else if (face.match_alternatives?.length > 0) {
+        // Fallback: show best alternative when no direct match (e.g., match_case='unknown')
+        const best = face.match_alternatives[0];
+        labelText = best.is_ignored
+          ? `ign? (${best.confidence}%)`
+          : `${best.name}? (${best.confidence}%)`;
+      } else {
+        // No match and no alternatives
+        labelText = 'Unknown';
       }
 
       if (labelText) {
