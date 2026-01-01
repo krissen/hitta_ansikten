@@ -186,6 +186,57 @@ export function ReviewModule() {
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
+   * Save all changes
+   */
+  const saveAllChanges = useCallback(async () => {
+    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
+
+    const totalChanges = pendingConfirmations.length + pendingIgnores.length;
+    setStatus(`Saving ${totalChanges} changes...`);
+
+    try {
+      // Save confirmations
+      for (const confirmation of pendingConfirmations) {
+        await api.post('/api/confirm-identity', confirmation);
+      }
+
+      // Save ignores
+      for (const ignore of pendingIgnores) {
+        await api.post('/api/ignore-face', ignore);
+      }
+
+      setPendingConfirmations([]);
+      setPendingIgnores([]);
+      await loadPeopleNames();
+      setStatus(`Saved ${totalChanges} changes!`);
+    } catch (err) {
+      debugError('ReviewModule', 'Failed to save:', err);
+      setStatus('Error saving changes');
+    }
+  }, [pendingConfirmations, pendingIgnores, api, loadPeopleNames]);
+
+  /**
+   * Discard all changes
+   */
+  const discardChanges = useCallback(() => {
+    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
+
+    if (!confirm(`Discard ${pendingConfirmations.length + pendingIgnores.length} unsaved changes?`)) return;
+
+    // Reset face states
+    setDetectedFaces(prev => prev.map(face => {
+      if (face.is_rejected || face.is_confirmed) {
+        return { ...face, is_confirmed: false, is_rejected: false, person_name: null };
+      }
+      return face;
+    }));
+
+    setPendingConfirmations([]);
+    setPendingIgnores([]);
+    setStatus('Changes discarded');
+  }, [pendingConfirmations.length, pendingIgnores.length]);
+
+  /**
    * Skip image - save pending changes and advance to next image
    */
   const skipImage = useCallback(async () => {
@@ -243,57 +294,6 @@ export function ReviewModule() {
 
     setStatus('Manual face added - enter name');
   }, [currentImagePath, detectedFaces.length]);
-
-  /**
-   * Save all changes
-   */
-  const saveAllChanges = useCallback(async () => {
-    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
-
-    const totalChanges = pendingConfirmations.length + pendingIgnores.length;
-    setStatus(`Saving ${totalChanges} changes...`);
-
-    try {
-      // Save confirmations
-      for (const confirmation of pendingConfirmations) {
-        await api.post('/api/confirm-identity', confirmation);
-      }
-
-      // Save ignores
-      for (const ignore of pendingIgnores) {
-        await api.post('/api/ignore-face', ignore);
-      }
-
-      setPendingConfirmations([]);
-      setPendingIgnores([]);
-      await loadPeopleNames();
-      setStatus(`Saved ${totalChanges} changes!`);
-    } catch (err) {
-      debugError('ReviewModule', 'Failed to save:', err);
-      setStatus('Error saving changes');
-    }
-  }, [pendingConfirmations, pendingIgnores, api, loadPeopleNames]);
-
-  /**
-   * Discard all changes
-   */
-  const discardChanges = useCallback(() => {
-    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
-
-    if (!confirm(`Discard ${pendingConfirmations.length + pendingIgnores.length} unsaved changes?`)) return;
-
-    // Reset face states
-    setDetectedFaces(prev => prev.map(face => {
-      if (face.is_rejected || face.is_confirmed) {
-        return { ...face, is_confirmed: false, is_rejected: false, person_name: null };
-      }
-      return face;
-    }));
-
-    setPendingConfirmations([]);
-    setPendingIgnores([]);
-    setStatus('Changes discarded');
-  }, [pendingConfirmations.length, pendingIgnores.length]);
 
   /**
    * Auto-save when all faces reviewed
