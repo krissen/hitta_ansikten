@@ -87,6 +87,7 @@ export function FileQueueModule() {
   const [fixMode, setFixMode] = useState(false);
   const [processedFiles, setProcessedFiles] = useState(new Set());
   const [preprocessingStatus, setPreprocessingStatus] = useState({}); // filePath -> status
+  const [selectedFiles, setSelectedFiles] = useState(new Set()); // Selected file IDs
 
   // Rename state
   const [showPreviewNames, setShowPreviewNames] = useState(false);
@@ -333,6 +334,30 @@ export function FileQueueModule() {
       return true;
     }));
     setCurrentIndex(-1);
+    setSelectedFiles(new Set());
+  }, []);
+
+  // Select all files
+  const selectAll = useCallback(() => {
+    setSelectedFiles(new Set(queue.map(item => item.id)));
+  }, [queue]);
+
+  // Deselect all files
+  const deselectAll = useCallback(() => {
+    setSelectedFiles(new Set());
+  }, []);
+
+  // Toggle file selection
+  const toggleFileSelection = useCallback((id) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   }, []);
 
   // Load file by index
@@ -701,6 +726,21 @@ export function FileQueueModule() {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+      // Cmd/Ctrl+A - select all files (prevent text selection)
+      if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
+        // Only capture if focus is within file-queue-module
+        const inFileQueue = e.target.closest('.file-queue-module');
+        if (inFileQueue) {
+          e.preventDefault();
+          if (selectedFiles.size === queue.length) {
+            deselectAll();
+          } else {
+            selectAll();
+          }
+          return;
+        }
+      }
+
       // N - next file
       if (e.key === 'n' || e.key === 'N') {
         if (!e.metaKey && !e.ctrlKey) {
@@ -721,7 +761,7 @@ export function FileQueueModule() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [advanceToNext, currentIndex, loadFile]);
+  }, [advanceToNext, currentIndex, loadFile, queue, selectedFiles.size, selectAll, deselectAll]);
 
   // Calculate stats
   // When fix-mode is OFF, already-processed files count as "done" (they're skipped)
@@ -733,7 +773,7 @@ export function FileQueueModule() {
   const activeCount = queue.filter(q => q.status === 'active').length;
 
   return (
-    <div className="file-queue-module">
+    <div className="file-queue-module" tabIndex={0}>
       {/* Header */}
       <div className="file-queue-header">
         <span className="file-queue-title">File Queue</span>
@@ -776,13 +816,23 @@ export function FileQueueModule() {
           </label>
         )}
         {queue.length > 0 && (
-          <button
-            className="clear-completed-btn"
-            onClick={clearCompleted}
-            disabled={completedCount === 0}
-          >
-            Clear done
-          </button>
+          <>
+            <button
+              className="clear-btn"
+              onClick={clearCompleted}
+              disabled={completedCount === 0}
+              title="Clear completed files"
+            >
+              Clear done
+            </button>
+            <button
+              className="clear-btn clear-all"
+              onClick={clearQueue}
+              title="Clear all files from queue"
+            >
+              Clear all
+            </button>
+          </>
         )}
       </div>
 
@@ -799,7 +849,9 @@ export function FileQueueModule() {
               key={item.id}
               item={item}
               isActive={index === currentIndex}
+              isSelected={selectedFiles.has(item.id)}
               onClick={() => loadFile(index)}
+              onToggleSelect={() => toggleFileSelection(item.id)}
               onRemove={() => removeFile(item.id)}
               fixMode={fixMode}
               preprocessingStatus={preprocessingStatus[item.filePath]}
@@ -866,7 +918,7 @@ export function FileQueueModule() {
 /**
  * FileQueueItem Component
  */
-function FileQueueItem({ item, isActive, onClick, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
+function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
@@ -935,9 +987,19 @@ function FileQueueItem({ item, isActive, onClick, onRemove, fixMode, preprocessi
 
   return (
     <div
-      className={`file-item ${item.status} ${isActive ? 'active' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
+      className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
       onClick={onClick}
     >
+      <input
+        type="checkbox"
+        className="file-select-checkbox"
+        checked={isSelected}
+        onChange={(e) => {
+          e.stopPropagation();
+          onToggleSelect();
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
       {getStatusIcon()}
       <div className="file-name-container">
         <span className="file-name" title={item.filePath}>
