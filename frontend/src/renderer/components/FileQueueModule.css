@@ -476,6 +476,13 @@
   font-style: italic;
 }
 
+/* Muted preview status (no persons, already renamed) - softer styling */
+.inline-preview.muted .preview-muted {
+  color: #b39ddb;
+  font-size: 11px;
+  font-style: normal;
+}
+
 /* Face count badge - fixed width for alignment */
 .face-count {
   flex-shrink: 0;

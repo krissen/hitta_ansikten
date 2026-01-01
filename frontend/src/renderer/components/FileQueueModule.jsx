@@ -765,6 +765,32 @@ export function FileQueueModule() {
     }
   }, [fetchRenamePreview]);
 
+  // Fetch preview on startup if showPreviewNames was restored as true
+  // Wait for preprocessing to complete so backend has the data
+  const initialPreviewFetchedRef = useRef(false);
+  useEffect(() => {
+    // Only run once, when showPreviewNames is on and we have eligible files
+    if (initialPreviewFetchedRef.current) return;
+    if (!showPreviewNames) return;
+    if (!isConnected) return;
+
+    // Check if we have eligible files (completed or already-processed)
+    const hasEligibleFiles = queue.some(q =>
+      q.status === 'completed' || (!fixMode && q.isAlreadyProcessed)
+    );
+    if (!hasEligibleFiles) return;
+
+    // Check if preprocessing is done for at least some files
+    const hasPreprocessedFiles = queue.some(q =>
+      preprocessingStatus[q.filePath]?.status === PreprocessingStatus.COMPLETED
+    );
+    if (!hasPreprocessedFiles && queue.length > 0) return; // Wait for preprocessing
+
+    initialPreviewFetchedRef.current = true;
+    debug('FileQueue', 'Fetching preview on startup (showPreviewNames was saved as true)');
+    fetchRenamePreview();
+  }, [showPreviewNames, isConnected, queue, fixMode, preprocessingStatus, fetchRenamePreview]);
+
   // Handle rename action
   const handleRename = useCallback(async () => {
     // Include both completed files AND already-processed files (when not in fix-mode)
@@ -890,6 +916,11 @@ export function FileQueueModule() {
 
       // Clear preview data when queue changes (force re-fetch)
       setPreviewData(null);
+
+      // If showing preview names, re-fetch after a short delay
+      if (showPreviewNames) {
+        setTimeout(() => fetchRenamePreview(), 200);
+      }
 
       // Refresh processed files list
       loadProcessedFiles();
@@ -1340,9 +1371,13 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
         </span>
       )}
       {shouldShowPreview && !newName && previewStatus && previewStatus !== 'ok' && (
-        <span className="inline-preview error">
+        <span className={`inline-preview ${previewStatus === 'no_persons' || previewStatus === 'already_renamed' ? 'muted' : 'error'}`}>
           <span className="arrow">→</span>
-          <span className="preview-error">{previewStatus}</span>
+          <span className={previewStatus === 'no_persons' || previewStatus === 'already_renamed' ? 'preview-muted' : 'preview-error'}>
+            {previewStatus === 'no_persons' ? '(no persons)' :
+             previewStatus === 'already_renamed' ? '(already renamed)' :
+             previewStatus}
+          </span>
         </span>
       )}
       {/* Fixed-width columns for alignment */}
