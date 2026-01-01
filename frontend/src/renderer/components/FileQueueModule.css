@@ -433,9 +433,9 @@
   to { transform: rotate(360deg); }
 }
 
-/* File name - simplified layout */
+/* File name - grows to fill space, pushing right elements to the right */
 .file-name {
-  flex-shrink: 1;
+  flex: 1;
   min-width: 60px;
   overflow: hidden;
   text-overflow: ellipsis;
