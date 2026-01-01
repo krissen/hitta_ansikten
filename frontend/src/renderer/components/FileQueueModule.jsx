@@ -1296,20 +1296,18 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
   const nameWouldChange = newName && newName !== item.fileName;
   const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
 
-  // Get face count - prioritize: previewInfo > reviewedFaces > preprocessing cache
-  // This shows DETECTED faces, not just confirmed ones
-  const hasFaceInfo = previewInfo?.persons !== undefined ||
-                      item.reviewedFaces !== undefined ||
-                      ppFaceCount !== undefined;
-  const faceCount = previewInfo?.persons?.length ??
-                    item.reviewedFaces?.length ??
-                    ppFaceCount ??
-                    null;
-  const faceNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
+  // Face count for icon: always show DETECTED count from preprocessing (ppFaceCount)
+  // This is the number of faces InsightFace found, regardless of confirmation status
+  const detectedFaceCount = ppFaceCount ?? null;
+  const hasDetectedFaces = detectedFaceCount !== null;
+
+  // Confirmed names for hover: from previewInfo (rename) or reviewedFaces (this session)
+  const confirmedNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
+  const confirmedCount = confirmedNames.length;
 
   // Debug: trace face info source
-  if (item.status === 'completed' || item.reviewedFaces) {
-    debug('FileQueue', `[${item.fileName}] reviewedFaces=${item.reviewedFaces?.length}, ppFaceCount=${ppFaceCount}, faceCount=${faceCount}, names=${faceNames.join(',')}`);
+  if (item.status === 'completed' || item.reviewedFaces || hasDetectedFaces) {
+    debug('FileQueue', `[${item.fileName}] detected=${detectedFaceCount}, confirmed=${confirmedCount}, names=${confirmedNames.join(',')}`);
   }
 
   return (
@@ -1351,8 +1349,8 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
       <span className="preprocess-col">
         {getPreprocessingIndicator()}
       </span>
-      <span className="face-count" title={faceNames.length > 0 ? faceNames.join(', ') : (hasFaceInfo ? 'No faces' : 'Not loaded')}>
-        👤{hasFaceInfo ? faceCount : '–'}
+      <span className="face-count" title={confirmedNames.length > 0 ? `Confirmed: ${confirmedNames.join(', ')}` : (hasDetectedFaces ? `${detectedFaceCount} detected` : 'Not loaded')}>
+        👤{hasDetectedFaces ? detectedFaceCount : '–'}
       </span>
       <span className="file-status">{getStatusText()}</span>
       <button
@@ -1380,10 +1378,16 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
             <span className="tooltip-label">Path:</span>
             <span className="tooltip-value tooltip-path">{item.filePath}</span>
           </div>
-          {faceCount > 0 && (
+          {hasDetectedFaces && (
             <div className="tooltip-row">
-              <span className="tooltip-label">Faces ({faceCount}):</span>
-              <span className="tooltip-value">{faceNames.join(', ') || 'Unknown'}</span>
+              <span className="tooltip-label">Detected:</span>
+              <span className="tooltip-value">{detectedFaceCount} face{detectedFaceCount !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+          {confirmedCount > 0 && (
+            <div className="tooltip-row">
+              <span className="tooltip-label">Confirmed ({confirmedCount}):</span>
+              <span className="tooltip-value">{confirmedNames.join(', ')}</span>
             </div>
           )}
           {shouldShowPreview && nameWouldChange && (
