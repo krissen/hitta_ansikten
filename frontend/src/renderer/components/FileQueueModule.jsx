@@ -763,12 +763,14 @@ export function FileQueueModule() {
   }, [advanceToNext]);
 
   // Fetch rename preview from backend
+  // Uses queueRef to always get current queue (avoids stale closure issues)
   const fetchRenamePreview = useCallback(async () => {
     // Include files eligible for rename:
     // - completed: reviewed this session
     // - isAlreadyProcessed (when fix-mode OFF): already in database, includes active files being re-viewed
+    const currentQueue = queueRef.current;
     const currentFixMode = fixModeRef.current;
-    const eligiblePaths = queue
+    const eligiblePaths = currentQueue
       .filter(q => q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed))
       .map(q => q.filePath);
 
@@ -801,7 +803,7 @@ export function FileQueueModule() {
       debugError('FileQueue', 'Failed to fetch rename preview:', err);
       setPreviewData({});
     }
-  }, [queue, api]);
+  }, [api]);
 
   // Handle preview toggle
   const handlePreviewToggle = useCallback(async (e) => {
@@ -903,8 +905,8 @@ export function FileQueueModule() {
       // Refresh preview data to get updated info for renamed files
       setPreviewData(null);
       if (showPreviewNames) {
-        // Re-fetch after a short delay to allow state to update
-        setTimeout(() => fetchRenamePreview(), 100);
+        // Re-fetch after delay to allow queue state to update
+        setTimeout(() => fetchRenamePreview(), 300);
       }
 
       // Show toast notification
