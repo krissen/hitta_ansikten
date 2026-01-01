@@ -296,6 +296,45 @@ export function FlexLayoutWorkspace() {
     }
   }, []);
 
+  // Focus tab content when tab is selected (via tab header click)
+  // This ensures keyboard shortcuts work immediately after switching tabs
+  const handleAction = useCallback((action) => {
+    if (action.type === Actions.SELECT_TAB && model) {
+      const tabNodeId = action.data?.tabNode;
+
+      // Use setTimeout to run after DOM update
+      setTimeout(() => {
+        // Get the component name from the model
+        const tabNode = model.getNodeById(tabNodeId);
+        if (!tabNode) return;
+
+        const componentName = tabNode.getComponent?.();
+        if (!componentName) return;
+
+        // Find the module container by its class name
+        const moduleClass = componentName; // e.g., 'image-viewer', 'review-module'
+        const moduleElement = document.querySelector(`.${moduleClass}`);
+
+        if (moduleElement) {
+          // Focus the module container if it has tabindex, otherwise find a focusable child
+          if (moduleElement.hasAttribute('tabindex')) {
+            moduleElement.focus();
+            debug('FlexLayout', 'Focused module:', componentName);
+          } else {
+            const focusable = moduleElement.querySelector(
+              '[tabindex], canvas, input:not([disabled]), button:not([disabled])'
+            );
+            if (focusable) {
+              focusable.focus();
+              debug('FlexLayout', 'Focused element in module:', componentName);
+            }
+          }
+        }
+      }, 50);
+    }
+    return action; // Allow action to proceed
+  }, [model]);
+
   // Modules that are singletons (only one instance allowed, switch to existing)
   // These modules show content related to "the current file" or global state
   const SINGLETON_MODULES = new Set([
@@ -1028,6 +1067,7 @@ export function FlexLayoutWorkspace() {
       model={model}
       factory={factory}
       onModelChange={handleModelChange}
+      onAction={handleAction}
     />
   );
 }
