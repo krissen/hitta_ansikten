@@ -26,12 +26,24 @@ class BoundingBox(BaseModel):
     width: int
     height: int
 
+class MatchAlternative(BaseModel):
+    name: str
+    distance: float
+    confidence: int
+    is_ignored: bool = False
+
+
 class DetectedFace(BaseModel):
     face_id: str
     bounding_box: BoundingBox
     confidence: float
     person_name: Optional[str] = None
     is_confirmed: bool = False
+    # New fields for ignore-awareness and match alternatives
+    match_case: Optional[str] = None  # name|ign|uncertain_name|uncertain_ign|unknown
+    ignore_distance: Optional[float] = None
+    ignore_confidence: Optional[int] = None
+    match_alternatives: Optional[List[MatchAlternative]] = None
 
 class DetectionResult(BaseModel):
     image_path: str
@@ -126,7 +138,15 @@ async def detect_faces(request: DetectionRequest):
                     bounding_box=BoundingBox(**face["bounding_box"]),
                     confidence=face["confidence"],
                     person_name=face["person_name"],
-                    is_confirmed=face["is_confirmed"]
+                    is_confirmed=face["is_confirmed"],
+                    # New fields for ignore-awareness and match alternatives
+                    match_case=face.get("match_case"),
+                    ignore_distance=face.get("ignore_distance"),
+                    ignore_confidence=face.get("ignore_confidence"),
+                    match_alternatives=[
+                        MatchAlternative(**alt)
+                        for alt in face.get("match_alternatives", [])
+                    ] if face.get("match_alternatives") else None
                 )
                 for face in result["faces"]
             ],

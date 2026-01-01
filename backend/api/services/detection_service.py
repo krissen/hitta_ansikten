@@ -173,6 +173,15 @@ class DetectionService:
             # Match against known faces
             best_match, best_distance = self._match_encoding(encoding)
 
+            # Match against ignored faces
+            _, ignore_distance = self._match_ignored(encoding)
+
+            # Determine match case (name, ign, uncertain_name, uncertain_ign, unknown)
+            match_case = self._determine_match_case(best_distance, ignore_distance)
+
+            # Get match alternatives (top-N)
+            match_alternatives = self._match_encoding_alternatives(encoding, top_n=9)
+
             # Generate stable face ID using SHA1 (deterministic across runs)
             # Use 16 hex chars for lower collision probability
             encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:16]
@@ -181,13 +190,31 @@ class DetectionService:
             # Cache encoding for later confirm/ignore operations
             self.encoding_cache[face_id] = (encoding, bbox)
 
+            # Calculate ignore confidence
+            ignore_confidence = None
+            if ignore_distance is not None:
+                ignore_confidence = max(0, min(100, int((1.0 - ignore_distance) * 100)))
+
+            # Determine person_name based on match_case
+            # Only suggest a name when it's clearly the best match
+            if match_case in ("name", "uncertain_name"):
+                suggested_name = best_match
+            else:
+                # For ign, uncertain_ign, unknown - don't pre-fill a name
+                suggested_name = None
+
             results.append({
                 "face_id": face_id,
                 "bounding_box": bbox,
                 "confidence": float(1.0 - best_distance) if best_distance is not None else 0.0,
-                "person_name": best_match,
+                "person_name": suggested_name,
                 "match_distance": float(best_distance) if best_distance is not None else None,
-                "is_confirmed": False  # Always False for new detections
+                "is_confirmed": False,  # Always False for new detections
+                # New fields for ignore-awareness and alternatives
+                "match_case": match_case,
+                "ignore_distance": float(ignore_distance) if ignore_distance is not None else None,
+                "ignore_confidence": ignore_confidence,
+                "match_alternatives": match_alternatives
             })
 
         return results
@@ -223,6 +250,128 @@ class DetectionService:
                 best_name = name
 
         return best_name, best_distance
+
+    def _match_ignored(self, encoding: np.ndarray) -> Tuple[Optional[int], Optional[float]]:
+        """Match encoding against ignored faces database"""
+        best_idx = None
+        best_distance = None
+
+        # Collect encodings from ignored_faces that match our backend
+        ignored_encodings = []
+        for entry in self.ignored_faces:
+            if isinstance(entry, dict):
+                enc = entry.get("encoding")
+                backend = entry.get("backend", "dlib")
+            else:
+                enc = entry
+                backend = "dlib"
+
+            if enc is not None and backend == self.backend.backend_name:
+                # Ensure encoding is a proper numpy array
+                enc_array = np.asarray(enc)
+                if enc_array.ndim == 1:  # Valid 1D encoding
+                    ignored_encodings.append(enc_array)
+
+        if ignored_encodings:
+            # Stack into 2D array for batch distance computation
+            encodings_matrix = np.vstack(ignored_encodings)
+            distances = self.backend.compute_distances(encodings_matrix, encoding)
+            min_distance = float(np.min(distances))
+            best_distance = min_distance
+            best_idx = int(np.argmin(distances))
+
+        return best_idx, best_distance
+
+    def _determine_match_case(
+        self,
+        name_dist: Optional[float],
+        ignore_dist: Optional[float]
+    ) -> str:
+        """
+        Determine match case based on distances (like legacy script).
+
+        Returns one of: 'name', 'ign', 'uncertain_name', 'uncertain_ign', 'unknown'
+        """
+        # Get thresholds from config
+        name_thr = self.config.get("match_threshold", 0.54)
+        ignore_thr = self.config.get("ignore_distance", 0.48)
+        margin = self.config.get("prefer_name_margin", 0.15)
+
+        has_name = name_dist is not None and name_dist < name_thr
+        has_ignore = ignore_dist is not None and ignore_dist < ignore_thr
+
+        if not has_name and not has_ignore:
+            return "unknown"
+
+        if has_name and has_ignore:
+            # Both match - check if close enough to be uncertain
+            if abs(name_dist - ignore_dist) < margin:
+                return "uncertain_name" if name_dist < ignore_dist else "uncertain_ign"
+
+        if has_name and (not has_ignore or name_dist < ignore_dist - margin):
+            return "name"
+
+        if has_ignore and (not has_name or ignore_dist < name_dist - margin):
+            return "ign"
+
+        return "unknown"
+
+    def _match_encoding_alternatives(
+        self,
+        encoding: np.ndarray,
+        top_n: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Return top-N match alternatives sorted by distance.
+
+        Includes both known faces and ignored faces (marked as 'ign').
+        """
+        all_matches = []
+
+        # Match against known faces
+        for name, entries in self.known_faces.items():
+            # Filter by backend and ensure proper numpy arrays
+            person_encodings = []
+            for e in entries:
+                if isinstance(e, dict) and e.get("backend") == self.backend.backend_name:
+                    enc = e.get("encoding")
+                    if enc is not None:
+                        enc_array = np.asarray(enc)
+                        if enc_array.ndim == 1:
+                            person_encodings.append(enc_array)
+
+            if not person_encodings:
+                continue
+
+            # Stack into 2D array for batch distance computation
+            encodings_matrix = np.vstack(person_encodings)
+            distances = self.backend.compute_distances(encodings_matrix, encoding)
+            min_distance = float(np.min(distances))
+
+            # Convert distance to confidence (0-100)
+            confidence = max(0, min(100, int((1.0 - min_distance) * 100)))
+
+            all_matches.append({
+                "name": name,
+                "distance": min_distance,
+                "confidence": confidence,
+                "is_ignored": False
+            })
+
+        # Match against ignored faces (single "ign" entry with best distance)
+        ignore_idx, ignore_dist = self._match_ignored(encoding)
+        if ignore_dist is not None:
+            ignore_confidence = max(0, min(100, int((1.0 - ignore_dist) * 100)))
+            all_matches.append({
+                "name": "ign",
+                "distance": ignore_dist,
+                "confidence": ignore_confidence,
+                "is_ignored": True
+            })
+
+        # Sort by distance and return top N
+        all_matches.sort(key=lambda x: x["distance"])
+        return all_matches[:top_n]
 
     async def detect_faces(self, image_path: str, force_reprocess: bool = False) -> Dict[str, Any]:
         """

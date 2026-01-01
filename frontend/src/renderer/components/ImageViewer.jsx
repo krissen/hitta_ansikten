@@ -221,10 +221,40 @@ export function ImageViewer() {
       let labelWidth = 0;
       let labelHeight = 0;
 
-      if (face.person_name) {
-        const confidence = face.confidence || 0;
-        const label = `${face.person_name} (${(confidence * 100).toFixed(0)}%)`;
-        const metrics = ctx.measureText(label);
+      // Determine label text based on match_case
+      let labelText = null;
+      const matchCase = face.match_case;
+
+      // Helper: get best person name from alternatives if person_name is not set
+      const getPersonName = () => {
+        if (face.person_name) return face.person_name;
+        // Find first non-ignored alternative
+        const alt = face.match_alternatives?.find(a => !a.is_ignored);
+        return alt?.name || 'Unknown';
+      };
+
+      if (matchCase === 'ign') {
+        labelText = `ign (${(face.ignore_confidence || 0)}%)`;
+      } else if (matchCase === 'uncertain_ign') {
+        // person_name may be null for uncertain_ign, get from alternatives
+        labelText = `ign (${(face.ignore_confidence || 0)}%) / ${getPersonName()}`;
+      } else if (matchCase === 'uncertain_name') {
+        labelText = `${getPersonName()} / ign (${(face.ignore_confidence || 0)}%)`;
+      } else if (face.person_name) {
+        labelText = `${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
+      } else if (face.match_alternatives?.length > 0) {
+        // Fallback: show best alternative when no direct match (e.g., match_case='unknown')
+        const best = face.match_alternatives[0];
+        labelText = best.is_ignored
+          ? `ign? (${best.confidence}%)`
+          : `${best.name}? (${best.confidence}%)`;
+      } else {
+        // No match and no alternatives
+        labelText = 'Unknown';
+      }
+
+      if (labelText) {
+        const metrics = ctx.measureText(labelText);
         labelWidth = metrics.width + 8;
         labelHeight = 24;
 
@@ -245,7 +275,7 @@ export function ImageViewer() {
       placements.push({
         face,
         faceBox,
-        label: face.person_name ? `${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)` : null,
+        label: labelText,
         labelPos,
         labelWidth,
         labelHeight
@@ -255,9 +285,19 @@ export function ImageViewer() {
     // Draw everything
     placements.forEach(({ face, faceBox, label, labelPos, labelWidth, labelHeight }) => {
       const confidence = face.confidence || 0;
+      const matchCase = face.match_case;
       let strokeColor, textBgColor;
 
-      if (confidence > 0.9) {
+      // Determine colors based on match_case first, then confidence
+      if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
+        // Gray for probable-ignore faces
+        strokeColor = '#9e9e9e';
+        textBgColor = 'rgba(158, 158, 158, 0.9)';
+      } else if (matchCase === 'uncertain_name') {
+        // Yellow/amber for uncertain (name slightly better than ignore)
+        strokeColor = '#ffc107';
+        textBgColor = 'rgba(255, 193, 7, 0.9)';
+      } else if (confidence > 0.9) {
         strokeColor = '#4caf50';
         textBgColor = 'rgba(76, 175, 80, 0.9)';
       } else if (confidence > 0.6) {

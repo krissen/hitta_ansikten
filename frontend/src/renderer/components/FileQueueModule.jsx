@@ -1030,6 +1030,26 @@ export function FileQueueModule() {
     }
   }, [autoAdvance, loadFile, loadProcessedFiles, showToast]));
 
+  // Listen for faces-detected event to update face count for the detected file
+  // This updates the face count when detection completes (not just from preprocessing)
+  // Uses imagePath from event to avoid race conditions when user clicks another file during detection
+  useModuleEvent('faces-detected', useCallback(({ faces, imagePath }) => {
+    if (!imagePath) return;
+
+    const faceCount = faces?.length ?? 0;
+    debug('FileQueue', 'Faces detected for file:', imagePath, `(${faceCount} faces)`);
+
+    // Update preprocessing status with actual detected face count
+    setPreprocessingStatus(prev => ({
+      ...prev,
+      [imagePath]: {
+        ...(prev[imagePath] || {}),
+        status: PreprocessingStatus.COMPLETED,
+        faceCount
+      }
+    }));
+  }, []));
+
   // Open file dialog
   const openFileDialog = useCallback(async () => {
     try {
@@ -1456,9 +1476,9 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
   const nameWouldChange = newName && newName !== item.fileName;
   const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
 
-  // Face count for icon: always show DETECTED count from preprocessing (ppFaceCount)
-  // This is the number of faces InsightFace found, regardless of confirmation status
-  const detectedFaceCount = ppFaceCount ?? null;
+  // Face count for icon: prefer preprocessing count, fall back to reviewedFaces length for completed files
+  // This ensures completed files show their face count even if preprocessing status was cleared
+  const detectedFaceCount = ppFaceCount ?? item.reviewedFaces?.length ?? null;
   const hasDetectedFaces = detectedFaceCount !== null;
 
   // Confirmed names for hover: from previewInfo (rename) or reviewedFaces (this session)

@@ -20,6 +20,7 @@ let initialQueueFiles = [];
 let isQuitting = false;
 
 // Parse command line arguments
+// Electron argv structure: [electron_path, app_path, ...user_args]
 function parseCommandLineArgs(argv) {
   const result = {
     files: [],
@@ -27,18 +28,9 @@ function parseCommandLineArgs(argv) {
     startQueue: false,
   };
 
-  let i = 0;
-  // Skip electron path and app path
-  while (
-    i < argv.length &&
-    (argv[i].includes("electron") ||
-      argv[i].includes("Electron") ||
-      argv[i] === ".")
-  ) {
-    i++;
-  }
-
-  for (; i < argv.length; i++) {
+  // Skip first two args (electron executable and app path)
+  // These are always present in Electron's process.argv
+  for (let i = 2; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--queue" || arg === "-q") {
       result.queuePosition = "end";
@@ -92,10 +84,17 @@ async function expandFilePaths(patterns) {
         );
       }
     } else {
-      // Direct path
+      // Direct path - must be a file (not directory)
       const resolved = path.resolve(expandedPattern);
-      if (fs.existsSync(resolved)) {
-        files.push(resolved);
+      try {
+        const stat = fs.statSync(resolved);
+        if (stat.isFile()) {
+          files.push(resolved);
+        } else if (stat.isDirectory()) {
+          console.log(`[Main] Skipping directory: ${resolved}`);
+        }
+      } catch (err) {
+        // File doesn't exist, skip silently
       }
     }
   }
@@ -191,11 +190,8 @@ app.on("second-instance", async (event, argv, workingDirectory) => {
   );
   console.log("[Main] Working directory:", workingDirectory);
 
-  // Filter out the working directory from argv if it's included
-  const filteredArgv = argv.filter((arg) => arg !== workingDirectory);
-  console.log("[Main] Filtered argv:", JSON.stringify(filteredArgv));
-
-  const args = parseCommandLineArgs(filteredArgv);
+  // Parse arguments (second-instance argv has same structure as process.argv)
+  const args = parseCommandLineArgs(argv);
   console.log("[Main] Parsed args:", JSON.stringify(args));
 
   if (args.files.length > 0) {

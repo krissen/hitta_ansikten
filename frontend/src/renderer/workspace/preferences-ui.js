@@ -388,6 +388,12 @@ export class PreferencesUI {
               </select>
               <small>How review results are written to database</small>
             </div>
+
+            <div class="pref-field">
+              <label>Match Alternatives</label>
+              <input type="number" id="pref-reviewModule-maxAlternatives" min="1" max="9" />
+              <small>Number of match suggestions to show (1-9). Press number keys to select.</small>
+            </div>
           </div>
           </div>
 
@@ -1640,6 +1646,7 @@ export class PreferencesUI {
     this.setValue('reviewModule-defaultAction', this.tempPrefs.reviewModule.defaultAction);
     this.setValue('reviewModule-showConfidenceScores', this.tempPrefs.reviewModule.showConfidenceScores);
     this.setValue('reviewModule-saveMode', this.tempPrefs.reviewModule.saveMode);
+    this.setValue('reviewModule-maxAlternatives', this.tempPrefs.reviewModule.maxAlternatives ?? 5);
 
     // File Queue settings
     this.setValue('fileQueue-autoLoadOnStartup', this.tempPrefs.fileQueue?.autoLoadOnStartup ?? true);
@@ -1848,6 +1855,8 @@ export class PreferencesUI {
     this.tempPrefs.reviewModule.defaultAction = this.getValue('reviewModule-defaultAction');
     this.tempPrefs.reviewModule.showConfidenceScores = this.getValue('reviewModule-showConfidenceScores');
     this.tempPrefs.reviewModule.saveMode = this.getValue('reviewModule-saveMode');
+    const rawMaxAlt = parseInt(this.getValue('reviewModule-maxAlternatives'), 10);
+    this.tempPrefs.reviewModule.maxAlternatives = Number.isNaN(rawMaxAlt) ? 5 : Math.max(1, Math.min(9, rawMaxAlt));
 
     // File Queue settings
     if (!this.tempPrefs.fileQueue) this.tempPrefs.fileQueue = {};

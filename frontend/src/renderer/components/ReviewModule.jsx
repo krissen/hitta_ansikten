@@ -14,6 +14,7 @@ import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { preferences } from '../workspace/preferences.js';
 import './ReviewModule.css';
 
 /**
@@ -39,32 +40,6 @@ export function ReviewModule() {
   const gridRef = useRef(null);
   const inputRefs = useRef({});
   const cardRefs = useRef({});
-
-  // Shortcut overlay state
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const lastActivityRef = useRef(Date.now());
-  const IDLE_TIMEOUT = 10000; // 10 seconds
-
-  /**
-   * Track user activity to control shortcut overlay visibility
-   */
-  const trackActivity = useCallback(() => {
-    lastActivityRef.current = Date.now();
-    setShowShortcuts(false);
-  }, []);
-
-  /**
-   * Timer to show shortcuts after inactivity
-   */
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const idleTime = Date.now() - lastActivityRef.current;
-      if (idleTime > IDLE_TIMEOUT && !showShortcuts && detectedFaces.length > 0) {
-        setShowShortcuts(true);
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [showShortcuts, detectedFaces.length]);
 
   /**
    * Load people names for autocomplete
@@ -105,7 +80,8 @@ export function ReviewModule() {
       setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
 
       // Emit faces to Image Viewer for bounding box overlay
-      emit('faces-detected', { faces });
+      // Include imagePath so listeners know which file these faces belong to
+      emit('faces-detected', { faces, imagePath });
 
       // Focus the module container (not input) so keyboard shortcuts work
       // User must press 'r' to enter input mode
@@ -127,7 +103,6 @@ export function ReviewModule() {
    */
   const navigateToFace = useCallback((direction) => {
     if (detectedFaces.length === 0) return;
-    trackActivity();
 
     setCurrentFaceIndex(prev => {
       let newIndex = prev + direction;
@@ -149,19 +124,7 @@ export function ReviewModule() {
       emit('active-face-changed', { index: newIndex });
       return newIndex;
     });
-  }, [detectedFaces, emit, trackActivity]);
-
-  /**
-   * Jump to specific face
-   */
-  const jumpToFace = useCallback((faceNum) => {
-    if (faceNum <= detectedFaces.length && faceNum >= 1) {
-      trackActivity();
-      const newIndex = faceNum - 1;
-      setCurrentFaceIndex(newIndex);
-      emit('active-face-changed', { index: newIndex });
-    }
-  }, [detectedFaces.length, emit, trackActivity]);
+  }, [detectedFaces, emit]);
 
   /**
    * Confirm face
@@ -171,7 +134,6 @@ export function ReviewModule() {
 
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
-    trackActivity();
 
     setDetectedFaces(prev => {
       const updated = [...prev];
@@ -191,7 +153,7 @@ export function ReviewModule() {
 
     // Move to next face
     navigateToFace(1);
-  }, [detectedFaces, currentImagePath, navigateToFace, trackActivity]);
+  }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
    * Ignore face
@@ -199,7 +161,6 @@ export function ReviewModule() {
   const ignoreFace = useCallback((index) => {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
-    trackActivity();
 
     setDetectedFaces(prev => {
       const updated = [...prev];
@@ -214,7 +175,7 @@ export function ReviewModule() {
 
     // Move to next face
     navigateToFace(1);
-  }, [detectedFaces, currentImagePath, navigateToFace, trackActivity]);
+  }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
    * Build reviewedFaces array for rename functionality
@@ -472,10 +433,23 @@ export function ReviewModule() {
         return;
       }
 
-      // Number keys
-      if (e.key >= '1' && e.key <= '9' && !isInput) {
+      // Number keys - select alternative (1-N) for current face
+      const maxAlt = preferences.get('reviewModule.maxAlternatives', 5);
+      const keyNum = parseInt(e.key, 10);
+      if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= maxAlt && !isInput) {
         e.preventDefault();
-        jumpToFace(parseInt(e.key));
+        const currentFace = detectedFaces[currentFaceIndex];
+        const alternatives = currentFace?.match_alternatives || [];
+        const idx = keyNum - 1;
+
+        if (idx < alternatives.length && !currentFace?.is_confirmed) {
+          const alt = alternatives[idx];
+          if (alt.name === 'ign') {
+            ignoreFace(currentFaceIndex);
+          } else {
+            confirmFace(currentFaceIndex, alt.name);
+          }
+        }
         return;
       }
 
@@ -535,12 +509,8 @@ export function ReviewModule() {
         return;
       }
 
-      // ? to toggle shortcut overlay
-      if (e.key === '?' && !isInput) {
-        e.preventDefault();
-        setShowShortcuts(prev => !prev);
-        return;
-      }
+      // ? - delegate to global shortcut help (handled by FlexLayoutWorkspace)
+      // Don't handle here, let event bubble up
 
       // Escape
       if (e.key === 'Escape') {
@@ -556,7 +526,7 @@ export function ReviewModule() {
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, jumpToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
+  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
 
   /**
    * Listen for image-loaded events
@@ -614,20 +584,22 @@ export function ReviewModule() {
               onSelect={() => {
                 setCurrentFaceIndex(index);
                 emit('active-face-changed', { index });
-                trackActivity();
               }}
               onConfirm={(name) => confirmFace(index, name)}
               onIgnore={() => ignoreFace(index)}
-              onInputActivity={trackActivity}
+              maxAlternatives={preferences.get('reviewModule.maxAlternatives', 5)}
+              onSelectAlternative={(name) => {
+                if (name === 'ign') {
+                  ignoreFace(index);
+                } else {
+                  confirmFace(index, name);
+                }
+              }}
             />
           ))
         )}
       </div>
 
-      {/* Keyboard shortcut overlay - shows after inactivity */}
-      {detectedFaces.length > 0 && (
-        <ShortcutOverlay visible={showShortcuts} />
-      )}
     </div>
   );
 }
@@ -635,7 +607,7 @@ export function ReviewModule() {
 /**
  * FaceCard Component
  */
-function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onInputActivity }) {
+function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, maxAlternatives, onSelectAlternative }) {
   const [inputValue, setInputValue] = useState(face.person_name || '');
   const { api } = useBackend();
 
@@ -647,11 +619,15 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
     `&x=${bbox.x || 0}&y=${bbox.y || 0}&width=${bbox.width || 100}&height=${bbox.height || 100}&size=150`
   ) : null;
 
+  // Determine if this is a probable-ignore case
+  const isProbableIgnore = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
+
   const cardClass = [
     'face-card',
     face.is_confirmed && !face.is_rejected ? 'confirmed' : '',
     face.is_rejected ? 'rejected' : '',
     face.is_manual ? 'manual' : '',
+    isProbableIgnore && !face.is_confirmed ? 'probable-ignore' : '',
     isActive ? 'active' : ''
   ].filter(Boolean).join(' ');
 
@@ -676,13 +652,44 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
           <div className="face-confidence manual">Manual entry</div>
         ) : (
           <div className="face-confidence">
-            Confidence: {((face.confidence || 0) * 100).toFixed(1)}%
+            {((face.confidence || 0) * 100).toFixed(0)}%
           </div>
         )}
-        {face.person_name && !face.is_rejected && (
-          <div>Person: {face.person_name}</div>
+        {/* Match case indicator */}
+        {face.match_case === 'ign' && !face.is_confirmed && (
+          <div className="match-case probable-ignore">Probable ignore</div>
+        )}
+        {face.match_case === 'uncertain_ign' && !face.is_confirmed && (
+          <div className="match-case uncertain">
+            ign ({face.ignore_confidence}%) / {face.person_name || face.match_alternatives?.find(a => !a.is_ignored)?.name || 'Unknown'}
+          </div>
+        )}
+        {face.match_case === 'uncertain_name' && !face.is_confirmed && (
+          <div className="match-case uncertain">
+            {face.person_name || face.match_alternatives?.find(a => !a.is_ignored)?.name || 'Unknown'} / ign ({face.ignore_confidence}%)
+          </div>
         )}
       </div>
+
+      {/* Match alternatives - only shown on active unconfirmed face */}
+      {isActive && !face.is_confirmed && face.match_alternatives?.length > 0 && (
+        <div className="face-alternatives">
+          {face.match_alternatives.slice(0, maxAlternatives || 5).map((alt, idx) => (
+            <div
+              key={idx}
+              className={`alt-chip ${idx === 0 ? 'recommended' : ''} ${alt.is_ignored ? 'ignored' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectAlternative?.(alt.name);
+              }}
+            >
+              <span className="alt-key">{idx + 1}</span>
+              <span className="alt-name">{alt.name}</span>
+              <span className="alt-conf">{alt.confidence}%</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="face-actions">
         {!face.is_confirmed ? (
@@ -691,10 +698,7 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
             type="text"
             placeholder="Person name..."
             value={inputValue}
-            onChange={(e) => {
-              setInputValue(e.target.value);
-              onInputActivity?.();
-            }}
+            onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => {
               // Let document handler manage Enter for consistency
               // Just stop propagation for other keys we don't want bubbling
@@ -719,41 +723,6 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
           <option key={name} value={name} />
         ))}
       </datalist>
-    </div>
-  );
-}
-
-/**
- * ShortcutOverlay - Shows keyboard shortcuts with inactivity-based visibility
- */
-function ShortcutOverlay({ visible }) {
-  // Check if an input is currently focused
-  const [isInputFocused, setIsInputFocused] = useState(false);
-
-  useEffect(() => {
-    const checkFocus = () => {
-      const active = document.activeElement;
-      setIsInputFocused(active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA');
-    };
-
-    // Check on focus changes
-    document.addEventListener('focusin', checkFocus);
-    document.addEventListener('focusout', checkFocus);
-    return () => {
-      document.removeEventListener('focusin', checkFocus);
-      document.removeEventListener('focusout', checkFocus);
-    };
-  }, []);
-
-  // Show different shortcuts based on context
-  const shortcuts = isInputFocused
-    ? 'Enter=Confirm  Esc=Cancel'
-    : 'A=Accept  I=Ignore  X=Skip  M=Manual';
-
-  return (
-    <div className={`shortcut-overlay ${visible ? 'visible' : ''}`}>
-      <div className="shortcut-text">{shortcuts}</div>
-      <div className="shortcut-hint">?=Toggle help</div>
     </div>
   );
 }

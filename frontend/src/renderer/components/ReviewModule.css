@@ -160,34 +160,94 @@
   grid-column: 1 / -1;
 }
 
-/* Keyboard shortcut overlay - global for review module */
-.shortcut-overlay {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  background: rgba(30, 30, 30, 0.9);
-  color: #b0b0b0;
-  font-size: 11px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-  pointer-events: none;
-  z-index: 100;
-  text-align: right;
+/* Probable ignore styling */
+.face-card.probable-ignore {
+  border-color: #9e9e9e;
+  opacity: 0.8;
 }
 
-.shortcut-overlay.visible {
-  opacity: 1;
+.face-card.probable-ignore .face-thumbnail {
+  filter: grayscale(50%);
 }
 
-.shortcut-overlay .shortcut-text {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  letter-spacing: 0.5px;
-}
-
-.shortcut-overlay .shortcut-hint {
+.match-case {
   font-size: 9px;
-  color: #707070;
+  padding: 2px 4px;
+  border-radius: 2px;
+  margin-top: 2px;
+}
+
+.match-case.probable-ignore {
+  background: rgba(158, 158, 158, 0.3);
+  color: #9e9e9e;
+}
+
+.match-case.uncertain {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ffc107;
+}
+
+/* Face card inline alternatives */
+.face-alternatives {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #4e4e52;
+}
+
+.alt-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+}
+
+.alt-chip:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.alt-chip.recommended {
+  background: rgba(76, 175, 80, 0.25);
+}
+
+.alt-chip.ignored {
+  opacity: 0.7;
+}
+
+.alt-chip .alt-key {
+  background: #4e4e52;
+  color: #fff;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.alt-chip .alt-name {
+  flex: 1;
+  color: #cccccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alt-chip .alt-conf {
+  color: #4ec9b0;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.alt-chip.ignored .alt-conf {
+  color: #9e9e9e;
 }
