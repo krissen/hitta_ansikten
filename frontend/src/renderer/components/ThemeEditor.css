@@ -1,0 +1,311 @@
+/**
+ * ThemeEditor Styles
+ */
+
+.theme-editor {
+  display: flex;
+  height: 100%;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.theme-editor-sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-medium);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  overflow-y: auto;
+}
+
+.theme-editor-sidebar h3 {
+  font-size: var(--font-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.category-list,
+.preset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.category-list li,
+.preset-list li {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-sm);
+  transition: background var(--transition-fast);
+}
+
+.category-list li:hover,
+.preset-list li:hover {
+  background: var(--bg-hover);
+}
+
+.category-list li.active {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  font-weight: 500;
+}
+
+.preset-list li.custom-preset {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.preset-list li.custom-preset span {
+  flex: 1;
+}
+
+.preset-list li.custom-preset button {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: var(--font-sm);
+}
+
+.preset-list li.custom-preset button:hover {
+  color: var(--color-error);
+}
+
+.preset-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.save-preset {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.save-preset input {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+}
+
+.save-preset input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.save-preset button,
+.preset-buttons button {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.save-preset button:hover:not(:disabled),
+.preset-buttons button:hover {
+  background: var(--bg-hover);
+}
+
+.save-preset button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.preset-buttons {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.preset-buttons button {
+  flex: 1;
+}
+
+/* Main content area */
+.theme-editor-content {
+  flex: 1;
+  padding: var(--space-lg);
+  overflow-y: auto;
+}
+
+.theme-editor-content h2 {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  margin: 0 0 var(--space-lg) 0;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Theme mode selector */
+.theme-mode-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 300px;
+}
+
+.theme-mode-selector label {
+  font-weight: 500;
+}
+
+.theme-mode-selector select {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-base);
+  cursor: pointer;
+}
+
+.theme-mode-selector select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.theme-mode-hint {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Variable grid */
+.variable-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-lg);
+}
+
+.variable-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.variable-item label {
+  font-weight: 500;
+  font-size: var(--font-sm);
+}
+
+.variable-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* Color inputs */
+.color-input-wrapper {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.color-input-wrapper input[type="color"] {
+  width: 48px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: none;
+}
+
+.color-input-wrapper input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-input-wrapper input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.color-text-input {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+}
+
+.color-text-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+/* Number inputs */
+.number-input-wrapper {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.number-input-wrapper input[type="range"] {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.number-input-wrapper input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.number-input-wrapper input[type="range"]::-webkit-slider-thumb:hover {
+  background: var(--accent-primary-hover);
+}
+
+.number-text-input {
+  width: 60px;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  text-align: right;
+}
+
+.number-text-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.number-input-wrapper .unit {
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
+  min-width: 20px;
+}

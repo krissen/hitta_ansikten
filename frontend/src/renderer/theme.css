@@ -26,6 +26,7 @@
   --text-secondary: #2d1810;    /* Dark brown */
   --text-tertiary: #483020;     /* Brown */
   --text-inverse: #f8f0e0;      /* Light yellow text */
+  --text-on-accent: #0a0a0a;    /* Very dark text on bright accents */
 
   /* Borders & Dividers */
   --border-subtle: #a08858;     /* Gold */
@@ -72,6 +73,7 @@
   --text-secondary: #a8a698;    /* Muted amber */
   --text-tertiary: #7a7870;     /* Very muted */
   --text-inverse: #0f0f0f;      /* Text on light backgrounds */
+  --text-on-accent: #0a0a0a;    /* Very dark text on bright accents */
 
   /* Borders & Dividers */
   --border-subtle: #353535;     /* Subtle gray */

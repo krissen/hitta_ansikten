@@ -58,12 +58,6 @@
   margin: 0;
   font-size: var(--font-xl);
   font-weight: 600;
-  color: var(--text-inverse);
-}
-
-/* Override for dark mode where text-inverse would be too dark */
-:root[data-theme="dark"] .shortcuts-header h2,
-:root:not([data-theme]) .shortcuts-header h2 {
   color: var(--text-primary);
 }
 
@@ -128,16 +122,10 @@
   padding: 2px var(--space-sm);
   font-family: inherit;
   font-size: var(--font-sm);
-  color: var(--text-inverse);
+  color: var(--text-primary);
   min-width: 20px;
   text-align: center;
   box-shadow: var(--shadow-sm);
-}
-
-/* Override for dark mode where text-inverse would be too dark */
-:root[data-theme="dark"] .shortcut-row kbd,
-:root:not([data-theme]) .shortcut-row kbd {
-  color: var(--text-primary);
 }
 
 .shortcut-row span {
@@ -160,11 +148,5 @@
   padding: 2px var(--space-sm);
   font-family: inherit;
   font-size: var(--font-sm);
-  color: var(--text-inverse);
-}
-
-/* Override for dark mode where text-inverse would be too dark */
-:root[data-theme="dark"] .shortcuts-footer kbd,
-:root:not([data-theme]) .shortcuts-footer kbd {
   color: var(--text-primary);
 }

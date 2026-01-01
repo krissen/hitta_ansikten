@@ -9,6 +9,7 @@ import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName } from './layouts.js';
 import { preferences } from '../preferences.js';
 import { preferencesUI } from '../preferences-ui.js';
+import { themeManager } from '../../theme-manager.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
 import './ShortcutsHelp.css';
@@ -21,6 +22,7 @@ import { StatisticsDashboard } from '../../components/StatisticsDashboard.jsx';
 import { ReviewModule } from '../../components/ReviewModule.jsx';
 import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
 import { FileQueueModule } from '../../components/FileQueueModule.jsx';
+import { ThemeEditor } from '../../components/ThemeEditor.jsx';
 
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
@@ -123,7 +125,8 @@ const MODULE_COMPONENTS = {
   'statistics-dashboard': StatisticsDashboard,
   'review-module': ReviewModule,
   'database-management': DatabaseManagement,
-  'file-queue': FileQueueModule
+  'file-queue': FileQueueModule,
+  'theme-editor': ThemeEditor
 };
 
 // Module titles
@@ -134,7 +137,8 @@ const MODULE_TITLES = {
   'statistics-dashboard': 'Statistics Dashboard',
   'review-module': 'Face Review',
   'database-management': 'Database Management',
-  'file-queue': 'File Queue'
+  'file-queue': 'File Queue',
+  'theme-editor': 'Theme Editor'
 };
 
 // Module-specific default layout ratios
@@ -174,6 +178,11 @@ const MODULE_LAYOUT = {
   },
   'file-queue': {
     widthRatio: 0.15,     // 15% width in sidebar
+    heightRatio: 0.70,    // Primary row
+    row: 1
+  },
+  'theme-editor': {
+    widthRatio: 0.50,     // 50% when sharing row
     heightRatio: 0.70,    // Primary row
     row: 1
   }
@@ -1053,12 +1062,26 @@ export function FlexLayoutWorkspace() {
         case 'open-file-queue':
           openModule('file-queue');
           break;
+        case 'open-theme-editor':
+          openModule('theme-editor');
+          break;
         case 'layout-queue-review':
           loadLayout('queue-review');
           break;
 
         case 'open-preferences':
           preferencesUI.show();
+          break;
+
+        // Theme commands
+        case 'theme-light':
+          themeManager.setPreference('light');
+          break;
+        case 'theme-dark':
+          themeManager.setPreference('dark');
+          break;
+        case 'theme-system':
+          themeManager.setPreference('system');
           break;
 
         // View commands - broadcast to modules
