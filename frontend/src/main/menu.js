@@ -235,12 +235,14 @@ function createApplicationMenu(mainWindow) {
         { type: 'separator' },
         {
           label: 'Statistics Dashboard',
+          accelerator: 'CmdOrCtrl+Shift+S',
           click: () => {
             sendMenuCommand( 'open-statistics-dashboard');
           }
         },
         {
           label: 'Database Management',
+          accelerator: 'CmdOrCtrl+Shift+D',
           click: () => {
             sendMenuCommand( 'open-database-management');
           }
@@ -251,6 +253,38 @@ function createApplicationMenu(mainWindow) {
           click: () => {
             sendMenuCommand('open-file-queue');
           }
+        },
+        { type: 'separator' },
+        {
+          label: 'Theme',
+          submenu: [
+            {
+              label: 'Theme Editor...',
+              accelerator: 'CmdOrCtrl+Shift+T',
+              click: () => {
+                sendMenuCommand('open-theme-editor');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Light (Terminal Beige)',
+              click: () => {
+                sendMenuCommand('theme-light');
+              }
+            },
+            {
+              label: 'Dark (CRT Phosphor)',
+              click: () => {
+                sendMenuCommand('theme-dark');
+              }
+            },
+            {
+              label: 'Follow System',
+              click: () => {
+                sendMenuCommand('theme-system');
+              }
+            }
+          ]
         },
         { type: 'separator' },
         {

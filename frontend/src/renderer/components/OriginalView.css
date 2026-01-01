@@ -7,7 +7,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: #2a2a2a;
+  background-color: var(--bg-elevated);
 }
 
 .original-view canvas {
@@ -19,13 +19,13 @@
 /* Sync indicator */
 .sync-indicator {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
   font-weight: 500;
-  z-index: 100;
+  z-index: var(--z-dropdown);
   pointer-events: none;
 }
 
@@ -46,12 +46,12 @@
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: #666;
-  font-size: 14px;
+  color: var(--text-tertiary);
+  font-size: var(--font-md);
   pointer-events: none;
 }
 
 .original-view-placeholder .placeholder-icon {
   font-size: 48px;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-lg);
 }

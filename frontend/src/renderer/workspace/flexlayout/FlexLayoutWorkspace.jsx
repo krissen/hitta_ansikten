@@ -8,7 +8,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName } from './layouts.js';
 import { preferences } from '../preferences.js';
-import { preferencesUI } from '../preferences-ui.js';
+import { themeManager } from '../../theme-manager.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
 import './ShortcutsHelp.css';
@@ -21,6 +21,8 @@ import { StatisticsDashboard } from '../../components/StatisticsDashboard.jsx';
 import { ReviewModule } from '../../components/ReviewModule.jsx';
 import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
 import { FileQueueModule } from '../../components/FileQueueModule.jsx';
+import { ThemeEditor } from '../../components/ThemeEditor.jsx';
+import { PreferencesModule } from '../../components/PreferencesModule.jsx';
 
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
@@ -123,7 +125,9 @@ const MODULE_COMPONENTS = {
   'statistics-dashboard': StatisticsDashboard,
   'review-module': ReviewModule,
   'database-management': DatabaseManagement,
-  'file-queue': FileQueueModule
+  'file-queue': FileQueueModule,
+  'theme-editor': ThemeEditor,
+  'preferences': PreferencesModule
 };
 
 // Module titles
@@ -134,7 +138,9 @@ const MODULE_TITLES = {
   'statistics-dashboard': 'Statistics Dashboard',
   'review-module': 'Face Review',
   'database-management': 'Database Management',
-  'file-queue': 'File Queue'
+  'file-queue': 'File Queue',
+  'theme-editor': 'Theme Editor',
+  'preferences': 'Preferences'
 };
 
 // Module-specific default layout ratios
@@ -176,6 +182,11 @@ const MODULE_LAYOUT = {
     widthRatio: 0.15,     // 15% width in sidebar
     heightRatio: 0.70,    // Primary row
     row: 1
+  },
+  'theme-editor': {
+    widthRatio: 0.50,     // 50% when sharing row
+    heightRatio: 0.70,    // Primary row
+    row: 1
   }
 };
 
@@ -207,36 +218,17 @@ function applyUIPreferences(overrides = null) {
     return preferences.get(path) || defaultVal;
   };
 
-  // Size preferences
+  // Size preferences (colors now come from theme.css)
   const tabsHeight = getValue('appearance.tabsHeight', 28);
   const tabsFontSize = getValue('appearance.tabsFontSize', 13);
   const tabPaddingLeft = getValue('appearance.tabPaddingLeft', 8);
   const tabPaddingRight = getValue('appearance.tabPaddingRight', 6);
   const tabMinGap = getValue('appearance.tabMinGap', 5);
 
-  // Color preferences - three tab states:
-  // 1. Focused: selected tab in the focused panel (keyboard focus)
-  // 2. Visible: selected tab in non-focused panels
-  // 3. Hidden: unselected tabs (behind other tabs)
-  const focusedTabBackground = getValue('appearance.focusedTabBackground', '#ffffff');
-  const focusedTabColor = getValue('appearance.focusedTabColor', '#1a1a1a');
-  const visibleTabBackground = getValue('appearance.visibleTabBackground', '#e8e8e8');
-  const visibleTabColor = getValue('appearance.visibleTabColor', '#555555');
-  const hiddenTabBackground = getValue('appearance.hiddenTabBackground', '#d8d8d8');
-  const hiddenTabColor = getValue('appearance.hiddenTabColor', '#999999');
-  const tabContainerBackground = getValue('appearance.tabContainerBackground', '#d0d0d0');
-  const groupBorderColor = getValue('appearance.groupBorderColor', 'rgba(128, 128, 128, 0.2)');
-
-  // Apply to FlexLayout CSS variables (base styles)
+  // Apply font size to FlexLayout CSS variable
   layoutEl.style.setProperty('--font-size', `${tabsFontSize}px`);
-  layoutEl.style.setProperty('--color-text', focusedTabColor);
-  layoutEl.style.setProperty('--color-background', focusedTabBackground);
-  layoutEl.style.setProperty('--color-tabset-background', tabContainerBackground);
-  layoutEl.style.setProperty('--color-splitter', groupBorderColor);
-  layoutEl.style.setProperty('--color-tabset-divider-line', groupBorderColor);
 
-  // Apply tab button styling via direct CSS injection
-  // We need specific selectors for the three tab states
+  // Apply tab sizing via direct CSS injection (colors come from theme)
   let styleEl = document.getElementById('flexlayout-preferences-style');
   if (!styleEl) {
     styleEl = document.createElement('style');
@@ -245,7 +237,7 @@ function applyUIPreferences(overrides = null) {
   }
 
   styleEl.textContent = `
-    /* Base tab button styling */
+    /* Tab sizing preferences (colors from theme.css) */
     .flexlayout__tab_button {
       padding: 4px ${tabPaddingRight}px 4px ${tabPaddingLeft}px !important;
       height: ${tabsHeight}px !important;
@@ -256,31 +248,6 @@ function applyUIPreferences(overrides = null) {
     .flexlayout__tabset_tabbar_outer {
       font-size: ${tabsFontSize}px !important;
       min-height: ${tabsHeight + 4}px !important;
-    }
-    .flexlayout__tabset_tabbar_outer_top,
-    .flexlayout__tabset_tabbar_outer_bottom {
-      background-color: ${tabContainerBackground} !important;
-    }
-    .flexlayout__tabset-header {
-      background-color: ${tabContainerBackground} !important;
-    }
-
-    /* VISIBLE: Default style for all selected tabs (in non-focused panels) */
-    .flexlayout__tab_button--selected {
-      background-color: ${visibleTabBackground} !important;
-      color: ${visibleTabColor} !important;
-    }
-
-    /* FOCUSED: Override for tabs in the active/focused panel (higher specificity wins) */
-    .flexlayout__tabset-selected .flexlayout__tab_button--selected {
-      background-color: ${focusedTabBackground} !important;
-      color: ${focusedTabColor} !important;
-    }
-
-    /* HIDDEN: Unselected/background tabs (behind other tabs in same panel) */
-    .flexlayout__tab_button--unselected {
-      background-color: ${hiddenTabBackground} !important;
-      color: ${hiddenTabColor} !important;
     }
   `;
 
@@ -1097,12 +1064,26 @@ export function FlexLayoutWorkspace() {
         case 'open-file-queue':
           openModule('file-queue');
           break;
+        case 'open-theme-editor':
+          openModule('theme-editor');
+          break;
         case 'layout-queue-review':
           loadLayout('queue-review');
           break;
 
         case 'open-preferences':
-          preferencesUI.show();
+          openModule('preferences');
+          break;
+
+        // Theme commands
+        case 'theme-light':
+          themeManager.setPreference('light');
+          break;
+        case 'theme-dark':
+          themeManager.setPreference('dark');
+          break;
+        case 'theme-system':
+          themeManager.setPreference('system');
           break;
 
         // View commands - broadcast to modules

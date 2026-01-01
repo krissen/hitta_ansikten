@@ -1,19 +1,20 @@
 /**
  * FileQueueModule Styles
+ * Uses CSS variables from theme.css for consistent theming (light and dark)
  */
 
 .file-queue-module {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f5f5f5;
-  font-size: 13px;
+  background: var(--bg-primary);
+  font-size: var(--font-base);
   overflow: hidden;
   outline: none;
 }
 
 .file-queue-module:focus {
-  outline: 2px solid #3f51b5;
+  outline: 2px solid var(--accent-primary);
   outline-offset: -2px;
 }
 
@@ -22,32 +23,32 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 10px;
-  background: #e0e0e0;
-  border-bottom: 1px solid #ccc;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-medium);
 }
 
 .file-queue-title {
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .file-queue-actions {
   display: flex;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .file-queue-btn {
   width: 24px;
   height: 24px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.1s ease, background 0.15s ease;
+  transition: transform var(--transition-fast), background var(--transition-base);
 }
 
 .file-queue-btn:active {
@@ -55,31 +56,31 @@
 }
 
 .file-queue-btn.add {
-  background: #666;
-  color: white;
+  background: var(--bg-hover);
+  color: var(--text-inverse);
 }
 
 .file-queue-btn.add:hover {
-  background: #555;
+  background: var(--bg-active);
 }
 
 .file-queue-btn.folder {
-  background: #666;
-  color: white;
-  font-size: 12px;
+  background: var(--bg-hover);
+  color: var(--text-inverse);
+  font-size: var(--font-sm);
 }
 
 .file-queue-btn.folder:hover {
-  background: #555;
+  background: var(--bg-active);
 }
 
 .file-queue-btn.settings {
-  background: #666;
-  color: white;
+  background: var(--bg-hover);
+  color: var(--text-inverse);
 }
 
 .file-queue-btn.settings:hover {
-  background: #555;
+  background: var(--bg-active);
 }
 
 /* Toolbar */
@@ -87,18 +88,18 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 10px;
-  background: #eee;
-  border-bottom: 1px solid #ddd;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .fix-mode-toggle,
 .preview-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #666;
+  gap: var(--space-xs);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
@@ -109,18 +110,18 @@
 
 
 .clear-btn {
-  padding: 3px 8px;
-  font-size: 11px;
-  border: 1px solid #ccc;
-  background: #fff;
-  border-radius: 3px;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-sm);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  color: #666;
-  transition: transform 0.1s ease, background 0.15s ease;
+  color: var(--text-secondary);
+  transition: transform var(--transition-fast), background var(--transition-base);
 }
 
 .clear-btn:hover:not(:disabled) {
-  background: #f0f0f0;
+  background: var(--bg-hover);
 }
 
 .clear-btn:active:not(:disabled) {
@@ -133,19 +134,19 @@
 }
 
 .clear-btn.clear-all {
-  color: #c62828;
-  border-color: #ffcdd2;
+  color: var(--color-error);
+  border-color: var(--color-error-bg);
 }
 
 .clear-btn.clear-all:hover {
-  background: #ffebee;
+  background: var(--color-error-bg);
 }
 
 /* File list */
 .file-queue-list {
   flex: 1;
   overflow-y: auto;
-  padding: 4px;
+  padding: var(--space-xs);
 }
 
 .file-queue-empty {
@@ -154,77 +155,77 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: var(--text-tertiary);
   text-align: center;
 }
 
 .file-queue-empty p {
-  margin: 4px 0;
+  margin: var(--space-xs) 0;
 }
 
 .file-queue-empty .hint {
-  font-size: 11px;
-  color: #aaa;
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
 }
 
 /* File item */
 .file-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
   margin-bottom: 2px;
-  background: #fff;
-  border-radius: 4px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
   cursor: pointer;
   border: 1px solid transparent;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--transition-base), border-color var(--transition-base);
   min-height: 28px; /* Consistent row height */
   user-select: none; /* Prevent text selection during shift-click */
   -webkit-user-select: none;
 }
 
 .file-item:hover {
-  background: #f0f8ff;
-  border-color: #c0d8f0;
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
 }
 
 .file-item.active {
-  background: #e3f2fd;
-  border-color: #90caf9;
+  background: var(--color-info-bg);
+  border-color: var(--color-info);
 }
 
 .file-item.completed {
-  background: #e8f5e9;
+  background: var(--color-success-bg);
 }
 
 .file-item.error {
-  background: #ffebee;
+  background: var(--color-error-bg);
 }
 
 .file-item.missing {
-  background: #fff3e0;
+  background: var(--color-warning-bg);
   opacity: 0.7;
 }
 
 .file-item.missing .file-name {
   text-decoration: line-through;
-  color: #999;
+  color: var(--text-tertiary);
 }
 
 .file-item.selected {
-  background: #e8eaf6;
-  border-color: #9fa8da;
+  background: var(--accent-primary-alpha-20);
+  border-color: var(--accent-primary);
 }
 
 .file-item.selected.active {
-  background: #c5cae9;
-  border-color: #7986cb;
+  background: var(--accent-primary-alpha-20);
+  border-color: var(--accent-primary-hover);
 }
 
 /* Already processed file - slightly muted when not in fix-mode */
 .file-item.already-processed:not(.completed) {
-  background: #f0f5f0;
+  background: var(--color-success-bg);
 }
 
 /* Selection checkbox - hidden by default, shown on hover or when selected */
@@ -234,9 +235,9 @@
   height: 14px;
   margin: 0;
   cursor: pointer;
-  accent-color: #3f51b5;
+  accent-color: var(--accent-primary);
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--transition-base);
 }
 
 .file-item:hover .file-select-checkbox,
@@ -253,47 +254,49 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--font-sm);
   line-height: 1;
 }
 
 .status-icon.completed {
-  color: #4caf50;
+  color: var(--color-success);
 }
 
 .status-icon.active {
-  color: #2196f3;
-  /* ► character sits slightly high, adjust down */
+  color: var(--color-info);
+  /* ► glyph sits slightly high, adjust down */
   transform: translateY(1px);
 }
 
 .status-icon.pending {
-  color: #9e9e9e;
+  color: var(--text-tertiary);
 }
 
 /* Already processed, fix-mode OFF: muted gray-green checkmark */
 .status-icon.already-done {
-  color: #8fbc8f;
+  color: var(--color-success);
+  opacity: 0.6;
 }
 
 /* Already processed, fix-mode ON: gray with green tint (ready to reprocess) */
 .status-icon.pending-reprocess {
-  color: #7a9a7a;
+  color: var(--color-success);
+  opacity: 0.5;
 }
 
 .status-icon.error {
-  color: #f44336;
+  color: var(--color-error);
 }
 
 .status-icon.missing {
-  color: #ff9800;
+  color: var(--color-warning);
 }
 
 /* File status text - fixed width for alignment */
 .file-status {
   flex-shrink: 0;
-  font-size: 11px;
-  color: #888;
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
   width: 65px;
   text-align: right;
 }
@@ -305,13 +308,13 @@
   height: 18px;
   border: none;
   background: transparent;
-  color: #999;
+  color: var(--text-tertiary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-md);
   line-height: 1;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s, transform 0.1s ease;
+  transition: opacity var(--transition-base), background var(--transition-base), transform var(--transition-fast);
 }
 
 .file-item:hover .remove-btn {
@@ -323,65 +326,65 @@
 }
 
 .remove-btn:hover {
-  background: #ffcdd2;
-  color: #c62828;
+  background: var(--color-error-bg);
+  color: var(--color-error);
 }
 
 /* Footer */
 .file-queue-footer {
-  padding: 8px 10px;
-  background: #e0e0e0;
-  border-top: 1px solid #ccc;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-medium);
 }
 
 /* Progress */
 .file-queue-progress {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
 }
 
 .progress-text {
-  font-size: 12px;
-  color: #666;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
   min-width: 35px;
 }
 
 .progress-bar {
   flex: 1;
   height: 6px;
-  background: #ccc;
-  border-radius: 3px;
+  background: var(--border-medium);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: #4caf50;
-  transition: width 0.3s;
+  background: var(--color-success);
+  transition: width var(--transition-slow);
 }
 
 /* Controls */
 .file-queue-controls {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--space-xs);
 }
 
 .control-btn {
-  padding: 4px 10px;
-  font-size: 12px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--font-sm);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  background: #666;
-  color: white;
-  transition: transform 0.1s ease, background 0.15s ease;
+  background: var(--bg-hover);
+  color: var(--text-inverse);
+  transition: transform var(--transition-fast), background var(--transition-base);
 }
 
 .control-btn:hover {
-  background: #555;
+  background: var(--bg-active);
 }
 
 .control-btn:active:not(:disabled) {
@@ -405,21 +408,21 @@
 
 /* Preprocessing indicator */
 .preprocess-indicator {
-  font-size: 12px;
+  font-size: var(--font-sm);
   line-height: 1;
 }
 
 .preprocess-indicator.loading {
-  color: #ff9800;
+  color: var(--color-warning);
   animation: spin 1s linear infinite;
 }
 
 .preprocess-indicator.completed {
-  color: #4caf50;
+  color: var(--color-success);
 }
 
 .preprocess-indicator.error {
-  color: #f44336;
+  color: var(--color-error);
   font-weight: bold;
 }
 
@@ -435,7 +438,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #333;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
 }
 
 /* Inline preview of new name */
@@ -443,15 +447,15 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   min-width: 0;
   overflow: hidden;
 }
 
 .inline-preview .arrow {
   flex-shrink: 0;
-  color: #999;
-  font-size: 11px;
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
 }
 
 .inline-preview .new-name {
@@ -459,20 +463,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #9575cd;
-  font-size: 11px;
+  color: var(--accent-secondary);
+  font-size: var(--font-sm);
+  font-family: var(--font-mono);
 }
 
 .inline-preview.error .preview-error {
-  color: #e57373;
-  font-size: 11px;
+  color: var(--color-error);
+  font-size: var(--font-sm);
   font-style: italic;
 }
 
 /* Muted preview status (no persons, already renamed) - softer styling */
 .inline-preview.muted .preview-muted {
-  color: #b39ddb;
-  font-size: 11px;
+  color: var(--accent-secondary);
+  opacity: 0.7;
+  font-size: var(--font-sm);
   font-style: normal;
 }
 
@@ -480,11 +486,11 @@
 .face-count {
   flex-shrink: 0;
   width: 38px;
-  font-size: 11px;
-  color: #999;
-  background: #f0f0f0;
+  font-size: var(--font-sm);
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
   padding: 2px 0;
-  border-radius: 10px;
+  border-radius: var(--radius-full);
   text-align: center;
   display: flex;
   align-items: center;
@@ -494,32 +500,34 @@
 /* Face count when info is loaded */
 .file-item.completed .face-count,
 .file-item.already-processed .face-count {
-  background: #e8e8e8;
-  color: #666;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
 .file-item.completed .face-count {
-  background: #c8e6c9;
-  color: #2e7d32;
+  background: var(--color-success-bg);
+  color: var(--color-success);
 }
 
 .file-item.already-processed:not(.completed) .face-count {
-  background: #dcedc8;
-  color: #558b2f;
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  opacity: 0.8;
 }
 
 /* Unified tooltip */
 .file-tooltip {
   position: fixed;
-  z-index: 1000;
-  background: #333;
-  color: #fff;
-  padding: 10px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+  z-index: var(--z-tooltip);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: var(--space-md);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-sm);
   max-width: 400px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  box-shadow: var(--shadow-lg);
   pointer-events: none;
+  border: 1px solid var(--border-medium);
 }
 
 .file-tooltip::before {
@@ -529,13 +537,13 @@
   left: 20px;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-bottom: 6px solid #333;
+  border-bottom: 6px solid var(--bg-tertiary);
 }
 
 .tooltip-row {
   display: flex;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
 }
 
 .tooltip-row:last-child {
@@ -543,60 +551,62 @@
 }
 
 .tooltip-label {
-  color: #aaa;
+  color: var(--text-secondary);
   flex-shrink: 0;
   min-width: 60px;
 }
 
 .tooltip-value {
-  color: #fff;
+  color: var(--text-primary);
   word-break: break-all;
+  font-family: var(--font-mono);
 }
 
 .tooltip-path {
-  font-size: 11px;
-  color: #ccc;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
 }
 
 .tooltip-row.tooltip-newname {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid #555;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border-medium);
 }
 
 .tooltip-row.tooltip-newname .tooltip-value {
-  color: #b39ddb;
+  color: var(--accent-secondary);
   font-weight: 500;
 }
 
 .tooltip-row.tooltip-error .tooltip-value {
-  color: #ef9a9a;
+  color: var(--color-error);
 }
 
 /* Toast notifications container */
 .file-queue-toasts {
   position: absolute;
   bottom: 60px;
-  right: 10px;
+  right: var(--space-md);
   display: flex;
   flex-direction: column-reverse;
-  gap: 8px;
-  z-index: 100;
+  gap: var(--space-sm);
+  z-index: var(--z-dropdown);
   pointer-events: none;
 }
 
 /* Individual toast */
 .file-queue-toast {
-  padding: 10px 16px;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-base);
   font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  box-shadow: var(--shadow-lg);
   max-width: 280px;
   pointer-events: auto;
   opacity: 0.92;
   animation: toast-slide-in 0.3s ease-out forwards;
-  transition: transform 0.3s ease, opacity 0.3s ease;
+  transition: transform var(--transition-slow), opacity var(--transition-slow);
 }
 
 .file-queue-toast.exiting {
@@ -604,23 +614,23 @@
 }
 
 .file-queue-toast.success {
-  background: rgba(76, 175, 80, 0.95);
-  color: white;
+  background: var(--color-success);
+  color: var(--text-inverse);
 }
 
 .file-queue-toast.info {
-  background: rgba(33, 150, 243, 0.95);
-  color: white;
+  background: var(--color-info);
+  color: var(--text-inverse);
 }
 
 .file-queue-toast.warning {
-  background: rgba(255, 152, 0, 0.95);
-  color: white;
+  background: var(--color-warning);
+  color: var(--text-inverse);
 }
 
 .file-queue-toast.error {
-  background: rgba(244, 67, 54, 0.95);
-  color: white;
+  background: var(--color-error);
+  color: var(--text-inverse);
 }
 
 @keyframes toast-slide-in {

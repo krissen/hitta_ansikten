@@ -21,7 +21,7 @@ export class PreferencesManager {
         pythonPath: '/Users/krisniem/.local/share/miniforge3/envs/hitta_ansikten/bin/python3'
       },
       ui: {
-        theme: 'light', // 'light' | 'dark'
+        theme: 'system', // 'dark' | 'light' | 'system'
         defaultLayout: 'standard', // 'standard' | 'compact' | 'review-focused'
         showWelcome: true, // Show welcome message on first launch
         logLevel: 'info' // 'debug' | 'info' | 'warn' | 'error'
@@ -37,20 +37,8 @@ export class PreferencesManager {
         tabPaddingLeft: 8, // Left padding in tab (0-20)
         tabPaddingRight: 6, // Right padding in tab (0-20)
         tabMinGap: 10, // Minimum gap between text and close button (0-30)
-        tabMinWidth: 0, // Minimum tab width override (0 = auto based on content)
-
-        // Tab colors - three states:
-        // 1. Focused: selected tab in the focused panel (keyboard focus)
-        // 2. Visible: selected tab in non-focused panels
-        // 3. Hidden: unselected tabs (behind other tabs in same panel)
-        focusedTabBackground: '#ffffff',
-        focusedTabColor: '#1a1a1a',
-        visibleTabBackground: '#e8e8e8',
-        visibleTabColor: '#555555',
-        hiddenTabBackground: '#d8d8d8',
-        hiddenTabColor: '#999999',
-        tabContainerBackground: '#d0d0d0',
-        groupBorderColor: 'rgba(128, 128, 128, 0.2)'
+        tabMinWidth: 0 // Minimum tab width override (0 = auto based on content)
+        // Note: Tab colors now follow theme (theme.css)
       },
       imageViewer: {
         zoomSpeed: 1.07, // Zoom factor per step

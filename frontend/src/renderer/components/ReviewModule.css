@@ -1,96 +1,97 @@
 /**
  * ReviewModule Styles
+ * Uses CSS variables from theme.css for consistent theming
  */
 
 .review-module {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #252526;
+  background: var(--bg-secondary);
   overflow: hidden;
 }
 
 .review-header {
-  padding: 8px 12px;
-  background: #1e1e1e;
-  border-bottom: 1px solid #3e3e42;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-medium);
   flex-shrink: 0;
 }
 
 .review-status {
-  font-size: 11px;
-  color: #858585;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
 }
 
 .face-grid {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: var(--space-sm);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
+  gap: var(--space-sm);
   align-content: start;
 }
 
 .face-card {
-  background: #3c3c3c;
-  border-radius: 6px;
-  padding: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-xs);
   position: relative;
   cursor: pointer;
   border: 2px solid transparent;
 }
 
 .face-card:hover {
-  background: #454545;
+  background: var(--bg-hover);
 }
 
 .face-card.active {
-  border-color: #2196f3;
-  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+  border-color: var(--color-info);
+  box-shadow: 0 4px 8px color-mix(in srgb, var(--color-info) 30%, transparent);
 }
 
 .face-card.confirmed {
-  border-color: #4caf50;
+  border-color: var(--color-success);
 }
 
 .face-card.rejected {
-  border-color: #ff9800;
+  border-color: var(--color-warning);
   opacity: 0.7;
 }
 
 .face-card.manual {
   border-style: dashed;
-  border-color: #9c27b0;
+  border-color: var(--accent-secondary);
 }
 
 .face-card.manual .face-thumbnail {
-  background: linear-gradient(135deg, #3c3c3c 25%, #4a4a4a 25%, #4a4a4a 50%, #3c3c3c 50%, #3c3c3c 75%, #4a4a4a 75%);
+  background: linear-gradient(135deg, var(--bg-elevated) 25%, var(--bg-hover) 25%, var(--bg-hover) 50%, var(--bg-elevated) 50%, var(--bg-elevated) 75%, var(--bg-hover) 75%);
   background-size: 10px 10px;
 }
 
 .face-number {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  font-size: 12px;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  background: color-mix(in srgb, var(--bg-primary) 85%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-sm);
   font-weight: bold;
-  padding: 2px 6px;
-  border-radius: 3px;
-  z-index: 10;
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-sm);
+  z-index: var(--z-base);
 }
 
 .face-thumbnail {
   width: 100%;
   aspect-ratio: 1;
-  background: #2a2a2a;
-  border-radius: 4px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -105,64 +106,64 @@
 }
 
 .face-info {
-  font-size: 10px;
-  color: #858585;
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
 }
 
 .face-confidence {
   font-weight: 600;
-  color: #4ec9b0;
+  color: var(--accent-primary);
 }
 
 .face-confidence.manual {
-  color: #ce93d8;
+  color: var(--accent-secondary);
   font-style: italic;
 }
 
 .face-actions {
   display: flex;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .face-actions input {
   flex: 1;
-  padding: 4px 6px;
-  border: 1px solid #3e3e42;
-  border-radius: 4px;
-  font-size: 11px;
+  padding: var(--space-xs) var(--space-xs);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
   min-width: 0;
-  background: #2a2a2a;
-  color: #cccccc;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .face-actions input:focus {
   outline: none;
-  border-color: #2196f3;
+  border-color: var(--color-info);
 }
 
 .status-text {
-  font-size: 11px;
-  padding: 4px;
+  font-size: var(--font-sm);
+  padding: var(--space-xs);
 }
 
 .status-text.confirmed {
-  color: #4caf50;
+  color: var(--color-success);
 }
 
 .status-text.rejected {
-  color: #ff9800;
+  color: var(--color-warning);
 }
 
 .loading {
   text-align: center;
-  padding: 32px;
-  color: #858585;
+  padding: var(--space-2xl);
+  color: var(--text-secondary);
   grid-column: 1 / -1;
 }
 
 /* Probable ignore styling */
 .face-card.probable-ignore {
-  border-color: #9e9e9e;
+  border-color: var(--text-tertiary);
   opacity: 0.8;
 }
 
@@ -172,19 +173,19 @@
 
 .match-case {
   font-size: 9px;
-  padding: 2px 4px;
+  padding: 2px var(--space-xs);
   border-radius: 2px;
   margin-top: 2px;
 }
 
 .match-case.probable-ignore {
-  background: rgba(158, 158, 158, 0.3);
-  color: #9e9e9e;
+  background: color-mix(in srgb, var(--text-tertiary) 30%, transparent);
+  color: var(--text-tertiary);
 }
 
 .match-case.uncertain {
-  background: rgba(255, 193, 7, 0.2);
-  color: #ffc107;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
 }
 
 /* Face card inline alternatives */
@@ -192,28 +193,28 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid #4e4e52;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border-medium);
 }
 
 .alt-chip {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
-  border-radius: 3px;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-xs);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.05);
-  font-size: 11px;
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  font-size: var(--font-sm);
 }
 
 .alt-chip:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: color-mix(in srgb, var(--text-primary) 15%, transparent);
 }
 
 .alt-chip.recommended {
-  background: rgba(76, 175, 80, 0.25);
+  background: var(--color-success-bg);
 }
 
 .alt-chip.ignored {
@@ -221,8 +222,8 @@
 }
 
 .alt-chip .alt-key {
-  background: #4e4e52;
-  color: #fff;
+  background: var(--border-medium);
+  color: var(--text-inverse);
   width: 14px;
   height: 14px;
   border-radius: 2px;
@@ -236,18 +237,18 @@
 
 .alt-chip .alt-name {
   flex: 1;
-  color: #cccccc;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .alt-chip .alt-conf {
-  color: #4ec9b0;
-  font-size: 10px;
+  color: var(--accent-primary);
+  font-size: var(--font-xs);
   flex-shrink: 0;
 }
 
 .alt-chip.ignored .alt-conf {
-  color: #9e9e9e;
+  color: var(--text-tertiary);
 }
