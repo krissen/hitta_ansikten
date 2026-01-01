@@ -1244,14 +1244,24 @@ export class PreferencesUI {
       this.cycleTab(1);
     });
 
-    // Scroll wheel navigation for tabs
+    // Scroll wheel navigation for tabs - accumulate delta to avoid oversensitivity
     const tabsContainer = this.modal.querySelector('.pref-tabs-container');
+    let accumulatedDelta = 0;
+    const SCROLL_THRESHOLD = 50; // Pixels of scroll needed to switch tab
+
     tabsContainer.addEventListener('wheel', (e) => {
       e.preventDefault();
-      if (e.deltaY > 0 || e.deltaX > 0) {
-        this.cycleTab(1);
-      } else if (e.deltaY < 0 || e.deltaX < 0) {
-        this.cycleTab(-1);
+      // Accumulate delta (use Y primarily, fall back to X for horizontal scroll)
+      accumulatedDelta += Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+
+      // Only switch tab when threshold is reached
+      if (Math.abs(accumulatedDelta) >= SCROLL_THRESHOLD) {
+        if (accumulatedDelta > 0) {
+          this.cycleTab(1);
+        } else {
+          this.cycleTab(-1);
+        }
+        accumulatedDelta = 0; // Reset after switching
       }
     }, { passive: false });
 
