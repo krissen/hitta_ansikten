@@ -608,40 +608,6 @@ export function FileQueueModule() {
   // Track last selected index for shift-click range selection
   const lastSelectedIndexRef = useRef(-1);
 
-  // Handle file item click with modifier key support
-  const handleItemClick = useCallback((index, event) => {
-    const item = queue[index];
-    if (!item) return;
-
-    // Shift+Click: Select range
-    if (event.shiftKey && lastSelectedIndexRef.current >= 0) {
-      event.preventDefault(); // Prevent text selection
-      const start = Math.min(lastSelectedIndexRef.current, index);
-      const end = Math.max(lastSelectedIndexRef.current, index);
-      const rangeIds = queue.slice(start, end + 1).map(q => q.id);
-
-      setSelectedFiles(prev => {
-        const next = new Set(prev);
-        rangeIds.forEach(id => next.add(id));
-        return next;
-      });
-      // Don't update lastSelectedIndex on shift-click (keep anchor)
-      return;
-    }
-
-    // Cmd/Ctrl+Click: Toggle selection without loading
-    if (event.metaKey || event.ctrlKey) {
-      event.preventDefault();
-      toggleFileSelection(item.id);
-      lastSelectedIndexRef.current = index;
-      return;
-    }
-
-    // Normal click: Load the file
-    lastSelectedIndexRef.current = index;
-    loadFile(index);
-  }, [queue, toggleFileSelection, loadFile]);
-
   // Load file by index
   const loadFile = useCallback(async (index) => {
     const currentQueue = queueRef.current;
@@ -702,6 +668,40 @@ export function FileQueueModule() {
     debug('FileQueue', 'Emitting load-image for:', item.filePath);
     emit('load-image', { imagePath: item.filePath });
   }, [fixMode, api, loadProcessedFiles, emit, showToast]);
+
+  // Handle file item click with modifier key support
+  const handleItemClick = useCallback((index, event) => {
+    const item = queue[index];
+    if (!item) return;
+
+    // Shift+Click: Select range
+    if (event.shiftKey && lastSelectedIndexRef.current >= 0) {
+      event.preventDefault(); // Prevent text selection
+      const start = Math.min(lastSelectedIndexRef.current, index);
+      const end = Math.max(lastSelectedIndexRef.current, index);
+      const rangeIds = queue.slice(start, end + 1).map(q => q.id);
+
+      setSelectedFiles(prev => {
+        const next = new Set(prev);
+        rangeIds.forEach(id => next.add(id));
+        return next;
+      });
+      // Don't update lastSelectedIndex on shift-click (keep anchor)
+      return;
+    }
+
+    // Cmd/Ctrl+Click: Toggle selection without loading
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      toggleFileSelection(item.id);
+      lastSelectedIndexRef.current = index;
+      return;
+    }
+
+    // Normal click: Load the file
+    lastSelectedIndexRef.current = index;
+    loadFile(index);
+  }, [queue, toggleFileSelection, loadFile]);
 
   // Execute pending auto-load (after loadFile is defined)
   useEffect(() => {

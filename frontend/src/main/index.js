@@ -325,10 +325,13 @@ ipcMain.handle('open-file-dialog', async () => {
   return result.filePaths[0];
 });
 
-// Multi-file dialog for File Queue
+// Multi-file dialog for File Queue (supports files and folders)
 ipcMain.handle('open-multi-file-dialog', async () => {
+  const fs = require('fs');
+  const pathModule = require('path');
+
   const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile', 'multiSelections'],
+    properties: ['openFile', 'openDirectory', 'multiSelections'],
     filters: [
       { name: 'RAW Images', extensions: ['nef', 'NEF', 'cr2', 'CR2', 'arw', 'ARW'] },
       { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'nef', 'cr2', 'arw'] },
@@ -336,11 +339,45 @@ ipcMain.handle('open-multi-file-dialog', async () => {
     ]
   });
 
-  if (result.canceled) {
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
     return null;
   }
 
-  return result.filePaths;
+  // Expand directories to their image files
+  const supportedExtensions = ['.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'];
+  const expandedPaths = [];
+
+  for (const selectedPath of result.filePaths) {
+    try {
+      const stat = fs.statSync(selectedPath);
+      if (stat.isDirectory()) {
+        // Read directory and filter for supported images
+        const entries = fs.readdirSync(selectedPath);
+        for (const entry of entries) {
+          const ext = pathModule.extname(entry).toLowerCase();
+          if (supportedExtensions.includes(ext)) {
+            expandedPaths.push(pathModule.join(selectedPath, entry));
+          }
+        }
+      } else {
+        // Regular file
+        expandedPaths.push(selectedPath);
+      }
+    } catch (err) {
+      console.error('Error processing path:', selectedPath, err);
+      // Still include the path, let the queue handle errors
+      expandedPaths.push(selectedPath);
+    }
+  }
+
+  // Sort files (natural sort for filenames with numbers)
+  expandedPaths.sort((a, b) => {
+    const nameA = pathModule.basename(a);
+    const nameB = pathModule.basename(b);
+    return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
+  return expandedPaths;
 });
 
 // Expand glob pattern to file paths
