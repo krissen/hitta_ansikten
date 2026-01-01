@@ -254,6 +254,8 @@
 
 .status-icon.active {
   color: #2196f3;
+  /* ► character sits slightly high, adjust down */
+  transform: translateY(1px);
 }
 
 .status-icon.pending {
@@ -571,48 +573,74 @@
   color: #ef9a9a;
 }
 
-/* Toast notification */
-.file-queue-toast {
+/* Toast notifications container */
+.file-queue-toasts {
   position: absolute;
   bottom: 60px;
   right: 10px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* Individual toast */
+.file-queue-toast {
   padding: 10px 16px;
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
   box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-  animation: toast-slide-in 0.3s ease-out;
-  z-index: 100;
   max-width: 280px;
+  pointer-events: auto;
+  opacity: 0.92;
+  animation: toast-slide-in 0.3s ease-out forwards;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.file-queue-toast.exiting {
+  animation: toast-slide-out 0.3s ease-in forwards;
 }
 
 .file-queue-toast.success {
-  background: #4caf50;
+  background: rgba(76, 175, 80, 0.95);
   color: white;
 }
 
 .file-queue-toast.info {
-  background: #2196f3;
+  background: rgba(33, 150, 243, 0.95);
   color: white;
 }
 
 .file-queue-toast.warning {
-  background: #ff9800;
+  background: rgba(255, 152, 0, 0.95);
   color: white;
 }
 
 .file-queue-toast.error {
-  background: #f44336;
+  background: rgba(244, 67, 54, 0.95);
   color: white;
 }
 
 @keyframes toast-slide-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateX(20px);
   }
   to {
-    opacity: 1;
-    transform: translateY(0);
+    opacity: 0.92;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    opacity: 0.92;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
   }
 }

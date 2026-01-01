@@ -106,34 +106,27 @@ export function FileQueueModule() {
   const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
   const [renameInProgress, setRenameInProgress] = useState(false);
 
-  // Toast notification
-  const [toast, setToast] = useState(null); // { message, type: 'success' | 'error' | 'info' | 'warning' }
-  const toastTimeoutRef = useRef(null);
-  const toastQueueRef = useRef([]); // Queue for multiple toasts
+  // Toast notification - supports stacking multiple toasts
+  const [toasts, setToasts] = useState([]); // Array of { id, message, type, exiting }
+  const toastIdRef = useRef(0);
 
   const showToast = useCallback((message, type = 'success', duration = 4000) => {
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
-    setToast({ message, type });
-    toastTimeoutRef.current = setTimeout(() => {
-      setToast(null);
-      // Show next queued toast if any
-      if (toastQueueRef.current.length > 0) {
-        const next = toastQueueRef.current.shift();
-        setTimeout(() => showToast(next.message, next.type, next.duration), 200);
-      }
+    const id = ++toastIdRef.current;
+    setToasts(prev => [...prev, { id, message, type, exiting: false }]);
+
+    // Auto-remove after duration
+    setTimeout(() => {
+      // Mark as exiting first (for fade-out animation)
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
+      // Remove after animation
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 300);
     }, duration);
   }, []);
 
-  // Queue a toast to show after current one finishes
-  const queueToast = useCallback((message, type = 'info', duration = 4000) => {
-    if (toast) {
-      toastQueueRef.current.push({ message, type, duration });
-    } else {
-      showToast(message, type, duration);
-    }
-  }, [toast, showToast]);
+  // Alias for backwards compatibility
+  const queueToast = showToast;
 
   // Track missing files for batched removal
   const missingFilesRef = useRef([]);
@@ -302,12 +295,19 @@ export function FileQueueModule() {
         indexToLoad = nextPending >= 0 ? nextPending : queue.findIndex(item => item.status === 'pending');
       }
 
-      // Start preprocessing for restored queue items (skip completed and the file we're about to load)
+      // Start preprocessing for restored queue items
       if (preprocessingManager.current) {
+        // First, check the file we're about to load (with priority)
+        // This ensures we detect if it's missing before trying to load it
+        if (indexToLoad >= 0 && queue[indexToLoad]) {
+          preprocessingManager.current.addToQueue(queue[indexToLoad].filePath, { priority: true });
+        }
+
+        // Then add remaining pending items
         const pendingItems = queue.filter((item, i) =>
           item.status !== 'completed' && i !== indexToLoad
         );
-        debug('FileQueue', 'Starting preprocessing for', pendingItems.length, 'items (skipping active/completed)');
+        debug('FileQueue', 'Starting preprocessing for', pendingItems.length + (indexToLoad >= 0 ? 1 : 0), 'items');
         pendingItems.forEach(item => {
           preprocessingManager.current.addToQueue(item.filePath);
         });
@@ -1014,12 +1014,18 @@ export function FileQueueModule() {
         )}
       </div>
 
-      {/* Toast notification */}
-      {toast && (
-        <div className={`file-queue-toast ${toast.type}`}>
-          {toast.message}
-        </div>
-      )}
+      {/* Toast notifications - stacked from bottom */}
+      <div className="file-queue-toasts">
+        {toasts.map((t, index) => (
+          <div
+            key={t.id}
+            className={`file-queue-toast ${t.type} ${t.exiting ? 'exiting' : ''}`}
+            style={{ '--toast-index': toasts.length - 1 - index }}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
 
       {/* Footer with progress */}
       {queue.length > 0 && (
