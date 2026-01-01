@@ -17,8 +17,8 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from face_backends import create_backend
-from faceid_db import load_database, save_database, get_file_hash
-from hitta_ansikten import load_config
+from faceid_db import load_database, save_database, get_file_hash, BASE_DIR
+from hitta_ansikten import load_config, log_attempt_stats
 import face_recognition
 import rawpy
 from PIL import Image
@@ -463,6 +463,74 @@ class DetectionService:
             "status": "success",
             "ignored_count": len(self.ignored_faces)
         }
+
+    async def mark_review_complete(
+        self,
+        image_path: str,
+        reviewed_faces: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Log completed review to attempt_stats.jsonl for rename functionality.
+
+        Args:
+            image_path: Path to the reviewed image
+            reviewed_faces: List of reviewed face data with:
+                - face_index: Detection order (0-based)
+                - face_id: Face identifier
+                - person_name: Confirmed name (None if ignored)
+                - is_ignored: Whether face was ignored
+
+        Returns:
+            Success status
+        """
+        logger.info(f"[DetectionService] Marking review complete for {image_path}")
+
+        # Get file hash
+        path = Path(image_path)
+        file_hash = get_file_hash(path) if path.exists() else None
+
+        # Build labels in expected format: "#1\nPersonName" or "#1\nignorerad"
+        labels = []
+        for face in sorted(reviewed_faces, key=lambda f: f.get('face_index', 0)):
+            face_index = face.get('face_index', 0)
+            if face.get('is_ignored'):
+                label = f"#{face_index + 1}\nignorerad"
+            elif face.get('person_name'):
+                label = f"#{face_index + 1}\n{face['person_name']}"
+            else:
+                # Skip faces without name and not ignored
+                continue
+            labels.append({
+                "label": label,
+                "face_id": face.get('face_id', '')
+            })
+
+        # Build attempt info (simplified for API usage)
+        attempts = [{
+            "resolution": "api",
+            "face_count": len(reviewed_faces),
+            "source": "bildvisare"
+        }]
+
+        # Log to attempt_stats.jsonl
+        log_attempt_stats(
+            image_path=image_path,
+            attempts=attempts,
+            used_attempt_idx=0,
+            base_dir=BASE_DIR,
+            review_results=["ok"],
+            labels_per_attempt=[labels],
+            file_hash=file_hash
+        )
+
+        logger.info(f"[DetectionService] Logged {len(labels)} face labels to attempt_stats.jsonl")
+
+        return {
+            "status": "success",
+            "message": f"Review logged for {len(labels)} faces",
+            "labels_count": len(labels)
+        }
+
 
 # Singleton instance
 detection_service = DetectionService()

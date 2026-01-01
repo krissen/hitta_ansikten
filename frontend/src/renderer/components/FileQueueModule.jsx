@@ -48,6 +48,11 @@ export function FileQueueModule() {
   const [processedFiles, setProcessedFiles] = useState(new Set());
   const [preprocessingStatus, setPreprocessingStatus] = useState({}); // filePath -> status
 
+  // Rename state
+  const [showPreviewNames, setShowPreviewNames] = useState(false);
+  const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
+  const [renameInProgress, setRenameInProgress] = useState(false)
+
   // Get preprocessing manager (singleton)
   const preprocessingManager = useRef(null);
   if (!preprocessingManager.current) {
@@ -395,9 +400,133 @@ export function FileQueueModule() {
     advanceToNext();
   }, [advanceToNext]);
 
+  // Fetch rename preview from backend
+  const fetchRenamePreview = useCallback(async () => {
+    const completedPaths = queue
+      .filter(q => q.status === 'completed')
+      .map(q => q.filePath);
+
+    if (completedPaths.length === 0) {
+      setPreviewData({});
+      return;
+    }
+
+    try {
+      const result = await api.post('/api/files/rename-preview', {
+        file_paths: completedPaths
+      });
+
+      // Build lookup: path -> { newName, status, persons }
+      const lookup = {};
+      for (const item of result.items) {
+        lookup[item.original_path] = {
+          newName: item.new_name,
+          status: item.status,
+          persons: item.persons || []
+        };
+      }
+      setPreviewData(lookup);
+      debug('FileQueue', 'Fetched rename preview for', completedPaths.length, 'files');
+    } catch (err) {
+      debugError('FileQueue', 'Failed to fetch rename preview:', err);
+      setPreviewData({});
+    }
+  }, [queue, api]);
+
+  // Handle preview toggle
+  const handlePreviewToggle = useCallback(async (e) => {
+    const show = e.target.checked;
+    setShowPreviewNames(show);
+
+    if (show && !previewData) {
+      await fetchRenamePreview();
+    }
+  }, [previewData, fetchRenamePreview]);
+
+  // Handle rename action
+  const handleRename = useCallback(async () => {
+    const completedPaths = queue
+      .filter(q => q.status === 'completed')
+      .map(q => q.filePath);
+
+    if (completedPaths.length === 0) return;
+
+    // Check if confirmation is required
+    const requireConfirmation = (() => {
+      try {
+        const stored = localStorage.getItem('bildvisare-preferences');
+        if (stored) {
+          const prefs = JSON.parse(stored);
+          return prefs.files?.requireRenameConfirmation ?? true;
+        }
+      } catch (e) {}
+      return true;
+    })();
+
+    if (requireConfirmation) {
+      // Show confirmation dialog
+      const confirmed = window.confirm(
+        `Rename ${completedPaths.length} file(s)?\n\n` +
+        `This will rename files based on detected faces.\n` +
+        `Format: YYMMDD_HHMMSS_Name1,_Name2.NEF`
+      );
+      if (!confirmed) return;
+    }
+
+    setRenameInProgress(true);
+
+    try {
+      const result = await api.post('/api/files/rename', {
+        file_paths: completedPaths
+      });
+
+      debug('FileQueue', 'Rename result:', result);
+
+      const renamedCount = result.renamed?.length || 0;
+      const skippedCount = result.skipped?.length || 0;
+      const errorCount = result.errors?.length || 0;
+
+      // Update queue with new filenames
+      if (renamedCount > 0) {
+        const renamedMap = {};
+        for (const r of result.renamed) {
+          renamedMap[r.original] = r.new;
+        }
+
+        setQueue(prev => prev.map(item => {
+          if (renamedMap[item.filePath]) {
+            const newPath = renamedMap[item.filePath];
+            return {
+              ...item,
+              filePath: newPath,
+              fileName: newPath.split('/').pop()
+            };
+          }
+          return item;
+        }));
+      }
+
+      // Clear preview data
+      setPreviewData(null);
+      setShowPreviewNames(false);
+
+      // Show summary
+      let message = `Renamed ${renamedCount} file(s)`;
+      if (skippedCount > 0) message += `, skipped ${skippedCount}`;
+      if (errorCount > 0) message += `, ${errorCount} error(s)`;
+      alert(message);
+
+    } catch (err) {
+      debugError('FileQueue', 'Rename failed:', err);
+      alert(`Rename failed: ${err.message}`);
+    } finally {
+      setRenameInProgress(false);
+    }
+  }, [queue, api]);
+
   // Listen for review-complete event
-  useModuleEvent('review-complete', useCallback(({ imagePath, success }) => {
-    debug('FileQueue', 'Review complete:', imagePath, success);
+  useModuleEvent('review-complete', useCallback(({ imagePath, success, reviewedFaces }) => {
+    debug('FileQueue', 'Review complete:', imagePath, success, 'faces:', reviewedFaces?.length);
 
     // Mark current file as completed
     if (currentFileRef.current === imagePath) {
@@ -418,10 +547,17 @@ export function FileQueueModule() {
 
       setQueue(prev => prev.map(item => {
         if (item.filePath === imagePath) {
-          return { ...item, status: success ? 'completed' : 'error' };
+          return {
+            ...item,
+            status: success ? 'completed' : 'error',
+            reviewedFaces: reviewedFaces || []
+          };
         }
         return item;
       }));
+
+      // Clear preview data when queue changes (force re-fetch)
+      setPreviewData(null);
 
       // Refresh processed files list
       loadProcessedFiles();
@@ -588,8 +724,18 @@ export function FileQueueModule() {
             checked={fixMode}
             onChange={(e) => setFixMode(e.target.checked)}
           />
-          <span>Fix mode (re-review)</span>
+          <span>Fix mode</span>
         </label>
+        {completedCount > 0 && (
+          <label className="preview-toggle">
+            <input
+              type="checkbox"
+              checked={showPreviewNames}
+              onChange={handlePreviewToggle}
+            />
+            <span>Show new names</span>
+          </label>
+        )}
         {queue.length > 0 && (
           <button
             className="clear-completed-btn"
@@ -618,6 +764,8 @@ export function FileQueueModule() {
               onRemove={() => removeFile(item.id)}
               fixMode={fixMode}
               preprocessingStatus={preprocessingStatus[item.filePath]}
+              showPreview={showPreviewNames}
+              previewInfo={previewData?.[item.filePath]}
             />
           ))
         )}
@@ -638,6 +786,16 @@ export function FileQueueModule() {
             </div>
           </div>
           <div className="file-queue-controls">
+            {completedCount > 0 && (
+              <button
+                className="control-btn rename"
+                onClick={handleRename}
+                disabled={renameInProgress}
+                title="Rename files based on detected faces"
+              >
+                {renameInProgress ? 'Renaming...' : `Rename (${completedCount})`}
+              </button>
+            )}
             {currentIndex >= 0 ? (
               <button className="control-btn" onClick={skipCurrent}>
                 Skip ⏭
@@ -669,7 +827,7 @@ export function FileQueueModule() {
 /**
  * FileQueueItem Component
  */
-function FileQueueItem({ item, isActive, onClick, onRemove, fixMode, preprocessingStatus }) {
+function FileQueueItem({ item, isActive, onClick, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
@@ -722,17 +880,47 @@ function FileQueueItem({ item, isActive, onClick, onRemove, fixMode, preprocessi
     return <span className="preprocess-indicator loading" title={`Preprocessing: ${preprocessingStatus}`}>⟳</span>;
   };
 
+  // Truncate filename for display
+  const truncateFilename = (name, maxLen = 25) => {
+    if (name.length <= maxLen) return name;
+    const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
+    const base = name.slice(0, name.length - ext.length);
+    const truncated = base.slice(0, maxLen - 3 - ext.length) + '...';
+    return truncated + ext;
+  };
+
+  // Show preview info if available
+  const shouldShowPreview = showPreview && item.status === 'completed' && previewInfo;
+  const newName = previewInfo?.newName;
+  const previewStatus = previewInfo?.status;
+
   return (
     <div
-      className={`file-item ${item.status} ${isActive ? 'active' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''}`}
+      className={`file-item ${item.status} ${isActive ? 'active' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
       onClick={onClick}
     >
       {getStatusIcon()}
-      <span className="file-name" title={item.filePath}>
-        {item.fileName}
-      </span>
+      <div className="file-name-container">
+        <span className="file-name" title={item.filePath}>
+          {truncateFilename(item.fileName)}
+        </span>
+        {shouldShowPreview && newName && (
+          <span className="file-preview-name" title={newName}>
+            <span className="arrow">→</span>
+            <span className={`new-name ${previewStatus !== 'ok' ? 'warning' : ''}`}>
+              {truncateFilename(newName)}
+            </span>
+          </span>
+        )}
+        {shouldShowPreview && !newName && previewStatus && (
+          <span className="file-preview-status" title={`Cannot rename: ${previewStatus}`}>
+            <span className="arrow">→</span>
+            <span className="preview-error">{previewStatus}</span>
+          </span>
+        )}
+      </div>
       {getPreprocessingIndicator()}
-      <span className="file-status">{getStatusText()}</span>
+      {!shouldShowPreview && <span className="file-status">{getStatusText()}</span>}
       <button
         className="remove-btn"
         onClick={(e) => {

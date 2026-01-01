@@ -396,6 +396,19 @@ export class PreferencesUI {
                 <small>Automatically load first pending file when app starts with files in queue</small>
               </div>
             </div>
+
+            <!-- File Rename Settings -->
+            <div class="pref-section">
+              <h3>File Rename</h3>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-files-requireRenameConfirmation" />
+                  Require confirmation before rename
+                </label>
+                <small>Show confirmation dialog before renaming files. When disabled, files are renamed immediately.</small>
+              </div>
+            </div>
           </div>
 
           <!-- Preprocessing Tab Panel -->
@@ -1212,6 +1225,9 @@ export class PreferencesUI {
     // File Queue settings
     this.setValue('fileQueue-autoLoadOnStartup', this.tempPrefs.fileQueue?.autoLoadOnStartup ?? true);
 
+    // File Rename settings
+    this.setValue('files-requireRenameConfirmation', this.tempPrefs.files?.requireRenameConfirmation ?? true);
+
     // Preprocessing settings
     const prep = this.tempPrefs.preprocessing || {};
     this.setValue('preprocessing-enabled', prep.enabled ?? true);
@@ -1374,6 +1390,10 @@ export class PreferencesUI {
     // File Queue settings
     if (!this.tempPrefs.fileQueue) this.tempPrefs.fileQueue = {};
     this.tempPrefs.fileQueue.autoLoadOnStartup = this.getValue('fileQueue-autoLoadOnStartup');
+
+    // File Rename settings
+    if (!this.tempPrefs.files) this.tempPrefs.files = {};
+    this.tempPrefs.files.requireRenameConfirmation = this.getValue('files-requireRenameConfirmation');
 
     // Preprocessing settings
     if (!this.tempPrefs.preprocessing) this.tempPrefs.preprocessing = {};

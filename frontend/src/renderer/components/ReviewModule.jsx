@@ -186,6 +186,39 @@ export function ReviewModule() {
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
+   * Build reviewedFaces array for rename functionality
+   */
+  const buildReviewedFaces = useCallback(() => {
+    return detectedFaces.map((face, index) => ({
+      faceIndex: index,
+      faceId: face.face_id,
+      personName: face.is_confirmed && !face.is_rejected ? face.person_name : null,
+      isIgnored: face.is_rejected || false
+    }));
+  }, [detectedFaces]);
+
+  /**
+   * Mark review as complete (logs to attempt_stats.jsonl for rename)
+   */
+  const markReviewComplete = useCallback(async (imagePath, reviewedFaces) => {
+    try {
+      await api.post('/api/mark-review-complete', {
+        image_path: imagePath,
+        reviewed_faces: reviewedFaces.map(f => ({
+          face_index: f.faceIndex,
+          face_id: f.faceId,
+          person_name: f.personName,
+          is_ignored: f.isIgnored
+        }))
+      });
+      debug('ReviewModule', 'Review marked complete for rename');
+    } catch (err) {
+      debugError('ReviewModule', 'Failed to mark review complete:', err);
+      // Non-fatal - continue even if this fails
+    }
+  }, [api]);
+
+  /**
    * Save all changes
    */
   const saveAllChanges = useCallback(async () => {
@@ -249,16 +282,23 @@ export function ReviewModule() {
       await saveAllChanges();
     }
 
+    // Build reviewed faces for rename functionality
+    const reviewedFaces = buildReviewedFaces();
+
+    // Mark review complete (logs to attempt_stats.jsonl)
+    await markReviewComplete(currentImagePath, reviewedFaces);
+
     // Emit review-complete to advance to next image
     emit('review-complete', {
       imagePath: currentImagePath,
       facesReviewed: detectedFaces.filter(f => f.is_confirmed).length,
       skipped: true,
-      success: true
+      success: true,
+      reviewedFaces
     });
 
     setStatus('Image skipped');
-  }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, emit, detectedFaces]);
+  }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, detectedFaces]);
 
   /**
    * Add manual face - for when a person exists but wasn't detected
@@ -305,16 +345,24 @@ export function ReviewModule() {
     if (allDone && hasChanges) {
       const timeout = setTimeout(async () => {
         await saveAllChanges();
+
+        // Build reviewed faces for rename functionality
+        const reviewedFaces = buildReviewedFaces();
+
+        // Mark review complete (logs to attempt_stats.jsonl)
+        await markReviewComplete(currentImagePath, reviewedFaces);
+
         // Emit review-complete event for FileQueue auto-advance
         emit('review-complete', {
           imagePath: currentImagePath,
           facesReviewed: detectedFaces.length,
-          success: true
+          success: true,
+          reviewedFaces
         });
       }, 500);
       return () => clearTimeout(timeout);
     }
-  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, emit, currentImagePath]);
+  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, currentImagePath]);
 
   /**
    * Update status when pending changes

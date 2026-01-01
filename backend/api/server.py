@@ -54,7 +54,7 @@ async def health_check():
     return {"status": "ok", "service": "bildvisare-backend"}
 
 # Import routes
-from .routes import detection, annotation, status, database, statistics, management, preprocessing
+from .routes import detection, annotation, status, database, statistics, management, preprocessing, files
 app.include_router(detection.router, prefix="/api", tags=["detection"])
 app.include_router(annotation.router, prefix="/api", tags=["annotation"])
 app.include_router(status.router, prefix="/api", tags=["status"])
@@ -62,6 +62,7 @@ app.include_router(database.router, prefix="/api", tags=["database"])
 app.include_router(statistics.router, prefix="/api", tags=["statistics"])
 app.include_router(management.router, prefix="/api", tags=["management"])
 app.include_router(preprocessing.router, tags=["preprocessing"])
+app.include_router(files.router, prefix="/api", tags=["files"])
 
 # WebSocket endpoint
 from .websocket import progress

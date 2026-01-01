@@ -71,7 +71,8 @@
   border-bottom: 1px solid #ddd;
 }
 
-.fix-mode-toggle {
+.fix-mode-toggle,
+.preview-toggle {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -80,8 +81,13 @@
   cursor: pointer;
 }
 
-.fix-mode-toggle input {
+.fix-mode-toggle input,
+.preview-toggle input {
   margin: 0;
+}
+
+.preview-toggle {
+  color: #7b1fa2;
 }
 
 .clear-completed-btn {
@@ -307,6 +313,19 @@
   background: #3a7bc8;
 }
 
+.control-btn.rename {
+  background: #7b1fa2;
+}
+
+.control-btn.rename:hover:not(:disabled) {
+  background: #6a1b9a;
+}
+
+.control-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Preprocessing indicator */
 .preprocess-indicator {
   flex-shrink: 0;
@@ -336,4 +355,51 @@
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* File name container for preview layout */
+.file-name-container {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-item.with-preview .file-name-container {
+  gap: 3px;
+}
+
+.file-item.with-preview .file-name {
+  font-size: 12px;
+}
+
+/* Preview name styling */
+.file-preview-name,
+.file-preview-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.file-preview-name .arrow,
+.file-preview-status .arrow {
+  color: #888;
+}
+
+.file-preview-name .new-name {
+  color: #7b1fa2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-preview-name .new-name.warning {
+  color: #ff9800;
+}
+
+.file-preview-status .preview-error {
+  color: #f44336;
+  font-style: italic;
 }
