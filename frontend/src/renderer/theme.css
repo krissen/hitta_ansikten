@@ -156,41 +156,9 @@
   box-sizing: border-box;
 }
 
-/* Default to dark theme if no data-theme is set */
-:root:not([data-theme]) {
-  /* Copy dark mode variables as defaults */
-  --bg-primary: #0f0f0f;
-  --bg-secondary: #1a1a1a;
-  --bg-tertiary: #252525;
-  --bg-elevated: #2a2a2a;
-  --bg-hover: #303030;
-  --bg-active: #383838;
-  --text-primary: #d4d2c0;
-  --text-secondary: #a8a698;
-  --text-tertiary: #7a7870;
-  --text-inverse: #0f0f0f;
-  --border-subtle: #353535;
-  --border-medium: #454545;
-  --border-strong: #555555;
-  --accent-primary: #9acd32;
-  --accent-primary-hover: #b8e856;
-  --accent-primary-alpha-20: rgba(154, 205, 50, 0.2);
-  --accent-secondary: #daa520;
-  --accent-secondary-hover: #eebb30;
-  --color-success: #9acd32;
-  --color-success-bg: #1a2a1a;
-  --color-warning: #ffa500;
-  --color-warning-bg: #2a2015;
-  --color-error: #ff6347;
-  --color-error-bg: #2a1515;
-  --color-info: #87ceeb;
-  --color-info-bg: #15202a;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.7);
-  --glow-text: 0 0 2px currentColor;
-  --glow-accent: 0 0 8px var(--accent-primary);
-}
+/* Note: Default theme is set via data-theme="dark" in HTML.
+   Theme-manager.js handles preference loading and applies the correct theme.
+   No fallback needed here since HTML provides the initial state. */
 
 /* ===========================
    DARK MODE CRT EFFECTS (Optional)

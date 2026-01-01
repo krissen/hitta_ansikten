@@ -92,7 +92,7 @@ class ThemeManager {
   }
 
   /**
-   * Set the theme preference
+   * Set the theme preference (persists to localStorage)
    * @param {'light' | 'dark' | 'system'} preference
    */
   setPreference(preference) {
@@ -104,6 +104,40 @@ class ThemeManager {
     this.preference = preference;
     localStorage.setItem(this.storageKey, preference);
     this.applyFromPreference();
+  }
+
+  /**
+   * Preview a theme preference without persisting to localStorage.
+   * Used for live preview in preferences dialog.
+   * @param {'light' | 'dark' | 'system'} preference
+   */
+  previewPreference(preference) {
+    if (!['light', 'dark', 'system'].includes(preference)) {
+      console.warn(`Invalid theme preference: ${preference}`);
+      return;
+    }
+
+    // Temporarily set preference for resolving 'system'
+    const originalPreference = this.preference;
+    this.preference = preference;
+
+    const theme = preference === 'system'
+      ? this.getSystemTheme()
+      : preference;
+
+    // Apply visually but don't persist
+    this.applyTheme(theme, { persist: false });
+
+    // Keep the preview preference active (don't restore original)
+    // This allows multiple preview changes to work correctly
+  }
+
+  /**
+   * Restore the theme from localStorage (cancel preview)
+   */
+  cancelPreview() {
+    this.preference = localStorage.getItem(this.storageKey) || 'dark';
+    this.applyFromPreference({ persist: false });
   }
 
   /**

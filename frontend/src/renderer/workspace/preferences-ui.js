@@ -43,6 +43,8 @@ export class PreferencesUI {
       // Dispatch cancel event to restore original preferences (only if not saved)
       if (!wasSaved) {
         window.dispatchEvent(new CustomEvent('preferences-cancelled'));
+        // Restore theme from localStorage (cancel any preview)
+        themeManager.cancelPreview();
       }
     }
   }
@@ -1367,11 +1369,11 @@ export class PreferencesUI {
       });
     }
 
-    // Theme live preview
+    // Theme live preview (preview only, not persisted until Save)
     const themeSelect = this.modal.querySelector('#pref-ui-theme');
     if (themeSelect) {
       themeSelect.addEventListener('change', () => {
-        themeManager.setPreference(themeSelect.value);
+        themeManager.previewPreference(themeSelect.value);
       });
     }
 

@@ -9,7 +9,7 @@ This document defines the styling system for hitta_ansikten workspace. All compo
 - **CRT Phosphor (Dark)**: Classic green/amber CRT monitor feel
 - Clear contrasts but easy on the eyes
 - Monospace for technical data, sans-serif for UI
-- Subtle shadows and discrete transitions
+- Subtle shadows and discreet transitions
 - Limited color palette for nostalgic feel
 
 ### Accessibility

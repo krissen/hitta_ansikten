@@ -13,7 +13,7 @@ import { BackendProvider } from '../../context/BackendContext.jsx';
 import { ToastProvider } from '../../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
 
-// Import theme system (must be first to define CSS variables)
+// Import theme system (must be first among CSS imports to define variables)
 import '../../theme.css';
 import '../../theme-manager.js'; // Side-effect: initializes theme on load
 
