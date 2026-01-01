@@ -786,7 +786,6 @@ function MatchAlternativesOverlay({ face, maxAlternatives, onSelect }) {
 
   return (
     <div className="alternatives-overlay visible">
-      <div className="alternatives-header">Select match:</div>
       <div className="alternatives-list">
         {alternatives.map((alt, idx) => (
           <div
@@ -805,7 +804,6 @@ function MatchAlternativesOverlay({ face, maxAlternatives, onSelect }) {
           </div>
         ))}
       </div>
-      <div className="alternatives-hint">1-{Math.min(maxAlternatives, alternatives.length)}=Select  A=Accept #1</div>
     </div>
   );
 }
