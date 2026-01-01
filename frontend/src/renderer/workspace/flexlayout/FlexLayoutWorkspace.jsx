@@ -11,6 +11,7 @@ import { preferences } from '../preferences.js';
 import { preferencesUI } from '../preferences-ui.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
+import './ShortcutsHelp.css';
 
 // Import React components directly
 import { ImageViewer } from '../../components/ImageViewer.jsx';
@@ -23,6 +24,96 @@ import { FileQueueModule } from '../../components/FileQueueModule.jsx';
 
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
+
+/**
+ * Shortcuts Help Overlay - shows all keyboard shortcuts
+ */
+function ShortcutsHelpOverlay({ onClose }) {
+  // Close on Escape or clicking overlay
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' || e.key === '?') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="shortcuts-overlay" onClick={onClose}>
+      <div className="shortcuts-dialog" onClick={e => e.stopPropagation()}>
+        <div className="shortcuts-header">
+          <h2>Keyboard Shortcuts</h2>
+          <button className="shortcuts-close" onClick={onClose}>&times;</button>
+        </div>
+        <div className="shortcuts-content">
+          {/* Navigation */}
+          <div className="shortcuts-section">
+            <h3>Navigation</h3>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>←→↑↓</kbd><span>Move focus between panels</span></div>
+            <div className="shortcut-row"><kbd>Tab</kbd><span>Next face / field</span></div>
+            <div className="shortcut-row"><kbd>Shift</kbd>+<kbd>Tab</kbd><span>Previous face / field</span></div>
+          </div>
+
+          {/* Layout */}
+          <div className="shortcuts-section">
+            <h3>Layout</h3>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>1-4</kbd><span>Switch layout template</span></div>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>]</kbd><span>Add column</span></div>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd><span>Remove column</span></div>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>{'}'}</kbd><span>Add row</span></div>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>{'{'}</kbd><span>Remove row</span></div>
+          </div>
+
+          {/* Image Viewer */}
+          <div className="shortcuts-section">
+            <h3>Image Viewer</h3>
+            <div className="shortcut-row"><kbd>+</kbd> / <kbd>-</kbd><span>Zoom in/out (hold for continuous)</span></div>
+            <div className="shortcut-row"><kbd>=</kbd><span>Reset to 1:1</span></div>
+            <div className="shortcut-row"><kbd>0</kbd><span>Auto-fit to window</span></div>
+            <div className="shortcut-row"><kbd>B</kbd><span>Toggle bounding boxes on/off</span></div>
+            <div className="shortcut-row"><kbd>b</kbd><span>Toggle single/all boxes</span></div>
+            <div className="shortcut-row"><kbd>c</kbd> / <kbd>C</kbd><span>Toggle auto-center on face</span></div>
+          </div>
+
+          {/* Face Review */}
+          <div className="shortcuts-section">
+            <h3>Face Review</h3>
+            <div className="shortcut-row"><kbd>Enter</kbd> / <kbd>A</kbd><span>Accept suggested match</span></div>
+            <div className="shortcut-row"><kbd>I</kbd><span>Ignore face</span></div>
+            <div className="shortcut-row"><kbd>R</kbd><span>Rename / enter name</span></div>
+            <div className="shortcut-row"><kbd>1-9</kbd><span>Select match alternative</span></div>
+            <div className="shortcut-row"><kbd>←</kbd> / <kbd>→</kbd><span>Previous/next face</span></div>
+            <div className="shortcut-row"><kbd>N</kbd><span>Skip to next file</span></div>
+            <div className="shortcut-row"><kbd>Esc</kbd><span>Discard changes / blur input</span></div>
+          </div>
+
+          {/* File Queue */}
+          <div className="shortcuts-section">
+            <h3>File Queue</h3>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>O</kbd><span>Open files</span></div>
+            <div className="shortcut-row"><kbd>↑</kbd> / <kbd>↓</kbd><span>Navigate queue</span></div>
+            <div className="shortcut-row"><kbd>Enter</kbd><span>Load selected file</span></div>
+            <div className="shortcut-row"><kbd>Delete</kbd><span>Remove from queue</span></div>
+          </div>
+
+          {/* General */}
+          <div className="shortcuts-section">
+            <h3>General</h3>
+            <div className="shortcut-row"><kbd>?</kbd><span>Show this help</span></div>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>R</kbd><span>Reload window</span></div>
+            <div className="shortcut-row"><kbd>Cmd</kbd>+<kbd>,</kbd><span>Preferences</span></div>
+          </div>
+        </div>
+        <div className="shortcuts-footer">
+          Press <kbd>?</kbd> or <kbd>Esc</kbd> to close
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Module component mapping
 const MODULE_COMPONENTS = {
@@ -204,6 +295,7 @@ export function FlexLayoutWorkspace() {
   const layoutRef = useRef(null);
   const [model, setModel] = useState(null);
   const [ready, setReady] = useState(false);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const moduleAPI = useModuleAPI();
 
   // Initialize model
@@ -773,6 +865,13 @@ export function FlexLayoutWorkspace() {
         return;
       }
 
+      // ? - Show keyboard shortcuts help
+      if (event.key === '?') {
+        event.preventDefault();
+        setShowShortcutsHelp(prev => !prev);
+        return;
+      }
+
       const isMod = event.metaKey || event.ctrlKey;
 
       // Cmd+Shift+R / Ctrl+Shift+R - Hard reload
@@ -1062,13 +1161,18 @@ export function FlexLayoutWorkspace() {
   }
 
   return (
-    <Layout
-      ref={layoutRef}
-      model={model}
-      factory={factory}
-      onModelChange={handleModelChange}
-      onAction={handleAction}
-    />
+    <>
+      <Layout
+        ref={layoutRef}
+        model={model}
+        factory={factory}
+        onModelChange={handleModelChange}
+        onAction={handleAction}
+      />
+      {showShortcutsHelp && (
+        <ShortcutsHelpOverlay onClose={() => setShowShortcutsHelp(false)} />
+      )}
+    </>
   );
 }
 

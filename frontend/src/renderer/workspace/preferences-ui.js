@@ -1855,7 +1855,8 @@ export class PreferencesUI {
     this.tempPrefs.reviewModule.defaultAction = this.getValue('reviewModule-defaultAction');
     this.tempPrefs.reviewModule.showConfidenceScores = this.getValue('reviewModule-showConfidenceScores');
     this.tempPrefs.reviewModule.saveMode = this.getValue('reviewModule-saveMode');
-    this.tempPrefs.reviewModule.maxAlternatives = parseInt(this.getValue('reviewModule-maxAlternatives'), 10) || 5;
+    const rawMaxAlt = parseInt(this.getValue('reviewModule-maxAlternatives'), 10);
+    this.tempPrefs.reviewModule.maxAlternatives = Number.isNaN(rawMaxAlt) ? 5 : Math.max(1, Math.min(9, rawMaxAlt));
 
     // File Queue settings
     if (!this.tempPrefs.fileQueue) this.tempPrefs.fileQueue = {};

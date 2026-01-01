@@ -127,17 +127,6 @@ export function ReviewModule() {
   }, [detectedFaces, emit]);
 
   /**
-   * Jump to specific face
-   */
-  const jumpToFace = useCallback((faceNum) => {
-    if (faceNum <= detectedFaces.length && faceNum >= 1) {
-      const newIndex = faceNum - 1;
-      setCurrentFaceIndex(newIndex);
-      emit('active-face-changed', { index: newIndex });
-    }
-  }, [detectedFaces.length, emit]);
-
-  /**
    * Confirm face
    */
   const confirmFace = useCallback((index, personName) => {
@@ -446,11 +435,12 @@ export function ReviewModule() {
 
       // Number keys - select alternative (1-N) for current face
       const maxAlt = preferences.get('reviewModule.maxAlternatives', 5);
-      if (e.key >= '1' && e.key <= String(maxAlt) && !isInput) {
+      const keyNum = parseInt(e.key, 10);
+      if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= maxAlt && !isInput) {
         e.preventDefault();
         const currentFace = detectedFaces[currentFaceIndex];
         const alternatives = currentFace?.match_alternatives || [];
-        const idx = parseInt(e.key) - 1;
+        const idx = keyNum - 1;
 
         if (idx < alternatives.length && !currentFace?.is_confirmed) {
           const alt = alternatives[idx];
@@ -519,12 +509,8 @@ export function ReviewModule() {
         return;
       }
 
-      // ? to toggle shortcut overlay
-      if (e.key === '?' && !isInput) {
-        e.preventDefault();
-        setShowShortcuts(prev => !prev);
-        return;
-      }
+      // ? - delegate to global shortcut help (handled by FlexLayoutWorkspace)
+      // Don't handle here, let event bubble up
 
       // Escape
       if (e.key === 'Escape') {
@@ -540,7 +526,7 @@ export function ReviewModule() {
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, jumpToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
+  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace]);
 
   /**
    * Listen for image-loaded events
@@ -675,12 +661,12 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
         )}
         {face.match_case === 'uncertain_ign' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            ign ({face.ignore_confidence}%)
+            ign ({face.ignore_confidence}%) / {face.person_name}
           </div>
         )}
         {face.match_case === 'uncertain_name' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            ign ({face.ignore_confidence}%)
+            {face.person_name} / ign ({face.ignore_confidence}%)
           </div>
         )}
       </div>
