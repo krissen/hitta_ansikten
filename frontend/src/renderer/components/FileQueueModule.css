@@ -173,6 +173,8 @@
   border: 1px solid transparent;
   transition: background 0.15s, border-color 0.15s;
   min-height: 28px; /* Consistent row height */
+  user-select: none; /* Prevent text selection during shift-click */
+  -webkit-user-select: none;
 }
 
 .file-item:hover {

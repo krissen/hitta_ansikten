@@ -605,6 +605,43 @@ export function FileQueueModule() {
     });
   }, []);
 
+  // Track last selected index for shift-click range selection
+  const lastSelectedIndexRef = useRef(-1);
+
+  // Handle file item click with modifier key support
+  const handleItemClick = useCallback((index, event) => {
+    const item = queue[index];
+    if (!item) return;
+
+    // Shift+Click: Select range
+    if (event.shiftKey && lastSelectedIndexRef.current >= 0) {
+      event.preventDefault(); // Prevent text selection
+      const start = Math.min(lastSelectedIndexRef.current, index);
+      const end = Math.max(lastSelectedIndexRef.current, index);
+      const rangeIds = queue.slice(start, end + 1).map(q => q.id);
+
+      setSelectedFiles(prev => {
+        const next = new Set(prev);
+        rangeIds.forEach(id => next.add(id));
+        return next;
+      });
+      // Don't update lastSelectedIndex on shift-click (keep anchor)
+      return;
+    }
+
+    // Cmd/Ctrl+Click: Toggle selection without loading
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      toggleFileSelection(item.id);
+      lastSelectedIndexRef.current = index;
+      return;
+    }
+
+    // Normal click: Load the file
+    lastSelectedIndexRef.current = index;
+    loadFile(index);
+  }, [queue, toggleFileSelection, loadFile]);
+
   // Load file by index
   const loadFile = useCallback(async (index) => {
     const currentQueue = queueRef.current;
@@ -1155,9 +1192,10 @@ export function FileQueueModule() {
             <FileQueueItem
               key={item.id}
               item={item}
+              index={index}
               isActive={index === currentIndex}
               isSelected={selectedFiles.has(item.id)}
-              onClick={() => loadFile(index)}
+              onClick={(e) => handleItemClick(index, e)}
               onToggleSelect={() => toggleFileSelection(item.id)}
               onRemove={() => removeFile(item.id)}
               fixMode={fixMode}
@@ -1225,7 +1263,7 @@ export function FileQueueModule() {
 /**
  * FileQueueItem Component
  */
-function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
+function FileQueueItem({ item, index, isActive, isSelected, onClick, onToggleSelect, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const itemRef = useRef(null);
