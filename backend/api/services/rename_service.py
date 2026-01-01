@@ -633,7 +633,9 @@ def validate_path_security(file_path: str) -> Tuple[bool, str]:
     # Note: resolve(strict=True) returns canonical absolute path without '..'
     try:
         real_path = path.resolve(strict=True)
-    except (FileNotFoundError, RuntimeError) as e:
+    except FileNotFoundError:
+        return False, "File not found"
+    except RuntimeError as e:
         return False, f"Cannot resolve path: {e}"
 
     # Must be a regular file

@@ -174,7 +174,8 @@ class DetectionService:
             best_match, best_distance = self._match_encoding(encoding)
 
             # Generate stable face ID using SHA1 (deterministic across runs)
-            encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:8]
+            # Use 16 hex chars for lower collision probability
+            encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:16]
             face_id = f"face_{i}_{encoding_hash}"
 
             # Cache encoding for later confirm/ignore operations
@@ -652,7 +653,8 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> D
         top, right, bottom, left = location
 
         # Generate stable face ID using SHA1 (deterministic across runs)
-        encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:8]
+        # Use 16 hex chars for lower collision probability
+        encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:16]
         face_data = {
             'face_id': f"face_{i}_{encoding_hash}",
             'bounding_box': {

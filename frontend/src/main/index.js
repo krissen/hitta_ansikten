@@ -313,7 +313,7 @@ ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
     filters: [
-      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'nef', 'cr2', 'arw'] },
+      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'tiff', 'nef', 'cr2', 'arw'] },
       { name: 'All Files', extensions: ['*'] }
     ]
   });
@@ -331,7 +331,7 @@ ipcMain.handle('open-multi-file-dialog', async () => {
     properties: ['openFile', 'multiSelections'],
     filters: [
       { name: 'RAW Images', extensions: ['nef', 'NEF', 'cr2', 'CR2', 'arw', 'ARW'] },
-      { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'nef', 'cr2', 'arw'] },
+      { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'tiff', 'nef', 'cr2', 'arw'] },
       { name: 'All Files', extensions: ['*'] }
     ]
   });
@@ -358,7 +358,7 @@ ipcMain.handle('open-folder-dialog', async () => {
   }
 
   // Expand directories to their image files
-  const supportedExtensions = ['.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'];
+  const supportedExtensions = ['.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.tiff'];
   const expandedPaths = [];
 
   for (const selectedPath of result.filePaths) {

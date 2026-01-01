@@ -5,7 +5,7 @@
  */
 
 import { preferences } from './preferences.js';
-import { getCategories, setCategories, resetCategories } from '../shared/debug.js';
+import { getCategories, setCategories, resetCategories, debugWarn } from '../shared/debug.js';
 
 export class PreferencesUI {
   constructor() {
@@ -1179,7 +1179,7 @@ export class PreferencesUI {
       }
       previewEl.textContent = result;
     } catch (e) {
-      console.warn('[PreferencesUI] Invalid rename pattern:', pattern, e);
+      debugWarn('PreferencesUI', 'Invalid rename pattern:', pattern, e);
       previewEl.textContent = '(invalid pattern)';
     }
   }

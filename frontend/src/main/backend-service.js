@@ -64,8 +64,9 @@ class BackendService {
     this.process.stdout.on('data', (data) => {
       if (DEBUG) {
         const output = data.toString().trim();
-        // Skip noisy polling endpoints
-        if (output.includes('/api/statistics/summary')) {
+        // Skip noisy polling endpoints (only successful GET requests)
+        // Format: INFO: 127.0.0.1:PORT - "GET /api/statistics/summary HTTP/1.1" 200 OK
+        if (output.includes('GET /api/statistics/summary') && output.includes('200')) {
           return;
         }
         console.log(`[Backend] ${output}`);
