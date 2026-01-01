@@ -86,18 +86,6 @@
   z-index: 10;
 }
 
-.keyboard-hint {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  background: rgba(33, 150, 243, 0.9);
-  color: white;
-  font-size: 9px;
-  padding: 2px 4px;
-  border-radius: 2px;
-  z-index: 10;
-}
-
 .face-thumbnail {
   width: 100%;
   aspect-ratio: 1;
@@ -170,4 +158,36 @@
   padding: 32px;
   color: #858585;
   grid-column: 1 / -1;
+}
+
+/* Keyboard shortcut overlay - global for review module */
+.shortcut-overlay {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background: rgba(30, 30, 30, 0.9);
+  color: #b0b0b0;
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  pointer-events: none;
+  z-index: 100;
+  text-align: right;
+}
+
+.shortcut-overlay.visible {
+  opacity: 1;
+}
+
+.shortcut-overlay .shortcut-text {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.5px;
+}
+
+.shortcut-overlay .shortcut-hint {
+  font-size: 9px;
+  color: #707070;
+  margin-top: 4px;
 }

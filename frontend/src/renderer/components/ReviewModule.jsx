@@ -40,6 +40,32 @@ export function ReviewModule() {
   const inputRefs = useRef({});
   const cardRefs = useRef({});
 
+  // Shortcut overlay state
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const IDLE_TIMEOUT = 10000; // 10 seconds
+
+  /**
+   * Track user activity to control shortcut overlay visibility
+   */
+  const trackActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setShowShortcuts(false);
+  }, []);
+
+  /**
+   * Timer to show shortcuts after inactivity
+   */
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const idleTime = Date.now() - lastActivityRef.current;
+      if (idleTime > IDLE_TIMEOUT && !showShortcuts && detectedFaces.length > 0) {
+        setShowShortcuts(true);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [showShortcuts, detectedFaces.length]);
+
   /**
    * Load people names for autocomplete
    */
@@ -103,6 +129,7 @@ export function ReviewModule() {
    */
   const navigateToFace = useCallback((direction) => {
     if (detectedFaces.length === 0) return;
+    trackActivity();
 
     setCurrentFaceIndex(prev => {
       let newIndex = prev + direction;
@@ -124,18 +151,19 @@ export function ReviewModule() {
       emit('active-face-changed', { index: newIndex });
       return newIndex;
     });
-  }, [detectedFaces, emit]);
+  }, [detectedFaces, emit, trackActivity]);
 
   /**
    * Jump to specific face
    */
   const jumpToFace = useCallback((faceNum) => {
     if (faceNum <= detectedFaces.length && faceNum >= 1) {
+      trackActivity();
       const newIndex = faceNum - 1;
       setCurrentFaceIndex(newIndex);
       emit('active-face-changed', { index: newIndex });
     }
-  }, [detectedFaces.length, emit]);
+  }, [detectedFaces.length, emit, trackActivity]);
 
   /**
    * Confirm face
@@ -145,6 +173,7 @@ export function ReviewModule() {
 
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
+    trackActivity();
 
     setDetectedFaces(prev => {
       const updated = [...prev];
@@ -164,7 +193,7 @@ export function ReviewModule() {
 
     // Move to next face
     navigateToFace(1);
-  }, [detectedFaces, currentImagePath, navigateToFace]);
+  }, [detectedFaces, currentImagePath, navigateToFace, trackActivity]);
 
   /**
    * Ignore face
@@ -172,6 +201,7 @@ export function ReviewModule() {
   const ignoreFace = useCallback((index) => {
     const face = detectedFaces[index];
     if (!face || face.is_confirmed) return;
+    trackActivity();
 
     setDetectedFaces(prev => {
       const updated = [...prev];
@@ -186,7 +216,7 @@ export function ReviewModule() {
 
     // Move to next face
     navigateToFace(1);
-  }, [detectedFaces, currentImagePath, navigateToFace]);
+  }, [detectedFaces, currentImagePath, navigateToFace, trackActivity]);
 
   /**
    * Build reviewedFaces array for rename functionality
@@ -518,6 +548,13 @@ export function ReviewModule() {
         return;
       }
 
+      // ? to toggle shortcut overlay
+      if (e.key === '?' && !isInput) {
+        e.preventDefault();
+        setShowShortcuts(prev => !prev);
+        return;
+      }
+
       // Escape
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -590,13 +627,20 @@ export function ReviewModule() {
               onSelect={() => {
                 setCurrentFaceIndex(index);
                 emit('active-face-changed', { index });
+                trackActivity();
               }}
               onConfirm={(name) => confirmFace(index, name)}
               onIgnore={() => ignoreFace(index)}
+              onInputActivity={trackActivity}
             />
           ))
         )}
       </div>
+
+      {/* Keyboard shortcut overlay - shows after inactivity */}
+      {detectedFaces.length > 0 && (
+        <ShortcutOverlay visible={showShortcuts} />
+      )}
     </div>
   );
 }
@@ -604,7 +648,7 @@ export function ReviewModule() {
 /**
  * FaceCard Component
  */
-function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore }) {
+function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onInputActivity }) {
   const [inputValue, setInputValue] = useState(face.person_name || '');
   const { api } = useBackend();
 
@@ -627,9 +671,6 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
   return (
     <div ref={cardRef} className={cardClass} onClick={onSelect}>
       <div className="face-number">{index + 1}</div>
-      {isActive && (
-        <div className="keyboard-hint">R=Write A=Accept I=Ignore X=Skip M=Manual</div>
-      )}
 
       <div className="face-thumbnail">
         {thumbnailUrl ? (
@@ -663,7 +704,10 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
             type="text"
             placeholder="Person name..."
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e) => {
+              setInputValue(e.target.value);
+              onInputActivity?.();
+            }}
             onKeyDown={(e) => {
               // Let document handler manage Enter for consistency
               // Just stop propagation for other keys we don't want bubbling
@@ -688,6 +732,41 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
           <option key={name} value={name} />
         ))}
       </datalist>
+    </div>
+  );
+}
+
+/**
+ * ShortcutOverlay - Shows keyboard shortcuts with inactivity-based visibility
+ */
+function ShortcutOverlay({ visible }) {
+  // Check if an input is currently focused
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
+  useEffect(() => {
+    const checkFocus = () => {
+      const active = document.activeElement;
+      setIsInputFocused(active?.tagName === 'INPUT' || active?.tagName === 'TEXTAREA');
+    };
+
+    // Check on focus changes
+    document.addEventListener('focusin', checkFocus);
+    document.addEventListener('focusout', checkFocus);
+    return () => {
+      document.removeEventListener('focusin', checkFocus);
+      document.removeEventListener('focusout', checkFocus);
+    };
+  }, []);
+
+  // Show different shortcuts based on context
+  const shortcuts = isInputFocused
+    ? 'Enter=Confirm  Esc=Cancel'
+    : 'A=Accept  I=Ignore  X=Skip  M=Manual';
+
+  return (
+    <div className={`shortcut-overlay ${visible ? 'visible' : ''}`}>
+      <div className="shortcut-text">{shortcuts}</div>
+      <div className="shortcut-hint">?=Toggle help</div>
     </div>
   );
 }
