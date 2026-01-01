@@ -1347,7 +1347,7 @@ export function FileQueueModule() {
             )}
             {currentIndex >= 0 ? (
               <button className="control-btn" onClick={skipCurrent}>
-                Skip ⏭
+                Skip <Icon name="skip-next" size={12} />
               </button>
             ) : queue.some(q => {
               if (q.status !== 'pending') return false;
