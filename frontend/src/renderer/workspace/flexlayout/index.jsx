@@ -15,7 +15,7 @@ import { debug, debugWarn, debugError } from '../../shared/debug.js';
 
 // Import theme system (must be first to define CSS variables)
 import '../../theme.css';
-import { themeManager } from '../../theme-manager.js';
+import '../../theme-manager.js'; // Side-effect: initializes theme on load
 
 // Import FlexLayout CSS
 import 'flexlayout-react/style/light.css';

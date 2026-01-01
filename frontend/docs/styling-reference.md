@@ -321,6 +321,4 @@ When converting a component to use CSS variables:
 
 ## References
 
-- **Live Preview**: Open `theme-examples.html` in browser
-- **Full Documentation**: See `todo_styling.md` in project root
 - **WCAG Guidelines**: https://www.w3.org/WAI/WCAG21/quickref/

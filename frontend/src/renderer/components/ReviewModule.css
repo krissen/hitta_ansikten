@@ -202,7 +202,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: var(--radius-sm) var(--space-xs);
+  padding: var(--space-xs) var(--space-xs);
   border-radius: var(--radius-sm);
   cursor: pointer;
   background: rgba(255, 255, 255, 0.05);

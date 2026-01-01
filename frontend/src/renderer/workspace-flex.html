@@ -80,6 +80,12 @@
       --color-edge-marker: var(--accent-primary);
     }
 
+    /* Remove selected tabset visual distinction (gradient/border) */
+    .flexlayout__tabset-selected {
+      background-image: none !important;
+      background-color: var(--bg-tertiary) !important;
+    }
+
     /* Tab styling */
     .flexlayout__tab {
       background-color: var(--bg-elevated);

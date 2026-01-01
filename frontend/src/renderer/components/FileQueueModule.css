@@ -110,7 +110,7 @@
 
 
 .clear-btn {
-  padding: var(--radius-sm) var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
   font-size: var(--font-sm);
   border: 1px solid var(--border-medium);
   background: var(--bg-elevated);
@@ -264,7 +264,7 @@
 
 .status-icon.active {
   color: var(--color-info);
-  /* character sits slightly high, adjust down */
+  /* ► glyph sits slightly high, adjust down */
   transform: translateY(1px);
 }
 
