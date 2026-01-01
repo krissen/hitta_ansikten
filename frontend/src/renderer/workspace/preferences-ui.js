@@ -190,60 +190,6 @@ export class PreferencesUI {
               <small>Minimum space between text and close button.</small>
             </div>
 
-            <div class="pref-section">
-              <h3>Tab Colors</h3>
-              <small style="display:block; margin-bottom:12px; color:#666;">
-                Focused = active panel's tab. Visible = other panels' tabs. Hidden = background tabs.
-              </small>
-
-              <!-- Focused Tab (selected tab in focused panel) -->
-              <div class="pref-field-row">
-                <div class="pref-field-color">
-                  <label>Focused Tab Background</label>
-                  <input type="color" id="pref-appearance-focusedTabBackground" />
-                </div>
-                <div class="pref-field-color">
-                  <label>Focused Tab Text</label>
-                  <input type="color" id="pref-appearance-focusedTabColor" />
-                </div>
-              </div>
-
-              <!-- Visible Tab (selected tab in non-focused panels) -->
-              <div class="pref-field-row">
-                <div class="pref-field-color">
-                  <label>Visible Tab Background</label>
-                  <input type="color" id="pref-appearance-visibleTabBackground" />
-                </div>
-                <div class="pref-field-color">
-                  <label>Visible Tab Text</label>
-                  <input type="color" id="pref-appearance-visibleTabColor" />
-                </div>
-              </div>
-
-              <!-- Hidden Tab (unselected/background tabs) -->
-              <div class="pref-field-row">
-                <div class="pref-field-color">
-                  <label>Hidden Tab Background</label>
-                  <input type="color" id="pref-appearance-hiddenTabBackground" />
-                </div>
-                <div class="pref-field-color">
-                  <label>Hidden Tab Text</label>
-                  <input type="color" id="pref-appearance-hiddenTabColor" />
-                </div>
-              </div>
-
-              <!-- Container Colors -->
-              <div class="pref-field-row">
-                <div class="pref-field-color">
-                  <label>Tab Container Background</label>
-                  <input type="color" id="pref-appearance-tabContainerBackground" />
-                </div>
-                <div class="pref-field-color">
-                  <label>Group Border Color</label>
-                  <input type="color" id="pref-appearance-groupBorderColor" />
-                </div>
-              </div>
-            </div>
           </div>
           </div>
 
@@ -934,42 +880,6 @@ export class PreferencesUI {
         color: #777;
       }
 
-      .pref-field-row {
-        display: flex;
-        gap: 16px;
-        margin-bottom: 16px;
-      }
-
-      .pref-field-color {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-
-      .pref-field-color label {
-        font-size: 14px;
-        font-weight: 500;
-        color: #555;
-      }
-
-      .pref-field-color input[type="color"] {
-        height: 40px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        cursor: pointer;
-        padding: 2px;
-      }
-
-      .pref-field-color input[type="color"]::-webkit-color-swatch-wrapper {
-        padding: 2px;
-      }
-
-      .pref-field-color input[type="color"]::-webkit-color-swatch {
-        border: none;
-        border-radius: 2px;
-      }
-
       .slider-input-group {
         display: flex;
         gap: 12px;
@@ -1471,16 +1381,6 @@ export class PreferencesUI {
     this.setupLivePreview('appearance-tabPaddingLeft', '--dv-tab-padding-left', 'px');
     this.setupLivePreview('appearance-tabPaddingRight', '--dv-tab-padding-right', 'px');
     this.setupLivePreview('appearance-tabMinGap', '--dv-tab-min-gap', 'px');
-
-    // Setup live preview for color settings (three tab states)
-    this.setupColorLivePreview('appearance-focusedTabBackground');
-    this.setupColorLivePreview('appearance-focusedTabColor');
-    this.setupColorLivePreview('appearance-visibleTabBackground');
-    this.setupColorLivePreview('appearance-visibleTabColor');
-    this.setupColorLivePreview('appearance-hiddenTabBackground');
-    this.setupColorLivePreview('appearance-hiddenTabColor');
-    this.setupColorLivePreview('appearance-tabContainerBackground');
-    this.setupColorLivePreview('appearance-groupBorderColor', null, true);
   }
 
   /**
@@ -1542,66 +1442,6 @@ export class PreferencesUI {
   }
 
   /**
-   * Setup live preview for color CSS variable changes
-   */
-  setupColorLivePreview(id, cssVariable, isRgba = false) {
-    const colorInput = this.modal.querySelector(`#pref-${id}`);
-
-    if (!colorInput) return;
-
-    const updateCSS = (value) => {
-      let cssValue = value;
-
-      // If this is an rgba color (groupBorderColor), convert hex to rgba
-      if (isRgba) {
-        const r = parseInt(value.slice(1, 3), 16);
-        const g = parseInt(value.slice(3, 5), 16);
-        const b = parseInt(value.slice(5, 7), 16);
-        cssValue = `rgba(${r}, ${g}, ${b}, 0.2)`;
-      }
-
-      // Update tempPrefs so Save button saves the correct value
-      const path = id.replace(/-/g, '.');
-      const keys = path.split('.');
-      const lastKey = keys.pop();
-      let target = this.tempPrefs;
-      for (const key of keys) {
-        if (!target[key]) target[key] = {};
-        target = target[key];
-      }
-      target[lastKey] = isRgba ? cssValue : value;
-
-      // Dispatch event for live preview with full tempPrefs
-      window.dispatchEvent(new CustomEvent('preferences-preview', {
-        detail: { tempPrefs: this.tempPrefs }
-      }));
-    };
-
-    // Update on color change
-    colorInput.addEventListener('input', () => {
-      updateCSS(colorInput.value);
-    });
-  }
-
-  /**
-   * Convert rgba string to hex color
-   */
-  rgbaToHex(rgba) {
-    // Extract rgba values
-    const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-    if (!match) return rgba; // Return as-is if not rgba
-
-    const r = parseInt(match[1]);
-    const g = parseInt(match[2]);
-    const b = parseInt(match[3]);
-
-    return '#' + [r, g, b].map(x => {
-      const hex = x.toString(16);
-      return hex.length === 1 ? '0' + hex : hex;
-    }).join('');
-  }
-
-  /**
    * Populate form with current preference values
    */
   populateForm() {
@@ -1627,18 +1467,6 @@ export class PreferencesUI {
     this.setValue('appearance-tabPaddingRight-slider', this.tempPrefs.appearance.tabPaddingRight);
     this.setValue('appearance-tabMinGap', this.tempPrefs.appearance.tabMinGap);
     this.setValue('appearance-tabMinGap-slider', this.tempPrefs.appearance.tabMinGap);
-
-    // Appearance settings - colors (three tab states)
-    this.setValue('appearance-focusedTabBackground', this.tempPrefs.appearance.focusedTabBackground);
-    this.setValue('appearance-focusedTabColor', this.tempPrefs.appearance.focusedTabColor);
-    this.setValue('appearance-visibleTabBackground', this.tempPrefs.appearance.visibleTabBackground);
-    this.setValue('appearance-visibleTabColor', this.tempPrefs.appearance.visibleTabColor);
-    this.setValue('appearance-hiddenTabBackground', this.tempPrefs.appearance.hiddenTabBackground);
-    this.setValue('appearance-hiddenTabColor', this.tempPrefs.appearance.hiddenTabColor);
-    this.setValue('appearance-tabContainerBackground', this.tempPrefs.appearance.tabContainerBackground);
-    // Convert rgba to hex for color picker
-    const borderColor = this.rgbaToHex(this.tempPrefs.appearance.groupBorderColor);
-    this.setValue('appearance-groupBorderColor', borderColor);
 
     // Image viewer settings
     this.setValue('imageViewer-zoomSpeed', this.tempPrefs.imageViewer.zoomSpeed);
@@ -1840,22 +1668,6 @@ export class PreferencesUI {
     this.tempPrefs.appearance.tabPaddingLeft = this.getValue('appearance-tabPaddingLeft');
     this.tempPrefs.appearance.tabPaddingRight = this.getValue('appearance-tabPaddingRight');
     this.tempPrefs.appearance.tabMinGap = this.getValue('appearance-tabMinGap');
-
-    // Appearance colors (three tab states)
-    this.tempPrefs.appearance.focusedTabBackground = this.getValue('appearance-focusedTabBackground');
-    this.tempPrefs.appearance.focusedTabColor = this.getValue('appearance-focusedTabColor');
-    this.tempPrefs.appearance.visibleTabBackground = this.getValue('appearance-visibleTabBackground');
-    this.tempPrefs.appearance.visibleTabColor = this.getValue('appearance-visibleTabColor');
-    this.tempPrefs.appearance.hiddenTabBackground = this.getValue('appearance-hiddenTabBackground');
-    this.tempPrefs.appearance.hiddenTabColor = this.getValue('appearance-hiddenTabColor');
-    this.tempPrefs.appearance.tabContainerBackground = this.getValue('appearance-tabContainerBackground');
-
-    // Convert hex to rgba for groupBorderColor (keep opacity from default)
-    const hexColor = this.getValue('appearance-groupBorderColor');
-    const r = parseInt(hexColor.slice(1, 3), 16);
-    const g = parseInt(hexColor.slice(3, 5), 16);
-    const b = parseInt(hexColor.slice(5, 7), 16);
-    this.tempPrefs.appearance.groupBorderColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
 
     this.tempPrefs.imageViewer.zoomSpeed = this.getValue('imageViewer-zoomSpeed');
     this.tempPrefs.imageViewer.maxZoom = this.getValue('imageViewer-maxZoom');
