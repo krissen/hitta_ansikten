@@ -57,7 +57,7 @@
 
 .file-queue-btn.add {
   background: var(--bg-hover);
-  color: var(--text-inverse);
+  color: var(--text-primary);
 }
 
 .file-queue-btn.add:hover {
@@ -66,8 +66,8 @@
 
 .file-queue-btn.folder {
   background: var(--bg-hover);
-  color: var(--text-inverse);
   font-size: var(--font-sm);
+  /* Note: emoji icons don't respect color property */
 }
 
 .file-queue-btn.folder:hover {
@@ -76,7 +76,7 @@
 
 .file-queue-btn.settings {
   background: var(--bg-hover);
-  color: var(--text-inverse);
+  color: var(--text-primary);
 }
 
 .file-queue-btn.settings:hover {
