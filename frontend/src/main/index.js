@@ -325,18 +325,32 @@ ipcMain.handle('open-file-dialog', async () => {
   return result.filePaths[0];
 });
 
-// Multi-file dialog for File Queue (supports files and folders)
+// Multi-file dialog for File Queue (files only - normal navigation)
 ipcMain.handle('open-multi-file-dialog', async () => {
-  const fs = require('fs');
-  const pathModule = require('path');
-
   const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile', 'openDirectory', 'multiSelections'],
+    properties: ['openFile', 'multiSelections'],
     filters: [
       { name: 'RAW Images', extensions: ['nef', 'NEF', 'cr2', 'CR2', 'arw', 'ARW'] },
       { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'nef', 'cr2', 'arw'] },
       { name: 'All Files', extensions: ['*'] }
     ]
+  });
+
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return null;
+  }
+
+  return result.filePaths;
+});
+
+// Folder dialog - select folders and expand to image files
+ipcMain.handle('open-folder-dialog', async () => {
+  const fs = require('fs');
+  const pathModule = require('path');
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'multiSelections'],
+    message: 'Select folder(s) to add all images'
   });
 
   if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
@@ -349,24 +363,15 @@ ipcMain.handle('open-multi-file-dialog', async () => {
 
   for (const selectedPath of result.filePaths) {
     try {
-      const stat = fs.statSync(selectedPath);
-      if (stat.isDirectory()) {
-        // Read directory and filter for supported images
-        const entries = fs.readdirSync(selectedPath);
-        for (const entry of entries) {
-          const ext = pathModule.extname(entry).toLowerCase();
-          if (supportedExtensions.includes(ext)) {
-            expandedPaths.push(pathModule.join(selectedPath, entry));
-          }
+      const entries = fs.readdirSync(selectedPath);
+      for (const entry of entries) {
+        const ext = pathModule.extname(entry).toLowerCase();
+        if (supportedExtensions.includes(ext)) {
+          expandedPaths.push(pathModule.join(selectedPath, entry));
         }
-      } else {
-        // Regular file
-        expandedPaths.push(selectedPath);
       }
     } catch (err) {
-      console.error('Error processing path:', selectedPath, err);
-      // Still include the path, let the queue handle errors
-      expandedPaths.push(selectedPath);
+      console.error('Error reading folder:', selectedPath, err);
     }
   }
 

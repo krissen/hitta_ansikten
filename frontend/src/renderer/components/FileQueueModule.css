@@ -63,6 +63,15 @@
   background: #3a7bc8;
 }
 
+.file-queue-btn.folder {
+  background: #7b68ee;
+  font-size: 12px;
+}
+
+.file-queue-btn.folder:hover {
+  background: #6a5acd;
+}
+
 .file-queue-btn.settings {
   background: #888;
   color: white;

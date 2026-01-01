@@ -1057,6 +1057,24 @@ export function FileQueueModule() {
     }
   }, [addFiles, queue.length, loadFile]);
 
+  // Open folder dialog
+  const openFolderDialog = useCallback(async () => {
+    try {
+      const filePaths = await window.bildvisareAPI?.invoke('open-folder-dialog');
+
+      if (filePaths && filePaths.length > 0) {
+        addFiles(filePaths);
+
+        // Auto-start if queue was empty
+        if (queue.length === 0 && filePaths.length > 0) {
+          setTimeout(() => loadFile(0), 100);
+        }
+      }
+    } catch (err) {
+      debugError('FileQueue', 'Failed to open folder dialog:', err);
+    }
+  }, [addFiles, queue.length, loadFile]);
+
   // Listen for files from main process (command line arguments)
   useEffect(() => {
     const handleQueueFiles = ({ files, position, startQueue }) => {
@@ -1181,9 +1199,16 @@ export function FileQueueModule() {
           <button
             className="file-queue-btn add"
             onClick={openFileDialog}
-            title="Add files (Cmd+Shift+A)"
+            title="Add files"
           >
             +
+          </button>
+          <button
+            className="file-queue-btn folder"
+            onClick={openFolderDialog}
+            title="Add folder"
+          >
+            📁
           </button>
           <button
             className="file-queue-btn settings"
