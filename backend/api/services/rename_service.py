@@ -18,7 +18,6 @@ from faceid_db import (
     save_database,
     load_attempt_log,
     get_file_hash,
-    BASE_DIR
 )
 
 logger = logging.getLogger(__name__)
@@ -208,6 +207,20 @@ def format_datetime(dt: datetime, pattern: str) -> str:
 
 
 # ============================================================================
+# Supported file extensions
+# ============================================================================
+
+# RAW formats and common image formats supported for rename operations
+SUPPORTED_EXTENSIONS = [
+    ".nef", ".cr2", ".cr3", ".arw", ".dng", ".raw", ".raf", ".orf", ".rw2",  # RAW
+    ".jpg", ".jpeg", ".tiff", ".tif", ".png",  # Standard
+]
+
+# Build regex pattern for extensions (case-insensitive matching done via re.IGNORECASE)
+_EXT_PATTERN = "|".join(re.escape(ext) for ext in SUPPORTED_EXTENSIONS)
+
+
+# ============================================================================
 # Utility functions (ported from hitta_ansikten.py)
 # ============================================================================
 
@@ -220,9 +233,10 @@ def extract_prefix_suffix(fname: str) -> Tuple[Optional[str], Optional[str]]:
 
     Returns:
         Tuple of (prefix, suffix) where prefix is "YYMMDD_HHMMSS" or "YYMMDD_HHMMSS-N"
-        and suffix is ".NEF". Returns (None, None) if pattern doesn't match.
+        and suffix is the file extension. Returns (None, None) if pattern doesn't match.
     """
-    m = re.match(r"^(\d{6}_\d{6}(?:-\d+)?)(?:_[^.]*)?(\.NEF)$", fname, re.IGNORECASE)
+    pattern = rf"^(\d{{6}}_\d{{6}}(?:-\d+)?)(?:_[^.]*)?({_EXT_PATTERN})$"
+    m = re.match(pattern, fname, re.IGNORECASE)
     if not m:
         return None, None
     return m.group(1), m.group(2)
@@ -236,7 +250,8 @@ def is_unrenamed(fname: str) -> bool:
     Returns False for: 250612_153040_Anna.NEF (already has names)
     """
     # An unrenamed file matches pattern exactly without any name suffix
-    m = re.match(r"^(\d{6}_\d{6}(?:-\d+)?)(\.NEF)$", fname, re.IGNORECASE)
+    pattern = rf"^(\d{{6}}_\d{{6}}(?:-\d+)?)({_EXT_PATTERN})$"
+    m = re.match(pattern, fname, re.IGNORECASE)
     return bool(m)
 
 
@@ -472,7 +487,7 @@ def collect_persons_for_files(
         attempt_log: Loaded attempt log entries
 
     Returns:
-        Dict mapping filename (basename) to list of person names in detection order.
+        Dict mapping full file path to list of person names in detection order.
     """
     # Build index for encodings.pkl: filename -> names, hash -> names
     file_to_persons: Dict[str, List[str]] = {}
@@ -489,17 +504,17 @@ def collect_persons_for_files(
                 if h:
                     hash_to_persons.setdefault(h, []).append(name)
 
-    # Build hash map for current files
+    # Build hash map for current files - keyed by FULL PATH to avoid basename collisions
     filehash_map: Dict[str, Optional[str]] = {}
     for f in filelist:
         fpath = Path(f)
         if fpath.exists():
             h = get_file_hash(fpath)
-            filehash_map[fpath.name] = h
+            filehash_map[str(fpath)] = h
         else:
-            filehash_map[fpath.name] = None
+            filehash_map[str(fpath)] = None
 
-    # Index for processed_files
+    # Index for processed_files (keyed by basename since that's how DB stores them)
     if processed_files is None:
         processed_files = []
     processed_name_to_hash = {
@@ -513,6 +528,7 @@ def collect_persons_for_files(
         attempt_log = load_attempt_log()
 
     # Build attempts fallback: filename -> labels (in detection order)
+    # Keyed by basename since attempt_log stores basenames
     stats_map: Dict[str, List[str]] = {}
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
@@ -533,24 +549,27 @@ def collect_persons_for_files(
                     if persons:
                         stats_map[fn] = persons
 
-    # Collect persons for each file
+    # Collect persons for each file - result keyed by FULL PATH
     result: Dict[str, List[str]] = {}
     for f in filelist:
-        fname = Path(f).name
-        h = filehash_map.get(fname) or processed_name_to_hash.get(fname)
+        fpath = Path(f)
+        fname = fpath.name
+        # Use full path for hash lookup to avoid basename collisions
+        h = filehash_map.get(str(fpath)) or processed_name_to_hash.get(fname)
 
-        # 1. Try filename first (encodings.pkl)
+        # 1. Try filename first (encodings.pkl stores basenames)
         persons = file_to_persons.get(fname, [])
 
         # 2. Otherwise try hash (encodings.pkl)
         if not persons and h:
             persons = hash_to_persons.get(h, [])
 
-        # 3. Otherwise try attempts log (fallback)
+        # 3. Otherwise try attempts log (fallback, uses basenames)
         if not persons:
             persons = stats_map.get(fname, [])
 
-        result[fname] = persons
+        # Key result by full path to avoid collisions
+        result[str(fpath)] = persons
 
     return result
 
@@ -591,16 +610,11 @@ def validate_path_security(file_path: str) -> Tuple[bool, str]:
         return False, "Must be absolute path"
 
     # Resolve symlinks and check real path
+    # Note: resolve(strict=True) returns canonical absolute path without '..'
     try:
         real_path = path.resolve(strict=True)
     except (FileNotFoundError, RuntimeError) as e:
         return False, f"Cannot resolve path: {e}"
-
-    # Check no traversal after resolution (symlink could point outside)
-    # Ensure resolved path still looks reasonable (no escape via symlinks)
-    if '..' in str(real_path):
-        logger.warning(f"[SECURITY] Resolved path contains traversal: {real_path}")
-        return False, "Invalid resolved path"
 
     # Must be a regular file
     if not real_path.is_file():
@@ -716,8 +730,8 @@ class RenameService:
                 })
                 continue
 
-            # Get persons for this file
-            persons = persons_map.get(fname, [])
+            # Get persons for this file (keyed by full path to avoid basename collisions)
+            persons = persons_map.get(file_path, [])
             if not persons:
                 items.append({
                     "original_path": file_path,
