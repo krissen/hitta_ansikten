@@ -1946,11 +1946,13 @@ def is_file_processed(path, processed_files):
         ename = entry.get("name") if isinstance(entry, dict) else entry
         if ename == path_name:
             return True
-    # Kolla mot hash om inte namn matchade
+    # Kolla mot hash om inte namn matchade (chunked read for large files)
     try:
+        sha1 = hashlib.sha1()
         with open(path, "rb") as f:
-            import hashlib
-            path_hash = hashlib.sha1(f.read()).hexdigest()
+            for chunk in iter(lambda: f.read(65536), b''):
+                sha1.update(chunk)
+        path_hash = sha1.hexdigest()
     except Exception:
         pass
     if path_hash:
@@ -2066,10 +2068,12 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def add_to_processed_files(path, processed_files):
     """Lägg till en ny fil sist i listan, med både hash och namn."""
-    import hashlib
     try:
+        sha1 = hashlib.sha1()
         with open(path, "rb") as f:
-            h = hashlib.sha1(f.read()).hexdigest()
+            for chunk in iter(lambda: f.read(65536), b''):
+                sha1.update(chunk)
+        h = sha1.hexdigest()
     except Exception:
         h = None
     processed_files.append({"name": path.name, "hash": h})

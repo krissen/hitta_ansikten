@@ -89,9 +89,12 @@ class DetectionService:
         }
 
     def _get_file_hash(self, path: Path) -> str:
-        """Compute SHA1 hash of file"""
+        """Compute SHA1 hash of file using chunked reading"""
+        sha1 = hashlib.sha1()
         with open(path, "rb") as f:
-            return hashlib.sha1(f.read()).hexdigest()
+            for chunk in iter(lambda: f.read(65536), b''):
+                sha1.update(chunk)
+        return sha1.hexdigest()
 
     def _load_image(self, image_path: Path) -> np.ndarray:
         """Load image as RGB array (supports NEF and standard formats)
@@ -170,8 +173,9 @@ class DetectionService:
             # Match against known faces
             best_match, best_distance = self._match_encoding(encoding)
 
-            # Generate stable face ID
-            face_id = f"face_{i}_{hash(tuple(encoding[:10]))}"
+            # Generate stable face ID using SHA1 (deterministic across runs)
+            encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:8]
+            face_id = f"face_{i}_{encoding_hash}"
 
             # Cache encoding for later confirm/ignore operations
             self.encoding_cache[face_id] = (encoding, bbox)
@@ -554,8 +558,10 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> D
     for i, (location, encoding) in enumerate(zip(face_locations, face_encodings)):
         top, right, bottom, left = location
 
+        # Generate stable face ID using SHA1 (deterministic across runs)
+        encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:8]
         face_data = {
-            'face_id': f"face_{i}",
+            'face_id': f"face_{i}_{encoding_hash}",
             'bounding_box': {
                 'x': int(left * scale_factor),
                 'y': int(top * scale_factor),
