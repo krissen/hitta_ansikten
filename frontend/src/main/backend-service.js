@@ -60,10 +60,16 @@ class BackendService {
       }
     );
 
-    // Forward stdout/stderr to console
+    // Forward stdout/stderr to console (with filtering)
     this.process.stdout.on('data', (data) => {
       if (DEBUG) {
-        console.log(`[Backend] ${data.toString().trim()}`);
+        const output = data.toString().trim();
+        // Skip noisy polling endpoints (only successful GET requests)
+        // Format: INFO: 127.0.0.1:PORT - "GET /api/statistics/summary HTTP/1.1" 200 OK
+        if (output.includes('GET /api/statistics/summary') && output.includes('200')) {
+          return;
+        }
+        console.log(`[Backend] ${output}`);
       }
     });
 

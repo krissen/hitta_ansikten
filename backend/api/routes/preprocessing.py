@@ -24,7 +24,7 @@ _executor = ThreadPoolExecutor(max_workers=4)
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/preprocessing", tags=["preprocessing"])
+router = APIRouter()
 
 
 # ============================================================================
@@ -63,6 +63,7 @@ class CacheCheckResponse(BaseModel):
     has_face_detection: bool
     has_thumbnails: bool
     nef_jpg_path: Optional[str] = None
+    face_count: Optional[int] = None  # Number of faces detected (if cached)
 
 
 class PreprocessRequest(BaseModel):
@@ -77,6 +78,7 @@ class PreprocessResponse(BaseModel):
     nef_jpg_path: Optional[str] = None
     faces_cached: bool = False
     thumbnails_cached: bool = False
+    face_count: Optional[int] = None  # Number of faces detected
     error: Optional[str] = None
 
 
@@ -157,12 +159,20 @@ async def check_cache(request: CacheCheckRequest):
 
     nef_path = cache.get_nef_conversion(file_hash) if has_nef else None
 
+    # Get face count if face detection is cached
+    face_count = None
+    if has_faces:
+        faces_data = cache.get_face_detection(file_hash)
+        if faces_data and 'faces' in faces_data:
+            face_count = len(faces_data['faces'])
+
     return CacheCheckResponse(
         file_hash=file_hash,
         has_nef_conversion=has_nef,
         has_face_detection=has_faces,
         has_thumbnails=has_thumbs,
-        nef_jpg_path=nef_path
+        nef_jpg_path=nef_path,
+        face_count=face_count
     )
 
 
@@ -280,7 +290,7 @@ def _detect_faces_sync(file_path: str, file_hash: str, cache) -> dict:
         }
 
         cache.store_face_detection(file_hash, file_path, cacheable_data)
-        return {'status': 'completed'}
+        return {'status': 'completed', 'face_count': len(cacheable_data['faces'])}
     except Exception as e:
         logger.error(f"[Preprocessing] Face detection error: {e}")
         return {'status': 'error', 'error': str(e)}
@@ -315,10 +325,14 @@ async def preprocess_faces(request: PreprocessRequest):
     # Check cache first
     if cache.has_face_detection(file_hash):
         logger.debug(f"[Preprocessing] Faces cache hit: {file_hash}")
+        # Get face count from cached data
+        faces_data = cache.get_face_detection(file_hash)
+        face_count = len(faces_data.get('faces', [])) if faces_data else None
         return PreprocessResponse(
             file_hash=file_hash,
             status='cached',
-            faces_cached=True
+            faces_cached=True,
+            face_count=face_count
         )
 
     # Detect faces in thread pool (non-blocking)
@@ -330,7 +344,8 @@ async def preprocess_faces(request: PreprocessRequest):
         return PreprocessResponse(
             file_hash=file_hash,
             status='completed',
-            faces_cached=True
+            faces_cached=True,
+            face_count=result.get('face_count')
         )
     else:
         return PreprocessResponse(

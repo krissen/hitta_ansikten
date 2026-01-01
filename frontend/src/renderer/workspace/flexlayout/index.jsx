@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { FlexLayoutWorkspace } from './FlexLayoutWorkspace.jsx';
 import { ModuleAPIProvider } from '../../context/ModuleAPIContext.jsx';
 import { BackendProvider } from '../../context/BackendContext.jsx';
+import { ToastProvider } from '../../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
 
 // Import FlexLayout CSS
@@ -34,7 +35,9 @@ function initFlexLayoutWorkspace() {
     <StrictMode>
       <ModuleAPIProvider>
         <BackendProvider>
-          <FlexLayoutWorkspace />
+          <ToastProvider>
+            <FlexLayoutWorkspace />
+          </ToastProvider>
         </BackendProvider>
       </ModuleAPIProvider>
     </StrictMode>

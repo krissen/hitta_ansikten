@@ -9,6 +9,12 @@
   background: #f5f5f5;
   font-size: 13px;
   overflow: hidden;
+  outline: none;
+}
+
+.file-queue-module:focus {
+  outline: 2px solid #3f51b5;
+  outline-offset: -2px;
 }
 
 /* Header */
@@ -41,24 +47,39 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.file-queue-btn:active {
+  transform: scale(0.92);
 }
 
 .file-queue-btn.add {
-  background: #4a90d9;
+  background: #666;
   color: white;
 }
 
 .file-queue-btn.add:hover {
-  background: #3a7bc8;
+  background: #555;
+}
+
+.file-queue-btn.folder {
+  background: #666;
+  color: white;
+  font-size: 12px;
+}
+
+.file-queue-btn.folder:hover {
+  background: #555;
 }
 
 .file-queue-btn.settings {
-  background: #888;
+  background: #666;
   color: white;
 }
 
 .file-queue-btn.settings:hover {
-  background: #666;
+  background: #555;
 }
 
 /* Toolbar */
@@ -71,7 +92,8 @@
   border-bottom: 1px solid #ddd;
 }
 
-.fix-mode-toggle {
+.fix-mode-toggle,
+.preview-toggle {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -80,11 +102,13 @@
   cursor: pointer;
 }
 
-.fix-mode-toggle input {
+.fix-mode-toggle input,
+.preview-toggle input {
   margin: 0;
 }
 
-.clear-completed-btn {
+
+.clear-btn {
   padding: 3px 8px;
   font-size: 11px;
   border: 1px solid #ccc;
@@ -92,15 +116,29 @@
   border-radius: 3px;
   cursor: pointer;
   color: #666;
+  transition: transform 0.1s ease, background 0.15s ease;
 }
 
-.clear-completed-btn:hover:not(:disabled) {
+.clear-btn:hover:not(:disabled) {
   background: #f0f0f0;
 }
 
-.clear-completed-btn:disabled {
+.clear-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.clear-btn:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.clear-btn.clear-all {
+  color: #c62828;
+  border-color: #ffcdd2;
+}
+
+.clear-btn.clear-all:hover {
+  background: #ffebee;
 }
 
 /* File list */
@@ -141,6 +179,9 @@
   cursor: pointer;
   border: 1px solid transparent;
   transition: background 0.15s, border-color 0.15s;
+  min-height: 28px; /* Consistent row height */
+  user-select: none; /* Prevent text selection during shift-click */
+  -webkit-user-select: none;
 }
 
 .file-item:hover {
@@ -161,17 +202,59 @@
   background: #ffebee;
 }
 
+.file-item.missing {
+  background: #fff3e0;
+  opacity: 0.7;
+}
+
+.file-item.missing .file-name {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.file-item.selected {
+  background: #e8eaf6;
+  border-color: #9fa8da;
+}
+
+.file-item.selected.active {
+  background: #c5cae9;
+  border-color: #7986cb;
+}
+
 /* Already processed file - slightly muted when not in fix-mode */
 .file-item.already-processed:not(.completed) {
   background: #f0f5f0;
+}
+
+/* Selection checkbox - hidden by default, shown on hover or when selected */
+.file-select-checkbox {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #3f51b5;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.file-item:hover .file-select-checkbox,
+.file-item.selected .file-select-checkbox,
+.file-queue-module.has-selection .file-select-checkbox {
+  opacity: 1;
 }
 
 /* Status icons */
 .status-icon {
   flex-shrink: 0;
   width: 16px;
-  text-align: center;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
+  line-height: 1;
 }
 
 .status-icon.completed {
@@ -180,6 +263,8 @@
 
 .status-icon.active {
   color: #2196f3;
+  /* ► character sits slightly high, adjust down */
+  transform: translateY(1px);
 }
 
 .status-icon.pending {
@@ -200,13 +285,8 @@
   color: #f44336;
 }
 
-/* File name */
-.file-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #333;
+.status-icon.missing {
+  color: #ff9800;
 }
 
 /* File status text */
@@ -231,11 +311,15 @@
   line-height: 1;
   border-radius: 3px;
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s;
+  transition: opacity 0.15s, background 0.15s, transform 0.1s ease;
 }
 
 .file-item:hover .remove-btn {
   opacity: 1;
+}
+
+.remove-btn:active {
+  transform: scale(0.9);
 }
 
 .remove-btn:hover {
@@ -291,32 +375,38 @@
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  background: #888;
+  background: #666;
   color: white;
+  transition: transform 0.1s ease, background 0.15s ease;
 }
 
 .control-btn:hover {
-  background: #666;
+  background: #555;
 }
 
-.control-btn.start {
-  background: #4a90d9;
+.control-btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
-.control-btn.start:hover {
-  background: #3a7bc8;
+.control-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Preprocessing column - fixed width for alignment */
+.preprocess-col {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Preprocessing indicator */
 .preprocess-indicator {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  line-height: 14px;
-  text-align: center;
-  font-size: 10px;
-  margin: 0;
-  padding: 0;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .preprocess-indicator.loading {
@@ -336,4 +426,221 @@
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* File name - grows to fill space, pushing right elements to the right */
+.file-name {
+  flex: 1;
+  min-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+}
+
+/* Inline preview of new name */
+.inline-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.inline-preview .arrow {
+  flex-shrink: 0;
+  color: #999;
+  font-size: 11px;
+}
+
+.inline-preview .new-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #9575cd;
+  font-size: 11px;
+}
+
+.inline-preview.error .preview-error {
+  color: #e57373;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Muted preview status (no persons, already renamed) - softer styling */
+.inline-preview.muted .preview-muted {
+  color: #b39ddb;
+  font-size: 11px;
+  font-style: normal;
+}
+
+/* Face count badge - fixed width for alignment */
+.face-count {
+  flex-shrink: 0;
+  width: 32px;
+  font-size: 11px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 2px 0;
+  border-radius: 10px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Face count when info is loaded */
+.file-item.completed .face-count,
+.file-item.already-processed .face-count {
+  background: #e8e8e8;
+  color: #666;
+}
+
+.file-item.completed .face-count {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+
+.file-item.already-processed:not(.completed) .face-count {
+  background: #dcedc8;
+  color: #558b2f;
+}
+
+/* Unified tooltip */
+.file-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: #333;
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  max-width: 400px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+
+.file-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 20px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid #333;
+}
+
+.tooltip-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.tooltip-row:last-child {
+  margin-bottom: 0;
+}
+
+.tooltip-label {
+  color: #aaa;
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.tooltip-value {
+  color: #fff;
+  word-break: break-all;
+}
+
+.tooltip-path {
+  font-size: 11px;
+  color: #ccc;
+}
+
+.tooltip-row.tooltip-newname {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #555;
+}
+
+.tooltip-row.tooltip-newname .tooltip-value {
+  color: #b39ddb;
+  font-weight: 500;
+}
+
+.tooltip-row.tooltip-error .tooltip-value {
+  color: #ef9a9a;
+}
+
+/* Toast notifications container */
+.file-queue-toasts {
+  position: absolute;
+  bottom: 60px;
+  right: 10px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* Individual toast */
+.file-queue-toast {
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  max-width: 280px;
+  pointer-events: auto;
+  opacity: 0.92;
+  animation: toast-slide-in 0.3s ease-out forwards;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.file-queue-toast.exiting {
+  animation: toast-slide-out 0.3s ease-in forwards;
+}
+
+.file-queue-toast.success {
+  background: rgba(76, 175, 80, 0.95);
+  color: white;
+}
+
+.file-queue-toast.info {
+  background: rgba(33, 150, 243, 0.95);
+  color: white;
+}
+
+.file-queue-toast.warning {
+  background: rgba(255, 152, 0, 0.95);
+  color: white;
+}
+
+.file-queue-toast.error {
+  background: rgba(244, 67, 54, 0.95);
+  color: white;
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 0.92;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    opacity: 0.92;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
 }

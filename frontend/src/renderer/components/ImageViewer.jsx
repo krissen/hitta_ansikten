@@ -582,6 +582,16 @@ export function ImageViewer() {
     }
   });
 
+  // Listen for clear-image events (when file is removed from queue)
+  useModuleEvent('clear-image', () => {
+    debug('ImageViewer', 'Clearing image');
+    setImage(null);
+    setImagePath(null);
+    setOriginalImagePath(null);
+    setFaces([]);
+    setActiveFaceIndex(-1);
+  });
+
   // Listen for faces-detected events
   useModuleEvent('faces-detected', ({ faces: newFaces }) => {
     setFaces(newFaces || []);

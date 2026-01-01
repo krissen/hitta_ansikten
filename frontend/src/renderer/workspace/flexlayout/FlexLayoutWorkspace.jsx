@@ -825,11 +825,20 @@ export function FlexLayoutWorkspace() {
 
     const openFileDialog = async () => {
       try {
-        const filePath = await window.bildvisareAPI?.invoke('open-file-dialog');
-        if (!filePath) return;
+        // Use multi-file dialog (same as + button in FileQueue)
+        const filePaths = await window.bildvisareAPI?.invoke('open-multi-file-dialog');
+        if (!filePaths || filePaths.length === 0) return;
 
-        debug('FlexLayout', `Opening file: ${filePath}`);
-        moduleAPI.emit('load-image', { imagePath: filePath });
+        debug('FlexLayout', `Opening ${filePaths.length} file(s)`);
+        // Add to queue - FileQueue will handle loading the first file
+        if (window.fileQueue?.add) {
+          window.fileQueue.add(filePaths);
+          // Start queue if it wasn't running
+          setTimeout(() => window.fileQueue.start?.(), 100);
+        } else {
+          // Fallback: emit for single file
+          moduleAPI.emit('load-image', { imagePath: filePaths[0] });
+        }
       } catch (err) {
         debugError('FlexLayout', 'Failed to open file:', err);
       }
@@ -864,9 +873,15 @@ export function FlexLayoutWorkspace() {
       switch (command) {
         // File commands
         case 'open-file': {
-          const filePath = await window.bildvisareAPI?.invoke('open-file-dialog');
-          if (filePath) {
-            moduleAPI.emit('load-image', { imagePath: filePath });
+          // Use multi-file dialog (same as Cmd+O and + button)
+          const filePaths = await window.bildvisareAPI?.invoke('open-multi-file-dialog');
+          if (filePaths && filePaths.length > 0) {
+            if (window.fileQueue?.add) {
+              window.fileQueue.add(filePaths);
+              setTimeout(() => window.fileQueue.start?.(), 100);
+            } else {
+              moduleAPI.emit('load-image', { imagePath: filePaths[0] });
+            }
           }
           break;
         }

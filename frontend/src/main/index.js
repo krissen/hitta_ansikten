@@ -313,7 +313,7 @@ ipcMain.handle('open-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile'],
     filters: [
-      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'nef', 'cr2', 'arw'] },
+      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'tiff', 'nef', 'cr2', 'arw'] },
       { name: 'All Files', extensions: ['*'] }
     ]
   });
@@ -325,22 +325,64 @@ ipcMain.handle('open-file-dialog', async () => {
   return result.filePaths[0];
 });
 
-// Multi-file dialog for File Queue
+// Multi-file dialog for File Queue (files only - normal navigation)
 ipcMain.handle('open-multi-file-dialog', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openFile', 'multiSelections'],
     filters: [
       { name: 'RAW Images', extensions: ['nef', 'NEF', 'cr2', 'CR2', 'arw', 'ARW'] },
-      { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'nef', 'cr2', 'arw'] },
+      { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'tiff', 'nef', 'cr2', 'arw'] },
       { name: 'All Files', extensions: ['*'] }
     ]
   });
 
-  if (result.canceled) {
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
     return null;
   }
 
   return result.filePaths;
+});
+
+// Folder dialog - select folders and expand to image files
+ipcMain.handle('open-folder-dialog', async () => {
+  const fs = require('fs');
+  const pathModule = require('path');
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'multiSelections'],
+    message: 'Select folder(s) to add all images'
+  });
+
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return null;
+  }
+
+  // Expand directories to their image files
+  const supportedExtensions = ['.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.tiff'];
+  const expandedPaths = [];
+
+  for (const selectedPath of result.filePaths) {
+    try {
+      const entries = fs.readdirSync(selectedPath);
+      for (const entry of entries) {
+        const ext = pathModule.extname(entry).toLowerCase();
+        if (supportedExtensions.includes(ext)) {
+          expandedPaths.push(pathModule.join(selectedPath, entry));
+        }
+      }
+    } catch (err) {
+      console.error('Error reading folder:', selectedPath, err);
+    }
+  }
+
+  // Sort files (natural sort for filenames with numbers)
+  expandedPaths.sort((a, b) => {
+    const nameA = pathModule.basename(a);
+    const nameB = pathModule.basename(b);
+    return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+  });
+
+  return expandedPaths;
 });
 
 // Expand glob pattern to file paths
@@ -393,38 +435,6 @@ ipcMain.handle('expand-glob', async (event, pattern) => {
   }
 });
 
-// Folder dialog for File Queue
-ipcMain.handle('open-folder-dialog', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openDirectory']
-  });
-
-  if (result.canceled) {
-    return null;
-  }
-
-  // Find all supported image files in the folder
-  const folderPath = result.filePaths[0];
-  const supportedExtensions = ['.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.tiff'];
-
-  const files = [];
-  try {
-    const entries = fs.readdirSync(folderPath);
-    for (const entry of entries) {
-      const ext = path.extname(entry).toLowerCase();
-      if (supportedExtensions.includes(ext)) {
-        files.push(path.join(folderPath, entry));
-      }
-    }
-    // Sort by filename
-    files.sort();
-  } catch (err) {
-    console.error('[Main] Failed to read folder:', err);
-    return null;
-  }
-
-  return files;
-});
 
 // NOTE: NEF conversion is now handled by the backend preprocessing API
 // See /api/preprocessing/nef endpoint

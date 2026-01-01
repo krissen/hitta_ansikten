@@ -25,6 +25,7 @@ export function ReviewModule() {
 
   // State
   const [currentImagePath, setCurrentImagePath] = useState(null);
+  const [currentFileHash, setCurrentFileHash] = useState(null);  // For mark-review-complete optimization
   const [detectedFaces, setDetectedFaces] = useState([]);
   const [people, setPeople] = useState([]);
   const [currentFaceIndex, setCurrentFaceIndex] = useState(0);
@@ -61,6 +62,7 @@ export function ReviewModule() {
    */
   const detectFaces = useCallback(async (imagePath) => {
     setCurrentImagePath(imagePath);
+    setCurrentFileHash(null);  // Clear previous hash
     setIsLoading(true);
     setStatus('Detecting faces...');
     setDetectedFaces([]);
@@ -73,6 +75,7 @@ export function ReviewModule() {
 
       const faces = result.faces || [];
       setDetectedFaces(faces);
+      setCurrentFileHash(result.file_hash || null);  // Store hash for mark-review-complete
       setStatus(`Found ${faces.length} faces (${result.processing_time_ms?.toFixed(0) || 0}ms)`);
 
       // Emit faces to Image Viewer for bounding box overlay
@@ -186,10 +189,45 @@ export function ReviewModule() {
   }, [detectedFaces, currentImagePath, navigateToFace]);
 
   /**
+   * Build reviewedFaces array for rename functionality
+   */
+  const buildReviewedFaces = useCallback(() => {
+    return detectedFaces.map((face, index) => ({
+      faceIndex: index,
+      faceId: face.face_id,
+      personName: face.is_confirmed && !face.is_rejected ? face.person_name : null,
+      isIgnored: face.is_rejected || false
+    }));
+  }, [detectedFaces]);
+
+  /**
+   * Mark review as complete (logs to attempt_stats.jsonl for rename)
+   */
+  const markReviewComplete = useCallback(async (imagePath, reviewedFaces, fileHash = null) => {
+    try {
+      await api.post('/api/mark-review-complete', {
+        image_path: imagePath,
+        reviewed_faces: reviewedFaces.map(f => ({
+          face_index: f.faceIndex,
+          face_id: f.faceId,
+          person_name: f.personName,
+          is_ignored: f.isIgnored
+        })),
+        file_hash: fileHash  // Reuse hash from detection to avoid re-reading file
+      });
+      debug('ReviewModule', 'Review marked complete for rename');
+    } catch (err) {
+      debugError('ReviewModule', 'Failed to mark review complete:', err);
+      // Non-fatal - continue even if this fails
+    }
+  }, [api]);
+
+  /**
    * Save all changes
+   * @returns {Promise<boolean>} true if save succeeded, false if failed
    */
   const saveAllChanges = useCallback(async () => {
-    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
+    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return true;
 
     const totalChanges = pendingConfirmations.length + pendingIgnores.length;
     setStatus(`Saving ${totalChanges} changes...`);
@@ -209,9 +247,11 @@ export function ReviewModule() {
       setPendingIgnores([]);
       await loadPeopleNames();
       setStatus(`Saved ${totalChanges} changes!`);
+      return true;
     } catch (err) {
       debugError('ReviewModule', 'Failed to save:', err);
-      setStatus('Error saving changes');
+      setStatus('Error saving changes - review NOT marked complete');
+      return false;
     }
   }, [pendingConfirmations, pendingIgnores, api, loadPeopleNames]);
 
@@ -246,19 +286,30 @@ export function ReviewModule() {
 
     // Save any pending changes first
     if (pendingConfirmations.length > 0 || pendingIgnores.length > 0) {
-      await saveAllChanges();
+      const saveSuccess = await saveAllChanges();
+      if (!saveSuccess) {
+        // Don't proceed if save failed - user needs to retry or discard
+        return;
+      }
     }
+
+    // Build reviewed faces for rename functionality
+    const reviewedFaces = buildReviewedFaces();
+
+    // Mark review complete (logs to attempt_stats.jsonl)
+    await markReviewComplete(currentImagePath, reviewedFaces, currentFileHash);
 
     // Emit review-complete to advance to next image
     emit('review-complete', {
       imagePath: currentImagePath,
       facesReviewed: detectedFaces.filter(f => f.is_confirmed).length,
       skipped: true,
-      success: true
+      success: true,
+      reviewedFaces
     });
 
     setStatus('Image skipped');
-  }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, emit, detectedFaces]);
+  }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, detectedFaces, currentFileHash]);
 
   /**
    * Add manual face - for when a person exists but wasn't detected
@@ -304,17 +355,29 @@ export function ReviewModule() {
 
     if (allDone && hasChanges) {
       const timeout = setTimeout(async () => {
-        await saveAllChanges();
+        const saveSuccess = await saveAllChanges();
+        if (!saveSuccess) {
+          // Don't proceed if save failed - user needs to retry or discard
+          return;
+        }
+
+        // Build reviewed faces for rename functionality
+        const reviewedFaces = buildReviewedFaces();
+
+        // Mark review complete (logs to attempt_stats.jsonl)
+        await markReviewComplete(currentImagePath, reviewedFaces, currentFileHash);
+
         // Emit review-complete event for FileQueue auto-advance
         emit('review-complete', {
           imagePath: currentImagePath,
           facesReviewed: detectedFaces.length,
-          success: true
+          success: true,
+          reviewedFaces
         });
       }, 500);
       return () => clearTimeout(timeout);
     }
-  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, emit, currentImagePath]);
+  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, currentImagePath, currentFileHash]);
 
   /**
    * Update status when pending changes
@@ -477,6 +540,17 @@ export function ReviewModule() {
   useModuleEvent('image-loaded', useCallback(({ imagePath }) => {
     detectFaces(imagePath);
   }, [detectFaces]));
+
+  /**
+   * Listen for clear-image events (when file is removed from queue)
+   */
+  useModuleEvent('clear-image', useCallback(() => {
+    debug('ReviewModule', 'Clearing review state');
+    setCurrentImagePath(null);
+    setDetectedFaces([]);
+    setCurrentFaceIndex(-1);
+    setStatus('Waiting for image...');
+  }, []));
 
   /**
    * Listen for save/discard commands

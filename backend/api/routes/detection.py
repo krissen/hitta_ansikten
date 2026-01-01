@@ -38,6 +38,7 @@ class DetectionResult(BaseModel):
     faces: List[DetectedFace]
     processing_time_ms: float
     cached: bool = False
+    file_hash: Optional[str] = None  # SHA1 hash of file (for reuse in mark-review-complete)
 
 class ConfirmIdentityRequest(BaseModel):
     face_id: str
@@ -62,6 +63,25 @@ class ReloadDatabaseResponse(BaseModel):
     people_count: int
     ignored_count: int
     cache_cleared: int
+
+
+class ReviewedFace(BaseModel):
+    face_index: int
+    face_id: str
+    person_name: Optional[str] = None
+    is_ignored: bool = False
+
+
+class MarkReviewCompleteRequest(BaseModel):
+    image_path: str
+    reviewed_faces: List[ReviewedFace]
+    file_hash: Optional[str] = None  # Optional: reuse hash from detection to avoid rehashing
+
+
+class MarkReviewCompleteResponse(BaseModel):
+    status: str
+    message: str
+    labels_count: int
 
 @router.post("/reload-database", response_model=ReloadDatabaseResponse)
 async def reload_database():
@@ -203,4 +223,27 @@ async def ignore_face(request: IgnoreFaceRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"[Detection] Error ignoring face: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/mark-review-complete", response_model=MarkReviewCompleteResponse)
+async def mark_review_complete(request: MarkReviewCompleteRequest):
+    """
+    Mark review as complete and log to attempt_stats.jsonl
+
+    Logs the review results with face labels in detection order.
+    Required for rename functionality to work correctly.
+    """
+    logger.info(f"[Detection] Marking review complete for: {request.image_path}")
+
+    try:
+        result = await detection_service.mark_review_complete(
+            request.image_path,
+            [face.model_dump() for face in request.reviewed_faces],
+            file_hash=request.file_hash
+        )
+
+        return MarkReviewCompleteResponse(**result)
+    except Exception as e:
+        logger.error(f"[Detection] Error marking review complete: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

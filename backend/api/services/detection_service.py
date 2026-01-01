@@ -17,8 +17,8 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from face_backends import create_backend
-from faceid_db import load_database, save_database, get_file_hash
-from hitta_ansikten import load_config
+from faceid_db import load_database, save_database, get_file_hash, BASE_DIR
+from hitta_ansikten import load_config, log_attempt_stats
 import face_recognition
 import rawpy
 from PIL import Image
@@ -89,9 +89,12 @@ class DetectionService:
         }
 
     def _get_file_hash(self, path: Path) -> str:
-        """Compute SHA1 hash of file"""
+        """Compute SHA1 hash of file using chunked reading"""
+        sha1 = hashlib.sha1()
         with open(path, "rb") as f:
-            return hashlib.sha1(f.read()).hexdigest()
+            for chunk in iter(lambda: f.read(65536), b''):
+                sha1.update(chunk)
+        return sha1.hexdigest()
 
     def _load_image(self, image_path: Path) -> np.ndarray:
         """Load image as RGB array (supports NEF and standard formats)
@@ -170,8 +173,10 @@ class DetectionService:
             # Match against known faces
             best_match, best_distance = self._match_encoding(encoding)
 
-            # Generate stable face ID
-            face_id = f"face_{i}_{hash(tuple(encoding[:10]))}"
+            # Generate stable face ID using SHA1 (deterministic across runs)
+            # Use 16 hex chars for lower collision probability
+            encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:16]
+            face_id = f"face_{i}_{encoding_hash}"
 
             # Cache encoding for later confirm/ignore operations
             self.encoding_cache[face_id] = (encoding, bbox)
@@ -256,7 +261,8 @@ class DetectionService:
         result = {
             "faces": faces,
             "processing_time_ms": processing_time,
-            "cached": False
+            "cached": False,
+            "file_hash": file_hash  # Include hash for reuse in mark-review-complete
         }
 
         # Cache result
@@ -361,6 +367,16 @@ class DetectionService:
         """
         logger.info(f"[DetectionService] Confirming face {face_id} as {person_name}")
 
+        # Handle manual faces (no encoding to save, just return success)
+        # Manual faces are included in mark_review_complete for rename functionality
+        if face_id.startswith("manual_"):
+            logger.info(f"[DetectionService] Manual face confirmed: {person_name} (no encoding to save)")
+            return {
+                "status": "success",
+                "person_name": person_name,
+                "encodings_count": 0  # No encoding saved for manual faces
+            }
+
         # Get encoding from cache
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -419,6 +435,15 @@ class DetectionService:
         """
         logger.info(f"[DetectionService] Ignoring face {face_id}")
 
+        # Handle manual faces (no encoding to add to ignored list)
+        # Manual faces are included in mark_review_complete for rename functionality
+        if face_id.startswith("manual_"):
+            logger.info(f"[DetectionService] Manual face ignored (no encoding to save)")
+            return {
+                "status": "success",
+                "ignored_count": len(self.ignored_faces)  # Return current count unchanged
+            }
+
         # Get encoding from cache
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -459,6 +484,79 @@ class DetectionService:
             "status": "success",
             "ignored_count": len(self.ignored_faces)
         }
+
+    async def mark_review_complete(
+        self,
+        image_path: str,
+        reviewed_faces: List[Dict[str, Any]],
+        file_hash: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Log completed review to attempt_stats.jsonl for rename functionality.
+
+        Args:
+            image_path: Path to the reviewed image
+            reviewed_faces: List of reviewed face data with:
+                - face_index: Detection order (0-based)
+                - face_id: Face identifier
+                - person_name: Confirmed name (None if ignored)
+                - is_ignored: Whether face was ignored
+            file_hash: Optional pre-computed hash (avoids re-reading file)
+
+        Returns:
+            Success status
+        """
+        logger.info(f"[DetectionService] Marking review complete for {image_path}")
+
+        # Use provided hash or compute if needed
+        if file_hash is None:
+            path = Path(image_path)
+            file_hash = get_file_hash(path) if path.exists() else None
+        else:
+            logger.debug(f"[DetectionService] Using provided file_hash: {file_hash[:8]}...")
+
+        # Build labels in expected format: "#1\nPersonName" or "#1\nignorerad"
+        labels = []
+        for face in sorted(reviewed_faces, key=lambda f: f.get('face_index', 0)):
+            face_index = face.get('face_index', 0)
+            if face.get('is_ignored'):
+                label = f"#{face_index + 1}\nignorerad"
+            elif face.get('person_name'):
+                label = f"#{face_index + 1}\n{face['person_name']}"
+            else:
+                # Skip faces without name and not ignored
+                continue
+            labels.append({
+                "label": label,
+                "face_id": face.get('face_id', '')
+            })
+
+        # Build attempt info (simplified for API usage)
+        attempts = [{
+            "resolution": "api",
+            "face_count": len(reviewed_faces),
+            "source": "bildvisare"
+        }]
+
+        # Log to attempt_stats.jsonl
+        log_attempt_stats(
+            image_path=image_path,
+            attempts=attempts,
+            used_attempt_idx=0,
+            base_dir=BASE_DIR,
+            review_results=["ok"],
+            labels_per_attempt=[labels],
+            file_hash=file_hash
+        )
+
+        logger.info(f"[DetectionService] Logged {len(labels)} face labels to attempt_stats.jsonl")
+
+        return {
+            "status": "success",
+            "message": f"Review logged for {len(labels)} faces",
+            "labels_count": len(labels)
+        }
+
 
 # Singleton instance
 detection_service = DetectionService()
@@ -554,8 +652,11 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> D
     for i, (location, encoding) in enumerate(zip(face_locations, face_encodings)):
         top, right, bottom, left = location
 
+        # Generate stable face ID using SHA1 (deterministic across runs)
+        # Use 16 hex chars for lower collision probability
+        encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:16]
         face_data = {
-            'face_id': f"face_{i}",
+            'face_id': f"face_{i}_{encoding_hash}",
             'bounding_box': {
                 'x': int(left * scale_factor),
                 'y': int(top * scale_factor),

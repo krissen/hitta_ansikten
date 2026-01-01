@@ -17,7 +17,8 @@ export const PreprocessingStatus = {
   GENERATING_THUMBNAILS: 'generating_thumbnails',
   COMPLETED: 'completed',
   ERROR: 'error',
-  CACHED: 'cached'
+  CACHED: 'cached',
+  FILE_NOT_FOUND: 'file_not_found'
 };
 
 /**
@@ -236,6 +237,16 @@ export class PreprocessingManager {
       fileHash = hashResult.file_hash;
       debug('Preprocessing', `Hash computed: ${filePath} -> ${fileHash.substring(0, 8)}...`);
     } catch (err) {
+      // Check if file doesn't exist (404 error)
+      if (err.message && err.message.includes('404')) {
+        debugWarn('Preprocessing', `File not found: ${filePath}`);
+        this.processing.set(filePath, {
+          status: PreprocessingStatus.FILE_NOT_FOUND,
+          error: 'File not found'
+        });
+        this.emit('file-not-found', { filePath });
+        return; // Don't throw - handled gracefully
+      }
       throw new Error(`Hash computation failed: ${err.message}`);
     }
 
@@ -246,7 +257,7 @@ export class PreprocessingManager {
 
     // If everything is cached, we're done
     if (cacheCheck.has_nef_conversion && cacheCheck.has_face_detection && cacheCheck.has_thumbnails) {
-      debug('Preprocessing', `All cached for: ${filePath}`);
+      debug('Preprocessing', `All cached for: ${filePath} (${cacheCheck.face_count ?? 0} faces)`);
       this._completeFile(filePath, fileHash, cacheCheck);
       return;
     }
@@ -256,7 +267,8 @@ export class PreprocessingManager {
       has_nef_conversion: cacheCheck.has_nef_conversion,
       has_face_detection: cacheCheck.has_face_detection,
       has_thumbnails: cacheCheck.has_thumbnails,
-      nef_jpg_path: cacheCheck.nef_jpg_path
+      nef_jpg_path: cacheCheck.nef_jpg_path,
+      face_count: cacheCheck.face_count
     };
     let hasErrors = false;
 
@@ -289,11 +301,12 @@ export class PreprocessingManager {
         });
         if (result.status === 'completed' || result.status === 'cached') {
           actualStatus.has_face_detection = true;
+          actualStatus.face_count = result.face_count;
         } else if (result.status === 'error') {
           hasErrors = true;
           debugError('Preprocessing', `Face detection error: ${result.error}`);
         }
-        debug('Preprocessing', `Faces detected: ${filePath}`);
+        debug('Preprocessing', `Faces detected: ${filePath} (${result.face_count ?? 0} faces)`);
       } catch (err) {
         hasErrors = true;
         debugError('Preprocessing', `Face detection failed: ${err.message}`);
@@ -354,8 +367,8 @@ export class PreprocessingManager {
       ...cacheData,
       completedAt: Date.now()
     });
-    this.emit('completed', { filePath, hash: fileHash });
-    debug('Preprocessing', `Completed: ${filePath}`);
+    this.emit('completed', { filePath, hash: fileHash, faceCount: cacheData.face_count });
+    debug('Preprocessing', `Completed: ${filePath} (${cacheData.face_count ?? 0} faces)`);
   }
 
   /**
