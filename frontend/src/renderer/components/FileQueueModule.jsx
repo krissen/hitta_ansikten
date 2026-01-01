@@ -923,6 +923,22 @@ export function FileQueueModule() {
  * FileQueueItem Component
  */
 function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, onRemove, fixMode, preprocessingStatus, showPreview, previewInfo }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const itemRef = useRef(null);
+
+  // Handle mouse enter/leave for tooltip
+  const handleMouseEnter = (e) => {
+    if (itemRef.current) {
+      const rect = itemRef.current.getBoundingClientRect();
+      setTooltipPos({ x: rect.left, y: rect.bottom + 4 });
+    }
+    setShowTooltip(true);
+  };
+
+  const handleMouseLeave = () => {
+    setShowTooltip(false);
+  };
   const getStatusIcon = () => {
     switch (item.status) {
       case 'completed':
@@ -989,10 +1005,17 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
   const newName = previewInfo?.newName;
   const previewStatus = previewInfo?.status;
 
+  // Get face count from previewInfo or reviewedFaces
+  const faceCount = previewInfo?.persons?.length || item.reviewedFaces?.length || 0;
+  const faceNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
+
   return (
     <div
+      ref={itemRef}
       className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
       onClick={onClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <input
         type="checkbox"
@@ -1005,27 +1028,16 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
         onClick={(e) => e.stopPropagation()}
       />
       {getStatusIcon()}
-      <div className="file-name-container">
-        <span className="file-name" title={item.filePath}>
-          {truncateFilename(item.fileName)}
+      <span className="file-name">
+        {truncateFilename(item.fileName)}
+      </span>
+      {faceCount > 0 && (
+        <span className="face-count" title={faceNames.join(', ')}>
+          👤{faceCount}
         </span>
-        {shouldShowPreview && newName && (
-          <span className="file-preview-name" title={newName}>
-            <span className="arrow">→</span>
-            <span className={`new-name ${previewStatus !== 'ok' ? 'warning' : ''}`}>
-              {truncateFilename(newName)}
-            </span>
-          </span>
-        )}
-        {shouldShowPreview && !newName && previewStatus && (
-          <span className="file-preview-status" title={`Cannot rename: ${previewStatus}`}>
-            <span className="arrow">→</span>
-            <span className="preview-error">{previewStatus}</span>
-          </span>
-        )}
-      </div>
+      )}
       {getPreprocessingIndicator()}
-      {!shouldShowPreview && <span className="file-status">{getStatusText()}</span>}
+      <span className="file-status">{getStatusText()}</span>
       <button
         className="remove-btn"
         onClick={(e) => {
@@ -1036,6 +1048,41 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
       >
         ×
       </button>
+
+      {/* Unified tooltip */}
+      {showTooltip && (
+        <div
+          className="file-tooltip"
+          style={{ left: tooltipPos.x, top: tooltipPos.y }}
+        >
+          <div className="tooltip-row">
+            <span className="tooltip-label">File:</span>
+            <span className="tooltip-value">{item.fileName}</span>
+          </div>
+          <div className="tooltip-row">
+            <span className="tooltip-label">Path:</span>
+            <span className="tooltip-value tooltip-path">{item.filePath}</span>
+          </div>
+          {faceCount > 0 && (
+            <div className="tooltip-row">
+              <span className="tooltip-label">Faces ({faceCount}):</span>
+              <span className="tooltip-value">{faceNames.join(', ') || 'Unknown'}</span>
+            </div>
+          )}
+          {shouldShowPreview && newName && (
+            <div className="tooltip-row tooltip-newname">
+              <span className="tooltip-label">New name:</span>
+              <span className="tooltip-value">{newName}</span>
+            </div>
+          )}
+          {shouldShowPreview && !newName && previewStatus && (
+            <div className="tooltip-row tooltip-error">
+              <span className="tooltip-label">Rename:</span>
+              <span className="tooltip-value">{previewStatus}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
