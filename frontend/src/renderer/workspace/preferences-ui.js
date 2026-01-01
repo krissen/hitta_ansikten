@@ -72,6 +72,7 @@ export class PreferencesUI {
             <button class="pref-tab" data-tab="layout">Layout</button>
             <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
             <button class="pref-tab" data-tab="review">Review</button>
+            <button class="pref-tab" data-tab="files">Files</button>
             <button class="pref-tab" data-tab="preprocessing">Preprocessing</button>
             <button class="pref-tab" data-tab="advanced">Advanced</button>
           </div>
@@ -387,7 +388,10 @@ export class PreferencesUI {
               <small>How review results are written to database</small>
             </div>
           </div>
+          </div>
 
+          <!-- Files Tab Panel -->
+          <div class="pref-tab-panel" data-tab="files">
             <!-- File Queue Settings -->
             <div class="pref-section">
               <h3>File Queue</h3>
