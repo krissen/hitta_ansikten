@@ -111,7 +111,8 @@ export function FileQueueModule() {
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [fixMode, setFixMode] = useState(false);
-  const [processedFiles, setProcessedFiles] = useState(new Set());
+  const [processedFiles, setProcessedFiles] = useState(new Set()); // Set of filenames
+  const [processedHashes, setProcessedHashes] = useState(new Set()); // Set of file hashes
   const [preprocessingStatus, setPreprocessingStatus] = useState({}); // filePath -> status
   const [selectedFiles, setSelectedFiles] = useState(new Set()); // Selected file IDs
 
@@ -162,8 +163,10 @@ export function FileQueueModule() {
       const response = await api.get('/api/management/recent-files?n=1000');
       if (response && Array.isArray(response)) {
         const fileNames = new Set(response.map(f => f.name));
+        const fileHashes = new Set(response.map(f => f.hash).filter(Boolean));
         setProcessedFiles(fileNames);
-        debug('FileQueue', 'Loaded', fileNames.size, 'processed files');
+        setProcessedHashes(fileHashes);
+        debug('FileQueue', 'Loaded', fileNames.size, 'processed files,', fileHashes.size, 'hashes');
         loadProcessedFilesFailedRef.current = false; // Reset on success
       }
     } catch (err) {
@@ -193,11 +196,22 @@ export function FileQueueModule() {
       }));
     };
 
-    const handleCompleted = ({ filePath, faceCount }) => {
+    const handleCompleted = ({ filePath, hash, faceCount }) => {
       setPreprocessingStatus(prev => ({
         ...prev,
-        [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount }
+        [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount, hash }
       }));
+
+      // Check if file hash matches a processed file (handles renamed files)
+      if (hash && processedHashes.has(hash)) {
+        setQueue(prev => prev.map(item =>
+          item.filePath === filePath && !item.isAlreadyProcessed
+            ? { ...item, isAlreadyProcessed: true }
+            : item
+        ));
+        debug('FileQueue', 'File recognized by hash as already processed:', filePath);
+      }
+
       debug('FileQueue', 'Preprocessing completed:', filePath, `(${faceCount ?? 0} faces)`);
     };
 
@@ -261,7 +275,7 @@ export function FileQueueModule() {
       manager.off('error', handleError);
       manager.off('file-not-found', handleFileNotFound);
     };
-  }, [showToast]);
+  }, [showToast, processedHashes]);
 
   // Load queue from localStorage on mount
   useEffect(() => {
