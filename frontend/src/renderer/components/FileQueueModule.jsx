@@ -173,6 +173,7 @@ export function FileQueueModule() {
           // Don't restore currentIndex - we'll auto-load in a separate effect
           setAutoAdvance(parsed.autoAdvance ?? true);
           setFixMode(parsed.fixMode ?? false);
+          setShowPreviewNames(parsed.showPreviewNames ?? false);
           // Save the index we want to resume from
           savedIndexRef.current = parsed.currentIndex ?? -1;
           setShouldAutoLoad(true);
@@ -245,12 +246,13 @@ export function FileQueueModule() {
         queue,
         currentIndex,
         autoAdvance,
-        fixMode
+        fixMode,
+        showPreviewNames
       }));
     } catch (err) {
       debugError('FileQueue', 'Failed to save queue:', err);
     }
-  }, [queue, currentIndex, autoAdvance, fixMode]);
+  }, [queue, currentIndex, autoAdvance, fixMode, showPreviewNames]);
 
   // Check if file is already processed
   const isFileProcessed = useCallback((fileName) => {
