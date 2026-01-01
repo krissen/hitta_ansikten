@@ -5,13 +5,13 @@
  * Uses FlexLayout for layout management.
  */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
-const path = require('path');
-const { spawn } = require('child_process');
-const fs = require('fs');
-const os = require('os');
-const { BackendService } = require('./backend-service');
-const { createApplicationMenu } = require('./menu');
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
+const path = require("path");
+const { spawn } = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const { BackendService } = require("./backend-service");
+const { createApplicationMenu } = require("./menu");
 
 let mainWindow = null;
 let backendService = null;
@@ -23,25 +23,30 @@ let isQuitting = false;
 function parseCommandLineArgs(argv) {
   const result = {
     files: [],
-    queuePosition: null,  // null = open directly, 'start' or 'end' = add to queue
-    startQueue: false
+    queuePosition: null, // null = open directly, 'start' or 'end' = add to queue
+    startQueue: false,
   };
 
   let i = 0;
   // Skip electron path and app path
-  while (i < argv.length && (argv[i].includes('electron') || argv[i].includes('Electron') || argv[i] === '.')) {
+  while (
+    i < argv.length &&
+    (argv[i].includes("electron") ||
+      argv[i].includes("Electron") ||
+      argv[i] === ".")
+  ) {
     i++;
   }
 
   for (; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--queue' || arg === '-q') {
-      result.queuePosition = 'end';
-    } else if (arg === '--queue-start' || arg === '-qs') {
-      result.queuePosition = 'start';
-    } else if (arg === '--start' || arg === '-s') {
+    if (arg === "--queue" || arg === "-q") {
+      result.queuePosition = "end";
+    } else if (arg === "--queue-start" || arg === "-qs") {
+      result.queuePosition = "start";
+    } else if (arg === "--start" || arg === "-s") {
       result.startQueue = true;
-    } else if (!arg.startsWith('-')) {
+    } else if (!arg.startsWith("-")) {
       // It's a file path or glob
       result.files.push(arg);
     }
@@ -56,20 +61,20 @@ async function expandFilePaths(patterns) {
   for (const pattern of patterns) {
     // Expand ~ to home directory
     let expandedPattern = pattern;
-    if (pattern.startsWith('~')) {
+    if (pattern.startsWith("~")) {
       expandedPattern = path.join(os.homedir(), pattern.slice(1));
     }
 
-    if (pattern.includes('*') || pattern.includes('?')) {
+    if (pattern.includes("*") || pattern.includes("?")) {
       // Glob pattern
       try {
         const dir = path.dirname(expandedPattern);
         const patternBase = path.basename(expandedPattern);
         const regexPattern = patternBase
-          .replace(/\./g, '\\.')
-          .replace(/\*/g, '.*')
-          .replace(/\?/g, '.');
-        const regex = new RegExp(`^${regexPattern}$`, 'i');
+          .replace(/\./g, "\\.")
+          .replace(/\*/g, ".*")
+          .replace(/\?/g, ".");
+        const regex = new RegExp(`^${regexPattern}$`, "i");
 
         const entries = fs.readdirSync(dir);
         for (const entry of entries) {
@@ -81,7 +86,10 @@ async function expandFilePaths(patterns) {
           }
         }
       } catch (err) {
-        console.error(`[Main] Failed to expand glob "${pattern}":`, err.message);
+        console.error(
+          `[Main] Failed to expand glob "${pattern}":`,
+          err.message,
+        );
       }
     } else {
       // Direct path
@@ -98,15 +106,17 @@ async function expandFilePaths(patterns) {
 function sendFilesToQueue(files, position, startQueue) {
   if (!mainWindow || files.length === 0) return;
 
-  console.log(`[Main] Sending ${files.length} files to queue (position: ${position}, start: ${startQueue})`);
-  mainWindow.webContents.send('queue-files', { files, position, startQueue });
+  console.log(
+    `[Main] Sending ${files.length} files to queue (position: ${position}, start: ${startQueue})`,
+  );
+  mainWindow.webContents.send("queue-files", { files, position, startQueue });
 }
 
 /**
  * Create the main workspace window
  */
 function createWorkspaceWindow() {
-  console.log('[Main] Creating workspace window...');
+  console.log("[Main] Creating workspace window...");
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -114,10 +124,10 @@ function createWorkspaceWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '../preload/preload.js'),
-      partition: 'persist:bildvisare' // Persist localStorage between sessions
+      preload: path.join(__dirname, "../preload/preload.js"),
+      partition: "persist:bildvisare", // Persist localStorage between sessions
     },
-    title: 'Bildvisare Workspace'
+    title: "Hitta ansikten",
   });
 
   // Set application menu
@@ -125,8 +135,12 @@ function createWorkspaceWindow() {
   Menu.setApplicationMenu(menu);
 
   // Load workspace HTML
-  const workspaceHtml = path.join(__dirname, '../renderer', 'workspace-flex.html');
-  console.log('[Main] Loading FlexLayout workspace:', workspaceHtml);
+  const workspaceHtml = path.join(
+    __dirname,
+    "../renderer",
+    "workspace-flex.html",
+  );
+  console.log("[Main] Loading FlexLayout workspace:", workspaceHtml);
   mainWindow.loadFile(workspaceHtml);
 
   // Note: Initial file path is now requested by renderer via IPC when ready
@@ -137,56 +151,61 @@ function createWorkspaceWindow() {
   //   mainWindow.webContents.openDevTools();
   // }
 
-  mainWindow.on('closed', () => {
+  mainWindow.on("closed", () => {
     mainWindow = null;
   });
 
   // Track DevTools open/close state for renderer
-  mainWindow.webContents.on('devtools-opened', () => {
-    mainWindow.webContents.send('devtools-state-changed', true);
+  mainWindow.webContents.on("devtools-opened", () => {
+    mainWindow.webContents.send("devtools-state-changed", true);
   });
 
-  mainWindow.webContents.on('devtools-closed', () => {
-    mainWindow.webContents.send('devtools-state-changed', false);
+  mainWindow.webContents.on("devtools-closed", () => {
+    mainWindow.webContents.send("devtools-state-changed", false);
   });
 
-  console.log('[Main] Workspace window created');
+  console.log("[Main] Workspace window created");
 }
 
 // Parse initial command line arguments
 const initialArgs = parseCommandLineArgs(process.argv);
-console.log('[Main] Initial args:', initialArgs);
+console.log("[Main] Initial args:", initialArgs);
 
 // Request single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   // Another instance is running - it will receive our args via second-instance event
-  console.log('[Main] Another instance is running, sending args and quitting...');
+  console.log(
+    "[Main] Another instance is running, sending args and quitting...",
+  );
   app.quit();
   process.exit(0);
 }
 
 // Handle second instance launching (receives args from new instance)
-app.on('second-instance', async (event, argv, workingDirectory) => {
-  console.log('[Main] Second instance launched with argv:', JSON.stringify(argv));
-  console.log('[Main] Working directory:', workingDirectory);
+app.on("second-instance", async (event, argv, workingDirectory) => {
+  console.log(
+    "[Main] Second instance launched with argv:",
+    JSON.stringify(argv),
+  );
+  console.log("[Main] Working directory:", workingDirectory);
 
   // Filter out the working directory from argv if it's included
-  const filteredArgv = argv.filter(arg => arg !== workingDirectory);
-  console.log('[Main] Filtered argv:', JSON.stringify(filteredArgv));
+  const filteredArgv = argv.filter((arg) => arg !== workingDirectory);
+  console.log("[Main] Filtered argv:", JSON.stringify(filteredArgv));
 
   const args = parseCommandLineArgs(filteredArgv);
-  console.log('[Main] Parsed args:', JSON.stringify(args));
+  console.log("[Main] Parsed args:", JSON.stringify(args));
 
   if (args.files.length > 0) {
     const files = await expandFilePaths(args.files);
-    console.log('[Main] Expanded files:', JSON.stringify(files));
+    console.log("[Main] Expanded files:", JSON.stringify(files));
     if (args.queuePosition) {
       sendFilesToQueue(files, args.queuePosition, args.startQueue);
     } else if (files.length === 1) {
       // Single file without queue flag - open directly
-      mainWindow?.webContents.send('menu-command', 'load-image');
+      mainWindow?.webContents.send("menu-command", "load-image");
       // TODO: Actually load the file
     }
   }
@@ -200,7 +219,7 @@ app.on('second-instance', async (event, argv, workingDirectory) => {
 
 // App lifecycle - only runs if we got the lock
 app.whenReady().then(async () => {
-  console.log('[Main] App ready, starting backend...');
+  console.log("[Main] App ready, starting backend...");
 
   // Start backend service
   try {
@@ -208,7 +227,7 @@ app.whenReady().then(async () => {
     await backendService.start();
     console.log(`[Main] Backend ready at ${backendService.getUrl()}`);
   } catch (err) {
-    console.error('[Main] Failed to start backend:', err);
+    console.error("[Main] Failed to start backend:", err);
     // TODO: Show error dialog to user
   }
 
@@ -221,9 +240,13 @@ app.whenReady().then(async () => {
     if (files.length > 0) {
       if (initialArgs.queuePosition) {
         // Add to queue - wait for renderer to be ready
-        mainWindow.webContents.once('did-finish-load', () => {
+        mainWindow.webContents.once("did-finish-load", () => {
           setTimeout(() => {
-            sendFilesToQueue(files, initialArgs.queuePosition, initialArgs.startQueue);
+            sendFilesToQueue(
+              files,
+              initialArgs.queuePosition,
+              initialArgs.startQueue,
+            );
           }, 1000); // Give FileQueueModule time to mount
         });
       } else if (files.length === 1) {
@@ -233,19 +256,19 @@ app.whenReady().then(async () => {
     }
   }
 
-  app.on('activate', () => {
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWorkspaceWindow();
     }
   });
 });
 
-app.on('window-all-closed', async () => {
-  console.log('[Main] All windows closed, isQuitting:', isQuitting);
+app.on("window-all-closed", async () => {
+  console.log("[Main] All windows closed, isQuitting:", isQuitting);
 
   // If we're in the middle of quitting, actually quit now
   if (isQuitting) {
-    console.log('[Main] Quitting after backend stopped');
+    console.log("[Main] Quitting after backend stopped");
     // Don't call app.quit() here - we're already quitting
     // Just exit the process directly
     process.exit(0);
@@ -254,15 +277,15 @@ app.on('window-all-closed', async () => {
 
   // On macOS, stop backend but keep app running (unless quitting)
   // On other platforms, quit the app
-  if (process.platform === 'darwin') {
+  if (process.platform === "darwin") {
     // Stop backend when window closes on macOS
     if (backendService) {
       isQuitting = true;
       try {
         await backendService.stop();
-        console.log('[Main] Backend stopped (window closed)');
+        console.log("[Main] Backend stopped (window closed)");
       } catch (err) {
-        console.error('[Main] Error stopping backend:', err);
+        console.error("[Main] Error stopping backend:", err);
       }
       backendService = null;
     }
@@ -271,51 +294,54 @@ app.on('window-all-closed', async () => {
   }
 });
 
-app.on('before-quit', async (event) => {
-  console.log('[Main] before-quit event, isQuitting:', isQuitting);
+app.on("before-quit", async (event) => {
+  console.log("[Main] before-quit event, isQuitting:", isQuitting);
 
   if (backendService && !isQuitting) {
-    console.log('[Main] Preventing quit to stop backend first...');
+    console.log("[Main] Preventing quit to stop backend first...");
     event.preventDefault(); // Prevent quit until backend stops
     isQuitting = true;
 
     try {
       await backendService.stop();
-      console.log('[Main] Backend stopped successfully');
+      console.log("[Main] Backend stopped successfully");
     } catch (err) {
-      console.error('[Main] Error stopping backend:', err);
+      console.error("[Main] Error stopping backend:", err);
     }
 
     backendService = null;
 
     // Now quit for real
-    console.log('[Main] Backend stopped, quitting now...');
+    console.log("[Main] Backend stopped, quitting now...");
     app.quit();
   }
 });
 
-app.on('will-quit', () => {
-  console.log('[Main] will-quit event');
+app.on("will-quit", () => {
+  console.log("[Main] will-quit event");
 });
 
 // IPC Handlers
 
 // Get initial file path (if app was launched with a file argument)
-ipcMain.handle('get-initial-file', () => {
+ipcMain.handle("get-initial-file", () => {
   const filePath = initialFilePath;
-  console.log('[Main] Renderer requested initial file:', filePath || '(none)');
+  console.log("[Main] Renderer requested initial file:", filePath || "(none)");
   // Clear it after first request to avoid reloading on window refresh
   initialFilePath = null;
   return filePath;
 });
 
-ipcMain.handle('open-file-dialog', async () => {
+ipcMain.handle("open-file-dialog", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'],
+    properties: ["openFile"],
     filters: [
-      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'tiff', 'nef', 'cr2', 'arw'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
+      {
+        name: "Images",
+        extensions: ["jpg", "jpeg", "png", "tiff", "nef", "cr2", "arw"],
+      },
+      { name: "All Files", extensions: ["*"] },
+    ],
   });
 
   if (result.canceled) {
@@ -326,14 +352,20 @@ ipcMain.handle('open-file-dialog', async () => {
 });
 
 // Multi-file dialog for File Queue (files only - normal navigation)
-ipcMain.handle('open-multi-file-dialog', async () => {
+ipcMain.handle("open-multi-file-dialog", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile', 'multiSelections'],
+    properties: ["openFile", "multiSelections"],
     filters: [
-      { name: 'RAW Images', extensions: ['nef', 'NEF', 'cr2', 'CR2', 'arw', 'ARW'] },
-      { name: 'All Images', extensions: ['jpg', 'jpeg', 'png', 'tiff', 'nef', 'cr2', 'arw'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
+      {
+        name: "RAW Images",
+        extensions: ["nef", "NEF", "cr2", "CR2", "arw", "ARW"],
+      },
+      {
+        name: "All Images",
+        extensions: ["jpg", "jpeg", "png", "tiff", "nef", "cr2", "arw"],
+      },
+      { name: "All Files", extensions: ["*"] },
+    ],
   });
 
   if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
@@ -344,13 +376,13 @@ ipcMain.handle('open-multi-file-dialog', async () => {
 });
 
 // Folder dialog - select folders and expand to image files
-ipcMain.handle('open-folder-dialog', async () => {
-  const fs = require('fs');
-  const pathModule = require('path');
+ipcMain.handle("open-folder-dialog", async () => {
+  const fs = require("fs");
+  const pathModule = require("path");
 
   const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openDirectory', 'multiSelections'],
-    message: 'Select folder(s) to add all images'
+    properties: ["openDirectory", "multiSelections"],
+    message: "Select folder(s) to add all images",
   });
 
   if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
@@ -358,7 +390,15 @@ ipcMain.handle('open-folder-dialog', async () => {
   }
 
   // Expand directories to their image files
-  const supportedExtensions = ['.nef', '.cr2', '.arw', '.jpg', '.jpeg', '.png', '.tiff'];
+  const supportedExtensions = [
+    ".nef",
+    ".cr2",
+    ".arw",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".tiff",
+  ];
   const expandedPaths = [];
 
   for (const selectedPath of result.filePaths) {
@@ -371,7 +411,7 @@ ipcMain.handle('open-folder-dialog', async () => {
         }
       }
     } catch (err) {
-      console.error('Error reading folder:', selectedPath, err);
+      console.error("Error reading folder:", selectedPath, err);
     }
   }
 
@@ -379,26 +419,29 @@ ipcMain.handle('open-folder-dialog', async () => {
   expandedPaths.sort((a, b) => {
     const nameA = pathModule.basename(a);
     const nameB = pathModule.basename(b);
-    return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+    return nameA.localeCompare(nameB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
   });
 
   return expandedPaths;
 });
 
 // Expand glob pattern to file paths
-ipcMain.handle('expand-glob', async (event, pattern) => {
-  const fs = require('fs');
-  const path = require('path');
+ipcMain.handle("expand-glob", async (event, pattern) => {
+  const fs = require("fs");
+  const path = require("path");
 
   // Expand ~ to home directory
   let expandedPattern = pattern;
-  if (pattern.startsWith('~')) {
-    expandedPattern = path.join(require('os').homedir(), pattern.slice(1));
+  if (pattern.startsWith("~")) {
+    expandedPattern = path.join(require("os").homedir(), pattern.slice(1));
   }
 
   try {
     // Use Node.js 22+ built-in glob
-    const { glob } = require('fs').promises;
+    const { glob } = require("fs").promises;
     if (glob) {
       const files = [];
       for await (const file of glob(expandedPattern)) {
@@ -417,24 +460,24 @@ ipcMain.handle('expand-glob', async (event, pattern) => {
 
     // Convert glob pattern to regex
     const regexPattern = patternBase
-      .replace(/\./g, '\\.')
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.');
-    const regex = new RegExp(`^${regexPattern}$`, 'i');
+      .replace(/\./g, "\\.")
+      .replace(/\*/g, ".*")
+      .replace(/\?/g, ".");
+    const regex = new RegExp(`^${regexPattern}$`, "i");
 
-    const files = fs.readdirSync(dir)
-      .filter(f => regex.test(f))
-      .map(f => path.join(dir, f))
-      .filter(f => fs.statSync(f).isFile())
+    const files = fs
+      .readdirSync(dir)
+      .filter((f) => regex.test(f))
+      .map((f) => path.join(dir, f))
+      .filter((f) => fs.statSync(f).isFile())
       .sort();
 
     return files;
   } catch (err) {
-    console.error('[Main] Failed to expand glob:', err);
+    console.error("[Main] Failed to expand glob:", err);
     return [];
   }
 });
-
 
 // NOTE: NEF conversion is now handled by the backend preprocessing API
 // See /api/preprocessing/nef endpoint
@@ -444,9 +487,10 @@ let rendererLogStream = null;
 
 function getRendererLogPath() {
   // Use ~/Library/Logs/Bildvisare on macOS, %APPDATA%/Bildvisare/logs on Windows
-  const logDir = process.platform === 'darwin'
-    ? path.join(os.homedir(), 'Library', 'Logs', 'Bildvisare')
-    : path.join(app.getPath('userData'), 'logs');
+  const logDir =
+    process.platform === "darwin"
+      ? path.join(os.homedir(), "Library", "Logs", "Bildvisare")
+      : path.join(app.getPath("userData"), "logs");
 
   // Ensure directory exists
   if (!fs.existsSync(logDir)) {
@@ -454,7 +498,7 @@ function getRendererLogPath() {
   }
 
   // Use date-based log file
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
   return path.join(logDir, `renderer-${today}.log`);
 }
 
@@ -466,21 +510,21 @@ function ensureLogStream() {
     if (rendererLogStream) {
       rendererLogStream.end();
     }
-    rendererLogStream = fs.createWriteStream(logPath, { flags: 'a' });
-    console.log('[Main] Renderer log file:', logPath);
+    rendererLogStream = fs.createWriteStream(logPath, { flags: "a" });
+    console.log("[Main] Renderer log file:", logPath);
   }
 
   return rendererLogStream;
 }
 
 // IPC handler for renderer logs
-ipcMain.on('renderer-log', (event, { level, message }) => {
+ipcMain.on("renderer-log", (event, { level, message }) => {
   try {
     const stream = ensureLogStream();
     stream.write(`[${level.toUpperCase()}] ${message}\n`);
   } catch (err) {
-    console.error('[Main] Failed to write renderer log:', err);
+    console.error("[Main] Failed to write renderer log:", err);
   }
 });
 
-console.log('[Main] Workspace mode initialized');
+console.log("[Main] Workspace mode initialized");
