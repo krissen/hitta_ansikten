@@ -330,8 +330,11 @@ Enhetligt spacing-system baserat på 4px grid:
   /* Focus ring med semi-transparent accent färg */
   box-shadow: 0 0 0 2px var(--accent-primary-alpha-20);
   
-  /* Alternativ med color-mix() för modern browsers (ger mer flexibilitet): */
-  /* box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 20%, transparent); */
+  /* Alternativ med color-mix() för modern browsers:
+   * Kräver Firefox 113+, Chrome 111+, Safari 16.2+ (April 2023+)
+   * Ger mer flexibilitet genom dynamisk färgblandning
+   * box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 20%, transparent);
+   */
 }
 
 .input:disabled {
@@ -559,9 +562,14 @@ class ThemeManager {
   }
 
   applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-    this.currentTheme = theme;
+    if (document.documentElement) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      this.currentTheme = theme;
+      
+      // Dispatch event för moduler som behöver reagera på tema-byte
+      window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
+    }
   }
 
   toggle() {
@@ -675,9 +683,37 @@ Använd detta för att verifiera kontrast:
 
 ```javascript
 // contrast-checker.js
+// Baserad på WCAG 2.1 relative luminance formula
+// https://www.w3.org/TR/WCAG21/#dfn-relative-luminance
+
+function getLuminance(r, g, b) {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c = c / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
 function getContrastRatio(color1, color2) {
-  // Implementation av WCAG contrast calculation
-  // https://www.w3.org/TR/WCAG20-TECHS/G17.html
+  // Parse hex color to RGB
+  const hex1 = color1.replace('#', '');
+  const hex2 = color2.replace('#', '');
+  
+  const r1 = parseInt(hex1.substr(0, 2), 16);
+  const g1 = parseInt(hex1.substr(2, 2), 16);
+  const b1 = parseInt(hex1.substr(4, 2), 16);
+  
+  const r2 = parseInt(hex2.substr(0, 2), 16);
+  const g2 = parseInt(hex2.substr(2, 2), 16);
+  const b2 = parseInt(hex2.substr(4, 2), 16);
+  
+  const lum1 = getLuminance(r1, g1, b1);
+  const lum2 = getLuminance(r2, g2, b2);
+  
+  const lighter = Math.max(lum1, lum2);
+  const darker = Math.min(lum1, lum2);
+  
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 // Testa alla färgkombinationer
@@ -688,13 +724,28 @@ const tests = [
   // ... alla viktiga kombinationer
 ];
 
+// Hämta CSS-variabler och kör tester
+const root = document.documentElement;
+const styles = getComputedStyle(root);
+
 tests.forEach(([fg, bg]) => {
-  const ratio = getContrastRatio(
-    getComputedStyle(document.documentElement).getPropertyValue(fg),
-    getComputedStyle(document.documentElement).getPropertyValue(bg)
+  const fgColor = styles.getPropertyValue(fg).trim();
+  const bgColor = styles.getPropertyValue(bg).trim();
+  const ratio = getContrastRatio(fgColor, bgColor);
+  
+  const passAA = ratio >= 4.5;
+  const passAAA = ratio >= 7.0;
+  
+  console.log(
+    `${fg} / ${bg}: ${ratio.toFixed(2)}:1 ` +
+    `${passAA ? '✓ AA' : '✗ AA'} ${passAAA ? '✓ AAA' : ''}`
   );
-  console.log(`${fg} / ${bg}: ${ratio.toFixed(2)}:1 ${ratio >= 4.5 ? '✓' : '✗'}`);
 });
+
+// Alternativ: Använd befintligt library som 'wcag-contrast'
+// npm install wcag-contrast
+// import { hex } from 'wcag-contrast';
+// const ratio = hex('#6b8e23', '#f5f1e8');
 ```
 
 ### CSS Variable Preview Tool
@@ -834,5 +885,5 @@ För att visuellt se alla färger:
 
 **Författare:** Styling dokumentation för hitta_ansikten workspace  
 **Version:** 1.0  
-**Datum:** 2026-01-01  
+**Datum:** 2025-01-01  
 **Status:** Klar för implementation
