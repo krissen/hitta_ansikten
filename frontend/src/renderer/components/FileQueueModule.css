@@ -162,6 +162,7 @@
   cursor: pointer;
   border: 1px solid transparent;
   transition: background 0.15s, border-color 0.15s;
+  min-height: 28px; /* Consistent row height */
 }
 
 .file-item:hover {
@@ -352,16 +353,20 @@
   cursor: not-allowed;
 }
 
+/* Preprocessing column - fixed width for alignment */
+.preprocess-col {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Preprocessing indicator */
 .preprocess-indicator {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  line-height: 14px;
-  text-align: center;
-  font-size: 10px;
-  margin: 0;
-  padding: 0;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .preprocess-indicator.loading {
@@ -393,20 +398,29 @@
   color: #333;
 }
 
-/* Face count badge */
+/* Face count badge - fixed width for alignment */
 .face-count {
   flex-shrink: 0;
+  width: 32px;
   font-size: 11px;
   color: #666;
   background: #e8e8e8;
-  padding: 1px 5px;
+  padding: 2px 0;
   border-radius: 10px;
-  margin-left: 4px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .file-item.completed .face-count {
   background: #c8e6c9;
   color: #2e7d32;
+}
+
+.file-item.already-processed .face-count {
+  background: #dcedc8;
+  color: #558b2f;
 }
 
 /* Unified tooltip */

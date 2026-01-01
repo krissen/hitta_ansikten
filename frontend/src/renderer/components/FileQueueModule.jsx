@@ -1033,12 +1033,13 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
       <span className="file-name">
         {truncateFilename(item.fileName)}
       </span>
-      {faceCount > 0 && (
-        <span className="face-count" title={faceNames.join(', ')}>
-          👤{faceCount}
-        </span>
-      )}
-      {getPreprocessingIndicator()}
+      {/* Fixed-width columns for alignment */}
+      <span className="preprocess-col">
+        {getPreprocessingIndicator()}
+      </span>
+      <span className="face-count" title={faceNames.length > 0 ? faceNames.join(', ') : 'No faces'}>
+        👤{faceCount}
+      </span>
       <span className="file-status">{getStatusText()}</span>
       <button
         className="remove-btn"
