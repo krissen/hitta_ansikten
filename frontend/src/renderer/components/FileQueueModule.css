@@ -66,8 +66,7 @@
 
 .file-queue-btn.folder {
   background: var(--bg-hover);
-  font-size: var(--font-sm);
-  /* Note: emoji icons don't respect color property */
+  color: var(--text-primary);
 }
 
 .file-queue-btn.folder:hover {

@@ -15,6 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
+import { Icon } from './Icon.jsx';
 import './FileQueueModule.css';
 
 // Read preference directly from localStorage to avoid circular dependency
@@ -1221,21 +1222,21 @@ export function FileQueueModule() {
             onClick={openFileDialog}
             title="Add files"
           >
-            +
+            <Icon name="plus" size={14} />
           </button>
           <button
             className="file-queue-btn folder"
             onClick={openFolderDialog}
             title="Add folder"
           >
-            📁
+            <Icon name="folder-plus" size={14} />
           </button>
           <button
             className="file-queue-btn settings"
             onClick={() => setAutoAdvance(!autoAdvance)}
             title={autoAdvance ? 'Auto-advance ON' : 'Auto-advance OFF'}
           >
-            {autoAdvance ? '▶' : '⏸'}
+            <Icon name={autoAdvance ? 'play' : 'pause'} size={14} />
           </button>
         </div>
       </div>
