@@ -226,3 +226,23 @@
 .stats-log-entry.error {
   color: #f48771;
 }
+
+/* Source badges for recent images */
+.source-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-left: 6px;
+  vertical-align: middle;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.source-badge.cli {
+  background: #616161;
+  color: #e0e0e0;
+}
+
+.image-entry.source-cli {
+  opacity: 0.7;
+}

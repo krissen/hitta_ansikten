@@ -37,6 +37,7 @@ class TopFace(BaseModel):
     """Person with face count"""
     name: str
     face_count: int
+    percentage: Optional[int] = None
 
 
 class RecentImage(BaseModel):
@@ -44,6 +45,7 @@ class RecentImage(BaseModel):
     filename: str
     timestamp: str
     person_names: List[str]
+    source: str = "cli"  # 'cli' or 'bildvisare'
 
 
 class LogLine(BaseModel):
@@ -173,4 +175,34 @@ async def get_recent_logs(n: int = 3):
 
     except Exception as e:
         logger.error(f"[Statistics] Error getting recent logs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/statistics/processed-files")
+async def get_processed_files(n: int = 200, source: Optional[str] = None):
+    """
+    Get list of recently processed files for CLI use
+
+    Args:
+    - n: Number of files to return (default 200, max 1000)
+    - source: Filter by source ('cli', 'bildvisare', or None for all)
+
+    Returns list of processed files with timestamps, names, and source
+    """
+    try:
+        n = min(n, 1000)  # Cap at 1000
+        logger.info(f"[Statistics] Getting {n} processed files (source: {source or 'all'})")
+        images = await statistics_service.get_recent_images(n=n)
+
+        # Filter by source if specified
+        if source:
+            images = [img for img in images if img.get("source") == source]
+
+        return {
+            "count": len(images),
+            "files": images
+        }
+
+    except Exception as e:
+        logger.error(f"[Statistics] Error getting processed files: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -104,9 +104,17 @@ class StatisticsService:
             attempts = entry.get("attempts", [])
             used = entry.get("used_attempt")
 
-            # Count all attempts
+            # Count all attempts (skip API/manual entries without real detection info)
             for att in attempts:
+                # Skip Bildvisare API entries (they don't have real detection backend info)
+                if att.get("resolution") == "api" or att.get("source") == "bildvisare":
+                    continue
+
                 backend = att.get("backend", att.get("model", "unknown"))
+                # Skip if no real backend info
+                if backend == "unknown" and not att.get("scale_label"):
+                    continue
+
                 key = (
                     backend,
                     att.get("upsample"),
@@ -118,7 +126,15 @@ class StatisticsService:
             # Count used attempts
             if used is not None and attempts and used < len(attempts):
                 setting = attempts[used]
+                # Skip API/manual entries
+                if setting.get("resolution") == "api" or setting.get("source") == "bildvisare":
+                    continue
+
                 backend = setting.get("backend", setting.get("model", "unknown"))
+                # Skip if no real backend info
+                if backend == "unknown" and not setting.get("scale_label"):
+                    continue
+
                 key = (
                     backend,
                     setting.get("upsample"),
@@ -151,6 +167,9 @@ class StatisticsService:
                 "avg_time": round(mean_time, 2),
             })
 
+        # Sort by total_count descending
+        result.sort(key=lambda x: x["total_count"], reverse=True)
+
         return result
 
     async def get_top_faces(self, stats: List[Dict] = None) -> Dict[str, Any]:
@@ -158,7 +177,8 @@ class StatisticsService:
         Get top 19 faces plus ignored count
 
         Returns:
-        - faces: List of {name, face_count} sorted by count (top 19)
+        - faces: List of {name, face_count, percentage} sorted by count (top 19)
+        - total_faces: Total number of face encodings in database
         - ignored_count: Number of ignored encodings
         - ignored_total: Total faces that were ignored in processing
         - ignored_fraction: Fraction of faces ignored (0.0-1.0)
@@ -170,11 +190,22 @@ class StatisticsService:
 
         ignored_count, ignored_total, ignored_frac = self.calc_ignored_fraction(stats)
 
-        # Get top 19 faces
+        # Calculate total faces for percentage
+        total_faces = sum(face_counts.values())
+
+        # Get top 19 faces with percentage
         top_faces = sorted(face_counts.items(), key=lambda x: -x[1])[:19]
 
         return {
-            "faces": [{"name": name, "face_count": count} for name, count in top_faces],
+            "faces": [
+                {
+                    "name": name,
+                    "face_count": count,
+                    "percentage": round(100 * count / total_faces) if total_faces > 0 else 0
+                }
+                for name, count in top_faces
+            ],
+            "total_faces": total_faces,
             "ignored_count": ignored_count,
             "ignored_total": ignored_total,
             "ignored_fraction": round(ignored_frac, 3),
@@ -188,6 +219,7 @@ class StatisticsService:
         - filename: Image filename
         - timestamp: Processing timestamp
         - person_names: List of person names in image
+        - source: Where the review came from ('bildvisare' or 'cli')
         """
         stats = load_attempt_log(all_files=False)
 
@@ -200,6 +232,14 @@ class StatisticsService:
             timestamp = entry.get("timestamp", "")
             used = entry.get("used_attempt")
             labels_per_attempt = entry.get("labels_per_attempt")
+            attempts = entry.get("attempts", [])
+
+            # Determine source - check if this is a Bildvisare API entry
+            source = "cli"
+            if used is not None and attempts and used < len(attempts):
+                att = attempts[used]
+                if att.get("source") == "bildvisare" or att.get("resolution") == "api":
+                    source = "bildvisare"
 
             if used is not None and labels_per_attempt and used < len(labels_per_attempt):
                 names = extract_face_labels(labels_per_attempt[used])
@@ -210,6 +250,7 @@ class StatisticsService:
                 "filename": fname,
                 "timestamp": timestamp,
                 "person_names": names,
+                "source": source,
             })
 
         return result

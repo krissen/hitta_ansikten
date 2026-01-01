@@ -203,8 +203,8 @@ function AttemptStatsSection({ stats, isLoading }) {
         <thead>
           <tr>
             <th>Backend &amp; Settings</th>
-            <th className="num">Used</th>
-            <th className="num">Total</th>
+            <th className="num">Attempts</th>
+            <th className="num">Chosen</th>
             <th className="num">Hit %</th>
             <th className="num">Avg Faces</th>
             <th className="num">Avg Time</th>
@@ -219,8 +219,8 @@ function AttemptStatsSection({ stats, isLoading }) {
             return (
               <tr key={idx}>
                 <td>{settings}</td>
-                <td className="num">{stat.used_count}</td>
                 <td className="num">{stat.total_count}</td>
+                <td className="num">{stat.used_count}</td>
                 <td className="num">{stat.hit_rate.toFixed(1)}%</td>
                 <td className="num">{stat.avg_faces.toFixed(2)}</td>
                 <td className="num">{stat.avg_time.toFixed(2)}s</td>
@@ -286,7 +286,9 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
             if (item.name === 'Ignored') {
               content = `${item.name} ${item.face_count}`;
             } else {
-              content = `${item.name} (${item.face_count})`;
+              // Show count and percentage (e.g., "Elton (259, 15%)")
+              const pct = item.percentage !== undefined ? `, ${item.percentage}%` : '';
+              content = `${item.name} (${item.face_count}${pct})`;
             }
           }
 
@@ -328,8 +330,11 @@ function RecentImagesSection({ images, isLoading }) {
       <h4>Recent Images</h4>
       <div className="recent-images-list">
         {images.map((img, idx) => (
-          <div key={idx} className="image-entry">
-            <span className="image-filename">{img.filename}</span>
+          <div key={idx} className={`image-entry ${img.source === 'bildvisare' ? 'source-bildvisare' : 'source-cli'}`}>
+            <span className="image-filename">
+              {img.filename}
+              {img.source === 'cli' && <span className="source-badge cli">CLI</span>}
+            </span>
             <span className="image-names">
               {img.person_names && img.person_names.length > 0
                 ? img.person_names.join(', ')
