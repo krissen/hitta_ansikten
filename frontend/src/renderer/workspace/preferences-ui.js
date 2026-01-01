@@ -71,7 +71,6 @@ export class PreferencesUI {
           <button class="pref-tabs-arrow pref-tabs-arrow-left" title="Previous tab">‹</button>
           <div class="pref-tabs">
             <button class="pref-tab active" data-tab="general">General</button>
-            <button class="pref-tab" data-tab="appearance">Appearance</button>
             <button class="pref-tab" data-tab="layout">Layout</button>
             <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
             <button class="pref-tab" data-tab="review">Review</button>
@@ -139,59 +138,6 @@ export class PreferencesUI {
                 Show welcome message on startup
               </label>
             </div>
-          </div>
-          </div>
-
-          <!-- Appearance Tab Panel -->
-          <div class="pref-tab-panel" data-tab="appearance">
-            <div class="pref-section">
-              <h3>Appearance</h3>
-
-            <div class="pref-field">
-              <label>Tab Height (px)</label>
-              <div class="slider-input-group">
-                <input type="range" id="pref-appearance-tabsHeight-slider" min="20" max="40" step="1" />
-                <input type="number" id="pref-appearance-tabsHeight" min="20" max="40" step="1" />
-              </div>
-              <small>Height of panel tabs.</small>
-            </div>
-
-            <div class="pref-field">
-              <label>Tab Font Size (px)</label>
-              <div class="slider-input-group">
-                <input type="range" id="pref-appearance-tabsFontSize-slider" min="10" max="16" step="1" />
-                <input type="number" id="pref-appearance-tabsFontSize" min="10" max="16" step="1" />
-              </div>
-              <small>Font size of tab text.</small>
-            </div>
-
-            <div class="pref-field">
-              <label>Tab Padding Left (px)</label>
-              <div class="slider-input-group">
-                <input type="range" id="pref-appearance-tabPaddingLeft-slider" min="0" max="20" step="1" />
-                <input type="number" id="pref-appearance-tabPaddingLeft" min="0" max="20" step="1" />
-              </div>
-              <small>Left padding inside tabs.</small>
-            </div>
-
-            <div class="pref-field">
-              <label>Tab Padding Right (px)</label>
-              <div class="slider-input-group">
-                <input type="range" id="pref-appearance-tabPaddingRight-slider" min="0" max="20" step="1" />
-                <input type="number" id="pref-appearance-tabPaddingRight" min="0" max="20" step="1" />
-              </div>
-              <small>Right padding inside tabs.</small>
-            </div>
-
-            <div class="pref-field">
-              <label>Tab Min Gap (px)</label>
-              <div class="slider-input-group">
-                <input type="range" id="pref-appearance-tabMinGap-slider" min="0" max="30" step="1" />
-                <input type="number" id="pref-appearance-tabMinGap" min="0" max="30" step="1" />
-              </div>
-              <small>Minimum space between text and close button.</small>
-            </div>
-
           </div>
           </div>
 
@@ -1300,11 +1246,6 @@ export class PreferencesUI {
     });
 
     // Sync sliders with number inputs
-    this.setupSliderSync('appearance-tabsHeight');
-    this.setupSliderSync('appearance-tabsFontSize');
-    this.setupSliderSync('appearance-tabPaddingLeft');
-    this.setupSliderSync('appearance-tabPaddingRight');
-    this.setupSliderSync('appearance-tabMinGap');
     this.setupSliderSync('imageViewer-zoomSpeed');
     this.setupSliderSync('imageViewer-maxZoom');
     this.setupSliderSync('imageViewer-minZoom');
@@ -1377,12 +1318,6 @@ export class PreferencesUI {
       });
     }
 
-    // Setup live preview for appearance settings
-    this.setupLivePreview('appearance-tabsHeight', '--dv-tabs-height', 'px');
-    this.setupLivePreview('appearance-tabsFontSize', '--dv-tabs-font-size', 'px');
-    this.setupLivePreview('appearance-tabPaddingLeft', '--dv-tab-padding-left', 'px');
-    this.setupLivePreview('appearance-tabPaddingRight', '--dv-tab-padding-right', 'px');
-    this.setupLivePreview('appearance-tabMinGap', '--dv-tab-min-gap', 'px');
   }
 
   /**
@@ -1457,18 +1392,6 @@ export class PreferencesUI {
     this.setValue('ui-defaultLayout', this.tempPrefs.ui.defaultLayout);
     this.setValue('ui-showWelcome', this.tempPrefs.ui.showWelcome);
     this.setValue('ui-logLevel', this.tempPrefs.ui.logLevel);
-
-    // Appearance settings - sizes
-    this.setValue('appearance-tabsHeight', this.tempPrefs.appearance.tabsHeight);
-    this.setValue('appearance-tabsHeight-slider', this.tempPrefs.appearance.tabsHeight);
-    this.setValue('appearance-tabsFontSize', this.tempPrefs.appearance.tabsFontSize);
-    this.setValue('appearance-tabsFontSize-slider', this.tempPrefs.appearance.tabsFontSize);
-    this.setValue('appearance-tabPaddingLeft', this.tempPrefs.appearance.tabPaddingLeft);
-    this.setValue('appearance-tabPaddingLeft-slider', this.tempPrefs.appearance.tabPaddingLeft);
-    this.setValue('appearance-tabPaddingRight', this.tempPrefs.appearance.tabPaddingRight);
-    this.setValue('appearance-tabPaddingRight-slider', this.tempPrefs.appearance.tabPaddingRight);
-    this.setValue('appearance-tabMinGap', this.tempPrefs.appearance.tabMinGap);
-    this.setValue('appearance-tabMinGap-slider', this.tempPrefs.appearance.tabMinGap);
 
     // Image viewer settings
     this.setValue('imageViewer-zoomSpeed', this.tempPrefs.imageViewer.zoomSpeed);
@@ -1665,12 +1588,6 @@ export class PreferencesUI {
     // Apply theme immediately
     themeManager.setPreference(this.tempPrefs.ui.theme);
 
-    this.tempPrefs.appearance.tabsHeight = this.getValue('appearance-tabsHeight');
-    this.tempPrefs.appearance.tabsFontSize = this.getValue('appearance-tabsFontSize');
-    this.tempPrefs.appearance.tabPaddingLeft = this.getValue('appearance-tabPaddingLeft');
-    this.tempPrefs.appearance.tabPaddingRight = this.getValue('appearance-tabPaddingRight');
-    this.tempPrefs.appearance.tabMinGap = this.getValue('appearance-tabMinGap');
-
     this.tempPrefs.imageViewer.zoomSpeed = this.getValue('imageViewer-zoomSpeed');
     this.tempPrefs.imageViewer.maxZoom = this.getValue('imageViewer-maxZoom');
     this.tempPrefs.imageViewer.minZoom = this.getValue('imageViewer-minZoom');
@@ -1776,11 +1693,6 @@ export class PreferencesUI {
    */
   syncAllSliders() {
     const sliderIds = [
-      'appearance-tabsHeight',
-      'appearance-tabsFontSize',
-      'appearance-tabPaddingLeft',
-      'appearance-tabPaddingRight',
-      'appearance-tabMinGap',
       'imageViewer-zoomSpeed',
       'imageViewer-maxZoom',
       'imageViewer-minZoom'

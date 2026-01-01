@@ -10,14 +10,30 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { themeManager } from '../theme-manager.js';
+import { preferences } from '../workspace/preferences.js';
 import { debug } from '../shared/debug.js';
 import './ThemeEditor.css';
+
+// Storage keys
+const PRESET_BINDINGS_KEY = 'theme-preset-bindings';
+const CUSTOM_PRESETS_KEY = 'theme-custom-presets';
 
 // Define editable variables grouped by category
 const VARIABLE_GROUPS = {
   'Theme Mode': {
     type: 'mode',
     variables: [] // Special handling for theme mode selector
+  },
+  'Tab Appearance': {
+    type: 'tabs',
+    variables: [
+      { name: 'tabsHeight', label: 'Tab Height', min: 20, max: 40, unit: 'px', pref: 'appearance.tabsHeight' },
+      { name: 'tabsFontSize', label: 'Font Size', min: 10, max: 18, unit: 'px', pref: 'appearance.tabsFontSize' },
+      { name: 'tabPaddingLeft', label: 'Left Padding', min: 0, max: 20, unit: 'px', pref: 'appearance.tabPaddingLeft' },
+      { name: 'tabPaddingRight', label: 'Right Padding', min: 0, max: 20, unit: 'px', pref: 'appearance.tabPaddingRight' },
+      { name: 'tabMinGap', label: 'Min Gap', min: 0, max: 30, unit: 'px', pref: 'appearance.tabMinGap' },
+      { name: 'tabMinWidth', label: 'Min Width (0=auto)', min: 0, max: 200, unit: 'px', pref: 'appearance.tabMinWidth' }
+    ]
   },
   'Backgrounds': {
     type: 'color',
@@ -94,11 +110,16 @@ const VARIABLE_GROUPS = {
   }
 };
 
-// Default presets
-const DEFAULT_PRESETS = {
-  'Terminal Beige (Light)': 'light',
-  'CRT Phosphor (Dark)': 'dark'
+// Built-in presets (name -> base theme)
+const BUILTIN_PRESETS = {
+  'Terminal Beige': 'light',
+  'CRT Phosphor': 'dark'
 };
+
+// Get all available preset names (builtin + custom)
+function getAllPresetNames(customPresets) {
+  return [...Object.keys(BUILTIN_PRESETS), ...Object.keys(customPresets)];
+}
 
 /**
  * Get current value of a CSS variable
@@ -142,17 +163,24 @@ function parseNumericValue(value) {
 export function ThemeEditor({ api }) {
   const [activeGroup, setActiveGroup] = useState('Theme Mode');
   const [values, setValues] = useState({});
+  const [tabValues, setTabValues] = useState({});
   const [customPresets, setCustomPresets] = useState({});
   const [presetName, setPresetName] = useState('');
   const [themeMode, setThemeMode] = useState(themeManager.getPreference());
+  const [presetBindings, setPresetBindings] = useState({
+    light: 'Terminal Beige',
+    dark: 'CRT Phosphor'
+  });
 
   // Load current values on mount
   useEffect(() => {
     loadCurrentValues();
+    loadTabValues();
     loadCustomPresets();
+    loadPresetBindings();
 
     // Listen for theme changes
-    const handleThemeChange = () => {
+    const handleThemeChange = (e) => {
       setThemeMode(themeManager.getPreference());
       // Small delay to let CSS variables update
       setTimeout(loadCurrentValues, 50);
@@ -165,27 +193,50 @@ export function ThemeEditor({ api }) {
   const loadCurrentValues = useCallback(() => {
     const newValues = {};
     Object.values(VARIABLE_GROUPS).forEach(group => {
-      group.variables.forEach(v => {
-        const raw = getCSSVariable(v.name);
-        if (group.type === 'color') {
-          newValues[v.name] = rgbToHex(raw) || raw;
-        } else {
-          newValues[v.name] = parseNumericValue(raw);
-        }
-      });
+      if (group.type === 'color' || group.type === 'number') {
+        group.variables.forEach(v => {
+          const raw = getCSSVariable(v.name);
+          if (group.type === 'color') {
+            newValues[v.name] = rgbToHex(raw) || raw;
+          } else {
+            newValues[v.name] = parseNumericValue(raw);
+          }
+        });
+      }
     });
     setValues(newValues);
-    debug('ThemeEditor', 'Loaded values:', Object.keys(newValues).length);
+    debug('ThemeEditor', 'Loaded CSS values:', Object.keys(newValues).length);
+  }, []);
+
+  const loadTabValues = useCallback(() => {
+    const tabGroup = VARIABLE_GROUPS['Tab Appearance'];
+    const newTabValues = {};
+    tabGroup.variables.forEach(v => {
+      newTabValues[v.name] = preferences.get(v.pref) ?? 0;
+    });
+    setTabValues(newTabValues);
+    debug('ThemeEditor', 'Loaded tab values:', newTabValues);
   }, []);
 
   const loadCustomPresets = useCallback(() => {
     try {
-      const saved = localStorage.getItem('theme-custom-presets');
+      const saved = localStorage.getItem(CUSTOM_PRESETS_KEY);
       if (saved) {
         setCustomPresets(JSON.parse(saved));
       }
     } catch (err) {
       console.warn('Failed to load custom presets:', err);
+    }
+  }, []);
+
+  const loadPresetBindings = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(PRESET_BINDINGS_KEY);
+      if (saved) {
+        setPresetBindings(JSON.parse(saved));
+      }
+    } catch (err) {
+      console.warn('Failed to load preset bindings:', err);
     }
   }, []);
 
@@ -195,10 +246,24 @@ export function ThemeEditor({ api }) {
     setValues(prev => ({ ...prev, [name]: value }));
   }, []);
 
+  const handleTabValueChange = useCallback((name, value, prefPath) => {
+    preferences.set(prefPath, parseInt(value, 10));
+    setTabValues(prev => ({ ...prev, [name]: parseInt(value, 10) }));
+    // Trigger UI update
+    window.dispatchEvent(new CustomEvent('preferences-changed'));
+  }, []);
+
   const handleThemeModeChange = useCallback((mode) => {
     themeManager.setPreference(mode);
     setThemeMode(mode);
   }, []);
+
+  const handlePresetBindingChange = useCallback((themeType, presetName) => {
+    const newBindings = { ...presetBindings, [themeType]: presetName };
+    setPresetBindings(newBindings);
+    localStorage.setItem(PRESET_BINDINGS_KEY, JSON.stringify(newBindings));
+    debug('ThemeEditor', `Bound ${themeType} to preset:`, presetName);
+  }, [presetBindings]);
 
   const savePreset = useCallback(() => {
     if (!presetName.trim()) return;
@@ -212,9 +277,9 @@ export function ThemeEditor({ api }) {
   }, [presetName, values, customPresets]);
 
   const loadPreset = useCallback((name) => {
-    if (DEFAULT_PRESETS[name]) {
+    if (BUILTIN_PRESETS[name]) {
       // Built-in preset - switch theme mode
-      themeManager.setPreference(DEFAULT_PRESETS[name]);
+      themeManager.setPreference(BUILTIN_PRESETS[name]);
       // Clear any custom overrides
       Object.keys(values).forEach(v => {
         document.documentElement.style.removeProperty(v);
@@ -297,24 +362,90 @@ export function ThemeEditor({ api }) {
     debug('ThemeEditor', 'Reset to defaults');
   }, [values, loadCurrentValues]);
 
+  const allPresetNames = getAllPresetNames(customPresets);
+
   const renderGroup = (groupName, group) => {
     if (groupName === 'Theme Mode') {
       return (
-        <div className="theme-mode-selector">
-          <label>Current Theme:</label>
-          <select
-            value={themeMode}
-            onChange={(e) => handleThemeModeChange(e.target.value)}
-          >
-            <option value="light">Light (Terminal Beige)</option>
-            <option value="dark">Dark (CRT Phosphor)</option>
-            <option value="system">Follow System</option>
-          </select>
-          <p className="theme-mode-hint">
-            {themeMode === 'system'
-              ? `Following system (currently ${themeManager.getCurrentTheme()})`
-              : `Using ${themeMode} theme`}
-          </p>
+        <div className="theme-mode-section">
+          <div className="theme-mode-selector">
+            <label>Current Theme:</label>
+            <select
+              value={themeMode}
+              onChange={(e) => handleThemeModeChange(e.target.value)}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="system">Follow System</option>
+            </select>
+            <p className="theme-mode-hint">
+              {themeMode === 'system'
+                ? `Following system (currently ${themeManager.getCurrentTheme()})`
+                : `Using ${themeMode} theme`}
+            </p>
+          </div>
+
+          <div className="preset-bindings">
+            <h4>Preset Bindings</h4>
+            <p className="binding-hint">
+              Choose which preset to use for each theme mode
+            </p>
+            <div className="binding-row">
+              <label>Light mode preset:</label>
+              <select
+                value={presetBindings.light}
+                onChange={(e) => handlePresetBindingChange('light', e.target.value)}
+              >
+                {allPresetNames.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="binding-row">
+              <label>Dark mode preset:</label>
+              <select
+                value={presetBindings.dark}
+                onChange={(e) => handlePresetBindingChange('dark', e.target.value)}
+              >
+                {allPresetNames.map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (group.type === 'tabs') {
+      return (
+        <div className="variable-grid">
+          {group.variables.map(v => {
+            const value = tabValues[v.name] ?? 0;
+            return (
+              <div key={v.name} className="variable-item number-item">
+                <label>{v.label}</label>
+                <div className="number-input-wrapper">
+                  <input
+                    type="range"
+                    min={v.min}
+                    max={v.max}
+                    value={value}
+                    onChange={(e) => handleTabValueChange(v.name, e.target.value, v.pref)}
+                  />
+                  <input
+                    type="number"
+                    min={v.min}
+                    max={v.max}
+                    value={value}
+                    onChange={(e) => handleTabValueChange(v.name, e.target.value, v.pref)}
+                    className="number-text-input"
+                  />
+                  <span className="unit">{v.unit}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -398,7 +529,7 @@ export function ThemeEditor({ api }) {
 
         <h3>Presets</h3>
         <ul className="preset-list">
-          {Object.keys(DEFAULT_PRESETS).map(name => (
+          {Object.keys(BUILTIN_PRESETS).map(name => (
             <li key={name} onClick={() => loadPreset(name)}>
               {name}
             </li>
