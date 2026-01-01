@@ -101,6 +101,7 @@ export function FileQueueModule() {
   }
 
   // Refs
+  const moduleRef = useRef(null);
   const listRef = useRef(null);
   const currentFileRef = useRef(null);
   const queueRef = useRef(queue); // Keep current queue in ref for callbacks
@@ -734,11 +735,16 @@ export function FileQueueModule() {
 
       // Cmd/Ctrl+A - select all files (prevent text selection)
       if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
-        // Only capture if focus is within file-queue-module
-        const inFileQueue = e.target.closest('.file-queue-module');
-        if (inFileQueue) {
+        // Check if file-queue-module has focus or contains the active element
+        const module = moduleRef.current;
+        const hasFocus = module && (
+          module === document.activeElement ||
+          module.contains(document.activeElement)
+        );
+        if (hasFocus) {
           e.preventDefault();
-          if (selectedFiles.size === queue.length) {
+          e.stopPropagation();
+          if (selectedFiles.size === queue.length && queue.length > 0) {
             deselectAll();
           } else {
             selectAll();
@@ -779,7 +785,7 @@ export function FileQueueModule() {
   const activeCount = queue.filter(q => q.status === 'active').length;
 
   return (
-    <div className="file-queue-module" tabIndex={0}>
+    <div ref={moduleRef} className="file-queue-module" tabIndex={0}>
       {/* Header */}
       <div className="file-queue-header">
         <span className="file-queue-title">File Queue</span>
