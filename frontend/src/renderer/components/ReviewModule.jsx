@@ -224,9 +224,10 @@ export function ReviewModule() {
 
   /**
    * Save all changes
+   * @returns {Promise<boolean>} true if save succeeded, false if failed
    */
   const saveAllChanges = useCallback(async () => {
-    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
+    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return true;
 
     const totalChanges = pendingConfirmations.length + pendingIgnores.length;
     setStatus(`Saving ${totalChanges} changes...`);
@@ -246,9 +247,11 @@ export function ReviewModule() {
       setPendingIgnores([]);
       await loadPeopleNames();
       setStatus(`Saved ${totalChanges} changes!`);
+      return true;
     } catch (err) {
       debugError('ReviewModule', 'Failed to save:', err);
-      setStatus('Error saving changes');
+      setStatus('Error saving changes - review NOT marked complete');
+      return false;
     }
   }, [pendingConfirmations, pendingIgnores, api, loadPeopleNames]);
 
@@ -283,7 +286,11 @@ export function ReviewModule() {
 
     // Save any pending changes first
     if (pendingConfirmations.length > 0 || pendingIgnores.length > 0) {
-      await saveAllChanges();
+      const saveSuccess = await saveAllChanges();
+      if (!saveSuccess) {
+        // Don't proceed if save failed - user needs to retry or discard
+        return;
+      }
     }
 
     // Build reviewed faces for rename functionality
@@ -302,7 +309,7 @@ export function ReviewModule() {
     });
 
     setStatus('Image skipped');
-  }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, detectedFaces]);
+  }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, detectedFaces, currentFileHash]);
 
   /**
    * Add manual face - for when a person exists but wasn't detected
@@ -348,7 +355,11 @@ export function ReviewModule() {
 
     if (allDone && hasChanges) {
       const timeout = setTimeout(async () => {
-        await saveAllChanges();
+        const saveSuccess = await saveAllChanges();
+        if (!saveSuccess) {
+          // Don't proceed if save failed - user needs to retry or discard
+          return;
+        }
 
         // Build reviewed faces for rename functionality
         const reviewedFaces = buildReviewedFaces();

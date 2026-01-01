@@ -60,6 +60,7 @@ class RenameExecuteResponse(BaseModel):
     renamed: List[RenameResult]
     skipped: List[SkippedFile]
     errors: List[ErrorFile]
+    db_entries_updated: int = 0  # Number of database entries updated to reflect new paths
 
 
 # Endpoints
@@ -108,7 +109,8 @@ async def rename_files(request: RenameExecuteRequest):
         return RenameExecuteResponse(
             renamed=[RenameResult(**r) for r in result["renamed"]],
             skipped=[SkippedFile(**s) for s in result["skipped"]],
-            errors=[ErrorFile(**e) for e in result["errors"]]
+            errors=[ErrorFile(**e) for e in result["errors"]],
+            db_entries_updated=result.get("db_entries_updated", 0)
         )
     except Exception as e:
         logger.error(f"[Files] Error executing rename: {e}", exc_info=True)

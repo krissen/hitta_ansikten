@@ -14,6 +14,7 @@ from typing import List, Dict, Any, Optional, Tuple
 
 from faceid_db import (
     load_database,
+    save_database,
     load_attempt_log,
     get_file_hash,
     BASE_DIR
@@ -528,11 +529,74 @@ class RenameService:
                 })
                 logger.error(f"[RenameService] Error renaming {old_path}: {e}")
 
+        # Update database entries to reflect new filenames
+        db_updated = self._update_database_paths(renamed)
+
         return {
             "renamed": renamed,
             "skipped": skipped,
-            "errors": errors
+            "errors": errors,
+            "db_entries_updated": db_updated
         }
+
+
+    def _update_database_paths(self, renamed_files: List[Dict[str, str]]) -> int:
+        """
+        Update database entries to reflect renamed files.
+
+        Updates known_faces and processed_files to point to new paths.
+
+        Args:
+            renamed_files: List of {"original": old_path, "new": new_path} dicts
+
+        Returns:
+            Number of database entries updated
+        """
+        if not renamed_files:
+            return 0
+
+        # Build mapping from old basename to new basename
+        name_map = {}
+        for item in renamed_files:
+            old_name = Path(item["original"]).name
+            new_name = Path(item["new"]).name
+            name_map[old_name] = new_name
+
+        # Load current database
+        known_faces, ignored_faces, hard_negatives, processed_files = load_database()
+
+        updated_count = 0
+
+        # Update known_faces entries
+        for person_name, entries in known_faces.items():
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get("file"):
+                    old_file = Path(entry["file"]).name
+                    if old_file in name_map:
+                        # Update the file path
+                        old_path = Path(entry["file"])
+                        new_path = old_path.parent / name_map[old_file]
+                        entry["file"] = str(new_path)
+                        updated_count += 1
+                        logger.debug(f"[RenameService] Updated encoding entry: {old_file} -> {name_map[old_file]}")
+
+        # Update processed_files entries
+        for pf in processed_files:
+            if isinstance(pf, dict) and pf.get("name"):
+                old_name = Path(pf["name"]).name
+                if old_name in name_map:
+                    old_path = Path(pf["name"])
+                    new_path = old_path.parent / name_map[old_name]
+                    pf["name"] = str(new_path)
+                    updated_count += 1
+                    logger.debug(f"[RenameService] Updated processed entry: {old_name} -> {name_map[old_name]}")
+
+        # Save updated database
+        if updated_count > 0:
+            save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+            logger.info(f"[RenameService] Updated {updated_count} database entries after rename")
+
+        return updated_count
 
 
 # Singleton instance
