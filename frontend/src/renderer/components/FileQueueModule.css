@@ -198,7 +198,7 @@
   background: #f0f5f0;
 }
 
-/* Selection checkbox */
+/* Selection checkbox - hidden by default, shown on hover or when selected */
 .file-select-checkbox {
   flex-shrink: 0;
   width: 14px;
@@ -206,6 +206,14 @@
   margin: 0;
   cursor: pointer;
   accent-color: #3f51b5;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.file-item:hover .file-select-checkbox,
+.file-item.selected .file-select-checkbox,
+.file-queue-module.has-selection .file-select-checkbox {
+  opacity: 1;
 }
 
 /* Status icons */

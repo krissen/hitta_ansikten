@@ -521,11 +521,13 @@ export function FileQueueModule() {
 
   // Handle rename action
   const handleRename = useCallback(async () => {
-    const completedPaths = queue
-      .filter(q => q.status === 'completed')
+    // Include both completed files AND already-processed files (when not in fix-mode)
+    const currentFixMode = fixModeRef.current;
+    const eligiblePaths = queue
+      .filter(q => q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed))
       .map(q => q.filePath);
 
-    if (completedPaths.length === 0) return;
+    if (eligiblePaths.length === 0) return;
 
     // Check if confirmation is required
     const requireConfirmation = getRequireRenameConfirmation();
@@ -533,7 +535,7 @@ export function FileQueueModule() {
     if (requireConfirmation) {
       // Show confirmation dialog
       const confirmed = window.confirm(
-        `Rename ${completedPaths.length} file(s)?\n\n` +
+        `Rename ${eligiblePaths.length} file(s)?\n\n` +
         `This will rename files based on detected faces.\n` +
         `Check Preferences for rename format settings.`
       );
@@ -547,7 +549,7 @@ export function FileQueueModule() {
 
     try {
       const result = await api.post('/api/files/rename', {
-        file_paths: completedPaths,
+        file_paths: eligiblePaths,
         config: renameConfig
       });
 
@@ -784,8 +786,10 @@ export function FileQueueModule() {
   const pendingCount = queue.filter(q => q.status === 'pending').length;
   const activeCount = queue.filter(q => q.status === 'active').length;
 
+  const hasSelection = selectedFiles.size > 0;
+
   return (
-    <div ref={moduleRef} className="file-queue-module" tabIndex={0}>
+    <div ref={moduleRef} className={`file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
       {/* Header */}
       <div className="file-queue-header">
         <span className="file-queue-title">File Queue</span>
