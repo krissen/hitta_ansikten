@@ -1179,6 +1179,7 @@ export class PreferencesUI {
       }
       previewEl.textContent = result;
     } catch (e) {
+      console.warn('[PreferencesUI] Invalid rename pattern:', pattern, e);
       previewEl.textContent = '(invalid pattern)';
     }
   }

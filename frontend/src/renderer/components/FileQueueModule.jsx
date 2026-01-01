@@ -448,7 +448,6 @@ export function FileQueueModule() {
       // Show queue count if files are queued
       if (queue.length > 0) {
         const pending = queue.filter(q => q.status === 'pending').length;
-        const completed = queue.filter(q => q.status === 'completed').length;
         if (pending > 0) {
           queueToast(`📁 ${queue.length} files in queue (${pending} pending)`, 'info', 3000);
         }
