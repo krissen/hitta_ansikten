@@ -47,6 +47,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.file-queue-btn:active {
+  transform: scale(0.92);
 }
 
 .file-queue-btn.add {
@@ -104,10 +109,15 @@
   border-radius: 3px;
   cursor: pointer;
   color: #666;
+  transition: transform 0.1s ease, background 0.15s ease;
 }
 
 .clear-btn:hover:not(:disabled) {
   background: #f0f0f0;
+}
+
+.clear-btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .clear-btn:disabled {
@@ -290,11 +300,15 @@
   line-height: 1;
   border-radius: 3px;
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s;
+  transition: opacity 0.15s, background 0.15s, transform 0.1s ease;
 }
 
 .file-item:hover .remove-btn {
   opacity: 1;
+}
+
+.remove-btn:active {
+  transform: scale(0.9);
 }
 
 .remove-btn:hover {
@@ -352,10 +366,15 @@
   cursor: pointer;
   background: #888;
   color: white;
+  transition: transform 0.1s ease, background 0.15s ease;
 }
 
 .control-btn:hover {
   background: #666;
+}
+
+.control-btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .control-btn.start {
