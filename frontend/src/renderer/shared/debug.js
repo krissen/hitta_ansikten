@@ -13,8 +13,8 @@
 
 // Debug categories - disabled by default except for essential ones
 const DEFAULT_CATEGORIES = {
-  // Core systems - enabled by default
-  'FlexLayout': true,
+  // Core systems - Backend/WebSocket enabled for connection status
+  'FlexLayout': false,  // Verbose tab/panel management, disabled by default
   'Backend': true,
   'WebSocket': true,
 
@@ -37,9 +37,9 @@ const DEFAULT_CATEGORIES = {
   'NEFConvert': false,
   'FaceDetection': false,
 
-  // Preprocessing - enabled by default for testing
-  'Preprocessing': true,
-  'Cache': true,
+  // Preprocessing - disabled by default (enable for debugging)
+  'Preprocessing': false,
+  'Cache': false,
 };
 
 // Storage key
