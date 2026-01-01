@@ -259,10 +259,15 @@ class DetectionService:
                 backend = "dlib"
 
             if enc is not None and backend == self.backend.backend_name:
-                ignored_encodings.append(enc)
+                # Ensure encoding is a proper numpy array
+                enc_array = np.asarray(enc)
+                if enc_array.ndim == 1:  # Valid 1D encoding
+                    ignored_encodings.append(enc_array)
 
         if ignored_encodings:
-            distances = self.backend.compute_distances(np.array(ignored_encodings), encoding)
+            # Stack into 2D array for batch distance computation
+            encodings_matrix = np.vstack(ignored_encodings)
+            distances = self.backend.compute_distances(encodings_matrix, encoding)
             min_distance = float(np.min(distances))
             best_distance = min_distance
             best_idx = int(np.argmin(distances))
@@ -317,15 +322,22 @@ class DetectionService:
 
         # Match against known faces
         for name, entries in self.known_faces.items():
-            # Filter by backend
-            person_encodings = [
-                e["encoding"] for e in entries
-                if isinstance(e, dict) and e.get("backend") == self.backend.backend_name
-            ]
+            # Filter by backend and ensure proper numpy arrays
+            person_encodings = []
+            for e in entries:
+                if isinstance(e, dict) and e.get("backend") == self.backend.backend_name:
+                    enc = e.get("encoding")
+                    if enc is not None:
+                        enc_array = np.asarray(enc)
+                        if enc_array.ndim == 1:
+                            person_encodings.append(enc_array)
+
             if not person_encodings:
                 continue
 
-            distances = self.backend.compute_distances(np.array(person_encodings), encoding)
+            # Stack into 2D array for batch distance computation
+            encodings_matrix = np.vstack(person_encodings)
+            distances = self.backend.compute_distances(encodings_matrix, encoding)
             min_distance = float(np.min(distances))
 
             # Convert distance to confidence (0-100)

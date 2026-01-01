@@ -92,10 +92,17 @@ async function expandFilePaths(patterns) {
         );
       }
     } else {
-      // Direct path
+      // Direct path - must be a file (not directory)
       const resolved = path.resolve(expandedPattern);
-      if (fs.existsSync(resolved)) {
-        files.push(resolved);
+      try {
+        const stat = fs.statSync(resolved);
+        if (stat.isFile()) {
+          files.push(resolved);
+        } else if (stat.isDirectory()) {
+          console.log(`[Main] Skipping directory: ${resolved}`);
+        }
+      } catch (err) {
+        // File doesn't exist, skip silently
       }
     }
   }
