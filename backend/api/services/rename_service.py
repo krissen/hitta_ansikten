@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 DEFAULT_RENAME_CONFIG = {
-    # Prefix source: 'filename', 'exif', 'filedate'
+    # Prefix source: 'filename', 'exif', 'filedate', 'none'
     "prefixSource": "filename",
     # Fallback if EXIF missing: 'filedate', 'skip', 'original'
     "exifFallback": "filedate",
@@ -176,6 +176,10 @@ def get_prefix_datetime(file_path: Path, config: Dict[str, Any]) -> Optional[dat
     source = config.get("prefixSource", "filename")
     fallback = config.get("exifFallback", "filedate")
 
+    # No prefix requested
+    if source == "none":
+        return None
+
     dt = None
 
     if source == "filename":
@@ -228,14 +232,20 @@ def extract_prefix_suffix(fname: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Extract timestamp prefix and extension suffix from filename.
 
+    Supports photographer suffix after timestamp, e.g.:
+    - 250612_153040.NEF -> prefix="250612_153040"
+    - 250612_153040en.NEF -> prefix="250612_153040en" (photographer suffix preserved)
+    - 250612_153040-2ab_Anna.NEF -> prefix="250612_153040-2ab"
+
     Args:
-        fname: Filename like "250612_153040.NEF" or "250612_153040-2_Anna.NEF"
+        fname: Filename like "250612_153040.NEF" or "250612_153040en_Anna.NEF"
 
     Returns:
-        Tuple of (prefix, suffix) where prefix is "YYMMDD_HHMMSS" or "YYMMDD_HHMMSS-N"
+        Tuple of (prefix, suffix) where prefix includes any photographer suffix,
         and suffix is the file extension. Returns (None, None) if pattern doesn't match.
     """
-    pattern = rf"^(\d{{6}}_\d{{6}}(?:-\d+)?)(?:_[^.]*)?({_EXT_PATTERN})$"
+    # Pattern: YYMMDD_HHMMSS + optional burst (-N) + optional photographer suffix (1-3 letters)
+    pattern = rf"^(\d{{6}}_\d{{6}}(?:-\d+)?[a-zA-Z]{{0,3}})(?:_[^.]*)?({_EXT_PATTERN})$"
     m = re.match(pattern, fname, re.IGNORECASE)
     if not m:
         return None, None
@@ -246,11 +256,12 @@ def is_unrenamed(fname: str) -> bool:
     """
     Check if filename is in original unrenamed format.
 
-    Returns True for: 250612_153040.NEF, 250612_153040-2.NEF
+    Returns True for: 250612_153040.NEF, 250612_153040-2.NEF, 250612_153040en.NEF
     Returns False for: 250612_153040_Anna.NEF (already has names)
     """
     # An unrenamed file matches pattern exactly without any name suffix
-    pattern = rf"^(\d{{6}}_\d{{6}}(?:-\d+)?)({_EXT_PATTERN})$"
+    # Includes optional photographer suffix (1-3 letters after timestamp)
+    pattern = rf"^(\d{{6}}_\d{{6}}(?:-\d+)?[a-zA-Z]{{0,3}})({_EXT_PATTERN})$"
     m = re.match(pattern, fname, re.IGNORECASE)
     return bool(m)
 
@@ -421,16 +432,23 @@ def build_new_filename_with_config(
     names_str = name_separator.join(name_list)
 
     # Get prefix based on configuration
-    prefix = None
+    prefix = ""
     original_stem = Path(fname).stem  # filename without extension
+    prefix_source = config.get("prefixSource", "filename")
 
-    if file_path and file_path.exists():
+    if prefix_source == "none":
+        # No prefix - empty string (pattern should handle this)
+        prefix = ""
+    elif file_path and file_path.exists():
         dt = get_prefix_datetime(file_path, config)
         if dt:
             prefix = format_datetime(dt, date_pattern)
-
-    # Fallback to extracting from original filename
-    if prefix is None:
+        else:
+            # Fallback to extracting from original filename (preserves photographer suffix)
+            old_prefix, _ = extract_prefix_suffix(fname)
+            prefix = old_prefix if old_prefix else original_stem
+    else:
+        # Fallback to extracting from original filename
         old_prefix, _ = extract_prefix_suffix(fname)
         prefix = old_prefix if old_prefix else original_stem
 

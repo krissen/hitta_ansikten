@@ -64,14 +64,18 @@ export class PreferencesUI {
         </div>
 
         <!-- Tab Navigation -->
-        <div class="pref-tabs">
-          <button class="pref-tab active" data-tab="general">General</button>
-          <button class="pref-tab" data-tab="appearance">Appearance</button>
-          <button class="pref-tab" data-tab="layout">Layout</button>
-          <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
-          <button class="pref-tab" data-tab="review">Review</button>
-          <button class="pref-tab" data-tab="preprocessing">Preprocessing</button>
-          <button class="pref-tab" data-tab="advanced">Advanced</button>
+        <div class="pref-tabs-container">
+          <button class="pref-tabs-arrow pref-tabs-arrow-left" title="Previous tab">‹</button>
+          <div class="pref-tabs">
+            <button class="pref-tab active" data-tab="general">General</button>
+            <button class="pref-tab" data-tab="appearance">Appearance</button>
+            <button class="pref-tab" data-tab="layout">Layout</button>
+            <button class="pref-tab" data-tab="image-viewer">Image Viewer</button>
+            <button class="pref-tab" data-tab="review">Review</button>
+            <button class="pref-tab" data-tab="preprocessing">Preprocessing</button>
+            <button class="pref-tab" data-tab="advanced">Advanced</button>
+          </div>
+          <button class="pref-tabs-arrow pref-tabs-arrow-right" title="Next tab">›</button>
         </div>
 
         <div class="preferences-content">
@@ -427,8 +431,9 @@ export class PreferencesUI {
                   <option value="filename">From filename (YYMMDD_HHMMSS pattern)</option>
                   <option value="exif">From EXIF metadata</option>
                   <option value="filedate">From file modification date</option>
+                  <option value="none">No prefix (names only)</option>
                 </select>
-                <small>Where to get the date/time for the filename prefix.</small>
+                <small>Where to get the date/time for the filename prefix. Photographer suffixes (e.g., "en" in 250612_153040en) are preserved.</small>
               </div>
 
               <div class="pref-field">
@@ -458,13 +463,29 @@ export class PreferencesUI {
 
               <div class="pref-field">
                 <label>Filename Template</label>
-                <select id="pref-rename-filenamePattern">
+                <select id="pref-rename-filenamePatternPreset">
                   <option value="{prefix}_{names}{ext}">{prefix}_{names}{ext} - Standard</option>
                   <option value="{date}-{time}_{names}{ext}">{date}-{time}_{names}{ext} - Dash separator</option>
                   <option value="{names}_{prefix}{ext}">{names}_{prefix}{ext} - Names first</option>
                   <option value="{original}_{names}{ext}">{original}_{names}{ext} - Keep original</option>
+                  <option value="{names}{ext}">{names}{ext} - Names only</option>
+                  <option value="custom">Custom...</option>
                 </select>
-                <small>Template for the new filename. Variables: {prefix}, {names}, {ext}, {original}, {date}, {time}</small>
+              </div>
+
+              <div class="pref-field" id="pref-rename-customPattern-container" style="display:none;">
+                <label>Custom Template</label>
+                <input type="text" id="pref-rename-filenamePattern" placeholder="{prefix}_{names}{ext}" />
+                <small>Variables: {prefix}, {names}, {ext}, {original}, {date}, {time}</small>
+              </div>
+
+              <div class="pref-field">
+                <label>Preview</label>
+                <div id="pref-rename-preview" class="rename-preview">
+                  <span class="preview-original">250612_153040en.NEF</span>
+                  <span class="preview-arrow">→</span>
+                  <span class="preview-result">250612_153040en_Anna,_Bert.NEF</span>
+                </div>
               </div>
 
               <div class="pref-field">
@@ -929,24 +950,62 @@ export class PreferencesUI {
       }
 
       /* Tab Navigation */
+      .pref-tabs-container {
+        display: flex;
+        align-items: stretch;
+        border-bottom: 1px solid #e0e0e0;
+        background: #f8f8f8;
+      }
+
+      .pref-tabs-arrow {
+        background: none;
+        border: none;
+        padding: 0 12px;
+        font-size: 20px;
+        font-weight: 500;
+        color: #666;
+        cursor: pointer;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        transition: background 0.2s, color 0.2s;
+      }
+
+      .pref-tabs-arrow:hover {
+        background: #e8e8e8;
+        color: #333;
+      }
+
+      .pref-tabs-arrow:active {
+        background: #ddd;
+      }
+
       .pref-tabs {
         display: flex;
         gap: 4px;
-        padding: 0 24px;
-        border-bottom: 1px solid #e0e0e0;
-        background: #f8f8f8;
+        padding: 0 8px;
+        overflow-x: auto;
+        flex: 1;
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* IE/Edge */
+      }
+
+      .pref-tabs::-webkit-scrollbar {
+        display: none; /* Chrome/Safari */
       }
 
       .pref-tab {
         background: none;
         border: none;
-        padding: 12px 20px;
+        padding: 12px 16px;
         font-size: 14px;
         font-weight: 500;
         color: #666;
         cursor: pointer;
         border-bottom: 2px solid transparent;
         transition: color 0.2s, border-color 0.2s;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
 
       .pref-tab:hover {
@@ -1006,6 +1065,32 @@ export class PreferencesUI {
       .btn-reset-debug {
         font-size: 13px;
       }
+
+      /* Rename Preview */
+      .rename-preview {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        background: #f8f8f8;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 13px;
+      }
+
+      .rename-preview .preview-original {
+        color: #666;
+      }
+
+      .rename-preview .preview-arrow {
+        color: #999;
+      }
+
+      .rename-preview .preview-result {
+        color: #007acc;
+        font-weight: 500;
+      }
     `;
     this.modal.appendChild(style);
   }
@@ -1032,6 +1117,45 @@ export class PreferencesUI {
   }
 
   /**
+   * Update rename preview based on current settings
+   */
+  updateRenamePreview() {
+    const previewEl = this.modal?.querySelector('#pref-rename-preview .preview-result');
+    if (!previewEl) return;
+
+    // Get current pattern
+    const patternPreset = this.modal.querySelector('#pref-rename-filenamePatternPreset');
+    const patternInput = this.modal.querySelector('#pref-rename-filenamePattern');
+    const separator = this.modal.querySelector('#pref-rename-nameSeparator')?.value || ',_';
+
+    let pattern = patternInput?.value || '{prefix}_{names}{ext}';
+    if (patternPreset?.value !== 'custom' && patternPreset?.value) {
+      pattern = patternPreset.value;
+    }
+
+    // Sample values for preview
+    const sampleValues = {
+      prefix: '250612_153040en',
+      names: ['Anna', 'Bert'].join(separator),
+      ext: '.NEF',
+      original: '250612_153040en',
+      date: '250612',
+      time: '153040'
+    };
+
+    // Build preview
+    try {
+      let result = pattern;
+      for (const [key, value] of Object.entries(sampleValues)) {
+        result = result.replace(new RegExp(`\\{${key}\\}`, 'g'), value);
+      }
+      previewEl.textContent = result;
+    } catch (e) {
+      previewEl.textContent = '(invalid pattern)';
+    }
+  }
+
+  /**
    * Switch to a specific tab
    */
   switchTab(tabName) {
@@ -1039,6 +1163,8 @@ export class PreferencesUI {
     this.modal.querySelectorAll('.pref-tab').forEach(tab => {
       if (tab.dataset.tab === tabName) {
         tab.classList.add('active');
+        // Scroll tab into view
+        tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       } else {
         tab.classList.remove('active');
       }
@@ -1055,6 +1181,22 @@ export class PreferencesUI {
   }
 
   /**
+   * Cycle to next/previous tab
+   * @param {number} direction - 1 for next, -1 for previous
+   */
+  cycleTab(direction) {
+    const tabs = Array.from(this.modal.querySelectorAll('.pref-tab'));
+    const currentIndex = tabs.findIndex(tab => tab.classList.contains('active'));
+    let newIndex = currentIndex + direction;
+
+    // Wrap around
+    if (newIndex < 0) newIndex = tabs.length - 1;
+    if (newIndex >= tabs.length) newIndex = 0;
+
+    this.switchTab(tabs[newIndex].dataset.tab);
+  }
+
+  /**
    * Add event listeners
    */
   addEventListeners() {
@@ -1064,6 +1206,14 @@ export class PreferencesUI {
         const targetTab = tab.dataset.tab;
         this.switchTab(targetTab);
       });
+    });
+
+    // Arrow navigation for tabs
+    this.modal.querySelector('.pref-tabs-arrow-left').addEventListener('click', () => {
+      this.cycleTab(-1);
+    });
+    this.modal.querySelector('.pref-tabs-arrow-right').addEventListener('click', () => {
+      this.cycleTab(1);
     });
 
     // ESC key to cancel (same as cancel button)
@@ -1117,6 +1267,39 @@ export class PreferencesUI {
     this.setupSliderSync('imageViewer-minZoom');
     this.setupSliderSync('preprocessing-parallelWorkers');
     this.setupSliderSync('preprocessing-cache-maxSizeMB');
+
+    // Filename pattern preset/custom toggle
+    const patternPreset = this.modal.querySelector('#pref-rename-filenamePatternPreset');
+    const customContainer = this.modal.querySelector('#pref-rename-customPattern-container');
+    const patternInput = this.modal.querySelector('#pref-rename-filenamePattern');
+
+    if (patternPreset && customContainer && patternInput) {
+      patternPreset.addEventListener('change', () => {
+        if (patternPreset.value === 'custom') {
+          customContainer.style.display = 'block';
+          // Copy current pattern to input if empty
+          if (!patternInput.value) {
+            patternInput.value = '{prefix}_{names}{ext}';
+          }
+        } else {
+          customContainer.style.display = 'none';
+          patternInput.value = patternPreset.value;
+        }
+        this.updateRenamePreview();
+      });
+
+      patternInput.addEventListener('input', () => {
+        this.updateRenamePreview();
+      });
+    }
+
+    // Update preview when separator changes
+    const separatorSelect = this.modal.querySelector('#pref-rename-nameSeparator');
+    if (separatorSelect) {
+      separatorSelect.addEventListener('change', () => {
+        this.updateRenamePreview();
+      });
+    }
 
     // Clear cache button
     const clearCacheBtn = this.modal.querySelector('#btn-clear-cache');
@@ -1346,7 +1529,21 @@ export class PreferencesUI {
     this.setValue('rename-prefixSource', rename.prefixSource ?? 'filename');
     this.setValue('rename-exifFallback', rename.exifFallback ?? 'filedate');
     this.setValue('rename-datePattern', rename.datePattern ?? '%y%m%d_%H%M%S');
-    this.setValue('rename-filenamePattern', rename.filenamePattern ?? '{prefix}_{names}{ext}');
+    // Filename pattern - check if it's a preset or custom
+    const pattern = rename.filenamePattern ?? '{prefix}_{names}{ext}';
+    const presetSelect = this.modal.querySelector('#pref-rename-filenamePatternPreset');
+    const customContainer = this.modal.querySelector('#pref-rename-customPattern-container');
+    const presetOptions = Array.from(presetSelect?.options || []).map(o => o.value);
+
+    if (presetOptions.includes(pattern)) {
+      this.setValue('rename-filenamePatternPreset', pattern);
+      this.setValue('rename-filenamePattern', pattern);
+      if (customContainer) customContainer.style.display = 'none';
+    } else {
+      this.setValue('rename-filenamePatternPreset', 'custom');
+      this.setValue('rename-filenamePattern', pattern);
+      if (customContainer) customContainer.style.display = 'block';
+    }
     this.setValue('rename-nameSeparator', rename.nameSeparator ?? ',_');
     this.setValue('rename-useFirstNameOnly', rename.useFirstNameOnly ?? true);
     this.setValue('rename-alwaysIncludeSurname', rename.alwaysIncludeSurname ?? false);
@@ -1376,6 +1573,9 @@ export class PreferencesUI {
 
     // Debug categories (separate from preferences - stored in debug.js)
     this.populateDebugCategories();
+
+    // Update rename preview
+    this.updateRenamePreview();
   }
 
   /**
