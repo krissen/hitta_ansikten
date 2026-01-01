@@ -74,6 +74,7 @@ export class PreferencesUI {
             <button class="pref-tab" data-tab="review">Review</button>
             <button class="pref-tab" data-tab="files">Files</button>
             <button class="pref-tab" data-tab="preprocessing">Preprocessing</button>
+            <button class="pref-tab" data-tab="dashboard">Dashboard</button>
             <button class="pref-tab" data-tab="advanced">Advanced</button>
           </div>
           <button class="pref-tabs-arrow pref-tabs-arrow-right" title="Next tab">›</button>
@@ -651,6 +652,77 @@ export class PreferencesUI {
                 <button class="btn btn-secondary" type="button" id="btn-clear-cache">
                   Clear Preprocessing Cache
                 </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dashboard Tab Panel -->
+          <div class="pref-tab-panel" data-tab="dashboard">
+            <div class="pref-section">
+              <h3>Dashboard Sections</h3>
+              <small style="display:block; margin-bottom:16px; color:#666;">
+                Choose which sections to display in the Statistics Dashboard.
+              </small>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-dashboard-showAttemptStats" />
+                  Show detection statistics
+                </label>
+                <small>Detection backend performance table</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-dashboard-showTopFaces" />
+                  Show top faces grid
+                </label>
+                <small>Most frequently detected persons</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-dashboard-showRecentImages" />
+                  Show recent images
+                </label>
+                <small>Recently processed images with detected names</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-dashboard-showRecentLogs" />
+                  Show recent log lines
+                </label>
+                <small>Latest log entries (same as Log Viewer module)</small>
+              </div>
+
+              <div class="pref-field">
+                <label>Number of log lines</label>
+                <input type="number" id="pref-dashboard-logLineCount" min="3" max="10" step="1" style="width: 80px;" />
+                <small>How many log lines to show (3-10)</small>
+              </div>
+            </div>
+
+            <div class="pref-section">
+              <h3>Auto-Refresh</h3>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-dashboard-autoRefresh" />
+                  Auto-refresh on startup
+                </label>
+                <small>Automatically refresh statistics when dashboard opens</small>
+              </div>
+
+              <div class="pref-field">
+                <label>Refresh interval</label>
+                <select id="pref-dashboard-refreshInterval">
+                  <option value="2000">2 seconds</option>
+                  <option value="5000">5 seconds</option>
+                  <option value="10000">10 seconds</option>
+                  <option value="30000">30 seconds</option>
+                </select>
+                <small>How often to refresh statistics</small>
               </div>
             </div>
           </div>
@@ -1619,6 +1691,16 @@ export class PreferencesUI {
     // Update cache status display
     this.updateCacheStatus();
 
+    // Dashboard settings
+    const dashboard = this.tempPrefs.dashboard || {};
+    this.setValue('dashboard-showAttemptStats', dashboard.showAttemptStats ?? true);
+    this.setValue('dashboard-showTopFaces', dashboard.showTopFaces ?? true);
+    this.setValue('dashboard-showRecentImages', dashboard.showRecentImages ?? true);
+    this.setValue('dashboard-showRecentLogs', dashboard.showRecentLogs ?? false);
+    this.setValue('dashboard-logLineCount', dashboard.logLineCount ?? 5);
+    this.setValue('dashboard-autoRefresh', dashboard.autoRefresh ?? true);
+    this.setValue('dashboard-refreshInterval', dashboard.refreshInterval ?? 5000);
+
     // Layout settings
     this.setValue('layout-defaultGridPreset', this.tempPrefs.layout.defaultGridPreset);
     this.setValue('layout-defaultTemplate', this.tempPrefs.layout.defaultTemplate);
@@ -1802,6 +1884,16 @@ export class PreferencesUI {
     this.tempPrefs.preprocessing.steps.faceDetection = this.getValue('preprocessing-steps-faceDetection');
     this.tempPrefs.preprocessing.steps.thumbnails = this.getValue('preprocessing-steps-thumbnails');
     this.tempPrefs.preprocessing.cache.maxSizeMB = this.getValue('preprocessing-cache-maxSizeMB');
+
+    // Dashboard settings
+    if (!this.tempPrefs.dashboard) this.tempPrefs.dashboard = {};
+    this.tempPrefs.dashboard.showAttemptStats = this.getValue('dashboard-showAttemptStats');
+    this.tempPrefs.dashboard.showTopFaces = this.getValue('dashboard-showTopFaces');
+    this.tempPrefs.dashboard.showRecentImages = this.getValue('dashboard-showRecentImages');
+    this.tempPrefs.dashboard.showRecentLogs = this.getValue('dashboard-showRecentLogs');
+    this.tempPrefs.dashboard.logLineCount = this.getValue('dashboard-logLineCount');
+    this.tempPrefs.dashboard.autoRefresh = this.getValue('dashboard-autoRefresh');
+    this.tempPrefs.dashboard.refreshInterval = parseInt(this.getValue('dashboard-refreshInterval'), 10);
 
     this.tempPrefs.layout.defaultGridPreset = this.getValue('layout-defaultGridPreset');
     this.tempPrefs.layout.defaultTemplate = this.getValue('layout-defaultTemplate');

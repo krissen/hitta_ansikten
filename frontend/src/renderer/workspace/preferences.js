@@ -130,6 +130,15 @@ export class PreferencesManager {
             }
           }
         }
+      },
+      dashboard: {
+        showAttemptStats: true,       // Show detection statistics table
+        showTopFaces: true,           // Show top faces grid
+        showRecentImages: true,       // Show recent processed images
+        showRecentLogs: false,        // Show recent log lines (disabled by default - use LogViewer)
+        logLineCount: 5,              // Number of log lines to show (3-10)
+        refreshInterval: 5000,        // Auto-refresh interval in ms (2000/5000/10000/30000)
+        autoRefresh: true             // Auto-refresh on startup
       }
     };
 

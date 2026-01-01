@@ -6,13 +6,15 @@
  * - Attempt statistics table
  * - Top faces grid (4x5)
  * - Recent images list
- * - Recent log lines
+ * - Recent log lines (from frontend debug buffer)
+ * - Configurable sections via preferences
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
-import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { debug, debugWarn, debugError, getLogBuffer } from '../shared/debug.js';
+import { preferences } from '../workspace/preferences.js';
 import './StatisticsDashboard.css';
 
 /**
@@ -30,9 +32,27 @@ export function StatisticsDashboard() {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Auto-refresh settings
-  const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshRate, setRefreshRate] = useState(5000);
+  // Dashboard preferences
+  const [dashboardPrefs, setDashboardPrefs] = useState(() => preferences.get('dashboard') || {});
+
+  // Auto-refresh settings (from prefs or defaults)
+  const [autoRefresh, setAutoRefresh] = useState(() => dashboardPrefs.autoRefresh ?? true);
+  const [refreshRate, setRefreshRate] = useState(() => dashboardPrefs.refreshInterval ?? 5000);
+
+  /**
+   * Get logs from frontend debug buffer (same source as LogViewer)
+   */
+  const getLogsFromBuffer = useCallback(() => {
+    const logLineCount = dashboardPrefs.logLineCount ?? 5;
+    const buffer = getLogBuffer();
+    // Get last N entries
+    const logs = buffer.slice(-logLineCount).map(entry => ({
+      level: entry.level || 'info',
+      message: `[${entry.category}] ${entry.args?.join(' ') || entry.message || ''}`,
+      timestamp: entry.timestamp
+    }));
+    setRecentLogs(logs);
+  }, [dashboardPrefs.logLineCount]);
 
   /**
    * Fetch statistics from backend
@@ -49,7 +69,8 @@ export function StatisticsDashboard() {
         fraction: data.ignored_fraction || 0
       });
       setRecentImages(data.recent_images || []);
-      setRecentLogs(data.recent_logs || []);
+      // Logs now come from frontend buffer, not backend
+      getLogsFromBuffer();
       setError(null);
       setIsLoading(false);
     } catch (err) {
@@ -57,7 +78,7 @@ export function StatisticsDashboard() {
       setError(err.message);
       setIsLoading(false);
     }
-  }, [api]);
+  }, [api, getLogsFromBuffer]);
 
   // Use auto-refresh hook
   useAutoRefresh(fetchStatistics, refreshRate, autoRefresh);
@@ -66,6 +87,25 @@ export function StatisticsDashboard() {
   useEffect(() => {
     fetchStatistics();
   }, [fetchStatistics]);
+
+  // Listen for preference changes
+  useEffect(() => {
+    const handlePrefsChanged = () => {
+      const newPrefs = preferences.get('dashboard') || {};
+      setDashboardPrefs(newPrefs);
+      // Update refresh settings if changed
+      if (newPrefs.autoRefresh !== undefined) setAutoRefresh(newPrefs.autoRefresh);
+      if (newPrefs.refreshInterval !== undefined) setRefreshRate(newPrefs.refreshInterval);
+    };
+    window.addEventListener('preferences-changed', handlePrefsChanged);
+    return () => window.removeEventListener('preferences-changed', handlePrefsChanged);
+  }, []);
+
+  // Check which sections to show (defaults to true for backwards compatibility)
+  const showAttemptStats = dashboardPrefs.showAttemptStats !== false;
+  const showTopFaces = dashboardPrefs.showTopFaces !== false;
+  const showRecentImages = dashboardPrefs.showRecentImages !== false;
+  const showRecentLogs = dashboardPrefs.showRecentLogs === true; // Default false
 
   return (
     <div className="stats-dashboard">
@@ -87,6 +127,7 @@ export function StatisticsDashboard() {
             <option value="2000">2s</option>
             <option value="5000">5s</option>
             <option value="10000">10s</option>
+            <option value="30000">30s</option>
           </select>
           <button className="btn-refresh" onClick={fetchStatistics}>
             Refresh Now
@@ -98,20 +139,36 @@ export function StatisticsDashboard() {
         {error && <div className="stats-error">Error: {error}</div>}
 
         {/* Attempt Statistics Table */}
-        <AttemptStatsSection stats={attemptStats} isLoading={isLoading} />
+        {showAttemptStats && (
+          <AttemptStatsSection stats={attemptStats} isLoading={isLoading} />
+        )}
 
         {/* Top Faces Grid */}
-        <TopFacesSection
-          faces={topFaces}
-          ignoredStats={ignoredStats}
-          isLoading={isLoading}
-        />
+        {showTopFaces && (
+          <TopFacesSection
+            faces={topFaces}
+            ignoredStats={ignoredStats}
+            isLoading={isLoading}
+          />
+        )}
 
         {/* Recent Images */}
-        <RecentImagesSection images={recentImages} isLoading={isLoading} />
+        {showRecentImages && (
+          <RecentImagesSection images={recentImages} isLoading={isLoading} />
+        )}
 
-        {/* Recent Logs */}
-        <RecentLogsSection logs={recentLogs} isLoading={isLoading} />
+        {/* Recent Logs (disabled by default - use LogViewer module) */}
+        {showRecentLogs && (
+          <RecentLogsSection logs={recentLogs} isLoading={isLoading} />
+        )}
+
+        {/* Show message if all sections are hidden */}
+        {!showAttemptStats && !showTopFaces && !showRecentImages && !showRecentLogs && (
+          <div className="empty">
+            All dashboard sections are hidden.<br/>
+            Enable sections in Preferences → Dashboard.
+          </div>
+        )}
       </div>
     </div>
   );
