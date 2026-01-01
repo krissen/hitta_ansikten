@@ -48,6 +48,7 @@ Inspirerad av gamla terminaler och pappersbaserade gränssnitt.
   /* Accent Colors - Retro */
   --accent-primary: #6b8e23;    /* Olivgrön - primär action */
   --accent-primary-hover: #557018;
+  --accent-primary-alpha-20: rgba(107, 142, 35, 0.2);  /* För focus rings */
   --accent-secondary: #8b7355;  /* Brun - sekundär action */
   --accent-secondary-hover: #6f5d45;
   
@@ -95,6 +96,7 @@ Inspirerad av gamla CRT-monitorer med grön/amber fosfor.
   /* Accent Colors - Retro CRT */
   --accent-primary: #9acd32;    /* Gul-grön (klassisk terminal) */
   --accent-primary-hover: #b8e856;
+  --accent-primary-alpha-20: rgba(154, 205, 50, 0.2);  /* För focus rings */
   --accent-secondary: #daa520;  /* Goldenrod/amber */
   --accent-secondary-hover: #eebb30;
   
@@ -325,7 +327,11 @@ Enhetligt spacing-system baserat på 4px grid:
 .input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px rgba(154, 205, 50, 0.2); /* använd accent alpha */
+  /* Focus ring med semi-transparent accent färg */
+  box-shadow: 0 0 0 2px var(--accent-primary-alpha-20);
+  
+  /* Alternativ med color-mix() för modern browsers (ger mer flexibilitet): */
+  /* box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 20%, transparent); */
 }
 
 .input:disabled {
@@ -521,10 +527,8 @@ Skapa `/frontend/src/renderer/theme.css` med alla CSS-variabler definierade ovan
 /* theme.css */
 /* Importera denna fil FÖRST i alla modul-css filer */
 
-:root {
-  /* Default theme är light */
-  data-theme: "light";
-}
+/* Default theme: Light mode variabler först, sedan dark mode override */
+/* HTML element får data-theme attribut via JavaScript */
 
 /* Lägg alla variabler här från Färgpaletter-sektionen ovan */
 :root[data-theme="light"] { ... }
