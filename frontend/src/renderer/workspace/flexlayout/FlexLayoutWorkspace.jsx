@@ -8,7 +8,6 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName } from './layouts.js';
 import { preferences } from '../preferences.js';
-import { preferencesUI } from '../preferences-ui.js';
 import { themeManager } from '../../theme-manager.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
@@ -23,6 +22,7 @@ import { ReviewModule } from '../../components/ReviewModule.jsx';
 import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
 import { FileQueueModule } from '../../components/FileQueueModule.jsx';
 import { ThemeEditor } from '../../components/ThemeEditor.jsx';
+import { PreferencesModule } from '../../components/PreferencesModule.jsx';
 
 // Storage key for layout persistence
 const STORAGE_KEY = 'bildvisare-flexlayout';
@@ -126,7 +126,8 @@ const MODULE_COMPONENTS = {
   'review-module': ReviewModule,
   'database-management': DatabaseManagement,
   'file-queue': FileQueueModule,
-  'theme-editor': ThemeEditor
+  'theme-editor': ThemeEditor,
+  'preferences': PreferencesModule
 };
 
 // Module titles
@@ -138,7 +139,8 @@ const MODULE_TITLES = {
   'review-module': 'Face Review',
   'database-management': 'Database Management',
   'file-queue': 'File Queue',
-  'theme-editor': 'Theme Editor'
+  'theme-editor': 'Theme Editor',
+  'preferences': 'Preferences'
 };
 
 // Module-specific default layout ratios
@@ -1070,7 +1072,7 @@ export function FlexLayoutWorkspace() {
           break;
 
         case 'open-preferences':
-          preferencesUI.show();
+          openModule('preferences');
           break;
 
         // Theme commands
