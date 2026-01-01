@@ -642,23 +642,16 @@ Efter varje modul-uppdatering:
 4. **Testa hover/active states**: Alla interaktiva element
 5. **Testa kontrast**: Använd browser devtools accessibility checker
 
-### 6. Lägg till Tema-växlare i UI
+### 6. Integrera med befintlig meny-system
 
-Förslag: Lägg till en knapp i header/toolbar:
+Tema-växlingen ska integreras med applikationens befintliga meny-system, inte med separata toolbars eller knappar.
 
 ```javascript
-// I huvudapplikationen
+// I huvudapplikationen - integrera med befintligt meny-system
 import { themeManager } from './theme-manager.js';
 
-// Skapa toggle-knapp
-const themeToggle = document.createElement('button');
-themeToggle.className = 'btn-icon theme-toggle';
-themeToggle.innerHTML = '🌓'; // eller använd ikon-bibliotek
-themeToggle.title = 'Toggle Light/Dark Mode';
-themeToggle.onclick = () => themeManager.toggle();
-
-// Lägg till i toolbar
-document.querySelector('.toolbar').appendChild(themeToggle);
+// Lägg till tema-alternativ i menyn
+// (Implementation beror på befintlig meny-struktur)
 ```
 
 ## 🎨 Designriktlinjer per Modul
