@@ -542,6 +542,17 @@ export function ReviewModule() {
   }, [detectFaces]));
 
   /**
+   * Listen for clear-image events (when file is removed from queue)
+   */
+  useModuleEvent('clear-image', useCallback(() => {
+    debug('ReviewModule', 'Clearing review state');
+    setCurrentImagePath(null);
+    setDetectedFaces([]);
+    setCurrentFaceIndex(-1);
+    setStatus('Waiting for image...');
+  }, []));
+
+  /**
    * Listen for save/discard commands
    */
   useModuleEvent('save-all-changes', saveAllChanges);

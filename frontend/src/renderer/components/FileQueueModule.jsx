@@ -550,8 +550,15 @@ export function FileQueueModule() {
   const removeFile = useCallback((id) => {
     // Find the file to get its path before removing
     const fileToRemove = queue.find(item => item.id === id);
-    if (fileToRemove && preprocessingManager.current) {
-      preprocessingManager.current.removeFromQueue(fileToRemove.filePath);
+    if (fileToRemove) {
+      if (preprocessingManager.current) {
+        preprocessingManager.current.removeFromQueue(fileToRemove.filePath);
+      }
+      // Clear viewer if this was the active file
+      if (fileToRemove.filePath === currentFileRef.current) {
+        emit('clear-image');
+        currentFileRef.current = null;
+      }
     }
 
     setQueue(prev => prev.filter(item => item.id !== id));
@@ -562,7 +569,7 @@ export function FileQueueModule() {
       if (removedIndex === prev) return -1;
       return prev;
     });
-  }, [queue]);
+  }, [queue, emit]);
 
   // Clear all files
   const clearQueue = useCallback(() => {
@@ -570,15 +577,34 @@ export function FileQueueModule() {
     if (preprocessingManager.current) {
       preprocessingManager.current.stop();
     }
+    // Clear viewer if there was an active file
+    if (currentFileRef.current) {
+      emit('clear-image');
+      currentFileRef.current = null;
+    }
     setQueue([]);
     setCurrentIndex(-1);
-  }, []);
+  }, [emit]);
 
   // Clear completed files
   // When fix-mode is OFF, also clear already-processed files (they're considered done)
   // When fix-mode is ON, keep already-processed files (they need reprocessing)
   const clearCompleted = useCallback(() => {
     const currentFixMode = fixModeRef.current;
+    const currentQueue = queueRef.current;
+
+    // Check if active file will be removed
+    const activeFile = currentQueue.find(item => item.filePath === currentFileRef.current);
+    const activeWillBeRemoved = activeFile && (
+      activeFile.status === 'completed' ||
+      (!currentFixMode && activeFile.isAlreadyProcessed)
+    );
+
+    if (activeWillBeRemoved) {
+      emit('clear-image');
+      currentFileRef.current = null;
+    }
+
     setQueue(prev => prev.filter(item => {
       if (item.status === 'completed') return false;
       if (!currentFixMode && item.isAlreadyProcessed) return false;
@@ -586,14 +612,23 @@ export function FileQueueModule() {
     }));
     setCurrentIndex(-1);
     setSelectedFiles(new Set());
-  }, []);
+  }, [emit]);
 
   // Clear selected files
   const clearSelected = useCallback(() => {
+    const currentQueue = queueRef.current;
+
+    // Check if active file is among selected
+    const activeFile = currentQueue.find(item => item.filePath === currentFileRef.current);
+    if (activeFile && selectedFiles.has(activeFile.id)) {
+      emit('clear-image');
+      currentFileRef.current = null;
+    }
+
     setQueue(prev => prev.filter(item => !selectedFiles.has(item.id)));
     setCurrentIndex(-1);
     setSelectedFiles(new Set());
-  }, [selectedFiles]);
+  }, [selectedFiles, emit]);
 
   // Select all files
   const selectAll = useCallback(() => {
