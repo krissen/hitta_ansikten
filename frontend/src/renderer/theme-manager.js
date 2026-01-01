@@ -117,19 +117,12 @@ class ThemeManager {
       return;
     }
 
-    // Temporarily set preference for resolving 'system'
-    const originalPreference = this.preference;
-    this.preference = preference;
-
     const theme = preference === 'system'
       ? this.getSystemTheme()
       : preference;
 
-    // Apply visually but don't persist
+    // Apply visually but don't persist or modify stored preference
     this.applyTheme(theme, { persist: false });
-
-    // Keep the preview preference active (don't restore original)
-    // This allows multiple preview changes to work correctly
   }
 
   /**
