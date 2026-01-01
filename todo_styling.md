@@ -83,50 +83,50 @@ Inspirerad av klassiska datorer (Commodore 64, Amiga, Apple II) med djupt mätta
 ```
 
 ### Dark Mode - "CRT Phosphor"
-Inspirerad av gamla CRT-monitorer med grön/amber fosfor.
+Inspirerad av gamla CRT-monitorer med grön/amber fosfor. Djupt mörk, inte brun.
 
 ```css
 :root[data-theme="dark"] {
-  /* Bakgrunder */
-  --bg-primary: #1a1914;        /* Mörkbrun/svart */
-  --bg-secondary: #252520;      /* Ljusare för sections */
-  --bg-tertiary: #2f2f28;       /* Toolbar/headers */
-  --bg-elevated: #353530;       /* Kort/modaler */
-  --bg-hover: #3a3a32;          /* Hover-state */
-  --bg-active: #424238;         /* Aktivt element */
+  /* Bakgrunder - Djupt mörka (inte bruna) */
+  --bg-primary: #0f0f0f;        /* Nästan svart */
+  --bg-secondary: #1a1a1a;      /* Mörkgrå */
+  --bg-tertiary: #252525;       /* Grå toolbar */
+  --bg-elevated: #2a2a2a;       /* Ljusare grå för kort */
+  --bg-hover: #303030;          /* Hover */
+  --bg-active: #383838;         /* Aktiv */
   
   /* Förgrundstext - Amber/Green CRT */
-  --text-primary: #d4d2c0;      /* Ljus beige/gul - CRT amber */
+  --text-primary: #d4d2c0;      /* Ljus beige/amber */
   --text-secondary: #a8a698;    /* Dämpad amber */
   --text-tertiary: #7a7870;     /* Mycket dämpad */
-  --text-inverse: #1a1914;      /* Text på ljusa bakgrunder */
+  --text-inverse: #0f0f0f;      /* Text på ljusa bakgrunder */
   
   /* Borders & Dividers */
-  --border-subtle: #3a3830;     /* Subtila avgränsningar */
-  --border-medium: #4a4840;     /* Tydligare borders */
-  --border-strong: #5a5848;     /* Starka avgränsningar */
+  --border-subtle: #353535;     /* Subtil grå */
+  --border-medium: #454545;     /* Tydligare grå */
+  --border-strong: #555555;     /* Stark grå */
   
   /* Accent Colors - Retro CRT */
   --accent-primary: #9acd32;    /* Gul-grön (klassisk terminal) */
   --accent-primary-hover: #b8e856;
-  --accent-primary-alpha-20: rgba(154, 205, 50, 0.2);  /* För focus rings */
+  --accent-primary-alpha-20: rgba(154, 205, 50, 0.2);
   --accent-secondary: #daa520;  /* Goldenrod/amber */
   --accent-secondary-hover: #eebb30;
   
   /* Semantic Colors */
   --color-success: #9acd32;     /* Gul-grön */
-  --color-success-bg: #2a3320;
+  --color-success-bg: #1a2a1a;  /* Mörkgrön */
   --color-warning: #ffa500;     /* Orange */
-  --color-warning-bg: #332a18;
+  --color-warning-bg: #2a2015;  /* Mörk orange-brun */
   --color-error: #ff6347;       /* Tomat-röd */
-  --color-error-bg: #331e1a;
+  --color-error-bg: #2a1515;    /* Mörkröd */
   --color-info: #87ceeb;        /* Sky blue */
-  --color-info-bg: #1a2a33;
+  --color-info-bg: #15202a;     /* Mörkblå */
   
   /* Special */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.7);
   
   /* CRT-effekt (optional glow) */
   --glow-text: 0 0 2px currentColor;
