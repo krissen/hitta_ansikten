@@ -1,5 +1,18 @@
 # Styling Guide: Light/Dark Mode för hitta_ansikten
 
+## 📺 Live Preview
+
+**Se alla komponenter i aktion:** Öppna [`theme-examples.html`](./theme-examples.html) i din webbläsare för att se interaktiva exempel på alla komponenter i både light och dark mode. Filen innehåller:
+- Komplett färgpalett med alla variabler
+- Alla knapp-varianter (primary, secondary, ghost, icon)
+- Formulärelement (inputs, selects, checkboxes)
+- Badges och alerts i alla semantiska färger
+- Listor och tabeller
+- Fullständiga modul-exempel (Statistics Dashboard, Log Viewer)
+- Face cards (Review Module)
+
+**Klicka på "Växla till Dark Mode"-knappen för att se teman i realtid!**
+
 ## Översikt
 
 Detta dokument beskriver det nya enhetliga styling-systemet för hitta_ansikten workspace. Målet är att skapa två koherenta teman (ljust och mörkt) med retro-estetik inspirerad av terminaler och klassiska desktop-miljöer.

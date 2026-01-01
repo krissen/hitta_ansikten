@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>hitta_ansikten - Theme Examples</title>
+  <style>
+    /* ===========================
+       CSS VARIABLES - LIGHT MODE
+       =========================== */
+    :root[data-theme="light"] {
+      /* Bakgrunder */
+      --bg-primary: #f5f1e8;
+      --bg-secondary: #e8e3d8;
+      --bg-tertiary: #ddd8cc;
+      --bg-elevated: #ffffff;
+      --bg-hover: #e0dbd0;
+      --bg-active: #d5cfc3;
+      
+      /* Förgrundstext */
+      --text-primary: #2c2820;
+      --text-secondary: #5a5248;
+      --text-tertiary: #7a7268;
+      --text-inverse: #f5f1e8;
+      
+      /* Borders & Dividers */
+      --border-subtle: #d0c8b8;
+      --border-medium: #b8b0a0;
+      --border-strong: #a09888;
+      
+      /* Accent Colors - Retro */
+      --accent-primary: #6b8e23;
+      --accent-primary-hover: #557018;
+      --accent-primary-alpha-20: rgba(107, 142, 35, 0.2);
+      --accent-secondary: #8b7355;
+      --accent-secondary-hover: #6f5d45;
+      
+      /* Semantic Colors */
+      --color-success: #6b8e23;
+      --color-success-bg: #e8f0d8;
+      --color-warning: #d2691e;
+      --color-warning-bg: #fef3e8;
+      --color-error: #a0522d;
+      --color-error-bg: #fde8e0;
+      --color-info: #4682b4;
+      --color-info-bg: #e8f2f8;
+      
+      /* Special */
+      --shadow-sm: 0 1px 3px rgba(44, 40, 32, 0.12);
+      --shadow-md: 0 2px 6px rgba(44, 40, 32, 0.16);
+      --shadow-lg: 0 4px 12px rgba(44, 40, 32, 0.20);
+    }
+
+    /* ===========================
+       CSS VARIABLES - DARK MODE
+       =========================== */
+    :root[data-theme="dark"] {
+      /* Bakgrunder */
+      --bg-primary: #1a1914;
+      --bg-secondary: #252520;
+      --bg-tertiary: #2f2f28;
+      --bg-elevated: #353530;
+      --bg-hover: #3a3a32;
+      --bg-active: #424238;
+      
+      /* Förgrundstext - Amber/Green CRT */
+      --text-primary: #d4d2c0;
+      --text-secondary: #a8a698;
+      --text-tertiary: #7a7870;
+      --text-inverse: #1a1914;
+      
+      /* Borders & Dividers */
+      --border-subtle: #3a3830;
+      --border-medium: #4a4840;
+      --border-strong: #5a5848;
+      
+      /* Accent Colors - Retro CRT */
+      --accent-primary: #9acd32;
+      --accent-primary-hover: #b8e856;
+      --accent-primary-alpha-20: rgba(154, 205, 50, 0.2);
+      --accent-secondary: #daa520;
+      --accent-secondary-hover: #eebb30;
+      
+      /* Semantic Colors */
+      --color-success: #9acd32;
+      --color-success-bg: #2a3320;
+      --color-warning: #ffa500;
+      --color-warning-bg: #332a18;
+      --color-error: #ff6347;
+      --color-error-bg: #331e1a;
+      --color-info: #87ceeb;
+      --color-info-bg: #1a2a33;
+      
+      /* Special */
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
+      
+      /* CRT-effekt (optional glow) */
+      --glow-text: 0 0 2px currentColor;
+      --glow-accent: 0 0 8px var(--accent-primary);
+    }
+
+    /* ===========================
+       SPACING & LAYOUT SYSTEM
+       =========================== */
+    :root {
+      /* Spacing Scale */
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 12px;
+      --space-lg: 16px;
+      --space-xl: 24px;
+      --space-2xl: 32px;
+      
+      /* Border Radius */
+      --radius-sm: 3px;
+      --radius-md: 4px;
+      --radius-lg: 6px;
+      --radius-full: 999px;
+      
+      /* Font Sizes */
+      --font-xs: 10px;
+      --font-sm: 11px;
+      --font-base: 13px;
+      --font-md: 14px;
+      --font-lg: 16px;
+      --font-xl: 18px;
+      --font-2xl: 22px;
+      
+      /* Font Families */
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+      
+      /* Transitions */
+      --transition-fast: 0.1s ease;
+      --transition-base: 0.15s ease;
+      --transition-slow: 0.3s ease;
+    }
+
+    /* ===========================
+       BASE STYLES
+       =========================== */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: var(--font-sans);
+      font-size: var(--font-base);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    /* ===========================
+       DEMO LAYOUT
+       =========================== */
+    .demo-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--space-2xl);
+    }
+
+    .demo-header {
+      text-align: center;
+      margin-bottom: var(--space-2xl);
+      padding-bottom: var(--space-lg);
+      border-bottom: 2px solid var(--border-medium);
+    }
+
+    .demo-header h1 {
+      margin: 0 0 var(--space-md) 0;
+      font-size: var(--font-2xl);
+      color: var(--text-primary);
+    }
+
+    .theme-toggle {
+      display: inline-flex;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: var(--font-sm);
+      color: var(--text-secondary);
+      transition: background var(--transition-base);
+    }
+
+    .theme-toggle:hover {
+      background: var(--bg-hover);
+    }
+
+    .demo-section {
+      margin-bottom: var(--space-2xl);
+    }
+
+    .demo-section h2 {
+      margin: 0 0 var(--space-lg) 0;
+      font-size: var(--font-xl);
+      color: var(--accent-primary);
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: var(--space-sm);
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-lg);
+    }
+
+    .demo-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+    }
+
+    .demo-item h3 {
+      margin: 0 0 var(--space-md) 0;
+      font-size: var(--font-md);
+      color: var(--text-primary);
+    }
+
+    /* ===========================
+       COMPONENT STYLES
+       =========================== */
+
+    /* Buttons */
+    .btn {
+      padding: var(--space-sm) var(--space-md);
+      font-size: var(--font-sm);
+      font-family: var(--font-sans);
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--transition-base), 
+                  transform var(--transition-fast);
+      user-select: none;
+      display: inline-block;
+    }
+
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--accent-primary);
+      color: var(--text-inverse);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-primary-hover);
+    }
+
+    .btn-secondary {
+      background: var(--accent-secondary);
+      color: var(--text-inverse);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--accent-secondary-hover);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-medium);
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    .btn-icon {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      border-radius: var(--radius-sm);
+    }
+
+    .btn-icon:hover:not(:disabled) {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .button-group {
+      display: flex;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+    }
+
+    /* Form Elements */
+    .input {
+      padding: var(--space-sm);
+      font-size: var(--font-sm);
+      font-family: var(--font-sans);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
+      transition: border-color var(--transition-base),
+                  box-shadow var(--transition-base);
+      width: 100%;
+      max-width: 250px;
+    }
+
+    .input:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 2px var(--accent-primary-alpha-20);
+    }
+
+    .input:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .select {
+      padding: var(--space-sm);
+      font-size: var(--font-sm);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+
+    .select:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+    }
+
+    .checkbox {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--accent-primary);
+    }
+
+    .form-group {
+      margin-bottom: var(--space-md);
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: var(--space-xs);
+      font-size: var(--font-sm);
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-block;
+      padding: var(--space-xs) var(--space-sm);
+      font-size: var(--font-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: var(--radius-full);
+    }
+
+    .badge-success {
+      background: var(--color-success-bg);
+      color: var(--color-success);
+    }
+
+    .badge-warning {
+      background: var(--color-warning-bg);
+      color: var(--color-warning);
+    }
+
+    .badge-error {
+      background: var(--color-error-bg);
+      color: var(--color-error);
+    }
+
+    .badge-info {
+      background: var(--color-info-bg);
+      color: var(--color-info);
+    }
+
+    /* Alerts */
+    .alert {
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      border: 1px solid;
+      margin-bottom: var(--space-md);
+    }
+
+    .alert-success {
+      background: var(--color-success-bg);
+      border-color: var(--color-success);
+      color: var(--color-success);
+    }
+
+    .alert-warning {
+      background: var(--color-warning-bg);
+      border-color: var(--color-warning);
+      color: var(--color-warning);
+    }
+
+    .alert-error {
+      background: var(--color-error-bg);
+      border-color: var(--color-error);
+      color: var(--color-error);
+    }
+
+    .alert-info {
+      background: var(--color-info-bg);
+      border-color: var(--color-info);
+      color: var(--color-info);
+    }
+
+    /* List Items */
+    .list-item {
+      padding: var(--space-sm);
+      margin-bottom: var(--space-xs);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background var(--transition-base),
+                  border-color var(--transition-base);
+    }
+
+    .list-item:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-medium);
+    }
+
+    .list-item.active {
+      background: var(--bg-active);
+      border-color: var(--accent-primary);
+    }
+
+    /* Table */
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--font-sm);
+    }
+
+    .table th {
+      padding: var(--space-sm);
+      text-align: left;
+      font-weight: 600;
+      background: var(--accent-primary);
+      color: var(--text-inverse);
+      border-bottom: 2px solid var(--border-strong);
+    }
+
+    .table td {
+      padding: var(--space-sm);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .table tr:hover {
+      background: var(--bg-hover);
+    }
+
+    /* Module Examples */
+    .module {
+      display: flex;
+      flex-direction: column;
+      height: 300px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-md);
+    }
+
+    .module-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-medium);
+      flex-shrink: 0;
+    }
+
+    .module-title {
+      margin: 0;
+      font-size: var(--font-md);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .module-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-md);
+    }
+
+    .module-section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+
+    .section-title {
+      margin: 0 0 var(--space-sm) 0;
+      font-size: var(--font-md);
+      font-weight: 600;
+      color: var(--accent-primary);
+    }
+
+    /* Log Viewer Styles */
+    .log-viewer {
+      font-family: var(--font-mono);
+      font-size: var(--font-sm);
+      background: var(--bg-primary);
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-medium);
+    }
+
+    .log-entry {
+      padding: var(--space-xs) 0;
+      border-left: 2px solid transparent;
+      padding-left: var(--space-sm);
+      margin-bottom: var(--space-xs);
+    }
+
+    .log-entry.info {
+      border-left-color: var(--color-info);
+      color: var(--text-primary);
+    }
+
+    .log-entry.warn {
+      border-left-color: var(--color-warning);
+      background: var(--color-warning-bg);
+    }
+
+    .log-entry.error {
+      border-left-color: var(--color-error);
+      background: var(--color-error-bg);
+    }
+
+    .log-timestamp {
+      color: var(--text-tertiary);
+    }
+
+    /* Face Card (Review Module) */
+    .face-card {
+      background: var(--bg-elevated);
+      border-radius: var(--radius-lg);
+      padding: var(--space-sm);
+      box-shadow: var(--shadow-sm);
+      border: 2px solid transparent;
+      transition: border-color var(--transition-base),
+                  box-shadow var(--transition-base);
+      cursor: pointer;
+    }
+
+    .face-card:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .face-card.active {
+      border-color: var(--accent-primary);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .face-thumbnail {
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      margin-bottom: var(--space-sm);
+    }
+
+    .face-info {
+      font-size: var(--font-xs);
+      color: var(--text-secondary);
+      text-align: center;
+    }
+
+    /* Color Swatches */
+    .color-swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: var(--space-sm);
+    }
+
+    .color-swatch {
+      text-align: center;
+    }
+
+    .color-box {
+      width: 100%;
+      height: 60px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-medium);
+      margin-bottom: var(--space-xs);
+    }
+
+    .color-label {
+      font-size: var(--font-xs);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="demo-container">
+    <!-- Header -->
+    <div class="demo-header">
+      <h1>hitta_ansikten - Theme Examples</h1>
+      <button class="theme-toggle" onclick="toggleTheme()">
+        <span id="theme-icon">🌙</span>
+        <span id="theme-text">Växla till Dark Mode</span>
+      </button>
+    </div>
+
+    <!-- Color Palette Section -->
+    <div class="demo-section">
+      <h2>Färgpalett</h2>
+      <div class="demo-item">
+        <h3>Bakgrundsfärger</h3>
+        <div class="color-swatches">
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--bg-primary)"></div>
+            <div class="color-label">bg-primary</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--bg-secondary)"></div>
+            <div class="color-label">bg-secondary</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--bg-tertiary)"></div>
+            <div class="color-label">bg-tertiary</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--bg-elevated)"></div>
+            <div class="color-label">bg-elevated</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--bg-hover)"></div>
+            <div class="color-label">bg-hover</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--bg-active)"></div>
+            <div class="color-label">bg-active</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-item">
+        <h3>Textfärger</h3>
+        <div class="color-swatches">
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--text-primary)"></div>
+            <div class="color-label">text-primary</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--text-secondary)"></div>
+            <div class="color-label">text-secondary</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--text-tertiary)"></div>
+            <div class="color-label">text-tertiary</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-item">
+        <h3>Accent-färger</h3>
+        <div class="color-swatches">
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--accent-primary)"></div>
+            <div class="color-label">accent-primary</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--accent-secondary)"></div>
+            <div class="color-label">accent-secondary</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="demo-item">
+        <h3>Semantiska färger</h3>
+        <div class="color-swatches">
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--color-success)"></div>
+            <div class="color-label">success</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--color-warning)"></div>
+            <div class="color-label">warning</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--color-error)"></div>
+            <div class="color-label">error</div>
+          </div>
+          <div class="color-swatch">
+            <div class="color-box" style="background: var(--color-info)"></div>
+            <div class="color-label">info</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buttons Section -->
+    <div class="demo-section">
+      <h2>Knappar</h2>
+      <div class="demo-grid">
+        <div class="demo-item">
+          <h3>Button Variants</h3>
+          <div class="button-group">
+            <button class="btn btn-primary">Primary</button>
+            <button class="btn btn-secondary">Secondary</button>
+            <button class="btn btn-ghost">Ghost</button>
+            <button class="btn btn-primary" disabled>Disabled</button>
+          </div>
+        </div>
+
+        <div class="demo-item">
+          <h3>Icon Buttons</h3>
+          <div class="button-group">
+            <button class="btn-icon">+</button>
+            <button class="btn-icon">📁</button>
+            <button class="btn-icon">⚙️</button>
+            <button class="btn-icon">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form Elements Section -->
+    <div class="demo-section">
+      <h2>Formulärelement</h2>
+      <div class="demo-grid">
+        <div class="demo-item">
+          <h3>Input Fields</h3>
+          <div class="form-group">
+            <label class="form-label">Text Input</label>
+            <input type="text" class="input" placeholder="Skriv något...">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Select Dropdown</label>
+            <select class="select">
+              <option>Välj alternativ</option>
+              <option>Alternativ 1</option>
+              <option>Alternativ 2</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">
+              <input type="checkbox" class="checkbox">
+              Checkbox option
+            </label>
+          </div>
+        </div>
+
+        <div class="demo-item">
+          <h3>Disabled States</h3>
+          <div class="form-group">
+            <input type="text" class="input" placeholder="Disabled input" disabled>
+          </div>
+          <div class="form-group">
+            <select class="select" disabled>
+              <option>Disabled select</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges & Alerts Section -->
+    <div class="demo-section">
+      <h2>Badges & Alerts</h2>
+      <div class="demo-grid">
+        <div class="demo-item">
+          <h3>Status Badges</h3>
+          <div class="button-group">
+            <span class="badge badge-success">Success</span>
+            <span class="badge badge-warning">Warning</span>
+            <span class="badge badge-error">Error</span>
+            <span class="badge badge-info">Info</span>
+          </div>
+        </div>
+
+        <div class="demo-item">
+          <h3>Alert Messages</h3>
+          <div class="alert alert-success">Operation completed successfully!</div>
+          <div class="alert alert-warning">Please review this warning.</div>
+          <div class="alert alert-error">An error occurred.</div>
+          <div class="alert alert-info">Here is some information.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- List & Table Section -->
+    <div class="demo-section">
+      <h2>Listor & Tabeller</h2>
+      <div class="demo-grid">
+        <div class="demo-item">
+          <h3>List Items</h3>
+          <div class="list-item">Regular list item</div>
+          <div class="list-item active">Active list item</div>
+          <div class="list-item">Another list item</div>
+        </div>
+
+        <div class="demo-item">
+          <h3>Table Example</h3>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Person 1</td>
+                <td><span class="badge badge-success">Active</span></td>
+                <td>42</td>
+              </tr>
+              <tr>
+                <td>Person 2</td>
+                <td><span class="badge badge-info">Pending</span></td>
+                <td>18</td>
+              </tr>
+              <tr>
+                <td>Person 3</td>
+                <td><span class="badge badge-warning">Review</span></td>
+                <td>7</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module Examples Section -->
+    <div class="demo-section">
+      <h2>Modul-exempel</h2>
+      <div class="demo-grid">
+        <div class="demo-item" style="padding: 0;">
+          <div class="module">
+            <div class="module-header">
+              <h3 class="module-title">Statistics Dashboard</h3>
+              <button class="btn-icon">⚙️</button>
+            </div>
+            <div class="module-body">
+              <div class="module-section">
+                <h4 class="section-title">Attempt Statistics</h4>
+                <p style="font-size: var(--font-sm); color: var(--text-secondary);">
+                  Total files: 1,234<br>
+                  Processed: 987<br>
+                  Pending: 247
+                </p>
+              </div>
+              <div class="module-section">
+                <h4 class="section-title">Top Faces</h4>
+                <div class="button-group">
+                  <span class="badge badge-info">Anna (45)</span>
+                  <span class="badge badge-info">Erik (38)</span>
+                  <span class="badge badge-info">Lisa (32)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-item" style="padding: 0;">
+          <div class="module">
+            <div class="module-header">
+              <h3 class="module-title">Log Viewer</h3>
+              <button class="btn-icon">✕</button>
+            </div>
+            <div class="module-body">
+              <div class="log-viewer">
+                <div class="log-entry info">
+                  <span class="log-timestamp">14:23:45</span> [INFO] Processing started
+                </div>
+                <div class="log-entry warn">
+                  <span class="log-timestamp">14:24:12</span> [WARN] Low confidence match
+                </div>
+                <div class="log-entry error">
+                  <span class="log-timestamp">14:24:58</span> [ERROR] File not found
+                </div>
+                <div class="log-entry info">
+                  <span class="log-timestamp">14:25:33</span> [INFO] Processing complete
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Face Cards Section (Review Module) -->
+    <div class="demo-section">
+      <h2>Face Cards (Review Module)</h2>
+      <div class="demo-grid">
+        <div class="demo-item">
+          <div class="face-card">
+            <div class="face-thumbnail">👤</div>
+            <div class="face-info">
+              <strong>Anna Andersson</strong><br>
+              Confidence: 0.87
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-item">
+          <div class="face-card active">
+            <div class="face-thumbnail">👤</div>
+            <div class="face-info">
+              <strong>Erik Svensson</strong><br>
+              Confidence: 0.92
+            </div>
+          </div>
+        </div>
+
+        <div class="demo-item">
+          <div class="face-card">
+            <div class="face-thumbnail">❓</div>
+            <div class="face-info">
+              <strong>Unknown</strong><br>
+              Confidence: 0.45
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const currentTheme = html.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      html.setAttribute('data-theme', newTheme);
+      
+      const icon = document.getElementById('theme-icon');
+      const text = document.getElementById('theme-text');
+      
+      if (newTheme === 'dark') {
+        icon.textContent = '☀️';
+        text.textContent = 'Växla till Light Mode';
+      } else {
+        icon.textContent = '🌙';
+        text.textContent = 'Växla till Dark Mode';
+      }
+    }
+  </script>
+</body>
+</html>
