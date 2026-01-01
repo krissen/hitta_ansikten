@@ -467,11 +467,15 @@ export function FileQueueModule() {
 
   // Fetch rename preview from backend
   const fetchRenamePreview = useCallback(async () => {
-    const completedPaths = queue
-      .filter(q => q.status === 'completed')
+    // Include files eligible for rename:
+    // - completed: reviewed this session
+    // - isAlreadyProcessed (when fix-mode OFF): already in database, includes active files being re-viewed
+    const currentFixMode = fixModeRef.current;
+    const eligiblePaths = queue
+      .filter(q => q.status === 'completed' || (!currentFixMode && q.isAlreadyProcessed))
       .map(q => q.filePath);
 
-    if (completedPaths.length === 0) {
+    if (eligiblePaths.length === 0) {
       setPreviewData({});
       return;
     }
@@ -481,7 +485,7 @@ export function FileQueueModule() {
 
     try {
       const result = await api.post('/api/files/rename-preview', {
-        file_paths: completedPaths,
+        file_paths: eligiblePaths,
         config: renameConfig
       });
 
@@ -495,7 +499,7 @@ export function FileQueueModule() {
         };
       }
       setPreviewData(lookup);
-      debug('FileQueue', 'Fetched rename preview for', completedPaths.length, 'files');
+      debug('FileQueue', 'Fetched rename preview for', eligiblePaths.length, 'files');
     } catch (err) {
       debugError('FileQueue', 'Failed to fetch rename preview:', err);
       setPreviewData({});
@@ -980,8 +984,8 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
     return truncated + ext;
   };
 
-  // Show preview info if available
-  const shouldShowPreview = showPreview && item.status === 'completed' && previewInfo;
+  // Show preview info if available (for completed or already-processed files)
+  const shouldShowPreview = showPreview && (item.status === 'completed' || item.isAlreadyProcessed) && previewInfo;
   const newName = previewInfo?.newName;
   const previewStatus = previewInfo?.status;
 
