@@ -225,12 +225,21 @@ export function ImageViewer() {
       let labelText = null;
       const matchCase = face.match_case;
 
+      // Helper: get best person name from alternatives if person_name is not set
+      const getPersonName = () => {
+        if (face.person_name) return face.person_name;
+        // Find first non-ignored alternative
+        const alt = face.match_alternatives?.find(a => !a.is_ignored);
+        return alt?.name || 'Unknown';
+      };
+
       if (matchCase === 'ign') {
         labelText = `ign (${(face.ignore_confidence || 0)}%)`;
       } else if (matchCase === 'uncertain_ign') {
-        labelText = `ign (${(face.ignore_confidence || 0)}%) / ${face.person_name}`;
+        // person_name may be null for uncertain_ign, get from alternatives
+        labelText = `ign (${(face.ignore_confidence || 0)}%) / ${getPersonName()}`;
       } else if (matchCase === 'uncertain_name') {
-        labelText = `${face.person_name} / ign (${(face.ignore_confidence || 0)}%)`;
+        labelText = `${getPersonName()} / ign (${(face.ignore_confidence || 0)}%)`;
       } else if (face.person_name) {
         labelText = `${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
       } else if (face.match_alternatives?.length > 0) {

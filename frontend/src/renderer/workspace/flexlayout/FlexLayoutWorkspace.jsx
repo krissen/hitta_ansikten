@@ -84,9 +84,9 @@ function ShortcutsHelpOverlay({ onClose }) {
             <div className="shortcut-row"><kbd>Enter</kbd> / <kbd>A</kbd><span>Accept suggested match</span></div>
             <div className="shortcut-row"><kbd>I</kbd><span>Ignore face</span></div>
             <div className="shortcut-row"><kbd>R</kbd><span>Rename / enter name</span></div>
-            <div className="shortcut-row"><kbd>1-9</kbd><span>Select match alternative</span></div>
-            <div className="shortcut-row"><kbd>←</kbd> / <kbd>→</kbd><span>Previous/next face</span></div>
-            <div className="shortcut-row"><kbd>N</kbd><span>Skip to next file</span></div>
+            <div className="shortcut-row"><kbd>1-N</kbd><span>Select match alternative (N in prefs)</span></div>
+            <div className="shortcut-row"><kbd>↑</kbd> / <kbd>↓</kbd><span>Previous/next face</span></div>
+            <div className="shortcut-row"><kbd>X</kbd><span>Skip to next file</span></div>
             <div className="shortcut-row"><kbd>Esc</kbd><span>Discard changes / blur input</span></div>
           </div>
 
