@@ -279,6 +279,14 @@ export function FileQueueModule() {
           savedIndexRef.current = parsed.currentIndex ?? -1;
           setShouldAutoLoad(true);
           debug('FileQueue', 'Restored queue with', parsed.queue.length, 'files, will auto-load');
+          // Debug: Log items with reviewedFaces
+          const withReviewed = parsed.queue.filter(q => q.reviewedFaces?.length > 0);
+          if (withReviewed.length > 0) {
+            debug('FileQueue', `Found ${withReviewed.length} items with reviewedFaces:`,
+              withReviewed.map(q => `${q.fileName}: ${q.reviewedFaces.length} faces`));
+          } else {
+            debug('FileQueue', 'No items have reviewedFaces data');
+          }
         }
       }
     } catch (err) {
@@ -1284,6 +1292,11 @@ function FileQueueItem({ item, isActive, isSelected, onClick, onToggleSelect, on
                     ppFaceCount ??
                     null;
   const faceNames = previewInfo?.persons || item.reviewedFaces?.map(f => f.personName).filter(Boolean) || [];
+
+  // Debug: trace face info source
+  if (item.status === 'completed' || item.reviewedFaces) {
+    debug('FileQueue', `[${item.fileName}] reviewedFaces=${item.reviewedFaces?.length}, ppFaceCount=${ppFaceCount}, faceCount=${faceCount}, names=${faceNames.join(',')}`);
+  }
 
   return (
     <div
