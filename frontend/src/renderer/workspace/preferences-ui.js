@@ -403,10 +403,124 @@ export class PreferencesUI {
 
               <div class="pref-field">
                 <label>
-                  <input type="checkbox" id="pref-files-requireRenameConfirmation" />
+                  <input type="checkbox" id="pref-rename-requireConfirmation" />
                   Require confirmation before rename
                 </label>
-                <small>Show confirmation dialog before renaming files. When disabled, files are renamed immediately.</small>
+                <small>Show confirmation dialog before renaming files.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-rename-allowAlreadyRenamed" />
+                  Allow renaming already-renamed files
+                </label>
+                <small>Enable re-renaming of files that already have names in the filename.</small>
+              </div>
+            </div>
+
+            <div class="pref-section">
+              <h3>Date/Time Prefix</h3>
+
+              <div class="pref-field">
+                <label>Prefix Source</label>
+                <select id="pref-rename-prefixSource">
+                  <option value="filename">From filename (YYMMDD_HHMMSS pattern)</option>
+                  <option value="exif">From EXIF metadata</option>
+                  <option value="filedate">From file modification date</option>
+                </select>
+                <small>Where to get the date/time for the filename prefix.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>EXIF Fallback</label>
+                <select id="pref-rename-exifFallback">
+                  <option value="filedate">Use file modification date</option>
+                  <option value="original">Use original filename</option>
+                  <option value="skip">Skip file (don't rename)</option>
+                </select>
+                <small>What to do if EXIF data is missing.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>Date Pattern</label>
+                <select id="pref-rename-datePattern">
+                  <option value="%y%m%d_%H%M%S">YYMMDD_HHMMSS (250612_153040)</option>
+                  <option value="%Y%m%d_%H%M%S">YYYYMMDD_HHMMSS (20250612_153040)</option>
+                  <option value="%Y-%m-%d_%H-%M-%S">YYYY-MM-DD_HH-MM-SS (2025-06-12_15-30-40)</option>
+                  <option value="%y%m%d-%H%M%S">YYMMDD-HHMMSS (250612-153040)</option>
+                </select>
+                <small>Format for the date/time prefix.</small>
+              </div>
+            </div>
+
+            <div class="pref-section">
+              <h3>Filename Pattern</h3>
+
+              <div class="pref-field">
+                <label>Filename Template</label>
+                <select id="pref-rename-filenamePattern">
+                  <option value="{prefix}_{names}{ext}">{prefix}_{names}{ext} - Standard</option>
+                  <option value="{date}-{time}_{names}{ext}">{date}-{time}_{names}{ext} - Dash separator</option>
+                  <option value="{names}_{prefix}{ext}">{names}_{prefix}{ext} - Names first</option>
+                  <option value="{original}_{names}{ext}">{original}_{names}{ext} - Keep original</option>
+                </select>
+                <small>Template for the new filename. Variables: {prefix}, {names}, {ext}, {original}, {date}, {time}</small>
+              </div>
+
+              <div class="pref-field">
+                <label>Name Separator</label>
+                <select id="pref-rename-nameSeparator">
+                  <option value=",_">,_ (Anna,_Bert)</option>
+                  <option value="_">_ (Anna_Bert)</option>
+                  <option value="-">- (Anna-Bert)</option>
+                  <option value="_och_">_och_ (Anna_och_Bert)</option>
+                </select>
+                <small>Separator between multiple names.</small>
+              </div>
+            </div>
+
+            <div class="pref-section">
+              <h3>Name Formatting</h3>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-rename-useFirstNameOnly" checked />
+                  Use first name only
+                </label>
+                <small>Use only first name (Anna) instead of full name (Anna_Svensson).</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-rename-alwaysIncludeSurname" />
+                  Always include surname
+                </label>
+                <small>Add surname even when there's no name collision.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>Disambiguation Style</label>
+                <select id="pref-rename-disambiguationStyle">
+                  <option value="initial">Initial (AnnaB, AnnaS)</option>
+                  <option value="full">Full surname (Anna_Bergman, Anna_Svensson)</option>
+                </select>
+                <small>How to distinguish people with the same first name.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-rename-removeDiacritics" checked />
+                  Remove diacritics
+                </label>
+                <small>Convert special characters (é→e, ö→o) for safer filenames.</small>
+              </div>
+
+              <div class="pref-field">
+                <label>
+                  <input type="checkbox" id="pref-rename-includeIgnoredFaces" />
+                  Include ignored faces in filename
+                </label>
+                <small>Include faces marked as "ignored" in the filename.</small>
               </div>
             </div>
           </div>
@@ -1226,7 +1340,19 @@ export class PreferencesUI {
     this.setValue('fileQueue-autoLoadOnStartup', this.tempPrefs.fileQueue?.autoLoadOnStartup ?? true);
 
     // File Rename settings
-    this.setValue('files-requireRenameConfirmation', this.tempPrefs.files?.requireRenameConfirmation ?? true);
+    const rename = this.tempPrefs.rename || {};
+    this.setValue('rename-requireConfirmation', rename.requireConfirmation ?? true);
+    this.setValue('rename-allowAlreadyRenamed', rename.allowAlreadyRenamed ?? false);
+    this.setValue('rename-prefixSource', rename.prefixSource ?? 'filename');
+    this.setValue('rename-exifFallback', rename.exifFallback ?? 'filedate');
+    this.setValue('rename-datePattern', rename.datePattern ?? '%y%m%d_%H%M%S');
+    this.setValue('rename-filenamePattern', rename.filenamePattern ?? '{prefix}_{names}{ext}');
+    this.setValue('rename-nameSeparator', rename.nameSeparator ?? ',_');
+    this.setValue('rename-useFirstNameOnly', rename.useFirstNameOnly ?? true);
+    this.setValue('rename-alwaysIncludeSurname', rename.alwaysIncludeSurname ?? false);
+    this.setValue('rename-disambiguationStyle', rename.disambiguationStyle ?? 'initial');
+    this.setValue('rename-removeDiacritics', rename.removeDiacritics ?? true);
+    this.setValue('rename-includeIgnoredFaces', rename.includeIgnoredFaces ?? false);
 
     // Preprocessing settings
     const prep = this.tempPrefs.preprocessing || {};
@@ -1392,8 +1518,19 @@ export class PreferencesUI {
     this.tempPrefs.fileQueue.autoLoadOnStartup = this.getValue('fileQueue-autoLoadOnStartup');
 
     // File Rename settings
-    if (!this.tempPrefs.files) this.tempPrefs.files = {};
-    this.tempPrefs.files.requireRenameConfirmation = this.getValue('files-requireRenameConfirmation');
+    if (!this.tempPrefs.rename) this.tempPrefs.rename = {};
+    this.tempPrefs.rename.requireConfirmation = this.getValue('rename-requireConfirmation');
+    this.tempPrefs.rename.allowAlreadyRenamed = this.getValue('rename-allowAlreadyRenamed');
+    this.tempPrefs.rename.prefixSource = this.getValue('rename-prefixSource');
+    this.tempPrefs.rename.exifFallback = this.getValue('rename-exifFallback');
+    this.tempPrefs.rename.datePattern = this.getValue('rename-datePattern');
+    this.tempPrefs.rename.filenamePattern = this.getValue('rename-filenamePattern');
+    this.tempPrefs.rename.nameSeparator = this.getValue('rename-nameSeparator');
+    this.tempPrefs.rename.useFirstNameOnly = this.getValue('rename-useFirstNameOnly');
+    this.tempPrefs.rename.alwaysIncludeSurname = this.getValue('rename-alwaysIncludeSurname');
+    this.tempPrefs.rename.disambiguationStyle = this.getValue('rename-disambiguationStyle');
+    this.tempPrefs.rename.removeDiacritics = this.getValue('rename-removeDiacritics');
+    this.tempPrefs.rename.includeIgnoredFaces = this.getValue('rename-includeIgnoredFaces');
 
     // Preprocessing settings
     if (!this.tempPrefs.preprocessing) this.tempPrefs.preprocessing = {};

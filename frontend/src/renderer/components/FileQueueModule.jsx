@@ -30,6 +30,46 @@ const getAutoLoadPreference = () => {
   return true; // Default to enabled
 };
 
+// Get rename configuration from preferences
+const getRenameConfig = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      const rename = prefs.rename || {};
+      // Only include non-default values
+      const config = {};
+      if (rename.prefixSource !== undefined) config.prefixSource = rename.prefixSource;
+      if (rename.exifFallback !== undefined) config.exifFallback = rename.exifFallback;
+      if (rename.datePattern !== undefined) config.datePattern = rename.datePattern;
+      if (rename.filenamePattern !== undefined) config.filenamePattern = rename.filenamePattern;
+      if (rename.nameSeparator !== undefined) config.nameSeparator = rename.nameSeparator;
+      if (rename.useFirstNameOnly !== undefined) config.useFirstNameOnly = rename.useFirstNameOnly;
+      if (rename.alwaysIncludeSurname !== undefined) config.alwaysIncludeSurname = rename.alwaysIncludeSurname;
+      if (rename.disambiguationStyle !== undefined) config.disambiguationStyle = rename.disambiguationStyle;
+      if (rename.removeDiacritics !== undefined) config.removeDiacritics = rename.removeDiacritics;
+      if (rename.includeIgnoredFaces !== undefined) config.includeIgnoredFaces = rename.includeIgnoredFaces;
+      if (rename.allowAlreadyRenamed !== undefined) config.allowAlreadyRenamed = rename.allowAlreadyRenamed;
+      return Object.keys(config).length > 0 ? config : null;
+    }
+  } catch (e) {
+    // Ignore parse errors
+  }
+  return null;
+};
+
+// Get rename confirmation preference
+const getRequireRenameConfirmation = () => {
+  try {
+    const stored = localStorage.getItem('bildvisare-preferences');
+    if (stored) {
+      const prefs = JSON.parse(stored);
+      return prefs.rename?.requireConfirmation ?? true;
+    }
+  } catch (e) {}
+  return true;
+};
+
 // Generate simple unique ID
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -411,9 +451,13 @@ export function FileQueueModule() {
       return;
     }
 
+    // Get rename config from preferences
+    const renameConfig = getRenameConfig();
+
     try {
       const result = await api.post('/api/files/rename-preview', {
-        file_paths: completedPaths
+        file_paths: completedPaths,
+        config: renameConfig
       });
 
       // Build lookup: path -> { newName, status, persons }
@@ -452,32 +496,27 @@ export function FileQueueModule() {
     if (completedPaths.length === 0) return;
 
     // Check if confirmation is required
-    const requireConfirmation = (() => {
-      try {
-        const stored = localStorage.getItem('bildvisare-preferences');
-        if (stored) {
-          const prefs = JSON.parse(stored);
-          return prefs.files?.requireRenameConfirmation ?? true;
-        }
-      } catch (e) {}
-      return true;
-    })();
+    const requireConfirmation = getRequireRenameConfirmation();
 
     if (requireConfirmation) {
       // Show confirmation dialog
       const confirmed = window.confirm(
         `Rename ${completedPaths.length} file(s)?\n\n` +
         `This will rename files based on detected faces.\n` +
-        `Format: YYMMDD_HHMMSS_Name1,_Name2.NEF`
+        `Check Preferences for rename format settings.`
       );
       if (!confirmed) return;
     }
 
     setRenameInProgress(true);
 
+    // Get rename config from preferences
+    const renameConfig = getRenameConfig();
+
     try {
       const result = await api.post('/api/files/rename', {
-        file_paths: completedPaths
+        file_paths: completedPaths,
+        config: renameConfig
       });
 
       debug('FileQueue', 'Rename result:', result);

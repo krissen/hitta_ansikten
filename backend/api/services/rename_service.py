@@ -11,6 +11,7 @@ import re
 import unicodedata
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime
 
 from faceid_db import (
     load_database,
@@ -21,6 +22,189 @@ from faceid_db import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Default rename configuration
+# ============================================================================
+
+DEFAULT_RENAME_CONFIG = {
+    # Prefix source: 'filename', 'exif', 'filedate'
+    "prefixSource": "filename",
+    # Fallback if EXIF missing: 'filedate', 'skip', 'original'
+    "exifFallback": "filedate",
+    # Date pattern for formatting (Python strftime)
+    "datePattern": "%y%m%d_%H%M%S",
+    # Filename pattern template
+    "filenamePattern": "{prefix}_{names}{ext}",
+    # Name formatting
+    "useFirstNameOnly": True,
+    "nameSeparator": ",_",
+    "removeDiacritics": True,
+    # Disambiguation
+    "disambiguationStyle": "initial",  # 'initial' or 'full'
+    "alwaysIncludeSurname": False,
+    # File handling
+    "allowAlreadyRenamed": False,
+    "includeIgnoredFaces": False,
+}
+
+
+# ============================================================================
+# EXIF and date extraction
+# ============================================================================
+
+def extract_exif_datetime(file_path: Path) -> Optional[datetime]:
+    """
+    Extract DateTimeOriginal from image EXIF data.
+
+    Supports JPEG, TIFF, and NEF (via rawpy).
+
+    Args:
+        file_path: Path to image file
+
+    Returns:
+        datetime object or None if not found
+    """
+    ext = file_path.suffix.lower()
+
+    # Try PIL for standard formats
+    try:
+        from PIL import Image
+        from PIL.ExifTags import TAGS
+
+        if ext in ['.jpg', '.jpeg', '.tiff', '.tif']:
+            with Image.open(file_path) as img:
+                exif_data = img._getexif()
+                if exif_data:
+                    for tag_id, value in exif_data.items():
+                        tag = TAGS.get(tag_id, tag_id)
+                        if tag == 'DateTimeOriginal':
+                            # Format: "2025:06:12 15:30:40"
+                            return datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
+    except Exception as e:
+        logger.debug(f"[EXIF] PIL extraction failed for {file_path.name}: {e}")
+
+    # Try rawpy for RAW formats (NEF, CR2, ARW)
+    if ext in ['.nef', '.cr2', '.arw', '.dng', '.raw']:
+        try:
+            import rawpy
+            with rawpy.imread(str(file_path)) as raw:
+                # rawpy doesn't expose EXIF directly, try exifread as fallback
+                pass
+        except Exception as e:
+            logger.debug(f"[EXIF] rawpy failed for {file_path.name}: {e}")
+
+        # Try exifread if available (better for RAW files)
+        try:
+            import exifread
+            with open(file_path, 'rb') as f:
+                tags = exifread.process_file(f, stop_tag='EXIF DateTimeOriginal')
+                if 'EXIF DateTimeOriginal' in tags:
+                    dt_str = str(tags['EXIF DateTimeOriginal'])
+                    return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
+        except ImportError:
+            logger.debug("[EXIF] exifread not installed, trying alternative")
+        except Exception as e:
+            logger.debug(f"[EXIF] exifread failed for {file_path.name}: {e}")
+
+        # Fallback: try to extract from NEF using subprocess (exiftool)
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['exiftool', '-DateTimeOriginal', '-s', '-s', '-s', str(file_path)],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                dt_str = result.stdout.strip()
+                return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
+        except Exception as e:
+            logger.debug(f"[EXIF] exiftool failed for {file_path.name}: {e}")
+
+    return None
+
+
+def get_file_datetime(file_path: Path) -> Optional[datetime]:
+    """
+    Get file modification datetime.
+
+    Args:
+        file_path: Path to file
+
+    Returns:
+        datetime object or None
+    """
+    try:
+        mtime = file_path.stat().st_mtime
+        return datetime.fromtimestamp(mtime)
+    except Exception as e:
+        logger.debug(f"[FileDate] Failed to get mtime for {file_path.name}: {e}")
+        return None
+
+
+def extract_filename_datetime(fname: str) -> Optional[datetime]:
+    """
+    Extract datetime from filename pattern YYMMDD_HHMMSS.
+
+    Args:
+        fname: Filename like "250612_153040.NEF"
+
+    Returns:
+        datetime object or None if pattern doesn't match
+    """
+    m = re.match(r"^(\d{6})_(\d{6})", fname)
+    if m:
+        try:
+            date_str = m.group(1)
+            time_str = m.group(2)
+            return datetime.strptime(f"{date_str}{time_str}", "%y%m%d%H%M%S")
+        except ValueError:
+            pass
+    return None
+
+
+def get_prefix_datetime(file_path: Path, config: Dict[str, Any]) -> Optional[datetime]:
+    """
+    Get datetime for prefix based on configuration.
+
+    Args:
+        file_path: Path to file
+        config: Rename configuration
+
+    Returns:
+        datetime object or None
+    """
+    source = config.get("prefixSource", "filename")
+    fallback = config.get("exifFallback", "filedate")
+
+    dt = None
+
+    if source == "filename":
+        dt = extract_filename_datetime(file_path.name)
+    elif source == "exif":
+        dt = extract_exif_datetime(file_path)
+        if dt is None and fallback == "filedate":
+            dt = get_file_datetime(file_path)
+        elif dt is None and fallback == "original":
+            dt = extract_filename_datetime(file_path.name)
+    elif source == "filedate":
+        dt = get_file_datetime(file_path)
+
+    return dt
+
+
+def format_datetime(dt: datetime, pattern: str) -> str:
+    """
+    Format datetime using strftime pattern.
+
+    Args:
+        dt: datetime object
+        pattern: strftime pattern
+
+    Returns:
+        Formatted string
+    """
+    return dt.strftime(pattern)
 
 
 # ============================================================================
@@ -88,7 +272,10 @@ def split_fornamn_efternamn(namn: str) -> Tuple[str, str]:
     return parts[0], " ".join(parts[1:])
 
 
-def resolve_fornamn_dubletter(all_persons: List[str]) -> Dict[str, str]:
+def resolve_fornamn_dubletter(
+    all_persons: List[str],
+    config: Optional[Dict[str, Any]] = None
+) -> Dict[str, str]:
     """
     Resolve first name collisions by adding surname initials.
 
@@ -97,11 +284,26 @@ def resolve_fornamn_dubletter(all_persons: List[str]) -> Dict[str, str]:
 
     Args:
         all_persons: List of all person names in the batch
+        config: Optional configuration dict with:
+            - useFirstNameOnly: If False, always use full name
+            - disambiguationStyle: 'initial' or 'full'
+            - alwaysIncludeSurname: Always add surname even without collision
 
     Returns:
         Dict mapping full name to short name.
         E.g., {"Anna Bergman": "AnnaB", "Anna Svensson": "AnnaS", "Bert Karlsson": "Bert"}
     """
+    if config is None:
+        config = DEFAULT_RENAME_CONFIG
+
+    use_first_only = config.get("useFirstNameOnly", True)
+    disambig_style = config.get("disambiguationStyle", "initial")
+    always_surname = config.get("alwaysIncludeSurname", False)
+
+    # If not using first name only, return full names
+    if not use_first_only:
+        return {namn: namn.replace(" ", "_") for namn in set(all_persons) if namn}
+
     # Build map: first_name -> set of last names
     fornamn_map: Dict[str, set] = {}
     namn_map: Dict[str, Tuple[str, str]] = {}
@@ -119,11 +321,20 @@ def resolve_fornamn_dubletter(all_persons: List[str]) -> Dict[str, str]:
     kortnamn: Dict[str, str] = {}
     for namn, (fornamn, efternamn) in namn_map.items():
         efternamnset = fornamn_map[fornamn] - {""}
-        if len(efternamnset) <= 1:
-            # Only one surname for this first name -> use first name only
+        has_collision = len(efternamnset) > 1
+        needs_surname = has_collision or always_surname
+
+        if not needs_surname:
+            # No collision and not forced -> use first name only
             kortnamn[namn] = fornamn
+        elif disambig_style == "full":
+            # Full surname style: Anna_Bergman
+            if efternamn:
+                kortnamn[namn] = f"{fornamn}_{efternamn.replace(' ', '_')}"
+            else:
+                kortnamn[namn] = fornamn
         else:
-            # Multiple different surnames: add minimum chars from surname
+            # Initial style: AnnaB (minimum chars to disambiguate)
             andra_efternamn = sorted(efternamnset - {efternamn})
             prefixlen = 1
             while efternamn and any(
@@ -139,33 +350,98 @@ def resolve_fornamn_dubletter(all_persons: List[str]) -> Dict[str, str]:
 
 def build_new_filename(fname: str, personer: List[str], namnmap: Dict[str, str]) -> Optional[str]:
     """
-    Build new filename with person names.
+    Build new filename with person names (legacy function for compatibility).
+    """
+    return build_new_filename_with_config(fname, personer, namnmap, None, None)
+
+
+def build_new_filename_with_config(
+    fname: str,
+    personer: List[str],
+    namnmap: Dict[str, str],
+    file_path: Optional[Path],
+    config: Optional[Dict[str, Any]]
+) -> Optional[str]:
+    """
+    Build new filename with person names using configuration.
 
     Args:
         fname: Original filename
         personer: List of person names in detection order
         namnmap: Dict mapping full name to short name
+        file_path: Path to file (for EXIF/date extraction)
+        config: Rename configuration
 
     Returns:
         New filename or None if cannot build.
 
     Security: Validates against path traversal attempts.
     """
-    prefix, suffix = extract_prefix_suffix(fname)
-    if not (prefix and suffix):
-        return None
+    if config is None:
+        config = DEFAULT_RENAME_CONFIG
 
-    fornamn_lista = []
+    remove_diacritics = config.get("removeDiacritics", True)
+    name_separator = config.get("nameSeparator", ",_")
+    filename_pattern = config.get("filenamePattern", "{prefix}_{names}{ext}")
+    date_pattern = config.get("datePattern", "%y%m%d_%H%M%S")
+
+    # Get extension
+    ext = Path(fname).suffix  # e.g., ".NEF"
+
+    # Build names string
+    name_list = []
     for namn in personer:
         kort = namnmap.get(namn)
         if kort:
-            fornamn_lista.append(normalize_name(kort))
+            if remove_diacritics:
+                kort = normalize_name(kort)
+            else:
+                # Still sanitize for filesystem safety
+                kort = kort.replace('/', '_').replace('\\', '_').replace('\0', '_')
+            name_list.append(kort)
 
-    if not fornamn_lista:
+    if not name_list:
         return None
 
-    namnstr = ",_".join(fornamn_lista)
-    new_name = f"{prefix}_{namnstr}{suffix}"
+    names_str = name_separator.join(name_list)
+
+    # Get prefix based on configuration
+    prefix = None
+    original_stem = Path(fname).stem  # filename without extension
+
+    if file_path and file_path.exists():
+        dt = get_prefix_datetime(file_path, config)
+        if dt:
+            prefix = format_datetime(dt, date_pattern)
+
+    # Fallback to extracting from original filename
+    if prefix is None:
+        old_prefix, _ = extract_prefix_suffix(fname)
+        prefix = old_prefix if old_prefix else original_stem
+
+    # Build filename using pattern
+    # Available variables: {prefix}, {names}, {ext}, {original}, {date}, {time}
+    try:
+        # Parse datetime for separate date/time if we have it
+        dt = None
+        if file_path and file_path.exists():
+            dt = get_prefix_datetime(file_path, config)
+
+        date_str = dt.strftime("%y%m%d") if dt else prefix[:6] if len(prefix) >= 6 else ""
+        time_str = dt.strftime("%H%M%S") if dt else prefix[7:13] if len(prefix) >= 13 else ""
+
+        new_name = filename_pattern.format(
+            prefix=prefix,
+            names=names_str,
+            ext=ext,
+            original=original_stem,
+            date=date_str,
+            time=time_str
+        )
+    except KeyError as e:
+        logger.error(f"[Rename] Invalid filename pattern variable: {e}")
+        # Fallback to simple pattern
+        new_name = f"{prefix}_{names_str}{ext}"
 
     # Security: Validate no path traversal attempts
     if '..' in new_name or '/' in new_name or '\\' in new_name or '\0' in new_name:
@@ -343,10 +619,15 @@ class RenameService:
     def __init__(self):
         logger.info("[RenameService] Initializing...")
 
+    def get_default_config(self) -> Dict[str, Any]:
+        """Return default rename configuration."""
+        return DEFAULT_RENAME_CONFIG.copy()
+
     def preview_rename(
         self,
         file_paths: List[str],
-        allow_renamed: bool = False
+        allow_renamed: bool = False,
+        config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Generate preview of proposed renames without executing.
@@ -354,10 +635,20 @@ class RenameService:
         Args:
             file_paths: List of file paths to rename
             allow_renamed: If True, allow renaming already-renamed files
+            config: Optional rename configuration (uses defaults if None)
 
         Returns:
             Dict with 'items' (list of preview items) and 'name_map' (disambiguation map)
         """
+        # Merge config with defaults
+        effective_config = DEFAULT_RENAME_CONFIG.copy()
+        if config:
+            effective_config.update(config)
+
+        # Override allow_renamed from config if not explicitly set
+        if config and "allowAlreadyRenamed" in config:
+            allow_renamed = config["allowAlreadyRenamed"]
+
         logger.info(f"[RenameService] Generating preview for {len(file_paths)} files")
 
         # Validate all paths for security
@@ -392,8 +683,8 @@ class RenameService:
         for persons in persons_map.values():
             all_persons.extend(persons)
 
-        # Resolve first name collisions
-        name_map = resolve_fornamn_dubletter(all_persons)
+        # Resolve first name collisions using config
+        name_map = resolve_fornamn_dubletter(all_persons, effective_config)
 
         # Build preview items (start with security-rejected ones)
         items = list(security_rejected)
@@ -438,8 +729,8 @@ class RenameService:
                 })
                 continue
 
-            # Build new filename
-            new_name = build_new_filename(fname, persons, name_map)
+            # Build new filename using config
+            new_name = build_new_filename_with_config(fname, persons, name_map, path, effective_config)
             if not new_name:
                 items.append({
                     "original_path": file_path,
@@ -482,7 +773,8 @@ class RenameService:
     def execute_rename(
         self,
         file_paths: List[str],
-        allow_renamed: bool = False
+        allow_renamed: bool = False,
+        config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Execute file renames.
@@ -490,14 +782,15 @@ class RenameService:
         Args:
             file_paths: List of file paths to rename
             allow_renamed: If True, allow renaming already-renamed files
+            config: Optional rename configuration (uses defaults if None)
 
         Returns:
             Dict with 'renamed', 'skipped', and 'errors' lists
         """
         logger.info(f"[RenameService] Executing rename for {len(file_paths)} files")
 
-        # Get preview first
-        preview = self.preview_rename(file_paths, allow_renamed)
+        # Get preview first (with config)
+        preview = self.preview_rename(file_paths, allow_renamed, config)
 
         renamed = []
         skipped = []
