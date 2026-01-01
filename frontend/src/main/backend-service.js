@@ -60,10 +60,15 @@ class BackendService {
       }
     );
 
-    // Forward stdout/stderr to console
+    // Forward stdout/stderr to console (with filtering)
     this.process.stdout.on('data', (data) => {
       if (DEBUG) {
-        console.log(`[Backend] ${data.toString().trim()}`);
+        const output = data.toString().trim();
+        // Skip noisy polling endpoints
+        if (output.includes('/api/statistics/summary')) {
+          return;
+        }
+        console.log(`[Backend] ${output}`);
       }
     });
 
