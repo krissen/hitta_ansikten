@@ -387,7 +387,7 @@ See the "Advanced Tasks" section below for test infrastructure setup as a potent
 13. **Add new workspace module**
     - Directory: `frontend/src/renderer/components/`
     - Task: Create a new module (e.g., Statistics Dashboard)
-    - Skills: JavaScript, Electron, Dockview, CSS
+    - Skills: JavaScript, Electron, React, FlexLayout, CSS
 
 14. **Implement real face detection integration**
     - Files: Frontend modules + backend API
