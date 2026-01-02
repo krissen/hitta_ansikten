@@ -5,9 +5,13 @@ Welcome to **hitta_ansikten**! This guide will help you get started with the pro
 ## About This Project
 
 **hitta_ansikten** is a monorepo combining:
-- **Backend**: Python-based CLI tool + FastAPI server for face detection and recognition in RAW images (NEF files)
-- **Frontend**: Electron-based modular workspace (Bildvisare) with GIMP-like dockable panels for image review and annotation
+- **Backend**: Python-based FastAPI server for face detection and recognition in RAW images (NEF files) using **InsightFace** (primary) with legacy dlib support
+- **Frontend**: Electron-based modular workspace (Bildvisare) with FlexLayout for dockable panel management - the current, active interface for image review and annotation
 - **Shared**: Common type definitions and API protocols between frontend and backend
+
+**Legacy CLI**: The original `hitta_ansikten.py` terminal-based CLI tool is legacy code, maintained for backward compatibility but not the primary workflow.
+
+**Current workflow**: Use `npx electron .` in the frontend directory to start the workspace - this is the modern, actively developed interface.
 
 The project helps photographers efficiently identify, rename, and annotate images from events where many people appear across multiple photos.
 
@@ -53,10 +57,12 @@ This onboarding plan can be customized based on your background:
    # If not installed: https://nodejs.org/
    ```
 
-4. **Python development headers** (required for dlib/face_recognition compilation)
+4. **Python development headers** (required for face recognition library compilation)
    - **macOS**: Install Xcode Command Line Tools: `xcode-select --install`
    - **Ubuntu/Debian**: `sudo apt-get install python3-dev build-essential cmake`
    - **Fedora/RHEL**: `sudo dnf install python3-devel gcc-c++ cmake`
+
+**Note on face recognition libraries**: The project uses **InsightFace** as the primary face recognition library (faster and more accurate). Legacy support for dlib is maintained for backward compatibility, but new development should target InsightFace.
 
 #### Step-by-Step Setup
 
@@ -80,11 +86,13 @@ pip install -r requirements.txt
 ```
 
 **Troubleshooting - Backend:**
-- **dlib compilation fails**: Ensure you have CMake and C++ build tools installed
+- **InsightFace issues**: Ensure you have onnxruntime installed: `pip install onnxruntime`
+  - For GPU support: `pip install onnxruntime-gpu` (requires CUDA)
+- **Legacy dlib compilation fails**: Ensure you have CMake and C++ build tools installed
   - macOS: `brew install cmake`
   - Linux: `sudo apt-get install cmake` or `sudo dnf install cmake`
-- **face_recognition import error**: Reinstall with `pip install --force-reinstall face_recognition`
 - **Module not found errors**: Ensure virtual environment is activated: `source venv/bin/activate`
+- **Import errors**: Try reinstalling dependencies: `pip install --force-reinstall -r requirements.txt`
 
 **3. Set up the frontend:**
 ```bash
@@ -139,9 +147,10 @@ Read these documents in order to build a solid foundation:
 
 **Key Takeaways from Documentation:**
 - Project structure: monorepo with backend, frontend, and shared directories
-- Backend uses face_recognition (dlib) or InsightFace for face detection
-- Frontend uses Electron with Dockview for modular workspace
-- Data stored in `~/.local/share/faceid/` (XDG standard)
+- Backend uses **InsightFace** (primary, fast, accurate) with legacy dlib support for backward compatibility
+- Frontend uses Electron with **FlexLayout** for modular workspace panels
+- Data stored in `$XDG_DATA_HOME/faceid/` (typically `~/.local/share/faceid/`)
+- **Legacy CLI** (`hitta_ansikten.py`) vs **Current Workspace** (Electron frontend) - workspace is the actively developed interface
 - Protected master branch - all work goes through feature branches from `dev`
 - Commit messages follow `(scope) description` format
 - **Important**: No Claude/AI references in commit messages
@@ -150,24 +159,26 @@ Read these documents in order to build a solid foundation:
 
 **Backend Processing Flow:**
 ```
-RAW Image (NEF) → Load with rawpy → Detect faces (dlib/InsightFace) 
-  → Match against database → User review → Save encodings 
+RAW Image (NEF) → Load with rawpy → Detect faces (InsightFace primary, dlib legacy) 
+  → Match against database → User review (via workspace UI) → Save encodings 
   → Mark as processed → Optional: Rename file
 ```
 
 **Frontend Workspace Flow:**
 ```
-User opens workspace → Backend starts (FastAPI) → WebSocket connection 
-  → Modules load → User interacts with panels → Real-time updates 
+User opens workspace (npx electron .) → Backend starts (FastAPI) → WebSocket connection 
+  → Modules load in FlexLayout → User interacts with panels → Real-time updates 
   → Communication via ModuleAPI
 ```
 
-**Key Data Files** (located in `~/.local/share/faceid/`):
-- `encodings.pkl` - Known faces database
+**Key Data Files** (located in `$XDG_DATA_HOME/faceid/`, typically `~/.local/share/faceid/`):
+- `encodings.pkl` - Known faces database with backend metadata (InsightFace or dlib)
 - `processed_files.jsonl` - Files already processed
 - `attempt_stats.jsonl` - Processing attempt log
 - `ignored.pkl` - Ignored face encodings
 - `config.json` - User configuration overrides
+
+**Note on data directory**: The base directory path is determined by the XDG Base Directory specification via `$XDG_DATA_HOME` environment variable, defaulting to `~/.local/share/faceid/` on most systems.
 
 ---
 
@@ -223,7 +234,9 @@ view frontend/src/renderer/workspace.js  # Workspace initialization
 
 **Important Note:** This project currently does not have automated tests. Testing is done manually via CLI workflows and manual verification. Setting up a test infrastructure would be a valuable contribution!
 
-**Backend CLI Testing:**
+**Backend CLI Testing (Legacy):**
+
+**Note**: The `hitta_ansikten.py` CLI is **legacy code** maintained for backward compatibility. The current, actively developed interface is the frontend workspace (Electron app). However, the CLI still works and can be useful for understanding the backend processing flow.
 
 1. **Analyze existing data** (if any):
 ```bash
@@ -242,16 +255,19 @@ python inspect_encodings.py
 # Dry-run mode (doesn't actually process)
 ./hitta_ansikten.py --simulate *.NEF
 
-# Process images (creates preview)
+# Process images (creates preview) - legacy workflow
 ./hitta_ansikten.py sample_image.NEF
 ```
 
-**Frontend Workspace Testing:**
+**Frontend Workspace Testing (Current):**
+
+**This is the primary, actively developed interface** - use this for your main workflow and development.
 
 1. **Start workspace in development mode:**
 ```bash
 cd frontend
 BILDVISARE_WORKSPACE=1 npx electron .
+# Or: npm start
 ```
 
 2. **Explore the modules:**
@@ -260,15 +276,17 @@ BILDVISARE_WORKSPACE=1 npx electron .
    - Log Viewer - Real-time logs
    - Original View - Side-by-side comparison
 
-3. **Test the layout:**
+3. **Test the FlexLayout:**
    - Drag panels to rearrange
+   - Close and reopen modules
+   - Check if layout persists (localStorage)
    - Close and reopen modules
    - Check if layout persists (localStorage)
 
 **Understanding the workflow:**
-- Backend: Terminal-based, interactive prompts, keyboard-driven
-- Frontend: GUI-based, mouse and keyboard, modular panels
-- Integration: WebSocket communication, real-time updates
+- **Legacy**: Backend CLI (`hitta_ansikten.py`) - Terminal-based, interactive prompts, keyboard-driven
+- **Current**: Frontend Workspace (Electron) - GUI-based, mouse and keyboard, modular panels with FlexLayout
+- **Integration**: WebSocket communication, real-time updates between frontend and backend API
 
 ### 2.3 Beginner-Friendly First Tasks
 
@@ -627,8 +645,17 @@ If you're new to face recognition, here's what you need to know:
 2. **Face Encoding**: Converting a face to a numerical representation (128 or 512 dimensions)
 3. **Face Recognition**: Comparing encodings to identify people
 4. **Distance Metric**: How similar two encodings are (lower = more similar)
-   - Dlib uses Euclidean distance (threshold ~0.54)
-   - InsightFace uses cosine distance (threshold ~0.4)
+
+**Libraries Used:**
+- **InsightFace** (Primary, recommended): 512-dimensional encodings, cosine distance (threshold ~0.4)
+  - **Much faster** (1.5-3x) and more accurate than dlib
+  - Better detection in profiles, low light, small faces, motion blur
+  - This is what you should develop against for new features
+- **dlib** (Legacy): 128-dimensional encodings, Euclidean distance (threshold ~0.54)
+  - Kept for backward compatibility with existing databases
+  - Avoid developing new features against this library
+
+**Important for developers**: Always develop against **InsightFace** unless you're specifically working on legacy compatibility. The project maintains dual support, but InsightFace is the future.
 
 **RAW Image Processing:**
 
@@ -651,12 +678,15 @@ NEF files are Nikon's RAW format:
 
 ### Common Commands
 
-**Backend:**
+**Backend (Legacy CLI):**
 ```bash
-# Process images
+# Note: These commands use the legacy CLI tool hitta_ansikten.py
+# For current workflow, use the frontend workspace (npx electron .)
+
+# Process images (legacy)
 ./hitta_ansikten.py *.NEF
 
-# Rename already processed images
+# Rename already processed images (legacy)
 ./hitta_ansikten.py --rename .
 
 # Database management
@@ -666,9 +696,9 @@ NEF files are Nikon's RAW format:
 ./analysera_ansikten.py
 ```
 
-**Frontend:**
+**Frontend (Current):**
 ```bash
-# Start workspace
+# Start workspace - this is the primary interface
 BILDVISARE_WORKSPACE=1 npx electron .
 
 # Development mode
@@ -697,10 +727,10 @@ gh pr create --base dev
 
 - **Repository**: https://github.com/krissen/hitta_ansikten
 - **Companion Project**: https://github.com/krissen/bildvisare
-- **face_recognition library**: https://github.com/ageitgey/face_recognition
-- **InsightFace**: https://github.com/deepinsight/insightface
+- **InsightFace** (primary): https://github.com/deepinsight/insightface
+- **face_recognition library** (legacy dlib wrapper): https://github.com/ageitgey/face_recognition
 - **Electron docs**: https://www.electronjs.org/docs/latest/
-- **Dockview**: https://dockview.dev/
+- **FlexLayout**: https://github.com/caplin/FlexLayout
 
 ### Getting Help
 
@@ -742,17 +772,19 @@ What I don't understand:
 
 ### Configuration Files
 
-**Backend config** (`~/.local/share/faceid/config.json`):
+**Backend config** (`$XDG_DATA_HOME/faceid/config.json`, typically `~/.local/share/faceid/config.json`):
 ```json
 {
   "detection_model": "hog",
   "backend": {
-    "type": "dlib"
+    "type": "insightface"
   },
-  "match_threshold": 0.54,
+  "match_threshold": 0.4,
   "image_viewer_app": "Bildvisare"
 }
 ```
+
+**Note**: The configuration directory is determined by the XDG Base Directory specification. Set `$XDG_DATA_HOME` environment variable to customize the location.
 
 **Frontend config** (localStorage):
 - Layout state
