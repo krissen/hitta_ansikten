@@ -30,7 +30,7 @@ This onboarding plan can be customized based on your background:
 
 **Operating System:**
 - macOS, Linux, or Windows (with WSL2 recommended)
-- The project is primarily developed on macOS/Linux
+- The project is primarily developed on `macOS/Linux`
 
 **Required Software:**
 
@@ -234,6 +234,7 @@ cd backend
 2. **Inspect encodings database**:
 ```bash
 python inspect_encodings.py
+# Note: This script provides debug information about the encoding database
 ```
 
 3. **Test with sample images** (if you have NEF files):
