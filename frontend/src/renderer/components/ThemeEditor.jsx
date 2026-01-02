@@ -86,6 +86,13 @@ const VARIABLE_GROUPS = {
       { name: '--color-info-bg', label: 'Info Background' }
     ]
   },
+  'Overlay Colors': {
+    type: 'color',
+    variables: [
+      { name: '--overlay-bg', label: 'Overlay Background' },
+      { name: '--overlay-text', label: 'Overlay Text' }
+    ]
+  },
   'Spacing': {
     type: 'number',
     unit: 'px',
@@ -106,6 +113,14 @@ const VARIABLE_GROUPS = {
       { name: '--radius-md', label: 'Medium', min: 0, max: 24 },
       { name: '--radius-lg', label: 'Large', min: 0, max: 32 },
       { name: '--radius-xl', label: 'Extra Large', min: 0, max: 48 }
+    ]
+  },
+  'Opacity': {
+    type: 'number',
+    unit: '',
+    variables: [
+      { name: '--toast-opacity', label: 'Toast Opacity', min: 0.5, max: 1.0, step: 0.01 },
+      { name: '--overlay-opacity', label: 'Overlay Opacity', min: 0.5, max: 1.0, step: 0.01 }
     ]
   }
 };
@@ -487,6 +502,7 @@ export function ThemeEditor({ api }) {
                     type="range"
                     min={v.min || 0}
                     max={v.max || 100}
+                    step={v.step || 1}
                     value={value}
                     onChange={(e) => handleValueChange(v.name, e.target.value, 'number', group.unit)}
                   />
@@ -494,6 +510,7 @@ export function ThemeEditor({ api }) {
                     type="number"
                     min={v.min || 0}
                     max={v.max || 100}
+                    step={v.step || 1}
                     value={value}
                     onChange={(e) => handleValueChange(v.name, e.target.value, 'number', group.unit)}
                     className="number-text-input"

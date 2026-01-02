@@ -146,10 +146,21 @@ export function PreferencesModule({ api }) {
   const [hasChanges, setHasChanges] = useState(false);
   const [cacheStatus, setCacheStatus] = useState(null);
 
+  // Helper function to apply toast opacity CSS variable
+  // Used for immediate live preview when user adjusts slider
+  const applyToastOpacity = useCallback((opacity) => {
+    if (opacity !== undefined) {
+      document.documentElement.style.setProperty('--toast-opacity', String(opacity));
+    }
+  }, []);
+
   // Load preferences on mount
   useEffect(() => {
-    setPrefs(preferences.getAll());
-  }, []);
+    const loadedPrefs = preferences.getAll();
+    setPrefs(loadedPrefs);
+    // Apply toast opacity on load
+    applyToastOpacity(loadedPrefs.notifications?.toastOpacity);
+  }, [applyToastOpacity]);
 
   // Update a preference value
   const updatePref = useCallback((path, value) => {
@@ -171,10 +182,12 @@ export function PreferencesModule({ api }) {
   const handleSave = useCallback(() => {
     preferences.setAll(prefs);
     themeManager.setPreference(prefs.ui.theme);
+    // Apply toast opacity if set
+    applyToastOpacity(prefs.notifications?.toastOpacity);
     window.dispatchEvent(new CustomEvent('preferences-changed'));
     setHasChanges(false);
     debug('PreferencesModule', 'Preferences saved');
-  }, [prefs]);
+  }, [prefs, applyToastOpacity]);
 
   // Reset to defaults
   const handleReset = useCallback(() => {
@@ -458,6 +471,18 @@ export function PreferencesModule({ api }) {
           { value: '1.5', label: 'Long (6s)' },
           { value: '2.0', label: 'Very long (8s)' }
         ]}
+      />
+      <SliderField
+        label="Toast opacity"
+        hint="Opacity of toast notifications (0.5 = 50%, 1.0 = 100%)"
+        value={prefs.notifications?.toastOpacity ?? 0.94}
+        onChange={(v) => {
+          updatePref('notifications.toastOpacity', v);
+          applyToastOpacity(v); // Live preview
+        }}
+        min={0.5}
+        max={1.0}
+        step={0.01}
       />
 
       <SectionHeader title="File Rename" />

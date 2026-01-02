@@ -23,14 +23,28 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #f0f0f0; /* Always light text on dark overlay */
+  color: var(--overlay-text);
   font-size: var(--font-lg);
   z-index: var(--z-modal);
+}
+
+/* Use pseudo-element for background to apply opacity independently of text.
+   This allows var(--overlay-opacity) to affect only the background while
+   keeping text at full opacity for readability. */
+.image-viewer-loading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--overlay-bg);
+  opacity: var(--overlay-opacity);
+  z-index: -1;
 }
 
 .loading-spinner {

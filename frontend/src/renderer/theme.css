@@ -50,6 +50,10 @@
   --color-info: #1888d8;        /* Bright blue (Commodore) */
   --color-info-bg: #a0d0f8;     /* Light blue with color */
 
+  /* Overlay Colors */
+  --overlay-bg: #987840;        /* Bronze/copper (semi-dark for light theme) */
+  --overlay-text: #f8f0e0;      /* Light text on overlay */
+
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(26, 16, 8, 0.25);
   --shadow-md: 0 2px 6px rgba(26, 16, 8, 0.30);
@@ -96,6 +100,10 @@
   --color-error-bg: #2a1515;    /* Dark red */
   --color-info: #87ceeb;        /* Sky blue */
   --color-info-bg: #15202a;     /* Dark blue */
+
+  /* Overlay Colors */
+  --overlay-bg: #0a0a0a;        /* Near black (dark for dark theme) */
+  --overlay-text: #d4d2c0;      /* Light beige/amber text on overlay */
 
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -149,6 +157,10 @@
   --z-sticky: 200;
   --z-modal: 1000;
   --z-tooltip: 2000;
+
+  /* Opacity Values */
+  --toast-opacity: 0.94;
+  --overlay-opacity: 0.7;
 }
 
 /* ===========================
