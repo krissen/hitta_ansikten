@@ -86,6 +86,13 @@ const VARIABLE_GROUPS = {
       { name: '--color-info-bg', label: 'Info Background' }
     ]
   },
+  'Overlay Colors': {
+    type: 'color',
+    variables: [
+      { name: '--overlay-bg', label: 'Overlay Background' },
+      { name: '--overlay-text', label: 'Overlay Text' }
+    ]
+  },
   'Spacing': {
     type: 'number',
     unit: 'px',

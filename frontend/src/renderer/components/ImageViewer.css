@@ -23,15 +23,25 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, var(--overlay-opacity));
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  /* Light text on dark overlay (overlay is always dark in both themes) */
-  color: #f0f0f0;
+  color: var(--overlay-text);
   font-size: var(--font-lg);
   z-index: var(--z-modal);
+}
+
+.image-viewer-loading::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--overlay-bg);
+  opacity: var(--overlay-opacity);
+  z-index: -1;
 }
 
 .loading-spinner {
