@@ -32,6 +32,9 @@
   z-index: var(--z-modal);
 }
 
+/* Use pseudo-element for background to apply opacity independently of text.
+   This allows var(--overlay-opacity) to affect only the background while
+   keeping text at full opacity for readability. */
 .image-viewer-loading::before {
   content: '';
   position: absolute;
