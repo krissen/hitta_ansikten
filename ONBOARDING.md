@@ -280,8 +280,6 @@ BILDVISARE_WORKSPACE=1 npx electron .
    - Drag panels to rearrange
    - Close and reopen modules
    - Check if layout persists (localStorage)
-   - Close and reopen modules
-   - Check if layout persists (localStorage)
 
 **Understanding the workflow:**
 - **Legacy**: Backend CLI (`hitta_ansikten.py`) - Terminal-based, interactive prompts, keyboard-driven
