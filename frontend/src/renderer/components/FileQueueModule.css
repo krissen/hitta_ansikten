@@ -410,13 +410,16 @@
 
 /* Preprocessing indicator */
 .preprocess-indicator {
-  font-size: var(--font-sm);
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .preprocess-indicator.loading {
   color: var(--text-on-accent);
   animation: spin 1s linear infinite;
+  font-size: var(--font-sm);
+  line-height: 1;
 }
 
 .preprocess-indicator.completed {
@@ -426,6 +429,8 @@
 .preprocess-indicator.error {
   color: var(--color-error);
   font-weight: bold;
+  font-size: var(--font-sm);
+  line-height: 1;
 }
 
 @keyframes spin {

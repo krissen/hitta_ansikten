@@ -307,7 +307,7 @@ import Icon from '../components/Icon.jsx';
 <Icon name="settings" className="toolbar-icon" />
 ```
 
-Available icons: `plus`, `folder`, `folder-plus`, `play`, `pause`, `settings`, `close`, `check`, `refresh`, `trash`, `file`, `warning`, `error`, `user`, `block`, `check-circle`, `skip-next`, `skip-previous`
+Available icons: `plus`, `folder`, `folder-plus`, `play`, `pause`, `settings`, `close`, `check`, `refresh`, `trash`, `file`, `warning`, `error`, `error-outline`, `user`, `block`, `check-circle`, `check-circle-outline`, `skip-next`, `skip-previous`, `bolt`, `circle`, `chevron-up`, `chevron-down`
 
 Icons use `currentColor` and adapt to theme automatically.
 

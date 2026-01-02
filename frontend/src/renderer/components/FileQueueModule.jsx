@@ -224,7 +224,7 @@ export function FileQueueModule() {
       debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
       // Show error toast for preprocessing failure
       const fileName = filePath.split('/').pop();
-      showToast(`❌ Preprocessing failed: ${fileName}`, 'error', 4000);
+      showToast(`Preprocessing failed: ${fileName}`, 'error', 4000);
     };
 
     const handleFileNotFound = ({ filePath }) => {
@@ -408,7 +408,7 @@ export function FileQueueModule() {
         preprocessingStatus[item.filePath] === PreprocessingStatus.COMPLETED
       ).length;
       if (completedCount > 0) {
-        showToast(`⚡ Preprocessing complete (${completedCount} files cached)`, 'success', 3000);
+        showToast(`Preprocessing complete (${completedCount} files cached)`, 'success', 3000);
       }
     }
 
@@ -450,7 +450,7 @@ export function FileQueueModule() {
       if (queue.length > 0) {
         const pending = queue.filter(q => q.status === 'pending').length;
         if (pending > 0) {
-          queueToast(`📁 ${queue.length} files in queue (${pending} pending)`, 'info', 3000);
+          queueToast(`${queue.length} files in queue (${pending} pending)`, 'info', 3000);
         }
       }
 
@@ -458,7 +458,7 @@ export function FileQueueModule() {
       try {
         const stats = await api.get('/api/management/stats');
         if (stats && stats.unique_persons > 0) {
-          queueToast(`👤 ${stats.unique_persons} known faces loaded`, 'info', 3000);
+          queueToast(`${stats.unique_persons} known faces loaded`, 'info', 3000);
         }
       } catch (err) {
         // Non-fatal - skip this toast
@@ -530,7 +530,7 @@ export function FileQueueModule() {
     if (newItems.length > 0) {
       const dupeCount = newItems.length - addedCount;
       if (addedCount > 0) {
-        let msg = `📁 Added ${addedCount} file${addedCount !== 1 ? 's' : ''} to queue`;
+        let msg = `Added ${addedCount} file${addedCount !== 1 ? 's' : ''} to queue`;
         if (dupeCount > 0) {
           msg += ` (${dupeCount} already in queue)`;
         }
@@ -538,8 +538,8 @@ export function FileQueueModule() {
       } else if (dupeCount > 0) {
         // All files were duplicates
         const msg = dupeCount === 1
-          ? '📁 File already in queue'
-          : `📁 All ${dupeCount} files already in queue`;
+          ? 'File already in queue'
+          : `All ${dupeCount} files already in queue`;
         showToast(msg, 'info', 2500);
       }
     }
@@ -952,7 +952,7 @@ export function FileQueueModule() {
       }
 
       // Show toast notification
-      let message = `✓ Renamed ${renamedCount} file(s)`;
+      let message = `Renamed ${renamedCount} file(s)`;
       if (skippedCount > 0) message += ` · ${skippedCount} skipped`;
       if (errorCount > 0) message += ` · ${errorCount} error(s)`;
       showToast(message, errorCount > 0 ? 'warning' : 'success');
@@ -1002,9 +1002,9 @@ export function FileQueueModule() {
 
       // Show toast for review result
       if (success) {
-        showToast(`✓ Saved review for ${fileName} (${faceCount} face${faceCount !== 1 ? 's' : ''})`, 'success', 2500);
+        showToast(`Saved review for ${fileName} (${faceCount} face${faceCount !== 1 ? 's' : ''})`, 'success', 2500);
       } else {
-        showToast(`❌ Failed to save review for ${fileName}`, 'error', 4000);
+        showToast(`Failed to save review for ${fileName}`, 'error', 4000);
       }
 
       // Clear preview data when queue changes (force re-fetch)
@@ -1407,13 +1407,13 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
         if (item.isAlreadyProcessed) {
           if (fixMode) {
             // Fix-mode ON: same icon as pending, but with green tint
-            return <span className="status-icon pending-reprocess">○</span>;
+            return <span className="status-icon pending-reprocess"><Icon name="circle" size={12} /></span>;
           } else {
             // Fix-mode OFF: checkmark to show "already done"
             return <span className="status-icon already-done"><Icon name="check" size={12} /></span>;
           }
         }
-        return <span className="status-icon pending">○</span>;
+        return <span className="status-icon pending"><Icon name="circle" size={12} /></span>;
     }
   };
 
@@ -1443,7 +1443,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
     }
     // Show checkmark for completed preprocessing
     if (ppStatus === PreprocessingStatus.COMPLETED) {
-      return <span className="preprocess-indicator completed" title="Cached">⚡</span>;
+      return <Icon name="bolt" size={14} className="preprocess-indicator completed" title="Cached" />;
     }
     if (ppStatus === PreprocessingStatus.FILE_NOT_FOUND) {
       return null; // Status already shown in main icon
@@ -1452,7 +1452,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
       return <span className="preprocess-indicator error" title="Preprocessing failed">!</span>;
     }
     // Show spinner for any in-progress state
-    return <span className="preprocess-indicator loading" title={`Preprocessing: ${ppStatus}`}>⟳</span>;
+    return <Icon name="refresh" size={14} className="preprocess-indicator loading" title={`Preprocessing: ${ppStatus}`} />;
   };
 
   // Truncate filename for display (Unicode-safe, preserves extension)
