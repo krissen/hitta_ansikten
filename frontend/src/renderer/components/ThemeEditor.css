@@ -5,7 +5,7 @@
 .theme-editor {
   display: flex;
   height: 100%;
-  background: var(--bg-primary);
+  background: var(--bg-elevated);
   color: var(--text-primary);
   font-family: var(--font-sans);
 }
@@ -113,34 +113,14 @@
   border-color: var(--accent-primary);
 }
 
-.save-preset button,
-.preset-buttons button {
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-sm);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.save-preset button:hover:not(:disabled),
-.preset-buttons button:hover {
-  background: var(--bg-hover);
-}
-
-.save-preset button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* Button styles now in theme.css (.btn-secondary) */
 
 .preset-buttons {
   display: flex;
   gap: var(--space-xs);
 }
 
-.preset-buttons button {
+.preset-buttons .btn-secondary {
   flex: 1;
 }
 

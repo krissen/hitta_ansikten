@@ -129,7 +129,7 @@ export function StatisticsDashboard() {
             <option value="10000">10s</option>
             <option value="30000">30s</option>
           </select>
-          <button className="btn-refresh" onClick={fetchStatistics}>
+          <button className="btn-secondary" onClick={fetchStatistics}>
             Refresh Now
           </button>
         </div>

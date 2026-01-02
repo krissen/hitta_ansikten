@@ -335,15 +335,148 @@ When converting a component to use CSS variables:
 4px      →  var(--radius-md)
 ```
 
-### Text on Accent Backgrounds
+## Text Variable Rules
 
-Use correct variable based on context:
+**Core Principle:** Variables must work correctly in BOTH themes without dark-mode overrides. If you need a `:root[data-theme="dark"]` override for text color, you're using the wrong variable.
 
-| Context | Variable |
-|---------|----------|
-| Text on accent buttons | `--text-on-accent` |
-| Text on dark bg when opposite theme | `--text-inverse` |
-| General UI text | `--text-primary` |
+### When to Use Each Variable
+
+| Variable | Use For | Background |
+|----------|---------|------------|
+| `--text-primary` | Main body text, headings on normal bg | `--bg-*` variables |
+| `--text-secondary` | Secondary/muted text, labels, hints | `--bg-*` variables |
+| `--text-tertiary` | Disabled text, timestamps, metadata | `--bg-*` variables |
+| `--text-inverse` | Text on **colored** backgrounds only | `--color-*`, `--accent-*` (solid) |
+| `--text-on-accent` | Text on accent buttons specifically | `--accent-primary`, `--accent-secondary` |
+| `--accent-primary` | Emphasized headings, highlighted text | `--bg-*` variables |
+
+### NEVER Use `--text-inverse` On:
+
+- Normal backgrounds (`--bg-primary`, `--bg-secondary`, `--bg-elevated`, etc.)
+- Elements without an explicit colored background
+- Headings or labels in general UI
+
+**Why:** In light theme `--text-inverse` is light (#f8f0e0), in dark theme it's dark (#0f0f0f). Using it on a normal background gives zero contrast in one theme.
+
+### Correct `--text-inverse` Usage:
+
+```css
+/* CORRECT - on colored background */
+.toast.success {
+  background: var(--color-success);
+  color: var(--text-inverse);
+}
+
+/* CORRECT - on accent background */
+.badge-warning {
+  background: var(--color-warning);
+  color: var(--text-inverse);
+}
+
+/* WRONG - on normal background */
+.section-title {
+  color: var(--text-inverse);  /* Invisible in dark theme! */
+}
+```
+
+### For Headings
+
+Use `--text-primary` with `font-weight: 600`:
+
+```css
+/* CORRECT - works in both themes */
+.section h4 {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* AVOID - accent-primary has contrast issues in light mode */
+.section h4 {
+  color: var(--accent-primary);  /* Only 2.16:1 on --bg-secondary! */
+}
+```
+
+**Standard heading hierarchy:**
+- Module titles (h3): `--font-xl`, `--text-primary`, `font-weight: 600`
+- Section titles (h4): `--font-md`, `--text-primary`, `font-weight: 600`
+- Sidebar titles: `--font-sm`, `--text-secondary`, `text-transform: uppercase`
+
+### Avoiding Dark-Mode Overrides
+
+If you find yourself writing:
+
+```css
+/* This is a code smell */
+:root[data-theme="dark"] .my-text {
+  color: var(--text-primary);
+}
+```
+
+You're probably using the wrong variable in the base rule. Fix the base rule instead.
+
+### Quick Reference
+
+| I want... | Use |
+|-----------|-----|
+| Normal readable text | `--text-primary` |
+| Less prominent text | `--text-secondary` |
+| Very subtle text | `--text-tertiary` |
+| Text on a colored button/toast/badge | `--text-inverse` |
+| Text on an accent-colored button | `--text-on-accent` |
+| Section headings | `--text-primary` + `font-weight: 600` |
+| Icon on semantic background | `--color-success`, `--color-info`, etc. |
+
+---
+
+## Button Categories
+
+Standardized button styles for consistency across all modules:
+
+| Category | Background | Text | Hover | Use For |
+|----------|------------|------|-------|---------|
+| **Primary** | `--accent-primary` | `--text-on-accent` | `--accent-primary-hover` | Main action (Start, Save) |
+| **Secondary** | `--bg-tertiary` | `--text-primary` | `--bg-hover` | Secondary action (Refresh, Reload) |
+| **Ghost** | `transparent` | `--text-secondary` | `--bg-hover` | Tertiary action (Clear, Remove) |
+| **Danger** | `--color-error` | `--text-inverse` | brightness filter | Destructive (Delete, Purge) |
+
+### Examples
+
+```css
+/* Primary button */
+.btn-primary {
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+}
+.btn-primary:hover {
+  background: var(--accent-primary-hover);
+}
+
+/* Secondary button */
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+/* Ghost button */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-medium);
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+}
+```
+
+### Button Semantics
+
+- **Refresh/Reload actions** → Secondary (not Primary)
+- **Clear queue** → Ghost (not Danger - it's not destructive)
+- **Delete permanently** → Danger
+- **Start/Save/Submit** → Primary
 
 ---
 

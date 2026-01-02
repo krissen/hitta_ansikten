@@ -40,15 +40,15 @@
   --accent-secondary: #e85820;  /* Burning orange (Arcade) */
   --accent-secondary-hover: #c03810;
 
-  /* Semantic Colors - Intense retro gaming colors */
+  /* Semantic Colors - Muted retro colors (matching dark mode's subtlety) */
   --color-success: #38a818;     /* Bright green */
-  --color-success-bg: #b0e898;  /* Light green with color */
+  --color-success-bg: #d8dcc8;  /* Warm sage - blends with beige */
   --color-warning: #f87820;     /* Intense orange */
-  --color-warning-bg: #ffc898;  /* Peach with color */
+  --color-warning-bg: #e8d8c8;  /* Subtle warm tint */
   --color-error: #e83020;       /* Bright red */
-  --color-error-bg: #ffb0a8;    /* Light pink with color */
+  --color-error-bg: #e8c8c8;    /* Subtle pink tint */
   --color-info: #1888d8;        /* Bright blue (Commodore) */
-  --color-info-bg: #a0d0f8;     /* Light blue with color */
+  --color-info-bg: #c8dce8;     /* Subtle blue tint */
 
   /* Overlay Colors */
   --overlay-bg: #987840;        /* Bronze/copper (semi-dark for light theme) */
@@ -183,4 +183,91 @@
 
 [data-theme="dark"] .accent-glow {
   box-shadow: var(--glow-accent);
+}
+
+/* ===========================
+   STANDARDIZED BUTTON CLASSES
+   =========================== */
+
+/* Base button styles - shared by all button types */
+.btn-action,
+.btn-secondary,
+.btn-danger {
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--font-sm);
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-base), transform var(--transition-fast);
+}
+
+.btn-action:active:not(:disabled),
+.btn-secondary:active:not(:disabled),
+.btn-danger:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn-action:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Primary action button - for main CTAs (Start, Save, Confirm) */
+.btn-action {
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+  border: none;
+}
+
+.btn-action:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+}
+
+/* Secondary button - for standard actions (Refresh, Clear, Rename, Skip) */
+.btn-secondary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+/* Danger button - for destructive actions (Delete permanently) */
+.btn-danger {
+  background: var(--color-error);
+  color: var(--text-inverse);
+  border: none;
+}
+
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(0.85);
+}
+
+/* Icon button - for toolbar icons */
+.btn-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-md);
+  transition: background var(--transition-base), transform var(--transition-fast);
+}
+
+.btn-icon:hover {
+  background: var(--bg-hover);
+}
+
+.btn-icon:active {
+  transform: scale(0.92);
 }

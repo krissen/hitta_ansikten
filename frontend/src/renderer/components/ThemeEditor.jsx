@@ -567,12 +567,12 @@ export function ThemeEditor({ api }) {
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
             />
-            <button onClick={savePreset} disabled={!presetName.trim()}>Save</button>
+            <button className="btn-secondary" onClick={savePreset} disabled={!presetName.trim()}>Save</button>
           </div>
           <div className="preset-buttons">
-            <button onClick={exportPresets}>Export</button>
-            <button onClick={importPresets}>Import</button>
-            <button onClick={resetToDefault}>Reset</button>
+            <button className="btn-secondary" onClick={exportPresets}>Export</button>
+            <button className="btn-secondary" onClick={importPresets}>Import</button>
+            <button className="btn-secondary" onClick={resetToDefault}>Reset</button>
           </div>
         </div>
       </div>

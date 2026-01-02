@@ -249,7 +249,7 @@ export function DatabaseManagement() {
     <div className="db-management">
       <div className="db-header">
         <h3>Database Management</h3>
-        <button className="btn-reload" onClick={loadDatabaseState}>
+        <button className="btn-secondary" onClick={loadDatabaseState}>
           Reload Database
         </button>
       </div>
@@ -298,7 +298,7 @@ export function DatabaseManagement() {
               value={renameForm.newName}
               onChange={(e) => setRenameForm(prev => ({ ...prev, newName: e.target.value }))}
             />
-            <button onClick={handleRename}>Rename</button>
+            <button className="btn-action" onClick={handleRename}>Rename</button>
           </div>
         </OperationForm>
 
@@ -322,7 +322,7 @@ export function DatabaseManagement() {
               value={mergeForm.target}
               onChange={(e) => setMergeForm(prev => ({ ...prev, target: e.target.value }))}
             />
-            <button onClick={handleMerge}>Merge</button>
+            <button className="btn-action" onClick={handleMerge}>Merge</button>
           </div>
         </OperationForm>
 
@@ -348,7 +348,7 @@ export function DatabaseManagement() {
               value={moveToIgnoreForm.name}
               onChange={(e) => setMoveToIgnoreForm({ name: e.target.value })}
             />
-            <button onClick={handleMoveToIgnore}>Move to Ignored</button>
+            <button className="btn-action" onClick={handleMoveToIgnore}>Move to Ignored</button>
           </div>
         </OperationForm>
 
@@ -368,7 +368,7 @@ export function DatabaseManagement() {
               value={moveFromIgnoreForm.target}
               onChange={(e) => setMoveFromIgnoreForm(prev => ({ ...prev, target: e.target.value }))}
             />
-            <button onClick={handleMoveFromIgnore}>Move</button>
+            <button className="btn-action" onClick={handleMoveFromIgnore}>Move</button>
           </div>
         </OperationForm>
 
@@ -381,7 +381,7 @@ export function DatabaseManagement() {
               onChange={(e) => setUndoForm({ pattern: e.target.value })}
             />
             <div className="button-row">
-              <button onClick={handleUndo}>Undo</button>
+              <button className="btn-action" onClick={handleUndo}>Undo</button>
               <button className="btn-secondary" onClick={handleShowRecentFiles}>
                 Show Recent Files
               </button>

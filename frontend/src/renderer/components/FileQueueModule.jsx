@@ -1218,21 +1218,21 @@ export function FileQueueModule() {
         <span className="file-queue-title">File Queue</span>
         <div className="file-queue-actions">
           <button
-            className="file-queue-btn add"
+            className="btn-icon"
             onClick={openFileDialog}
             title="Add files"
           >
             <Icon name="plus" size={14} />
           </button>
           <button
-            className="file-queue-btn folder"
+            className="btn-icon"
             onClick={openFolderDialog}
             title="Add folder"
           >
             <Icon name="folder-plus" size={14} />
           </button>
           <button
-            className="file-queue-btn settings"
+            className="btn-icon"
             onClick={() => setAutoAdvance(!autoAdvance)}
             title={autoAdvance ? 'Auto-advance ON' : 'Auto-advance OFF'}
           >
@@ -1265,7 +1265,7 @@ export function FileQueueModule() {
           <>
             {selectedFiles.size > 0 && (
               <button
-                className="clear-btn"
+                className="btn-secondary"
                 onClick={clearSelected}
                 title="Clear selected files"
               >
@@ -1274,7 +1274,7 @@ export function FileQueueModule() {
             )}
             {completedCount > 0 && selectedFiles.size === 0 && (
               <button
-                className="clear-btn"
+                className="btn-secondary"
                 onClick={clearCompleted}
                 title="Clear completed files"
               >
@@ -1282,7 +1282,7 @@ export function FileQueueModule() {
               </button>
             )}
             <button
-              className="clear-btn clear-all"
+              className="btn-secondary"
               onClick={clearQueue}
               title="Clear all files from queue"
             >
@@ -1337,7 +1337,7 @@ export function FileQueueModule() {
           <div className="file-queue-controls">
             {completedCount > 0 && (
               <button
-                className="control-btn rename"
+                className="btn-secondary"
                 onClick={handleRename}
                 disabled={renameInProgress}
                 title="Rename files based on detected faces"
@@ -1346,7 +1346,7 @@ export function FileQueueModule() {
               </button>
             )}
             {currentIndex >= 0 ? (
-              <button className="control-btn" onClick={skipCurrent}>
+              <button className="btn-secondary" onClick={skipCurrent}>
                 Skip <Icon name="skip-next" size={12} />
               </button>
             ) : queue.some(q => {
@@ -1355,7 +1355,7 @@ export function FileQueueModule() {
               if (!fixMode && q.isAlreadyProcessed) return false;
               return true;
             }) ? (
-              <button className="control-btn start" onClick={() => {
+              <button className="btn-action" onClick={() => {
                 const firstEligible = queue.findIndex(q => {
                   if (q.status !== 'pending') return false;
                   if (!fixMode && q.isAlreadyProcessed) return false;

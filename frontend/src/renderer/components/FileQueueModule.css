@@ -7,15 +7,10 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-primary);
+  background: var(--bg-elevated);
   font-size: var(--font-base);
   overflow: hidden;
   outline: none;
-}
-
-.file-queue-module:focus {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: -2px;
 }
 
 /* Header */
@@ -24,13 +19,14 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--space-sm) var(--space-md);
-  background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-medium);
 }
 
 .file-queue-title {
+  margin: 0;
+  font-size: var(--font-xl);
   font-weight: 600;
-  color: var(--text-inverse);
+  color: var(--text-primary);
 }
 
 .file-queue-actions {
@@ -38,52 +34,7 @@
   gap: var(--space-xs);
 }
 
-.file-queue-btn {
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--font-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform var(--transition-fast), background var(--transition-base);
-}
-
-.file-queue-btn:active {
-  transform: scale(0.92);
-}
-
-.file-queue-btn.add {
-  background: var(--bg-hover);
-  color: var(--text-inverse);
-}
-
-.file-queue-btn.add:hover {
-  background: var(--bg-active);
-  color: var(--text-inverse);
-}
-
-.file-queue-btn.folder {
-  background: var(--bg-hover);
-  color: var(--text-inverse);
-}
-
-.file-queue-btn.folder:hover {
-  background: var(--bg-active);
-  color: var(--text-inverse);
-}
-
-.file-queue-btn.settings {
-  background: var(--bg-hover);
-  color: var(--text-inverse);
-}
-
-.file-queue-btn.settings:hover {
-  background: var(--bg-active);
-  color: var(--text-inverse);
-}
+/* Icon button styles now in theme.css (.btn-icon) */
 
 /* Toolbar */
 .file-queue-toolbar {
@@ -111,39 +62,7 @@
 }
 
 
-.clear-btn {
-  padding: var(--space-xs) var(--space-sm);
-  font-size: var(--font-sm);
-  border: 1px solid var(--border-medium);
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: transform var(--transition-fast), background var(--transition-base);
-}
-
-.clear-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-}
-
-.clear-btn:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.clear-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.clear-btn.clear-all {
-  color: var(--color-error);
-  border-color: var(--border-medium);
-}
-
-.clear-btn.clear-all:hover {
-  background: var(--color-error-bg);
-  border-color: var(--color-error);
-}
+/* Clear button styles now in theme.css (.btn-secondary) */
 
 /* File list */
 .file-queue-list {
@@ -262,12 +181,7 @@
 }
 
 .status-icon.completed {
-  color: var(--text-on-accent);
-}
-
-/* Dark theme: make checkmark visible */
-:root[data-theme="dark"] .status-icon.completed {
-  color: var(--accent-primary);
+  color: var(--color-success);
 }
 
 .status-icon.active {
@@ -280,28 +194,16 @@
   color: var(--text-tertiary);
 }
 
-/* Already processed, fix-mode OFF: muted gray-green checkmark */
+/* Already processed, fix-mode OFF: muted green checkmark */
 .status-icon.already-done {
-  color: var(--text-on-accent);
-  opacity: 0.75;
-}
-
-/* Dark theme: make checkmark visible */
-:root[data-theme="dark"] .status-icon.already-done {
-  color: var(--accent-primary);
+  color: var(--color-success);
   opacity: 0.7;
 }
 
-/* Already processed, fix-mode ON: gray with green tint (ready to reprocess) */
+/* Already processed, fix-mode ON: muted (ready to reprocess) */
 .status-icon.pending-reprocess {
-  color: var(--text-on-accent);
-  opacity: 0.6;
-}
-
-/* Dark theme: make icon visible */
-:root[data-theme="dark"] .status-icon.pending-reprocess {
   color: var(--text-secondary);
-  opacity: 0.8;
+  opacity: 0.7;
 }
 
 .status-icon.error {
@@ -392,29 +294,7 @@
   gap: var(--space-xs);
 }
 
-.control-btn {
-  padding: var(--space-xs) var(--space-md);
-  font-size: var(--font-sm);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  transition: transform var(--transition-fast), background var(--transition-base);
-}
-
-.control-btn:hover {
-  background: var(--bg-active);
-}
-
-.control-btn:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.control-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+/* Control button styles now in theme.css (.btn-secondary) */
 
 /* Preprocessing column - fixed width for alignment */
 .preprocess-col {
@@ -440,14 +320,9 @@
   line-height: 1;
 }
 
-.preprocess-indicator.completed {
-  color: var(--text-on-accent);
-}
-
-/* Dark theme: make preprocessing indicator visible */
-:root[data-theme="dark"] .preprocess-indicator.completed,
-:root[data-theme="dark"] .preprocess-indicator.loading {
-  color: var(--accent-primary);
+.preprocess-indicator.completed,
+.preprocess-indicator.loading {
+  color: var(--color-success);
 }
 
 .preprocess-indicator.error {
@@ -537,23 +412,13 @@
 
 .file-item.completed .face-count {
   background: var(--color-success-bg);
-  color: var(--text-on-accent);
-}
-
-/* Dark theme: make face count visible on success background */
-:root[data-theme="dark"] .file-item.completed .face-count {
-  color: var(--accent-primary);
+  color: var(--color-success);
 }
 
 .file-item.already-processed:not(.completed) .face-count {
   background: var(--color-success-bg);
-  color: var(--text-on-accent);
-  opacity: 0.9;
-}
-
-/* Dark theme: make face count visible on success background */
-:root[data-theme="dark"] .file-item.already-processed:not(.completed) .face-count {
-  color: var(--accent-primary);
+  color: var(--color-success);
+  opacity: 0.8;
 }
 
 /* Unified tooltip */

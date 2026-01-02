@@ -650,14 +650,10 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
       </div>
 
       <div className="face-info">
-        {face.is_manual ? (
-          <div className="face-confidence manual">Manual entry</div>
-        ) : (
-          <div className="face-confidence">
-            {((face.confidence || 0) * 100).toFixed(0)}%
-          </div>
-        )}
         {/* Match case indicator */}
+        {face.is_manual && (
+          <div className="match-case manual">Manual entry</div>
+        )}
         {face.match_case === 'ign' && !face.is_confirmed && (
           <div className="match-case probable-ignore">Probable ignore</div>
         )}

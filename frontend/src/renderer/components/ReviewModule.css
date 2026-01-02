@@ -7,13 +7,13 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-secondary);
+  background: var(--bg-elevated);
   overflow: hidden;
 }
 
 .review-header {
   padding: var(--space-sm) var(--space-md);
-  background: var(--bg-primary);
+  background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-medium);
   flex-shrink: 0;
 }
@@ -51,13 +51,8 @@
 }
 
 .face-card.active {
+  background: var(--color-info-bg);
   border-color: var(--color-info);
-  box-shadow: 0 4px 8px color-mix(in srgb, var(--color-info) 30%, transparent);
-}
-
-/* Dark theme: make active card more visible */
-:root[data-theme="dark"] .face-card.active {
-  background: var(--bg-active);
   box-shadow: 0 0 0 2px var(--color-info);
 }
 
@@ -116,17 +111,9 @@
   color: var(--text-secondary);
 }
 
-.face-confidence {
-  font-weight: 600;
-  color: var(--text-on-accent);
-}
-
-/* Dark theme: use primary text color for better visibility */
-:root[data-theme="dark"] .face-confidence {
-  color: var(--text-primary);
-}
-
-.face-confidence.manual {
+/* Match case styling for manual entries */
+.match-case.manual {
+  background: color-mix(in srgb, var(--accent-secondary) 20%, transparent);
   color: var(--accent-secondary);
   font-style: italic;
 }
@@ -229,7 +216,7 @@
 }
 
 .alt-chip.recommended .alt-conf {
-  color: var(--text-on-accent);
+  color: var(--text-primary);
 }
 
 .alt-chip.ignored {
@@ -265,10 +252,5 @@
 }
 
 .alt-chip.ignored .alt-conf {
-  color: var(--text-tertiary);
-}
-
-/* Dark theme: make ignored confidence visible */
-:root[data-theme="dark"] .alt-chip.ignored .alt-conf {
   color: var(--text-secondary);
 }

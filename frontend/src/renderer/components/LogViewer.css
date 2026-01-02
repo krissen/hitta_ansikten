@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--bg-tertiary);
+  background: var(--bg-elevated);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--font-sm);
@@ -19,7 +19,6 @@
 
 .log-header {
   padding: var(--space-sm) var(--space-md);
-  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-medium);
   display: flex;
   justify-content: space-between;
@@ -29,7 +28,7 @@
 
 .log-header h3 {
   margin: 0;
-  font-size: var(--font-md);
+  font-size: var(--font-xl);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -50,22 +49,11 @@
 }
 
 .log-filter:focus {
-  outline: 1px solid var(--accent-primary);
+  outline: none;
+  border-color: var(--border-strong);
 }
 
-.btn-clear {
-  padding: var(--space-xs) var(--space-md);
-  background: var(--bg-hover);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-sm);
-  cursor: pointer;
-}
-
-.btn-clear:hover {
-  background: var(--bg-active);
-}
+/* Button styles now in theme.css (.btn-secondary) */
 
 .log-entries {
   flex: 1;
@@ -100,7 +88,7 @@
 }
 
 .log-timestamp {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   flex-shrink: 0;
 }
 
@@ -110,11 +98,11 @@
 }
 
 .log-source.frontend {
-  color: var(--text-inverse);
+  color: var(--text-secondary);
 }
 
 .log-source.backend {
-  color: var(--accent-secondary);
+  color: var(--color-warning);
 }
 
 .log-level {
@@ -125,7 +113,7 @@
 }
 
 .log-level.info {
-  color: var(--text-inverse);
+  color: var(--text-primary);
 }
 
 .log-level.warn {

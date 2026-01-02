@@ -163,7 +163,7 @@ export function LogViewer() {
             <option value="warn">Warning</option>
             <option value="error">Error</option>
           </select>
-          <button className="btn-clear" onClick={clearLogs}>
+          <button className="btn-secondary" onClick={clearLogs}>
             Clear
           </button>
         </div>

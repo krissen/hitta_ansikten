@@ -30,19 +30,7 @@
   color: var(--text-primary);
 }
 
-.btn-reload {
-  padding: 6px var(--space-md);
-  background: var(--color-info);
-  color: var(--text-inverse);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-base);
-}
-
-.btn-reload:hover {
-  filter: brightness(0.85);
-}
+/* Button styles now in theme.css (.btn-secondary, .btn-action, .btn-danger) */
 
 .db-state {
   background: var(--bg-secondary);
@@ -56,7 +44,7 @@
   margin: 0 0 var(--space-sm) 0;
   font-size: var(--font-md);
   font-weight: 600;
-  color: var(--accent-primary);
+  color: var(--text-primary);
 }
 
 .db-stats {
@@ -92,7 +80,7 @@
   margin: 0 0 var(--space-sm) 0;
   font-size: var(--font-md);
   font-weight: 600;
-  color: var(--accent-primary);
+  color: var(--text-primary);
 }
 
 .operation-form {
@@ -145,35 +133,9 @@
   border-color: var(--color-info);
 }
 
+/* Form button spacing - base styles in theme.css */
 .operation-form button {
-  padding: 6px var(--space-md);
-  background: var(--color-success);
-  color: var(--text-inverse);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-base);
   white-space: nowrap;
-}
-
-.operation-form button:hover {
-  filter: brightness(0.85);
-}
-
-.operation-form button.btn-danger {
-  background: var(--color-error);
-}
-
-.operation-form button.btn-danger:hover {
-  filter: brightness(0.85);
-}
-
-.operation-form button.btn-secondary {
-  background: var(--color-warning);
-}
-
-.operation-form button.btn-secondary:hover {
-  filter: brightness(0.85);
 }
 
 .operation-status {

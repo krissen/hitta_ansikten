@@ -593,7 +593,7 @@ export function PreferencesModule({ api }) {
           {' '}({cacheStatus.usage_percent}%)
         </div>
       )}
-      <button className="btn btn-secondary" onClick={handleClearCache}>
+      <button className="btn-secondary" onClick={handleClearCache}>
         Clear Preprocessing Cache
       </button>
     </>
@@ -698,7 +698,7 @@ export function PreferencesModule({ api }) {
           ))}
         </div>
         <button
-          className="btn btn-secondary"
+          className="btn-secondary"
           onClick={() => {
             resetCategories();
             // Force re-render
@@ -729,13 +729,13 @@ export function PreferencesModule({ api }) {
 
         <div className="prefs-actions">
           <button
-            className="btn btn-primary"
+            className="btn-action"
             onClick={handleSave}
             disabled={!hasChanges}
           >
             Save
           </button>
-          <button className="btn btn-secondary" onClick={handleReset}>
+          <button className="btn-secondary" onClick={handleReset}>
             Reset
           </button>
         </div>

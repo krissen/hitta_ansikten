@@ -54,20 +54,7 @@
   color: var(--text-primary);
 }
 
-.btn-refresh {
-  padding: var(--space-xs) var(--space-md);
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-base);
-  transition: background var(--transition-base);
-}
-
-.btn-refresh:hover {
-  background: var(--accent-primary-hover);
-}
+/* Button styles now in theme.css (.btn-secondary) */
 
 .stats-body {
   display: flex;
@@ -88,7 +75,7 @@
   margin: 0 0 var(--space-sm) 0;
   font-size: var(--font-md);
   font-weight: 600;
-  color: var(--text-inverse);
+  color: var(--text-primary);
 }
 
 .loading,
