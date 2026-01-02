@@ -55,6 +55,12 @@
   box-shadow: 0 4px 8px color-mix(in srgb, var(--color-info) 30%, transparent);
 }
 
+/* Dark theme: make active card more visible */
+:root[data-theme="dark"] .face-card.active {
+  background: var(--bg-active);
+  box-shadow: 0 0 0 2px var(--color-info);
+}
+
 .face-card.confirmed {
   border-color: var(--color-success);
 }
@@ -113,6 +119,11 @@
 .face-confidence {
   font-weight: 600;
   color: var(--text-on-accent);
+}
+
+/* Dark theme: use primary text color for better visibility */
+:root[data-theme="dark"] .face-confidence {
+  color: var(--text-primary);
 }
 
 .face-confidence.manual {
@@ -255,4 +266,9 @@
 
 .alt-chip.ignored .alt-conf {
   color: var(--text-tertiary);
+}
+
+/* Dark theme: make ignored confidence visible */
+:root[data-theme="dark"] .alt-chip.ignored .alt-conf {
+  color: var(--text-secondary);
 }

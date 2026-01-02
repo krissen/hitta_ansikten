@@ -56,16 +56,17 @@
 
 .btn-refresh {
   padding: var(--space-xs) var(--space-md);
-  background: var(--color-info);
-  color: var(--text-inverse);
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-base);
+  transition: background var(--transition-base);
 }
 
 .btn-refresh:hover {
-  filter: brightness(0.85);
+  background: var(--accent-primary-hover);
 }
 
 .stats-body {
@@ -87,7 +88,7 @@
   margin: 0 0 var(--space-sm) 0;
   font-size: var(--font-md);
   font-weight: 600;
-  color: var(--accent-primary);
+  color: var(--text-inverse);
 }
 
 .loading,

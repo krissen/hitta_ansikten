@@ -137,11 +137,12 @@
 
 .clear-btn.clear-all {
   color: var(--color-error);
-  border-color: var(--color-error-bg);
+  border-color: var(--border-medium);
 }
 
 .clear-btn.clear-all:hover {
   background: var(--color-error-bg);
+  border-color: var(--color-error);
 }
 
 /* File list */
@@ -264,6 +265,11 @@
   color: var(--text-on-accent);
 }
 
+/* Dark theme: make checkmark visible */
+:root[data-theme="dark"] .status-icon.completed {
+  color: var(--accent-primary);
+}
+
 .status-icon.active {
   color: var(--color-info);
   /* ► glyph sits slightly high, adjust down */
@@ -280,10 +286,22 @@
   opacity: 0.75;
 }
 
+/* Dark theme: make checkmark visible */
+:root[data-theme="dark"] .status-icon.already-done {
+  color: var(--accent-primary);
+  opacity: 0.7;
+}
+
 /* Already processed, fix-mode ON: gray with green tint (ready to reprocess) */
 .status-icon.pending-reprocess {
   color: var(--text-on-accent);
   opacity: 0.6;
+}
+
+/* Dark theme: make icon visible */
+:root[data-theme="dark"] .status-icon.pending-reprocess {
+  color: var(--text-secondary);
+  opacity: 0.8;
 }
 
 .status-icon.error {
@@ -426,6 +444,12 @@
   color: var(--text-on-accent);
 }
 
+/* Dark theme: make preprocessing indicator visible */
+:root[data-theme="dark"] .preprocess-indicator.completed,
+:root[data-theme="dark"] .preprocess-indicator.loading {
+  color: var(--accent-primary);
+}
+
 .preprocess-indicator.error {
   color: var(--color-error);
   font-weight: bold;
@@ -516,10 +540,20 @@
   color: var(--text-on-accent);
 }
 
+/* Dark theme: make face count visible on success background */
+:root[data-theme="dark"] .file-item.completed .face-count {
+  color: var(--accent-primary);
+}
+
 .file-item.already-processed:not(.completed) .face-count {
   background: var(--color-success-bg);
   color: var(--text-on-accent);
   opacity: 0.9;
+}
+
+/* Dark theme: make face count visible on success background */
+:root[data-theme="dark"] .file-item.already-processed:not(.completed) .face-count {
+  color: var(--accent-primary);
 }
 
 /* Unified tooltip */

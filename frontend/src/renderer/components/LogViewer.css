@@ -110,7 +110,7 @@
 }
 
 .log-source.frontend {
-  color: var(--color-info);
+  color: var(--text-inverse);
 }
 
 .log-source.backend {
@@ -125,7 +125,7 @@
 }
 
 .log-level.info {
-  color: var(--color-info);
+  color: var(--text-inverse);
 }
 
 .log-level.warn {
