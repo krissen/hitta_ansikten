@@ -1,19 +1,23 @@
-# Styling Reference
+# Theming
 
-This document defines the styling system for hitta_ansikten workspace. All components should use CSS variables for colors, spacing, and typography.
+CSS variable system and styling guidelines for Hitta ansikten workspace.
+
+---
 
 ## Design Philosophy
 
 ### Retro Terminal Aesthetic
+
 - **Terminal Beige (Light)**: Inspired by Commodore 64, Amiga, Apple II
 - **CRT Phosphor (Dark)**: Classic green/amber CRT monitor feel
-- Clear contrasts but easy on the eyes
+- Clear contrasts, easy on the eyes
 - Monospace for technical data, sans-serif for UI
 - Subtle shadows and discreet transitions
 - Limited color palette for nostalgic feel
 
 ### Accessibility
-- All color combinations must meet WCAG 2.1 AA (4.5:1 contrast)
+
+- All color combinations meet WCAG 2.1 AA (4.5:1 contrast)
 - Clear button/interactive element separation
 - Obvious hover states without being flashy
 
@@ -21,20 +25,20 @@ This document defines the styling system for hitta_ansikten workspace. All compo
 
 ## CSS Variables
 
-### How to Use
+### Usage
 
-Import theme.css at the top of any component CSS:
+Variables defined in `theme.css`, auto-loaded by renderer:
+
 ```css
-/* At the top of your component's CSS file */
-/* theme.css is auto-loaded by the main renderer */
-
 .my-component {
   background: var(--bg-primary);
   color: var(--text-primary);
+  border: 1px solid var(--border-medium);
 }
 ```
 
 ### Background Colors
+
 | Variable | Light | Dark | Usage |
 |----------|-------|------|-------|
 | `--bg-primary` | #c8b088 | #0f0f0f | Main background |
@@ -45,14 +49,17 @@ Import theme.css at the top of any component CSS:
 | `--bg-active` | #886830 | #383838 | Active/selected |
 
 ### Text Colors
+
 | Variable | Light | Dark | Usage |
 |----------|-------|------|-------|
 | `--text-primary` | #1a1008 | #d4d2c0 | Main text |
 | `--text-secondary` | #2d1810 | #a8a698 | Secondary text |
 | `--text-tertiary` | #483020 | #7a7870 | Muted text |
 | `--text-inverse` | #f8f0e0 | #0f0f0f | Text on accent bg |
+| `--text-on-accent` | #ffffff | #ffffff | Text on accent buttons |
 
 ### Border Colors
+
 | Variable | Light | Dark | Usage |
 |----------|-------|------|-------|
 | `--border-subtle` | #a08858 | #353535 | Subtle dividers |
@@ -60,6 +67,7 @@ Import theme.css at the top of any component CSS:
 | `--border-strong` | #684818 | #555555 | Emphasized borders |
 
 ### Accent Colors
+
 | Variable | Light | Dark | Usage |
 |----------|-------|------|-------|
 | `--accent-primary` | #38a818 | #9acd32 | Primary actions |
@@ -68,6 +76,7 @@ Import theme.css at the top of any component CSS:
 | `--accent-secondary-hover` | #c03810 | #eebb30 | Secondary hover |
 
 ### Semantic Colors
+
 | Variable | Light | Dark | Usage |
 |----------|-------|------|-------|
 | `--color-success` | #38a818 | #9acd32 | Success state |
@@ -99,6 +108,7 @@ Based on 4px grid:
 ## Typography
 
 ### Font Sizes
+
 | Variable | Value | Usage |
 |----------|-------|-------|
 | `--font-xs` | 10px | Tiny labels |
@@ -110,10 +120,11 @@ Based on 4px grid:
 | `--font-2xl` | 22px | Page titles |
 
 ### Font Families
+
 | Variable | Value | Usage |
 |----------|-------|-------|
 | `--font-sans` | System fonts | UI text |
-| `--font-mono` | Monaco, Menlo, etc | Code, logs, filenames |
+| `--font-mono` | Monaco, Menlo | Code, logs, filenames |
 
 ---
 
@@ -151,6 +162,7 @@ Based on 4px grid:
 ## Component Patterns
 
 ### Module Container
+
 ```css
 .module {
   display: flex;
@@ -165,6 +177,7 @@ Based on 4px grid:
 ```
 
 ### Module Header
+
 ```css
 .module-header {
   display: flex;
@@ -177,18 +190,8 @@ Based on 4px grid:
 }
 ```
 
-### Section
-```css
-.module-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: var(--space-md);
-  margin-bottom: var(--space-lg);
-}
-```
-
 ### Buttons
+
 ```css
 /* Base */
 .btn {
@@ -200,10 +203,10 @@ Based on 4px grid:
   transition: background var(--transition-base);
 }
 
-/* Primary */
+/* Primary - use --text-on-accent for contrast */
 .btn-primary {
   background: var(--accent-primary);
-  color: var(--text-inverse);
+  color: var(--text-on-accent);
 }
 
 /* Ghost */
@@ -215,6 +218,7 @@ Based on 4px grid:
 ```
 
 ### Inputs
+
 ```css
 .input {
   padding: var(--space-sm);
@@ -228,11 +232,11 @@ Based on 4px grid:
 .input:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px var(--accent-primary-alpha-20);
 }
 ```
 
 ### Badges
+
 ```css
 .badge {
   display: inline-block;
@@ -251,7 +255,7 @@ Based on 4px grid:
 
 ---
 
-## Dark Mode CRT Effects (Optional)
+## Dark Mode CRT Effects
 
 ```css
 /* Text glow */
@@ -275,7 +279,7 @@ Based on 4px grid:
 - Minimal chrome, focus on readability
 
 ### StatisticsDashboard
-- Table headers use `--accent-primary` background
+- Table headers use `--accent-primary` background with `--text-on-accent`
 - Section titles use `--accent-primary` color
 - Compact spacing for data-dense display
 
@@ -289,10 +293,23 @@ Based on 4px grid:
 - Active file highlighted with `--accent-primary`
 - Compact list layout
 
-### DatabaseManagement
-- Form-focused layout
-- Clear action buttons
-- Use semantic alerts for feedback
+---
+
+## Icons
+
+Use the `Icon` component for all UI icons:
+
+```jsx
+import Icon from '../components/Icon.jsx';
+
+<Icon name="plus" size={16} />
+<Icon name="folder" />
+<Icon name="settings" className="toolbar-icon" />
+```
+
+Available icons: `plus`, `folder`, `folder-plus`, `play`, `pause`, `settings`, `close`, `check`, `refresh`, `trash`, `file`, `warning`, `error`, `user`, `block`, `check-circle`, `skip-next`, `skip-previous`
+
+Icons use `currentColor` and adapt to theme automatically.
 
 ---
 
@@ -308,17 +325,35 @@ When converting a component to use CSS variables:
 6. Verify contrast meets WCAG AA
 
 ### Common Replacements
+
 ```
-#2a2a2a  ->  var(--bg-secondary)
-#1a1a1a  ->  var(--bg-primary)  /* dark */
-#d4d4d4  ->  var(--text-primary)
-#888     ->  var(--text-tertiary)
-12px     ->  var(--space-md)
-4px      ->  var(--radius-md)
+#2a2a2a  →  var(--bg-secondary)
+#1a1a1a  →  var(--bg-primary)
+#d4d4d4  →  var(--text-primary)
+#888     →  var(--text-tertiary)
+12px     →  var(--space-md)
+4px      →  var(--radius-md)
 ```
+
+### Text on Accent Backgrounds
+
+Use correct variable based on context:
+
+| Context | Variable |
+|---------|----------|
+| Text on accent buttons | `--text-on-accent` |
+| Text on dark bg when opposite theme | `--text-inverse` |
+| General UI text | `--text-primary` |
 
 ---
 
-## References
+## Theme Editor
 
-- **WCAG Guidelines**: https://www.w3.org/WAI/WCAG21/quickref/
+Users can customize themes via the ThemeEditor module:
+
+1. Select category (backgrounds, text, accents, etc.)
+2. Adjust colors with color picker or hex input
+3. Save as custom preset
+4. Bind presets to light/dark system modes
+
+Custom presets stored in localStorage.
