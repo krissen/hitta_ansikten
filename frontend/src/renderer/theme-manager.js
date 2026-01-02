@@ -161,6 +161,8 @@ class ThemeManager {
 
   /**
    * Apply saved opacity preferences from localStorage
+   * Note: Toast opacity is a user preference (in PreferencesModule)
+   * Overlay opacity is a theme-level setting (in ThemeEditor only)
    */
   applyOpacityPreferences() {
     try {
@@ -169,7 +171,7 @@ class ThemeManager {
 
       const prefs = JSON.parse(prefsStr);
       
-      // Apply toast opacity if saved
+      // Apply toast opacity if saved (user preference)
       if (prefs.notifications?.toastOpacity !== undefined) {
         document.documentElement.style.setProperty(
           '--toast-opacity', 
@@ -177,13 +179,8 @@ class ThemeManager {
         );
       }
 
-      // Apply overlay opacity if saved
-      if (prefs.ui?.overlayOpacity !== undefined) {
-        document.documentElement.style.setProperty(
-          '--overlay-opacity', 
-          String(prefs.ui.overlayOpacity)
-        );
-      }
+      // Note: overlay opacity is handled by ThemeEditor as a theme-level setting
+      // It's stored with theme presets, not in user preferences
     } catch (err) {
       console.warn('Failed to apply opacity preferences:', err);
     }

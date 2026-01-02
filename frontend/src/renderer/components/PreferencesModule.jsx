@@ -146,15 +146,21 @@ export function PreferencesModule({ api }) {
   const [hasChanges, setHasChanges] = useState(false);
   const [cacheStatus, setCacheStatus] = useState(null);
 
+  // Helper function to apply toast opacity CSS variable
+  // Used for immediate live preview when user adjusts slider
+  const applyToastOpacity = useCallback((opacity) => {
+    if (opacity !== undefined) {
+      document.documentElement.style.setProperty('--toast-opacity', String(opacity));
+    }
+  }, []);
+
   // Load preferences on mount
   useEffect(() => {
     const loadedPrefs = preferences.getAll();
     setPrefs(loadedPrefs);
     // Apply toast opacity on load
-    if (loadedPrefs.notifications?.toastOpacity !== undefined) {
-      document.documentElement.style.setProperty('--toast-opacity', String(loadedPrefs.notifications.toastOpacity));
-    }
-  }, []);
+    applyToastOpacity(loadedPrefs.notifications?.toastOpacity);
+  }, [applyToastOpacity]);
 
   // Update a preference value
   const updatePref = useCallback((path, value) => {
@@ -177,13 +183,11 @@ export function PreferencesModule({ api }) {
     preferences.setAll(prefs);
     themeManager.setPreference(prefs.ui.theme);
     // Apply toast opacity if set
-    if (prefs.notifications?.toastOpacity !== undefined) {
-      document.documentElement.style.setProperty('--toast-opacity', String(prefs.notifications.toastOpacity));
-    }
+    applyToastOpacity(prefs.notifications?.toastOpacity);
     window.dispatchEvent(new CustomEvent('preferences-changed'));
     setHasChanges(false);
     debug('PreferencesModule', 'Preferences saved');
-  }, [prefs]);
+  }, [prefs, applyToastOpacity]);
 
   // Reset to defaults
   const handleReset = useCallback(() => {
@@ -474,7 +478,7 @@ export function PreferencesModule({ api }) {
         value={prefs.notifications?.toastOpacity ?? 0.94}
         onChange={(v) => {
           updatePref('notifications.toastOpacity', v);
-          document.documentElement.style.setProperty('--toast-opacity', String(v));
+          applyToastOpacity(v); // Live preview
         }}
         min={0.5}
         max={1.0}
