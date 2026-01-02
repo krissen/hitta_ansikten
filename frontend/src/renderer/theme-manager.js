@@ -24,6 +24,9 @@ class ThemeManager {
     // Apply initial theme based on stored preference or default
     this.applyFromPreference({ persist: false });
 
+    // Apply saved opacity preferences if they exist
+    this.applyOpacityPreferences();
+
     // Keep UI in sync with system changes when preference === 'system'
     this.systemQuery.addEventListener('change', (event) => {
       if (this.preference === 'system') {
@@ -154,6 +157,36 @@ class ThemeManager {
    */
   isFollowingSystem() {
     return this.preference === 'system';
+  }
+
+  /**
+   * Apply saved opacity preferences from localStorage
+   */
+  applyOpacityPreferences() {
+    try {
+      const prefsStr = localStorage.getItem('user-preferences');
+      if (!prefsStr) return;
+
+      const prefs = JSON.parse(prefsStr);
+      
+      // Apply toast opacity if saved
+      if (prefs.notifications?.toastOpacity !== undefined) {
+        document.documentElement.style.setProperty(
+          '--toast-opacity', 
+          String(prefs.notifications.toastOpacity)
+        );
+      }
+
+      // Apply overlay opacity if saved
+      if (prefs.ui?.overlayOpacity !== undefined) {
+        document.documentElement.style.setProperty(
+          '--overlay-opacity', 
+          String(prefs.ui.overlayOpacity)
+        );
+      }
+    } catch (err) {
+      console.warn('Failed to apply opacity preferences:', err);
+    }
   }
 }
 
