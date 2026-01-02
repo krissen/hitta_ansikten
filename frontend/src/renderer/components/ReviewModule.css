@@ -1,31 +1,18 @@
 /**
  * ReviewModule Styles
- * Uses CSS variables from theme.css for consistent theming
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
  */
 
-.review-module {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg-elevated);
-  overflow: hidden;
-}
-
-.review-header {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-medium);
-  flex-shrink: 0;
-}
-
+/* Review header - just the status text */
 .review-status {
   font-size: var(--font-sm);
   color: var(--text-secondary);
 }
 
-.face-grid {
-  flex: 1;
-  overflow-y: auto;
+/* Face grid - override module-body for grid layout */
+.review-module .face-grid {
   padding: var(--space-sm);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -213,28 +200,22 @@
 
 .alt-chip.recommended {
   background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  box-shadow: 0 0 0 1px var(--color-success);
+  font-weight: 500;
+}
+
+.alt-chip.recommended .alt-name {
+  color: var(--color-success);
+  font-weight: 600;
 }
 
 .alt-chip.recommended .alt-conf {
-  color: var(--text-primary);
+  color: var(--color-success);
 }
 
 .alt-chip.ignored {
   opacity: 0.7;
-}
-
-.alt-chip .alt-key {
-  background: var(--bg-active);
-  color: var(--text-primary);
-  width: 14px;
-  height: 14px;
-  border-radius: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-weight: bold;
-  flex-shrink: 0;
 }
 
 .alt-chip .alt-name {

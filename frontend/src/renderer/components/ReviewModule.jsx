@@ -561,12 +561,12 @@ export function ReviewModule() {
   }, []));
 
   return (
-    <div ref={moduleRef} className="review-module" tabIndex={-1}>
-      <div className="review-header">
+    <div ref={moduleRef} className="module-container review-module" tabIndex={-1}>
+      <div className="module-header review-header">
         <div className="review-status">{status}</div>
       </div>
 
-      <div ref={gridRef} className="face-grid">
+      <div ref={gridRef} className="module-body face-grid">
         {isLoading ? (
           <div className="loading">Detecting faces...</div>
         ) : detectedFaces.length === 0 ? (
@@ -681,7 +681,7 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                 onSelectAlternative?.(alt.name);
               }}
             >
-              <span className="alt-key">{idx + 1}</span>
+              <span className="kbd">{idx + 1}</span>
               <span className="alt-name">{alt.name}</span>
               <span className="alt-conf">{alt.confidence}%</span>
             </div>

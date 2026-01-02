@@ -1,99 +1,15 @@
 /**
  * StatisticsDashboard Styles
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
  */
 
-.stats-dashboard {
-  height: 100%;
+/* Stats body - override module-body to add gap between sections */
+.stats-dashboard .stats-body {
   display: flex;
   flex-direction: column;
-  padding: var(--space-md);
-  overflow-y: auto;
-  font-family: var(--font-sans);
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-
-.stats-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-lg);
-  padding-bottom: var(--space-sm);
-  border-bottom: 2px solid var(--border-medium);
-  flex-shrink: 0;
-}
-
-.stats-header h3 {
-  margin: 0;
-  font-size: var(--font-xl);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.stats-controls {
-  display: flex;
-  gap: var(--space-sm);
-  align-items: center;
-  font-size: var(--font-base);
-}
-
-.stats-controls label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  cursor: pointer;
-  color: var(--text-primary);
-}
-
-.stats-controls select {
-  padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-base);
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-}
-
-/* Button styles now in theme.css (.btn-secondary) */
-
-.stats-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xl);
-  flex: 1;
-  overflow-y: auto;
-}
-
-.stats-section {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
-  padding: var(--space-md);
-}
-
-.stats-section h4 {
-  margin: 0 0 var(--space-sm) 0;
-  font-size: var(--font-md);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.loading,
-.empty {
-  text-align: center;
-  padding: var(--space-xl);
-  color: var(--text-secondary);
-  font-size: var(--font-base);
-}
-
-.stats-error {
-  padding: var(--space-md);
-  background: var(--color-error-bg);
-  border: 1px solid var(--color-error);
-  border-radius: var(--radius-md);
-  color: var(--color-error);
-  font-size: var(--font-base);
-  margin-bottom: var(--space-md);
+  gap: var(--space-lg);
 }
 
 /* Attempt Stats Table */

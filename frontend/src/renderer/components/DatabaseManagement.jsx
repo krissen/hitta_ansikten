@@ -246,17 +246,18 @@ export function DatabaseManagement() {
   const peopleNames = databaseState?.people?.map(p => p.name) || [];
 
   return (
-    <div className="db-management">
-      <div className="db-header">
-        <h3>Database Management</h3>
+    <div className="module-container db-management">
+      <div className="module-header">
+        <h3 className="module-title">Database Management</h3>
         <button className="btn-secondary" onClick={loadDatabaseState}>
           Reload Database
         </button>
       </div>
 
+      <div className="module-body">
       {/* Database State */}
-      <div className="db-state">
-        <h4>Current Database</h4>
+      <div className="section-card">
+        <h4 className="section-title">Current Database</h4>
         {isLoading ? (
           <div className="db-stats">Loading...</div>
         ) : databaseState ? (
@@ -281,7 +282,7 @@ export function DatabaseManagement() {
 
       {/* Operations */}
       <div className="operations-panel">
-        <h4>Operations</h4>
+        <h4 className="section-title">Operations</h4>
 
         {/* 1. Rename */}
         <OperationForm title="1. Rename Person">
@@ -412,10 +413,11 @@ export function DatabaseManagement() {
 
       {/* Status */}
       {status.message && (
-        <div className={`operation-status ${status.type}`}>
+        <div className={`status-message ${status.type}`}>
           {status.message}
         </div>
       )}
+      </div>
 
       {/* Datalists for autocomplete */}
       <datalist id="people-list">
@@ -434,8 +436,8 @@ export function DatabaseManagement() {
  */
 function OperationForm({ title, children }) {
   return (
-    <div className="operation-form">
-      <h5>{title}</h5>
+    <div className="section-card operation-form">
+      <h5 className="subsection-title">{title}</h5>
       {children}
     </div>
   );

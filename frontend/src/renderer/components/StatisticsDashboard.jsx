@@ -108,11 +108,11 @@ export function StatisticsDashboard() {
   const showRecentLogs = dashboardPrefs.showRecentLogs === true; // Default false
 
   return (
-    <div className="stats-dashboard">
-      <div className="stats-header">
-        <h3>Statistics Dashboard</h3>
-        <div className="stats-controls">
-          <label>
+    <div className="module-container stats-dashboard">
+      <div className="module-header">
+        <h3 className="module-title">Statistics Dashboard</h3>
+        <div className="button-group">
+          <label className="form-checkbox">
             <input
               type="checkbox"
               checked={autoRefresh}
@@ -121,6 +121,7 @@ export function StatisticsDashboard() {
             Auto-refresh
           </label>
           <select
+            className="form-select"
             value={refreshRate}
             onChange={(e) => setRefreshRate(parseInt(e.target.value, 10))}
           >
@@ -135,8 +136,8 @@ export function StatisticsDashboard() {
         </div>
       </div>
 
-      <div className="stats-body">
-        {error && <div className="stats-error">Error: {error}</div>}
+      <div className="module-body stats-body">
+        {error && <div className="status-message error">Error: {error}</div>}
 
         {/* Attempt Statistics Table */}
         {showAttemptStats && (
@@ -164,7 +165,7 @@ export function StatisticsDashboard() {
 
         {/* Show message if all sections are hidden */}
         {!showAttemptStats && !showTopFaces && !showRecentImages && !showRecentLogs && (
-          <div className="empty">
+          <div className="empty-state">
             All dashboard sections are hidden.<br/>
             Enable sections in Preferences → Dashboard.
           </div>
@@ -180,25 +181,25 @@ export function StatisticsDashboard() {
 function AttemptStatsSection({ stats, isLoading }) {
   if (isLoading) {
     return (
-      <div className="stats-section">
-        <h4>Attempt Statistics</h4>
-        <div className="loading">Loading...</div>
+      <div className="section-card">
+        <h4 className="section-title">Attempt Statistics</h4>
+        <div className="empty-state compact">Loading...</div>
       </div>
     );
   }
 
   if (!stats || stats.length === 0) {
     return (
-      <div className="stats-section">
-        <h4>Attempt Statistics</h4>
-        <div className="empty">No attempt statistics available</div>
+      <div className="section-card">
+        <h4 className="section-title">Attempt Statistics</h4>
+        <div className="empty-state compact">No attempt statistics available</div>
       </div>
     );
   }
 
   return (
-    <div className="stats-section">
-      <h4>Attempt Statistics</h4>
+    <div className="section-card">
+      <h4 className="section-title">Attempt Statistics</h4>
       <table className="attempt-stats-table">
         <thead>
           <tr>
@@ -239,9 +240,9 @@ function AttemptStatsSection({ stats, isLoading }) {
 function TopFacesSection({ faces, ignoredStats, isLoading }) {
   if (isLoading) {
     return (
-      <div className="stats-section">
-        <h4>Top Faces (19 most common + Ignored)</h4>
-        <div className="loading">Loading...</div>
+      <div className="section-card">
+        <h4 className="section-title">Top Faces (19 most common + Ignored)</h4>
+        <div className="empty-state compact">Loading...</div>
       </div>
     );
   }
@@ -273,8 +274,8 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
   }
 
   return (
-    <div className="stats-section">
-      <h4>Top Faces (19 most common + Ignored)</h4>
+    <div className="section-card">
+      <h4 className="section-title">Top Faces (19 most common + Ignored)</h4>
       <div className="top-faces-grid">
         {gridItems.map((item, idx) => {
           if (!item) return <div key={idx} className="face-cell">—</div>;
@@ -309,25 +310,25 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
 function RecentImagesSection({ images, isLoading }) {
   if (isLoading) {
     return (
-      <div className="stats-section">
-        <h4>Recent Images</h4>
-        <div className="loading">Loading...</div>
+      <div className="section-card">
+        <h4 className="section-title">Recent Images</h4>
+        <div className="empty-state compact">Loading...</div>
       </div>
     );
   }
 
   if (!images || images.length === 0) {
     return (
-      <div className="stats-section">
-        <h4>Recent Images</h4>
-        <div className="empty">No recent images</div>
+      <div className="section-card">
+        <h4 className="section-title">Recent Images</h4>
+        <div className="empty-state compact">No recent images</div>
       </div>
     );
   }
 
   return (
-    <div className="stats-section">
-      <h4>Recent Images</h4>
+    <div className="section-card">
+      <h4 className="section-title">Recent Images</h4>
       <div className="recent-images-list">
         {images.map((img, idx) => (
           <div key={idx} className={`image-entry ${img.source === 'bildvisare' ? 'source-bildvisare' : 'source-cli'}`}>
@@ -353,25 +354,25 @@ function RecentImagesSection({ images, isLoading }) {
 function RecentLogsSection({ logs, isLoading }) {
   if (isLoading) {
     return (
-      <div className="stats-section">
-        <h4>Recent Log Lines</h4>
-        <div className="loading">Loading...</div>
+      <div className="section-card">
+        <h4 className="section-title">Recent Log Lines</h4>
+        <div className="empty-state compact">Loading...</div>
       </div>
     );
   }
 
   if (!logs || logs.length === 0) {
     return (
-      <div className="stats-section">
-        <h4>Recent Log Lines</h4>
-        <div className="empty">No recent logs</div>
+      <div className="section-card">
+        <h4 className="section-title">Recent Log Lines</h4>
+        <div className="empty-state compact">No recent logs</div>
       </div>
     );
   }
 
   return (
-    <div className="stats-section">
-      <h4>Recent Log Lines</h4>
+    <div className="section-card">
+      <h4 className="section-title">Recent Log Lines</h4>
       <div className="recent-logs-list">
         {logs.map((log, idx) => (
           <div key={idx} className={`stats-log-entry ${log.level}`}>

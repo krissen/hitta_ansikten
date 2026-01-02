@@ -1,32 +1,14 @@
 /**
  * FileQueueModule Styles
- * Uses CSS variables from theme.css for consistent theming (light and dark)
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
  */
 
+/* FileQueueModule-specific overrides */
 .file-queue-module {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg-elevated);
   font-size: var(--font-base);
-  overflow: hidden;
   outline: none;
-}
-
-/* Header */
-.file-queue-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid var(--border-medium);
-}
-
-.file-queue-title {
-  margin: 0;
-  font-size: var(--font-xl);
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
 .file-queue-actions {
@@ -64,30 +46,9 @@
 
 /* Clear button styles now in theme.css (.btn-secondary) */
 
-/* File list */
-.file-queue-list {
-  flex: 1;
-  overflow-y: auto;
+/* File list - override module-body padding */
+.file-queue-module .file-queue-list {
   padding: var(--space-xs);
-}
-
-.file-queue-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--text-tertiary);
-  text-align: center;
-}
-
-.file-queue-empty p {
-  margin: var(--space-xs) 0;
-}
-
-.file-queue-empty .hint {
-  font-size: var(--font-sm);
-  color: var(--text-tertiary);
 }
 
 /* File item */
@@ -252,12 +213,7 @@
   color: var(--color-error);
 }
 
-/* Footer */
-.file-queue-footer {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-tertiary);
-  border-top: 1px solid var(--border-medium);
-}
+/* Footer - inherits from .module-footer */
 
 /* Progress */
 .file-queue-progress {

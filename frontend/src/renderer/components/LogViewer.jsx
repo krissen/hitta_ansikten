@@ -140,12 +140,12 @@ export function LogViewer() {
   });
 
   return (
-    <div className="log-viewer">
-      <div className="log-header">
-        <h3>Logs</h3>
-        <div className="log-controls">
+    <div className="module-container log-viewer">
+      <div className="module-header">
+        <h3 className="module-title">Logs</h3>
+        <div className="button-group">
           <select
-            className="log-filter"
+            className="form-select"
             value={filterSource}
             onChange={(e) => setFilterSource(e.target.value)}
           >
@@ -154,7 +154,7 @@ export function LogViewer() {
             <option value="frontend">Frontend</option>
           </select>
           <select
-            className="log-filter"
+            className="form-select"
             value={filterLevel}
             onChange={(e) => setFilterLevel(e.target.value)}
           >
@@ -171,11 +171,11 @@ export function LogViewer() {
 
       <div
         ref={entriesRef}
-        className="log-entries"
+        className="module-body log-entries"
         onScroll={handleScroll}
       >
         {filteredLogs.length === 0 ? (
-          <div className="log-empty">
+          <div className="empty-state">
             {logs.length === 0
               ? 'Waiting for log entries...'
               : 'No log entries match the current filter'}

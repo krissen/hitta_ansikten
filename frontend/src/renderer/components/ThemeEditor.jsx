@@ -383,9 +383,10 @@ export function ThemeEditor({ api }) {
     if (groupName === 'Theme Mode') {
       return (
         <div className="theme-mode-section">
-          <div className="theme-mode-selector">
-            <label>Current Theme:</label>
+          <div className="form-field theme-mode-selector">
+            <label className="form-label">Current Theme:</label>
             <select
+              className="form-select"
               value={themeMode}
               onChange={(e) => handleThemeModeChange(e.target.value)}
             >
@@ -393,21 +394,22 @@ export function ThemeEditor({ api }) {
               <option value="dark">Dark</option>
               <option value="system">Follow System</option>
             </select>
-            <p className="theme-mode-hint">
+            <p className="hint-text">
               {themeMode === 'system'
                 ? `Following system (currently ${themeManager.getCurrentTheme()})`
                 : `Using ${themeMode} theme`}
             </p>
           </div>
 
-          <div className="preset-bindings">
-            <h4>Preset Bindings</h4>
-            <p className="binding-hint">
+          <div className="section-card preset-bindings">
+            <h4 className="section-title">Preset Bindings</h4>
+            <p className="hint-text">
               Choose which preset to use for each theme mode
             </p>
             <div className="binding-row">
-              <label>Light mode preset:</label>
+              <label className="form-label">Light mode preset:</label>
               <select
+                className="form-select"
                 value={presetBindings.light}
                 onChange={(e) => handlePresetBindingChange('light', e.target.value)}
               >
@@ -417,8 +419,9 @@ export function ThemeEditor({ api }) {
               </select>
             </div>
             <div className="binding-row">
-              <label>Dark mode preset:</label>
+              <label className="form-label">Dark mode preset:</label>
               <select
+                className="form-select"
                 value={presetBindings.dark}
                 onChange={(e) => handlePresetBindingChange('dark', e.target.value)}
               >
@@ -529,14 +532,14 @@ export function ThemeEditor({ api }) {
   };
 
   return (
-    <div className="theme-editor">
-      <div className="theme-editor-sidebar">
-        <h3>Categories</h3>
-        <ul className="category-list">
+    <div className="module-container has-sidebar theme-editor">
+      <div className="module-sidebar">
+        <h3 className="sidebar-title">Categories</h3>
+        <ul className="item-list">
           {Object.keys(VARIABLE_GROUPS).map(name => (
             <li
               key={name}
-              className={activeGroup === name ? 'active' : ''}
+              className={`list-item-nav ${activeGroup === name ? 'active' : ''}`}
               onClick={() => setActiveGroup(name)}
             >
               {name}
@@ -544,25 +547,26 @@ export function ThemeEditor({ api }) {
           ))}
         </ul>
 
-        <h3>Presets</h3>
-        <ul className="preset-list">
+        <h3 className="sidebar-title">Presets</h3>
+        <ul className="item-list preset-list">
           {Object.keys(BUILTIN_PRESETS).map(name => (
-            <li key={name} onClick={() => loadPreset(name)}>
+            <li key={name} className="list-item-nav" onClick={() => loadPreset(name)}>
               {name}
             </li>
           ))}
           {Object.keys(customPresets).map(name => (
-            <li key={name} className="custom-preset">
+            <li key={name} className="list-item-nav custom-preset">
               <span onClick={() => loadPreset(name)}>{name}</span>
-              <button onClick={() => deletePreset(name)} title="Delete">x</button>
+              <button onClick={() => deletePreset(name)} title="Delete">×</button>
             </li>
           ))}
         </ul>
 
-        <div className="preset-actions">
+        <div className="sidebar-actions">
           <div className="save-preset">
             <input
               type="text"
+              className="form-input"
               placeholder="Preset name..."
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
@@ -577,8 +581,8 @@ export function ThemeEditor({ api }) {
         </div>
       </div>
 
-      <div className="theme-editor-content">
-        <h2>{activeGroup}</h2>
+      <div className="module-content">
+        <h2 className="content-title">{activeGroup}</h2>
         {renderGroup(activeGroup, VARIABLE_GROUPS[activeGroup])}
       </div>
     </div>

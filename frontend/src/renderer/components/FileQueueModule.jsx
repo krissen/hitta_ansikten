@@ -1212,10 +1212,10 @@ export function FileQueueModule() {
   const hasSelection = selectedFiles.size > 0;
 
   return (
-    <div ref={moduleRef} className={`file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
+    <div ref={moduleRef} className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
       {/* Header */}
-      <div className="file-queue-header">
-        <span className="file-queue-title">File Queue</span>
+      <div className="module-header">
+        <span className="module-title">File Queue</span>
         <div className="file-queue-actions">
           <button
             className="btn-icon"
@@ -1293,9 +1293,9 @@ export function FileQueueModule() {
       </div>
 
       {/* File list */}
-      <div ref={listRef} className="file-queue-list">
+      <div ref={listRef} className="module-body file-queue-list">
         {queue.length === 0 ? (
-          <div className="file-queue-empty">
+          <div className="empty-state">
             <p>No files in queue</p>
             <p className="hint">Click + to add files</p>
           </div>
@@ -1322,7 +1322,7 @@ export function FileQueueModule() {
 
       {/* Footer with progress */}
       {queue.length > 0 && (
-        <div className="file-queue-footer">
+        <div className="module-footer file-queue-footer">
           <div className="file-queue-progress">
             <span className="progress-text">
               {completedCount}/{queue.length}
