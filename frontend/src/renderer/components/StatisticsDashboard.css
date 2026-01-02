@@ -117,7 +117,7 @@
 
 .attempt-stats-table th {
   background: var(--accent-primary);
-  color: var(--text-inverse);
+  color: var(--text-on-accent);
   padding: 6px var(--space-sm);
   text-align: left;
   font-weight: 600;

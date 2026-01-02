@@ -59,7 +59,7 @@
 
 .category-list li.active {
   background: var(--accent-primary);
-  color: var(--text-inverse);
+  color: var(--text-on-accent);
   font-weight: 500;
 }
 
