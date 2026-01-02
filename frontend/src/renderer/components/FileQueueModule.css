@@ -1,36 +1,14 @@
 /**
  * FileQueueModule Styles
- * Uses CSS variables from theme.css for consistent theming (light and dark)
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
  */
 
+/* FileQueueModule-specific overrides */
 .file-queue-module {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg-primary);
   font-size: var(--font-base);
-  overflow: hidden;
   outline: none;
-}
-
-.file-queue-module:focus {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: -2px;
-}
-
-/* Header */
-.file-queue-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-medium);
-}
-
-.file-queue-title {
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
 .file-queue-actions {
@@ -38,49 +16,7 @@
   gap: var(--space-xs);
 }
 
-.file-queue-btn {
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--font-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform var(--transition-fast), background var(--transition-base);
-}
-
-.file-queue-btn:active {
-  transform: scale(0.92);
-}
-
-.file-queue-btn.add {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.file-queue-btn.add:hover {
-  background: var(--bg-active);
-}
-
-.file-queue-btn.folder {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.file-queue-btn.folder:hover {
-  background: var(--bg-active);
-}
-
-.file-queue-btn.settings {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.file-queue-btn.settings:hover {
-  background: var(--bg-active);
-}
+/* Icon button styles now in theme.css (.btn-icon) */
 
 /* Toolbar */
 .file-queue-toolbar {
@@ -108,63 +44,11 @@
 }
 
 
-.clear-btn {
-  padding: var(--space-xs) var(--space-sm);
-  font-size: var(--font-sm);
-  border: 1px solid var(--border-medium);
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: transform var(--transition-fast), background var(--transition-base);
-}
+/* Clear button styles now in theme.css (.btn-secondary) */
 
-.clear-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-}
-
-.clear-btn:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.clear-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.clear-btn.clear-all {
-  color: var(--color-error);
-  border-color: var(--color-error-bg);
-}
-
-.clear-btn.clear-all:hover {
-  background: var(--color-error-bg);
-}
-
-/* File list */
-.file-queue-list {
-  flex: 1;
-  overflow-y: auto;
+/* File list - override module-body padding */
+.file-queue-module .file-queue-list {
   padding: var(--space-xs);
-}
-
-.file-queue-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--text-tertiary);
-  text-align: center;
-}
-
-.file-queue-empty p {
-  margin: var(--space-xs) 0;
-}
-
-.file-queue-empty .hint {
-  font-size: var(--font-sm);
-  color: var(--text-tertiary);
 }
 
 /* File item */
@@ -271,16 +155,16 @@
   color: var(--text-tertiary);
 }
 
-/* Already processed, fix-mode OFF: muted gray-green checkmark */
+/* Already processed, fix-mode OFF: muted green checkmark */
 .status-icon.already-done {
   color: var(--color-success);
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
-/* Already processed, fix-mode ON: gray with green tint (ready to reprocess) */
+/* Already processed, fix-mode ON: muted (ready to reprocess) */
 .status-icon.pending-reprocess {
-  color: var(--color-success);
-  opacity: 0.5;
+  color: var(--text-secondary);
+  opacity: 0.7;
 }
 
 .status-icon.error {
@@ -295,7 +179,7 @@
 .file-status {
   flex-shrink: 0;
   font-size: var(--font-sm);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   width: 65px;
   text-align: right;
 }
@@ -329,12 +213,7 @@
   color: var(--color-error);
 }
 
-/* Footer */
-.file-queue-footer {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-tertiary);
-  border-top: 1px solid var(--border-medium);
-}
+/* Footer - inherits from .module-footer */
 
 /* Progress */
 .file-queue-progress {
@@ -353,14 +232,14 @@
 .progress-bar {
   flex: 1;
   height: 6px;
-  background: var(--border-medium);
+  background: var(--bg-elevated);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: var(--color-success);
+  background: var(--accent-primary);
   transition: width var(--transition-slow);
 }
 
@@ -371,29 +250,7 @@
   gap: var(--space-xs);
 }
 
-.control-btn {
-  padding: var(--space-xs) var(--space-md);
-  font-size: var(--font-sm);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  transition: transform var(--transition-fast), background var(--transition-base);
-}
-
-.control-btn:hover {
-  background: var(--bg-active);
-}
-
-.control-btn:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.control-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+/* Control button styles now in theme.css (.btn-secondary) */
 
 /* Preprocessing column - fixed width for alignment */
 .preprocess-col {
@@ -407,22 +264,28 @@
 
 /* Preprocessing indicator */
 .preprocess-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preprocess-indicator.loading {
+  color: var(--text-on-accent);
+  animation: spin 1s linear infinite;
   font-size: var(--font-sm);
   line-height: 1;
 }
 
+.preprocess-indicator.completed,
 .preprocess-indicator.loading {
-  color: var(--color-warning);
-  animation: spin 1s linear infinite;
-}
-
-.preprocess-indicator.completed {
   color: var(--color-success);
 }
 
 .preprocess-indicator.error {
   color: var(--color-error);
   font-weight: bold;
+  font-size: var(--font-sm);
+  line-height: 1;
 }
 
 @keyframes spin {

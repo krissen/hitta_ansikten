@@ -246,17 +246,18 @@ export function DatabaseManagement() {
   const peopleNames = databaseState?.people?.map(p => p.name) || [];
 
   return (
-    <div className="db-management">
-      <div className="db-header">
-        <h3>Database Management</h3>
-        <button className="btn-reload" onClick={loadDatabaseState}>
+    <div className="module-container db-management">
+      <div className="module-header">
+        <h3 className="module-title">Database Management</h3>
+        <button className="btn-secondary" onClick={loadDatabaseState}>
           Reload Database
         </button>
       </div>
 
+      <div className="module-body">
       {/* Database State */}
-      <div className="db-state">
-        <h4>Current Database</h4>
+      <div className="section-card">
+        <h4 className="section-title">Current Database</h4>
         {isLoading ? (
           <div className="db-stats">Loading...</div>
         ) : databaseState ? (
@@ -281,7 +282,7 @@ export function DatabaseManagement() {
 
       {/* Operations */}
       <div className="operations-panel">
-        <h4>Operations</h4>
+        <h4 className="section-title">Operations</h4>
 
         {/* 1. Rename */}
         <OperationForm title="1. Rename Person">
@@ -298,7 +299,7 @@ export function DatabaseManagement() {
               value={renameForm.newName}
               onChange={(e) => setRenameForm(prev => ({ ...prev, newName: e.target.value }))}
             />
-            <button onClick={handleRename}>Rename</button>
+            <button className="btn-action" onClick={handleRename}>Rename</button>
           </div>
         </OperationForm>
 
@@ -322,7 +323,7 @@ export function DatabaseManagement() {
               value={mergeForm.target}
               onChange={(e) => setMergeForm(prev => ({ ...prev, target: e.target.value }))}
             />
-            <button onClick={handleMerge}>Merge</button>
+            <button className="btn-action" onClick={handleMerge}>Merge</button>
           </div>
         </OperationForm>
 
@@ -348,7 +349,7 @@ export function DatabaseManagement() {
               value={moveToIgnoreForm.name}
               onChange={(e) => setMoveToIgnoreForm({ name: e.target.value })}
             />
-            <button onClick={handleMoveToIgnore}>Move to Ignored</button>
+            <button className="btn-action" onClick={handleMoveToIgnore}>Move to Ignored</button>
           </div>
         </OperationForm>
 
@@ -368,7 +369,7 @@ export function DatabaseManagement() {
               value={moveFromIgnoreForm.target}
               onChange={(e) => setMoveFromIgnoreForm(prev => ({ ...prev, target: e.target.value }))}
             />
-            <button onClick={handleMoveFromIgnore}>Move</button>
+            <button className="btn-action" onClick={handleMoveFromIgnore}>Move</button>
           </div>
         </OperationForm>
 
@@ -381,7 +382,7 @@ export function DatabaseManagement() {
               onChange={(e) => setUndoForm({ pattern: e.target.value })}
             />
             <div className="button-row">
-              <button onClick={handleUndo}>Undo</button>
+              <button className="btn-action" onClick={handleUndo}>Undo</button>
               <button className="btn-secondary" onClick={handleShowRecentFiles}>
                 Show Recent Files
               </button>
@@ -412,10 +413,11 @@ export function DatabaseManagement() {
 
       {/* Status */}
       {status.message && (
-        <div className={`operation-status ${status.type}`}>
+        <div className={`status-message ${status.type}`}>
           {status.message}
         </div>
       )}
+      </div>
 
       {/* Datalists for autocomplete */}
       <datalist id="people-list">
@@ -434,8 +436,8 @@ export function DatabaseManagement() {
  */
 function OperationForm({ title, children }) {
   return (
-    <div className="operation-form">
-      <h5>{title}</h5>
+    <div className="section-card operation-form">
+      <h5 className="subsection-title">{title}</h5>
       {children}
     </div>
   );

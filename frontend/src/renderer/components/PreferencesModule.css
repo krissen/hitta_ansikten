@@ -1,93 +1,11 @@
 /**
  * PreferencesModule Styles
  *
- * Theme-aware styling using CSS variables from theme.css
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
  */
 
-.preferences-module {
-  display: flex;
-  height: 100%;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-}
-
-/* Sidebar */
-.prefs-sidebar {
-  width: 180px;
-  min-width: 180px;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border-medium);
-  padding: var(--space-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-}
-
-.prefs-sidebar h3 {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0;
-  padding-bottom: var(--space-xs);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.section-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-}
-
-.section-list li {
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-sm);
-  transition: background var(--transition-fast);
-}
-
-.section-list li:hover {
-  background: var(--bg-hover);
-}
-
-.section-list li.active {
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-  font-weight: 500;
-}
-
-.prefs-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  margin-top: auto;
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--border-subtle);
-}
-
-/* Content area */
-.prefs-content {
-  flex: 1;
-  padding: var(--space-lg);
-  overflow-y: auto;
-}
-
-.prefs-content h2 {
-  font-size: var(--font-lg);
-  font-weight: 600;
-  margin: 0 0 var(--space-lg) 0;
-  padding-bottom: var(--space-sm);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-/* Section header */
+/* Section header within content */
 .section-header {
   font-size: var(--font-base);
   font-weight: 600;
@@ -108,7 +26,7 @@
   line-height: 1.5;
 }
 
-/* Form fields */
+/* Form fields - preferences-specific */
 .pref-field {
   margin-bottom: var(--space-md);
 }
@@ -210,41 +128,6 @@
 .slider-group .number-input:focus {
   outline: none;
   border-color: var(--accent-primary);
-}
-
-/* Buttons */
-.btn {
-  padding: var(--space-sm) var(--space-md);
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: var(--font-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background var(--transition-fast), opacity var(--transition-fast);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-primary-hover);
-}
-
-.btn-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-medium);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--bg-hover);
 }
 
 /* Cache status */

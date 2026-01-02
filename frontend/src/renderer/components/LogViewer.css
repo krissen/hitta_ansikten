@@ -1,15 +1,12 @@
 /**
  * LogViewer Styles
  *
- * Uses CSS variables from theme.css for theming support
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
  */
 
+/* LogViewer-specific overrides */
 .log-viewer {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--font-sm);
   line-height: 1.3;
@@ -17,62 +14,12 @@
   -webkit-user-select: text;
 }
 
-.log-header {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-medium);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.log-header h3 {
-  margin: 0;
-  font-size: var(--font-md);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.log-controls {
-  display: flex;
-  gap: var(--space-sm);
-}
-
-.log-filter {
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-hover);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-sm);
-  cursor: pointer;
-}
-
-.log-filter:focus {
-  outline: 1px solid var(--accent-primary);
-}
-
-.btn-clear {
-  padding: var(--space-xs) var(--space-md);
-  background: var(--bg-hover);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-sm);
-  cursor: pointer;
-}
-
-.btn-clear:hover {
-  background: var(--bg-active);
-}
-
-.log-entries {
-  flex: 1;
-  overflow-y: auto;
+/* Log entries container - override module-body padding */
+.log-viewer .log-entries {
   padding: var(--space-xs);
 }
 
+/* Individual log entry with colored border */
 .log-entry {
   padding: 1px var(--space-sm);
   margin-bottom: 0;
@@ -100,7 +47,7 @@
 }
 
 .log-timestamp {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   flex-shrink: 0;
 }
 
@@ -110,11 +57,11 @@
 }
 
 .log-source.frontend {
-  color: var(--color-info);
+  color: var(--text-secondary);
 }
 
 .log-source.backend {
-  color: var(--accent-secondary);
+  color: var(--color-warning);
 }
 
 .log-level {
@@ -125,7 +72,7 @@
 }
 
 .log-level.info {
-  color: var(--color-info);
+  color: var(--text-primary);
 }
 
 .log-level.warn {
@@ -140,10 +87,4 @@
   color: var(--text-primary);
   flex: 1;
   min-width: 0;
-}
-
-.log-empty {
-  text-align: center;
-  padding: var(--space-2xl);
-  color: var(--text-secondary);
 }

@@ -30,13 +30,13 @@
 }
 
 .sync-indicator.synced {
-  background: rgba(76, 175, 80, 0.8);
-  color: white;
+  background: color-mix(in srgb, var(--color-success) 80%, transparent);
+  color: var(--text-inverse);
 }
 
 .sync-indicator.detached {
-  background: rgba(255, 152, 0, 0.8);
-  color: white;
+  background: color-mix(in srgb, var(--color-warning) 80%, transparent);
+  color: var(--text-inverse);
 }
 
 /* Placeholder */

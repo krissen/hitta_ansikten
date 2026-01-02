@@ -593,7 +593,7 @@ export function PreferencesModule({ api }) {
           {' '}({cacheStatus.usage_percent}%)
         </div>
       )}
-      <button className="btn btn-secondary" onClick={handleClearCache}>
+      <button className="btn-secondary" onClick={handleClearCache}>
         Clear Preprocessing Cache
       </button>
     </>
@@ -698,7 +698,7 @@ export function PreferencesModule({ api }) {
           ))}
         </div>
         <button
-          className="btn btn-secondary"
+          className="btn-secondary"
           onClick={() => {
             resetCategories();
             // Force re-render
@@ -712,14 +712,14 @@ export function PreferencesModule({ api }) {
   };
 
   return (
-    <div className="preferences-module">
-      <div className="prefs-sidebar">
-        <h3>Settings</h3>
-        <ul className="section-list">
+    <div className="module-container has-sidebar preferences-module">
+      <div className="module-sidebar">
+        <h3 className="sidebar-title">Settings</h3>
+        <ul className="item-list">
           {SECTIONS.map(section => (
             <li
               key={section.id}
-              className={activeSection === section.id ? 'active' : ''}
+              className={`list-item-nav ${activeSection === section.id ? 'active' : ''}`}
               onClick={() => setActiveSection(section.id)}
             >
               {section.label}
@@ -727,22 +727,22 @@ export function PreferencesModule({ api }) {
           ))}
         </ul>
 
-        <div className="prefs-actions">
+        <div className="sidebar-actions">
           <button
-            className="btn btn-primary"
+            className="btn-action"
             onClick={handleSave}
             disabled={!hasChanges}
           >
             Save
           </button>
-          <button className="btn btn-secondary" onClick={handleReset}>
+          <button className="btn-secondary" onClick={handleReset}>
             Reset
           </button>
         </div>
       </div>
 
-      <div className="prefs-content">
-        <h2>{SECTIONS.find(s => s.id === activeSection)?.label}</h2>
+      <div className="module-content">
+        <h2 className="content-title">{SECTIONS.find(s => s.id === activeSection)?.label}</h2>
         {renderSection()}
       </div>
     </div>

@@ -73,6 +73,12 @@ const ICONS = {
   ),
   'skip-previous': (
     <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+  ),
+  bolt: (
+    <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+  ),
+  circle: (
+    <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="2"/>
   )
 };
 

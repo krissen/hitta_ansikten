@@ -138,7 +138,7 @@ export function ImageViewer() {
     if (!canvasRef.current || !image) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d', { alpha: false });
+    const ctx = canvas.getContext('2d');  // Allow transparency for themed background
     const dpr = window.devicePixelRatio || 1;
 
     const canvasWidth = dimensions.width;

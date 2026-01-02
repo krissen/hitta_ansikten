@@ -224,7 +224,7 @@ export function FileQueueModule() {
       debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
       // Show error toast for preprocessing failure
       const fileName = filePath.split('/').pop();
-      showToast(`❌ Preprocessing failed: ${fileName}`, 'error', 4000);
+      showToast(`Preprocessing failed: ${fileName}`, 'error', 4000);
     };
 
     const handleFileNotFound = ({ filePath }) => {
@@ -408,7 +408,7 @@ export function FileQueueModule() {
         preprocessingStatus[item.filePath] === PreprocessingStatus.COMPLETED
       ).length;
       if (completedCount > 0) {
-        showToast(`⚡ Preprocessing complete (${completedCount} files cached)`, 'success', 3000);
+        showToast(`Preprocessing complete (${completedCount} files cached)`, 'success', 3000);
       }
     }
 
@@ -450,7 +450,7 @@ export function FileQueueModule() {
       if (queue.length > 0) {
         const pending = queue.filter(q => q.status === 'pending').length;
         if (pending > 0) {
-          queueToast(`📁 ${queue.length} files in queue (${pending} pending)`, 'info', 3000);
+          queueToast(`${queue.length} files in queue (${pending} pending)`, 'info', 3000);
         }
       }
 
@@ -458,7 +458,7 @@ export function FileQueueModule() {
       try {
         const stats = await api.get('/api/management/stats');
         if (stats && stats.unique_persons > 0) {
-          queueToast(`👤 ${stats.unique_persons} known faces loaded`, 'info', 3000);
+          queueToast(`${stats.unique_persons} known faces loaded`, 'info', 3000);
         }
       } catch (err) {
         // Non-fatal - skip this toast
@@ -530,7 +530,7 @@ export function FileQueueModule() {
     if (newItems.length > 0) {
       const dupeCount = newItems.length - addedCount;
       if (addedCount > 0) {
-        let msg = `📁 Added ${addedCount} file${addedCount !== 1 ? 's' : ''} to queue`;
+        let msg = `Added ${addedCount} file${addedCount !== 1 ? 's' : ''} to queue`;
         if (dupeCount > 0) {
           msg += ` (${dupeCount} already in queue)`;
         }
@@ -538,8 +538,8 @@ export function FileQueueModule() {
       } else if (dupeCount > 0) {
         // All files were duplicates
         const msg = dupeCount === 1
-          ? '📁 File already in queue'
-          : `📁 All ${dupeCount} files already in queue`;
+          ? 'File already in queue'
+          : `All ${dupeCount} files already in queue`;
         showToast(msg, 'info', 2500);
       }
     }
@@ -952,7 +952,7 @@ export function FileQueueModule() {
       }
 
       // Show toast notification
-      let message = `✓ Renamed ${renamedCount} file(s)`;
+      let message = `Renamed ${renamedCount} file(s)`;
       if (skippedCount > 0) message += ` · ${skippedCount} skipped`;
       if (errorCount > 0) message += ` · ${errorCount} error(s)`;
       showToast(message, errorCount > 0 ? 'warning' : 'success');
@@ -1002,9 +1002,9 @@ export function FileQueueModule() {
 
       // Show toast for review result
       if (success) {
-        showToast(`✓ Saved review for ${fileName} (${faceCount} face${faceCount !== 1 ? 's' : ''})`, 'success', 2500);
+        showToast(`Saved review for ${fileName} (${faceCount} face${faceCount !== 1 ? 's' : ''})`, 'success', 2500);
       } else {
-        showToast(`❌ Failed to save review for ${fileName}`, 'error', 4000);
+        showToast(`Failed to save review for ${fileName}`, 'error', 4000);
       }
 
       // Clear preview data when queue changes (force re-fetch)
@@ -1212,27 +1212,27 @@ export function FileQueueModule() {
   const hasSelection = selectedFiles.size > 0;
 
   return (
-    <div ref={moduleRef} className={`file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
+    <div ref={moduleRef} className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''}`} tabIndex={0}>
       {/* Header */}
-      <div className="file-queue-header">
-        <span className="file-queue-title">File Queue</span>
+      <div className="module-header">
+        <span className="module-title">File Queue</span>
         <div className="file-queue-actions">
           <button
-            className="file-queue-btn add"
+            className="btn-icon"
             onClick={openFileDialog}
             title="Add files"
           >
             <Icon name="plus" size={14} />
           </button>
           <button
-            className="file-queue-btn folder"
+            className="btn-icon"
             onClick={openFolderDialog}
             title="Add folder"
           >
             <Icon name="folder-plus" size={14} />
           </button>
           <button
-            className="file-queue-btn settings"
+            className="btn-icon"
             onClick={() => setAutoAdvance(!autoAdvance)}
             title={autoAdvance ? 'Auto-advance ON' : 'Auto-advance OFF'}
           >
@@ -1265,7 +1265,7 @@ export function FileQueueModule() {
           <>
             {selectedFiles.size > 0 && (
               <button
-                className="clear-btn"
+                className="btn-secondary"
                 onClick={clearSelected}
                 title="Clear selected files"
               >
@@ -1274,7 +1274,7 @@ export function FileQueueModule() {
             )}
             {completedCount > 0 && selectedFiles.size === 0 && (
               <button
-                className="clear-btn"
+                className="btn-secondary"
                 onClick={clearCompleted}
                 title="Clear completed files"
               >
@@ -1282,7 +1282,7 @@ export function FileQueueModule() {
               </button>
             )}
             <button
-              className="clear-btn clear-all"
+              className="btn-secondary"
               onClick={clearQueue}
               title="Clear all files from queue"
             >
@@ -1293,9 +1293,9 @@ export function FileQueueModule() {
       </div>
 
       {/* File list */}
-      <div ref={listRef} className="file-queue-list">
+      <div ref={listRef} className="module-body file-queue-list">
         {queue.length === 0 ? (
-          <div className="file-queue-empty">
+          <div className="empty-state">
             <p>No files in queue</p>
             <p className="hint">Click + to add files</p>
           </div>
@@ -1322,7 +1322,7 @@ export function FileQueueModule() {
 
       {/* Footer with progress */}
       {queue.length > 0 && (
-        <div className="file-queue-footer">
+        <div className="module-footer file-queue-footer">
           <div className="file-queue-progress">
             <span className="progress-text">
               {completedCount}/{queue.length}
@@ -1337,7 +1337,7 @@ export function FileQueueModule() {
           <div className="file-queue-controls">
             {completedCount > 0 && (
               <button
-                className="control-btn rename"
+                className="btn-secondary"
                 onClick={handleRename}
                 disabled={renameInProgress}
                 title="Rename files based on detected faces"
@@ -1346,7 +1346,7 @@ export function FileQueueModule() {
               </button>
             )}
             {currentIndex >= 0 ? (
-              <button className="control-btn" onClick={skipCurrent}>
+              <button className="btn-secondary" onClick={skipCurrent}>
                 Skip <Icon name="skip-next" size={12} />
               </button>
             ) : queue.some(q => {
@@ -1355,7 +1355,7 @@ export function FileQueueModule() {
               if (!fixMode && q.isAlreadyProcessed) return false;
               return true;
             }) ? (
-              <button className="control-btn start" onClick={() => {
+              <button className="btn-action" onClick={() => {
                 const firstEligible = queue.findIndex(q => {
                   if (q.status !== 'pending') return false;
                   if (!fixMode && q.isAlreadyProcessed) return false;
@@ -1407,13 +1407,13 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
         if (item.isAlreadyProcessed) {
           if (fixMode) {
             // Fix-mode ON: same icon as pending, but with green tint
-            return <span className="status-icon pending-reprocess">○</span>;
+            return <span className="status-icon pending-reprocess"><Icon name="circle" size={12} /></span>;
           } else {
             // Fix-mode OFF: checkmark to show "already done"
             return <span className="status-icon already-done"><Icon name="check" size={12} /></span>;
           }
         }
-        return <span className="status-icon pending">○</span>;
+        return <span className="status-icon pending"><Icon name="circle" size={12} /></span>;
     }
   };
 
@@ -1443,7 +1443,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
     }
     // Show checkmark for completed preprocessing
     if (ppStatus === PreprocessingStatus.COMPLETED) {
-      return <span className="preprocess-indicator completed" title="Cached">⚡</span>;
+      return <Icon name="bolt" size={14} className="preprocess-indicator completed" title="Cached" />;
     }
     if (ppStatus === PreprocessingStatus.FILE_NOT_FOUND) {
       return null; // Status already shown in main icon
@@ -1452,7 +1452,7 @@ function FileQueueItem({ item, index, isActive, isSelected, onClick, onDoubleCli
       return <span className="preprocess-indicator error" title="Preprocessing failed">!</span>;
     }
     // Show spinner for any in-progress state
-    return <span className="preprocess-indicator loading" title={`Preprocessing: ${ppStatus}`}>⟳</span>;
+    return <Icon name="refresh" size={14} className="preprocess-indicator loading" title={`Preprocessing: ${ppStatus}`} />;
   };
 
   // Truncate filename for display (Unicode-safe, preserves extension)

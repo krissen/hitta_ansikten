@@ -1,79 +1,28 @@
 /**
  * ThemeEditor Styles
+ *
+ * Module-specific styles only.
+ * Layout and common elements use centralized classes from theme.css
  */
 
-.theme-editor {
-  display: flex;
-  height: 100%;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-}
-
-.theme-editor-sidebar {
+/* Wider sidebar for ThemeEditor */
+.theme-editor .module-sidebar {
   width: 220px;
   min-width: 220px;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border-medium);
-  padding: var(--space-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  overflow-y: auto;
 }
 
-.theme-editor-sidebar h3 {
-  font-size: var(--font-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 0;
-  padding-bottom: var(--space-xs);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.category-list,
-.preset-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.category-list li,
-.preset-list li {
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-sm);
-  transition: background var(--transition-fast);
-}
-
-.category-list li:hover,
-.preset-list li:hover {
-  background: var(--bg-hover);
-}
-
-.category-list li.active {
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-  font-weight: 500;
-}
-
-.preset-list li.custom-preset {
+/* Custom preset delete button */
+.preset-list .custom-preset {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.preset-list li.custom-preset span {
+.preset-list .custom-preset span {
   flex: 1;
 }
 
-.preset-list li.custom-preset button {
+.preset-list .custom-preset button {
   background: none;
   border: none;
   color: var(--text-tertiary);
@@ -82,117 +31,32 @@
   font-size: var(--font-sm);
 }
 
-.preset-list li.custom-preset button:hover {
+.preset-list .custom-preset button:hover {
   color: var(--color-error);
 }
 
-.preset-actions {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
+/* Save preset row */
 .save-preset {
   display: flex;
   gap: var(--space-xs);
 }
 
-.save-preset input {
+.save-preset .form-input {
   flex: 1;
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-sm);
+  max-width: none;
 }
 
-.save-preset input:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-}
-
-.save-preset button,
-.preset-buttons button {
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-sm);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.save-preset button:hover:not(:disabled),
-.preset-buttons button:hover {
-  background: var(--bg-hover);
-}
-
-.save-preset button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
+/* Preset buttons row */
 .preset-buttons {
   display: flex;
   gap: var(--space-xs);
 }
 
-.preset-buttons button {
+.preset-buttons .btn-secondary {
   flex: 1;
 }
 
-/* Main content area */
-.theme-editor-content {
-  flex: 1;
-  padding: var(--space-lg);
-  overflow-y: auto;
-}
-
-.theme-editor-content h2 {
-  font-size: var(--font-lg);
-  font-weight: 600;
-  margin: 0 0 var(--space-lg) 0;
-  padding-bottom: var(--space-sm);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-/* Theme mode selector */
-.theme-mode-selector {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  max-width: 300px;
-}
-
-.theme-mode-selector label {
-  font-weight: 500;
-}
-
-.theme-mode-selector select {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--font-base);
-  cursor: pointer;
-}
-
-.theme-mode-selector select:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-}
-
-.theme-mode-hint {
-  font-size: var(--font-sm);
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-/* Theme mode section (mode selector + preset bindings) */
+/* Theme mode section layout */
 .theme-mode-section {
   display: flex;
   flex-direction: column;
@@ -200,23 +64,9 @@
   max-width: 400px;
 }
 
-/* Preset bindings */
-.preset-bindings {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-}
-
-.preset-bindings h4 {
-  font-size: var(--font-base);
-  font-weight: 600;
-  margin: 0 0 var(--space-xs) 0;
-}
-
-.binding-hint {
-  font-size: var(--font-sm);
-  color: var(--text-secondary);
-  margin: 0 0 var(--space-md) 0;
+/* Preset bindings - additional styling */
+.preset-bindings .hint-text {
+  margin-bottom: var(--space-md);
 }
 
 .binding-row {
@@ -231,25 +81,12 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.binding-row label {
-  font-size: var(--font-sm);
-  color: var(--text-primary);
+.binding-row .form-label {
+  margin-bottom: 0;
 }
 
-.binding-row select {
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: var(--font-sm);
+.binding-row .form-select {
   min-width: 140px;
-  cursor: pointer;
-}
-
-.binding-row select:focus {
-  outline: none;
-  border-color: var(--accent-primary);
 }
 
 /* Variable grid */

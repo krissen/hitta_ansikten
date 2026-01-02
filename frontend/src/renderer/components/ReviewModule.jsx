@@ -561,12 +561,12 @@ export function ReviewModule() {
   }, []));
 
   return (
-    <div ref={moduleRef} className="review-module" tabIndex={-1}>
-      <div className="review-header">
+    <div ref={moduleRef} className="module-container review-module" tabIndex={-1}>
+      <div className="module-header review-header">
         <div className="review-status">{status}</div>
       </div>
 
-      <div ref={gridRef} className="face-grid">
+      <div ref={gridRef} className="module-body face-grid">
         {isLoading ? (
           <div className="loading">Detecting faces...</div>
         ) : detectedFaces.length === 0 ? (
@@ -650,14 +650,10 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
       </div>
 
       <div className="face-info">
-        {face.is_manual ? (
-          <div className="face-confidence manual">Manual entry</div>
-        ) : (
-          <div className="face-confidence">
-            {((face.confidence || 0) * 100).toFixed(0)}%
-          </div>
-        )}
         {/* Match case indicator */}
+        {face.is_manual && (
+          <div className="match-case manual">Manual entry</div>
+        )}
         {face.match_case === 'ign' && !face.is_confirmed && (
           <div className="match-case probable-ignore">Probable ignore</div>
         )}
@@ -685,7 +681,7 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
                 onSelectAlternative?.(alt.name);
               }}
             >
-              <span className="alt-key">{idx + 1}</span>
+              <span className="kbd">{idx + 1}</span>
               <span className="alt-name">{alt.name}</span>
               <span className="alt-conf">{alt.confidence}%</span>
             </div>

@@ -123,7 +123,7 @@
     }
 
     .flexlayout__tab_button--unselected:hover {
-      background-color: var(--bg-hover);
+      background-color: var(--bg-elevated);
       color: var(--text-primary);
     }
 
@@ -155,10 +155,22 @@
       background-color: var(--bg-tertiary);
     }
 
-    /* Remove focus outline */
-    .flexlayout__tab:focus,
-    .flexlayout__tabset:focus {
-      outline: none;
+    /* Remove ALL focus outlines from workspace elements */
+    .flexlayout__layout *:focus,
+    .module-container:focus,
+    .module-container *:focus,
+    .image-viewer:focus,
+    .review-module:focus,
+    [tabindex]:focus,
+    [class*="flexlayout"]:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    /* Use focus-visible for keyboard nav only (accessibility) */
+    .flexlayout__tab_button:focus-visible {
+      outline: 2px solid var(--accent-primary);
+      outline-offset: 2px;
     }
 
     /* Global toast notifications */
