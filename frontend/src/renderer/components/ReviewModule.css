@@ -112,7 +112,7 @@
 
 .face-confidence {
   font-weight: 600;
-  color: var(--accent-primary);
+  color: var(--text-on-accent);
 }
 
 .face-confidence.manual {
@@ -217,6 +217,10 @@
   background: var(--color-success-bg);
 }
 
+.alt-chip.recommended .alt-conf {
+  color: var(--text-on-accent);
+}
+
 .alt-chip.ignored {
   opacity: 0.7;
 }
@@ -244,7 +248,7 @@
 }
 
 .alt-chip .alt-conf {
-  color: var(--accent-primary);
+  color: var(--text-primary);
   font-size: var(--font-xs);
   flex-shrink: 0;
 }

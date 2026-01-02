@@ -30,7 +30,7 @@
 
 .file-queue-title {
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-inverse);
 }
 
 .file-queue-actions {
@@ -57,29 +57,32 @@
 
 .file-queue-btn.add {
   background: var(--bg-hover);
-  color: var(--text-primary);
+  color: var(--text-inverse);
 }
 
 .file-queue-btn.add:hover {
   background: var(--bg-active);
+  color: var(--text-inverse);
 }
 
 .file-queue-btn.folder {
   background: var(--bg-hover);
-  color: var(--text-primary);
+  color: var(--text-inverse);
 }
 
 .file-queue-btn.folder:hover {
   background: var(--bg-active);
+  color: var(--text-inverse);
 }
 
 .file-queue-btn.settings {
   background: var(--bg-hover);
-  color: var(--text-primary);
+  color: var(--text-inverse);
 }
 
 .file-queue-btn.settings:hover {
   background: var(--bg-active);
+  color: var(--text-inverse);
 }
 
 /* Toolbar */
@@ -258,7 +261,7 @@
 }
 
 .status-icon.completed {
-  color: var(--color-success);
+  color: var(--text-on-accent);
 }
 
 .status-icon.active {
@@ -273,14 +276,14 @@
 
 /* Already processed, fix-mode OFF: muted gray-green checkmark */
 .status-icon.already-done {
-  color: var(--color-success);
-  opacity: 0.6;
+  color: var(--text-on-accent);
+  opacity: 0.75;
 }
 
 /* Already processed, fix-mode ON: gray with green tint (ready to reprocess) */
 .status-icon.pending-reprocess {
-  color: var(--color-success);
-  opacity: 0.5;
+  color: var(--text-on-accent);
+  opacity: 0.6;
 }
 
 .status-icon.error {
@@ -295,7 +298,7 @@
 .file-status {
   flex-shrink: 0;
   font-size: var(--font-sm);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   width: 65px;
   text-align: right;
 }
@@ -353,14 +356,14 @@
 .progress-bar {
   flex: 1;
   height: 6px;
-  background: var(--border-medium);
+  background: var(--bg-elevated);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: var(--color-success);
+  background: var(--accent-primary);
   transition: width var(--transition-slow);
 }
 
@@ -412,12 +415,12 @@
 }
 
 .preprocess-indicator.loading {
-  color: var(--color-warning);
+  color: var(--text-on-accent);
   animation: spin 1s linear infinite;
 }
 
 .preprocess-indicator.completed {
-  color: var(--color-success);
+  color: var(--text-on-accent);
 }
 
 .preprocess-indicator.error {
@@ -505,13 +508,13 @@
 
 .file-item.completed .face-count {
   background: var(--color-success-bg);
-  color: var(--color-success);
+  color: var(--text-on-accent);
 }
 
 .file-item.already-processed:not(.completed) .face-count {
   background: var(--color-success-bg);
-  color: var(--color-success);
-  opacity: 0.8;
+  color: var(--text-on-accent);
+  opacity: 0.9;
 }
 
 /* Unified tooltip */
