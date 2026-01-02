@@ -23,12 +23,12 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, var(--overlay-opacity));
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #f0f0f0; /* Always light text on dark overlay */
+  color: var(--text-inverse);
   font-size: var(--font-lg);
   z-index: var(--z-modal);
 }

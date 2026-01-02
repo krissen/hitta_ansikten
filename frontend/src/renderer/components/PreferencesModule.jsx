@@ -148,7 +148,12 @@ export function PreferencesModule({ api }) {
 
   // Load preferences on mount
   useEffect(() => {
-    setPrefs(preferences.getAll());
+    const loadedPrefs = preferences.getAll();
+    setPrefs(loadedPrefs);
+    // Apply toast opacity on load
+    if (loadedPrefs.notifications?.toastOpacity !== undefined) {
+      document.documentElement.style.setProperty('--toast-opacity', String(loadedPrefs.notifications.toastOpacity));
+    }
   }, []);
 
   // Update a preference value
@@ -171,6 +176,10 @@ export function PreferencesModule({ api }) {
   const handleSave = useCallback(() => {
     preferences.setAll(prefs);
     themeManager.setPreference(prefs.ui.theme);
+    // Apply toast opacity if set
+    if (prefs.notifications?.toastOpacity !== undefined) {
+      document.documentElement.style.setProperty('--toast-opacity', String(prefs.notifications.toastOpacity));
+    }
     window.dispatchEvent(new CustomEvent('preferences-changed'));
     setHasChanges(false);
     debug('PreferencesModule', 'Preferences saved');
@@ -458,6 +467,18 @@ export function PreferencesModule({ api }) {
           { value: '1.5', label: 'Long (6s)' },
           { value: '2.0', label: 'Very long (8s)' }
         ]}
+      />
+      <SliderField
+        label="Toast opacity"
+        hint="Opacity of toast notifications (0.5 = 50%, 1.0 = 100%)"
+        value={prefs.notifications?.toastOpacity ?? 0.94}
+        onChange={(v) => {
+          updatePref('notifications.toastOpacity', v);
+          document.documentElement.style.setProperty('--toast-opacity', String(v));
+        }}
+        min={0.5}
+        max={1.0}
+        step={0.01}
       />
 
       <SectionHeader title="File Rename" />

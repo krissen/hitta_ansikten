@@ -181,7 +181,7 @@
       box-shadow: var(--shadow-lg);
       max-width: 340px;
       pointer-events: auto;
-      opacity: 0.94;
+      opacity: var(--toast-opacity);
       animation: toast-slide-in var(--transition-slow) forwards;
       transition: transform var(--transition-slow), opacity var(--transition-slow);
     }
@@ -216,14 +216,14 @@
         transform: translateX(30px);
       }
       to {
-        opacity: 0.94;
+        opacity: var(--toast-opacity);
         transform: translateX(0);
       }
     }
 
     @keyframes toast-slide-out {
       from {
-        opacity: 0.94;
+        opacity: var(--toast-opacity);
         transform: translateX(0);
       }
       to {

@@ -149,6 +149,10 @@
   --z-sticky: 200;
   --z-modal: 1000;
   --z-tooltip: 2000;
+
+  /* Opacity Values */
+  --toast-opacity: 0.94;
+  --overlay-opacity: 0.7;
 }
 
 /* ===========================
