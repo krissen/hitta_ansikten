@@ -40,6 +40,7 @@ class CacheEntry:
     nef_jpg_path: Optional[str] = None
     faces_json_path: Optional[str] = None
     thumbnails: Optional[List[str]] = None
+    grid_thumb_path: Optional[str] = None
 
 
 class PreprocessingCache:
@@ -53,9 +54,11 @@ class PreprocessingCache:
     │   └── {hash}.jpg
     ├── faces/                # Face detection results
     │   └── {hash}.json
-    └── thumbs/               # Face thumbnails
-        └── {hash}/
-            └── face_{n}.jpg
+    ├── thumbs/               # Face thumbnails
+    │   └── {hash}/
+    │       └── face_{n}.jpg
+    └── grid/                 # Whole-frame overview thumbnails
+        └── {grid_key}.jpg
     """
 
     DEFAULT_CACHE_DIR = Path.home() / '.cache' / 'ansikten'
@@ -73,6 +76,7 @@ class PreprocessingCache:
         self.nef_dir = self.cache_dir / 'nef'
         self.faces_dir = self.cache_dir / 'faces'
         self.thumbs_dir = self.cache_dir / 'thumbs'
+        self.grid_dir = self.cache_dir / 'grid'
 
         # Index buffering state
         self._index_dirty = False
@@ -96,7 +100,7 @@ class PreprocessingCache:
 
     def _ensure_dirs(self):
         """Create cache directories if they don't exist."""
-        for dir_path in [self.cache_dir, self.nef_dir, self.faces_dir, self.thumbs_dir]:
+        for dir_path in [self.cache_dir, self.nef_dir, self.faces_dir, self.thumbs_dir, self.grid_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
     def _load_index(self) -> Dict[str, CacheEntry]:
@@ -233,6 +237,50 @@ class PreprocessingCache:
             for chunk in iter(lambda: f.read(8192), b''):
                 sha1.update(chunk)
         return sha1.hexdigest()
+
+    @staticmethod
+    def compute_grid_key(file_path: str, size: int) -> str:
+        """
+        Cheap cache key for an overview thumbnail.
+
+        Unlike compute_file_hash (which reads the whole file to SHA1 its
+        content), this keys on: absolute path, file mtime (ns), file size
+        (bytes), and the requested thumbnail size (px) — all from a single
+        os.stat, no file read. Filling a grid means keying hundreds of files
+        per view, so we avoid reading every file. An in-place re-export changes
+        the mtime, so the key changes and a fresh thumbnail is generated
+        automatically.
+        """
+        st = os.stat(file_path)
+        raw = f"{os.path.abspath(file_path)}|{st.st_mtime_ns}|{st.st_size}|{size}"
+        return "grid_" + hashlib.sha1(raw.encode('utf-8')).hexdigest()
+
+    def has_grid_thumb(self, grid_key: str) -> bool:
+        """Check if an overview thumbnail exists in cache."""
+        entry = self.index.get(grid_key)
+        if entry and entry.grid_thumb_path:
+            return Path(entry.grid_thumb_path).exists()
+        return False
+
+    def get_grid_thumb(self, grid_key: str) -> Optional[str]:
+        """Get path to a cached overview thumbnail."""
+        entry = self.get_entry(grid_key)
+        if entry and entry.grid_thumb_path and Path(entry.grid_thumb_path).exists():
+            return entry.grid_thumb_path
+        return None
+
+    def store_grid_thumb(self, grid_key: str, original_path: str, jpg_data: bytes) -> str:
+        """Store an overview thumbnail in cache."""
+        jpg_path = self.grid_dir / f'{grid_key}.jpg'
+
+        with open(jpg_path, 'wb') as f:
+            f.write(jpg_data)
+
+        self._update_entry(grid_key, original_path, grid_thumb_path=str(jpg_path))
+        self._enforce_size_limit()
+
+        logger.debug(f"[PreprocessingCache] Stored grid thumbnail: {grid_key}")
+        return str(jpg_path)
 
     def get_entry(self, file_hash: str) -> Optional[CacheEntry]:
         """Get cache entry by file hash, updating last_accessed."""
@@ -371,6 +419,9 @@ class PreprocessingCache:
                 if Path(path).exists():
                     total += Path(path).stat().st_size
 
+        if entry.grid_thumb_path and Path(entry.grid_thumb_path).exists():
+            total += Path(entry.grid_thumb_path).stat().st_size
+
         return total
 
     def get_total_size(self) -> int:
@@ -457,6 +508,12 @@ class PreprocessingCache:
                     thumb_dir.rmdir()
                 except OSError:
                     pass
+
+        if entry.grid_thumb_path:
+            try:
+                Path(entry.grid_thumb_path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
     def remove_entry(self, file_hash: str) -> bool:
         """Remove a specific cache entry."""

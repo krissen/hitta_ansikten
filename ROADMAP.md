@@ -18,7 +18,12 @@ deliverables, DoD) för en prestandarelease.
 
 ### Nu
 
-(Inget pågående just nu.)
+- [ ] **Gallra spelare — thumbnailvy (översiktsläge)** — pågår, uppdelad i två
+  PR:ar. **PR 1 (klar/på granskning):** översiktsthumbnail-endpoint
+  `GET /api/v1/preprocessing/preview-thumb` + `grid/`-cache-kind +
+  klient-cache (`grid-thumbnail-cache.js`). **PR 2 (kvar):** själva rutnäts-UI:t
+  (komponent, läges-toggle, 2D-navigering, per-spelare-highlight, läges-
+  övergångar). Fullständig spec under *Kort/Mellan sikt* nedan.
 
 ### Kort sikt
 

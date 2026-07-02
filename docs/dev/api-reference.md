@@ -523,6 +523,24 @@ Generate face thumbnails with caching.
 
 Run all preprocessing steps.
 
+### `GET /api/v1/preprocessing/preview-thumb`
+
+Whole-frame overview thumbnail (JPEG) for the culling grid. Downscales a JPEG or
+RAW file to `size` px on the longest edge. RAW files use the embedded preview
+(fast) with a full-decode fallback; EXIF orientation is honoured.
+
+**Query parameters:**
+- `path` — absolute path to the source image
+- `size` — longest-edge size in px (default `256`, clamped to `32`–`1024`)
+
+**Response:** `image/jpeg` bytes, with `Cache-Control: public, max-age=604800`
+and `X-Cache: HIT|MISS`.
+
+Cached under `~/.cache/ansikten/grid/`, keyed on a cheap path + mtime + size
+fingerprint (no full-file hashing), so an in-place re-export refreshes the
+thumbnail automatically. Errors: `404` (missing file), `400` (path is a
+directory).
+
 ---
 
 ## Files
