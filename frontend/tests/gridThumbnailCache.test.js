@@ -116,4 +116,20 @@ describe('GridThumbnailCache', () => {
     expect(global.URL.revokeObjectURL).toHaveBeenCalledTimes(2);
     expect(cache.getStats().size).toBe(0);
   });
+
+  it("clear() during an in-flight fetch doesn't repopulate the cache", async () => {
+    let resolveBlob;
+    global.fetch = vi.fn(() => new Promise((res) => {
+      resolveBlob = () => res({ ok: true, blob: async () => ({ size: 42 }) });
+    }));
+    const cache = new GridThumbnailCache(10);
+
+    const p = cache.getThumbnail('/p/a.jpg', 256, 'fp');
+    cache.clear();          // clears while the fetch is still pending
+    resolveBlob();
+    await p;
+
+    expect(cache.getStats().size).toBe(0);                 // not repopulated
+    expect(global.URL.revokeObjectURL).toHaveBeenCalled(); // the late blob was revoked
+  });
 });

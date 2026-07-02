@@ -26,6 +26,9 @@ export class GridThumbnailCache {
     // same thumbnail share one fetch/blob URL instead of racing (which would
     // leak the loser's blob URL and push duplicate keys into accessOrder).
     this.inflight = new Map();
+    // Bumped on clear(); a fetch that resolves after a clear() checks this and
+    // revokes its blob URL instead of repopulating the just-cleared cache.
+    this.generation = 0;
   }
 
   _getCacheKey(imagePath, size, fingerprint) {
@@ -58,6 +61,7 @@ export class GridThumbnailCache {
   }
 
   async _fetchAndCache(key, imagePath, size, fingerprint) {
+    const startGeneration = this.generation;
     const url = new URL('/api/v1/preprocessing/preview-thumb', apiClient.baseUrl);
     url.searchParams.set('path', imagePath);
     url.searchParams.set('size', size);
@@ -78,6 +82,13 @@ export class GridThumbnailCache {
         throw new Error('Empty thumbnail response');
       }
       const blobUrl = URL.createObjectURL(blob);
+
+      // If the cache was cleared while this fetch was in flight, don't
+      // repopulate it — revoke the just-created URL and return it unowned.
+      if (this.generation !== startGeneration) {
+        URL.revokeObjectURL(blobUrl);
+        return blobUrl;
+      }
 
       this._enforceLimit();
 
@@ -118,6 +129,9 @@ export class GridThumbnailCache {
     }
     this.cache.clear();
     this.accessOrder = [];
+    // Invalidate in-flight fetches so their results are revoked, not cached.
+    this.inflight.clear();
+    this.generation += 1;
     debug('GridThumbnailCache', 'Cache cleared');
   }
 
