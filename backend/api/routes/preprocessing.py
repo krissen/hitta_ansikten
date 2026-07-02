@@ -349,10 +349,11 @@ def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
 
     if img is None:
         # Context manager so the file handle is released promptly (matters on
-        # Windows, where an open fd can block a later rename/delete).
+        # Windows, where an open fd can block a later rename/delete). copy() gives
+        # an image independent of the closed file, so the processing below is safe.
         with Image.open(file_path) as opened:
             opened.load()
-            img = opened
+            img = opened.copy()
 
     img = ImageOps.exif_transpose(img)
     img = img.convert('RGB')
