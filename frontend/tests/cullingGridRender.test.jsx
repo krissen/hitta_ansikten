@@ -19,7 +19,10 @@ beforeEach(() => {
   // Save/restore the real global — vi.restoreAllMocks() doesn't revert a plain
   // `global.fetch = ...` assignment, which would leak into other test files.
   originalFetch = global.fetch;
-  global.fetch = vi.fn(async () => { throw new Error('no network in test'); });
+  // Never-resolving so useGridThumbnail doesn't fire an async state update after
+  // the assertions (which would warn about updates outside act()). These tests
+  // only assert structure/classes, not the loaded image.
+  global.fetch = vi.fn(() => new Promise(() => {}));
 });
 
 afterEach(() => {
