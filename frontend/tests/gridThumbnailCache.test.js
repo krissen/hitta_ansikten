@@ -73,6 +73,20 @@ describe('GridThumbnailCache', () => {
     expect(global.fetch.mock.calls[0][0]).not.toContain('v=');
   });
 
+  it('falls back to the default size for a non-finite size', async () => {
+    const cache = new GridThumbnailCache(10);
+    await cache.getThumbnail('/p/a.jpg', NaN, 'fp');
+    const calledUrl = global.fetch.mock.calls[0][0];
+    expect(calledUrl).toContain('size=256');
+    expect(calledUrl).not.toContain('NaN');
+  });
+
+  it('guards a bad maxSize (0/negative/non-numeric) to the default', () => {
+    expect(new GridThumbnailCache(0).getStats().maxSize).toBe(400);
+    expect(new GridThumbnailCache(-5).getStats().maxSize).toBe(400);
+    expect(new GridThumbnailCache('x').getStats().maxSize).toBe(400);
+  });
+
   it('evicts and revokes the least-recently-used entry past maxSize', async () => {
     const cache = new GridThumbnailCache(2);
     await cache.getThumbnail('/p/a.jpg', 256, 'fp'); // blob:0

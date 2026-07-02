@@ -20,7 +20,8 @@ import { apiClient } from './api-client.js';
 export class GridThumbnailCache {
   constructor(maxSize = 400) {
     this.cache = new Map();
-    this.maxSize = maxSize;
+    // Guard against a bad cap (0/negative/non-numeric) that would break LRU.
+    this.maxSize = Number.isFinite(maxSize) && maxSize > 0 ? Math.floor(maxSize) : 400;
     this.accessOrder = [];
     // In-flight fetches, keyed like the cache, so concurrent requests for the
     // same thumbnail share one fetch/blob URL instead of racing (which would
@@ -45,7 +46,9 @@ export class GridThumbnailCache {
   async getThumbnail(imagePath, size = 256, fingerprint) {
     // Clamp to the backend's accepted range so the cache key matches the size
     // actually served (an out-of-range value is clamped server-side otherwise).
-    size = Math.max(32, Math.min(1024, Math.round(size)));
+    // A non-finite size falls back to the default rather than becoming NaN.
+    const n = Number(size);
+    size = Number.isFinite(n) ? Math.max(32, Math.min(1024, Math.round(n))) : 256;
     const key = this._getCacheKey(imagePath, size, fingerprint);
 
     if (this.cache.has(key)) {
@@ -58,7 +61,9 @@ export class GridThumbnailCache {
     if (pending) return pending;
 
     const promise = this._fetchAndCache(key, imagePath, size, fingerprint)
-      .finally(() => { this.inflight.delete(key); });
+      // Only clear our own entry — a clear()+re-request could have replaced it
+      // with a newer promise for the same key.
+      .finally(() => { if (this.inflight.get(key) === promise) this.inflight.delete(key); });
     this.inflight.set(key, promise);
     return promise;
   }
