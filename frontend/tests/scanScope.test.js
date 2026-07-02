@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad, takeExternalLoad } from '../src/renderer/shared/scanScope.js';
+
+const STORAGE_KEY = 'ansikten.scanScope';
 
 describe('scanScope store', () => {
   beforeEach(() => setScanScope(null));
@@ -21,6 +23,41 @@ describe('scanScope store', () => {
     setScanScope({ roots: ['/a'], globs: [] });
     setScanScope(null);
     expect(getScanScope()).toBeNull();
+  });
+});
+
+describe('scanScope persistence (survives a renderer reload)', () => {
+  beforeEach(() => setScanScope(null));
+
+  it('setScanScope writes the scope to sessionStorage', () => {
+    setScanScope({ roots: ['/a'], globs: ['*.jpg'], recursive: true, date_from: null, date_to: null, extension_preset: 'jpg' });
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    expect(raw).toBeTruthy();
+    expect(JSON.parse(raw)).toMatchObject({ roots: ['/a'], globs: ['*.jpg'], extension_preset: 'jpg' });
+  });
+
+  it('setScanScope(null) removes the sessionStorage key', () => {
+    setScanScope({ roots: ['/a'], globs: [] });
+    setScanScope(null);
+    expect(sessionStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it('a re-imported module (reload) hydrates the persisted scope on first read', async () => {
+    // Publish, then simulate a Cmd+R reload: the module is re-imported with a
+    // fresh in-memory `current = null`, but sessionStorage still holds the scope.
+    setScanScope({ roots: ['/photos'], globs: [], recursive: false, date_from: null, date_to: null, extension_preset: 'nef' });
+    vi.resetModules();
+    const fresh = await import('../src/renderer/shared/scanScope.js');
+    const restored = fresh.getScanScope();
+    expect(restored).toMatchObject({ roots: ['/photos'], recursive: false, extension_preset: 'nef' });
+    expect(fresh.scanScopeHasSelection(restored)).toBe(true);
+  });
+
+  it('a re-imported module with nothing persisted stays empty', async () => {
+    setScanScope(null); // clears the key
+    vi.resetModules();
+    const fresh = await import('../src/renderer/shared/scanScope.js');
+    expect(fresh.getScanScope()).toBeNull();
   });
 });
 

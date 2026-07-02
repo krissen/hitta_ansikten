@@ -5,24 +5,56 @@
 //
 // Only the SCAN fields are shared (roots, path-globs, recursion, date span,
 // extension preset) — not culling's player/name_glob filter, which Räkna spelare
-// doesn't use. Session-lived and in-memory (resets on app restart); deliberately
-// not persisted. No subscription is exposed: modules adopt on mount (FlexLayout
+// doesn't use. No subscription is exposed: modules adopt on mount (FlexLayout
 // unmounts hidden tabs, so opening a tab re-runs mount), which keeps the two in
 // sync without a live cross-update loop.
+//
+// Backed by sessionStorage so the scope survives a renderer reload (Cmd+R) — a
+// reload re-imports this module with a fresh `current`, so without a persisted
+// copy the mount-adopt effects would find nothing and the panels would come back
+// empty (the file list is then re-derived by the adopt effect's re-scan).
+// sessionStorage is deliberately chosen over localStorage: it clears when the app
+// quits, so it still "resets on app restart" (no stale scope adopted on a fresh
+// launch, which would race the one-shot CLI `culling-load`), while surviving a
+// reload within the session.
+
+const STORAGE_KEY = 'ansikten.scanScope';
 
 let current = null;
+// A reload re-imports this module (current = null); hydrate from sessionStorage on
+// first read so the adopt-on-mount effects see the pre-reload scope.
+let hydrated = false;
+
+function hydrate() {
+  if (hydrated) return;
+  hydrated = true;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (raw) current = JSON.parse(raw);
+  } catch {
+    /* ignore — unreadable/parse error just means no restored scope */
+  }
+}
 
 /**
  * The last scan scope, or null if none set this session.
  * Shape: { roots, globs, recursive, date_from, date_to, extension_preset }.
  */
 export function getScanScope() {
+  hydrate();
   return current;
 }
 
-/** Publish a scan scope (a shallow copy is stored). */
+/** Publish a scan scope (a shallow copy is stored + persisted for the session). */
 export function setScanScope(scope) {
+  hydrated = true; // an explicit publish supersedes any not-yet-hydrated value
   current = scope ? { ...scope } : null;
+  try {
+    if (current) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+    else sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore — storage unavailable/full just falls back to in-memory only */
+  }
 }
 
 /** True if the scope actually selects something (a folder or a path-glob). */
