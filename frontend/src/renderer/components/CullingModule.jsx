@@ -1303,10 +1303,11 @@ export function CullingModule({ node }) {
         </button>
         <button
           className={viewMode === 'grid' ? 'btn-action' : 'btn-secondary'}
+          aria-pressed={viewMode === 'grid'}
           onClick={() => setViewMode((m) => (m === 'grid' ? 'single' : 'grid'))}
           title={viewMode === 'grid' ? 'Visa enkelbild' : 'Visa översikt (rutnät)'}
         >
-          {viewMode === 'grid' ? 'Enkelbild' : 'Rutnät'}
+          Rutnät
         </button>
         <span className="culling-spacer" />
         <button
@@ -1756,7 +1757,7 @@ function CullingStats({ stats, selected, onSelect, onActivate, mode, width }) {
                     !onSelect
                       ? `${p.name}: ${p.count}`
                       : mode === 'grid'
-                        ? `Markera ${p.name} · dubbelklick filtrerar`
+                        ? `Markera ${p.name} · dubbelklicka för att filtrera`
                         : `Filtrera på ${p.name}`
                   }
                 >
