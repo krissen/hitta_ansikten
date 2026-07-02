@@ -824,7 +824,10 @@ export function CullingModule({ node }) {
       // and already stop their own propagation; don't intercept them. A checkbox
       // in the name overlay is fine to intercept.
       if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
-      if (showTrash || currentIndex < 0) return;
+      // Note: no `currentIndex < 0` bail here — Esc-to-grid and grid Enter-to-loupe
+      // must work with an empty selection (e.g. after culling the last file). The
+      // one action that needs a current file (beginEdit) is guarded at its call.
+      if (showTrash) return;
       const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
       const myTabsetId = node?.getParent?.()?.getId?.();
       if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
@@ -868,7 +871,7 @@ export function CullingModule({ node }) {
         return;
       }
       if (e.metaKey || e.ctrlKey) commitNameToggleRef.current?.();
-      else beginEdit(currentIndex);
+      else if (currentIndex >= 0) beginEdit(currentIndex);
     };
     document.addEventListener('keydown', onKeyCapture, true);
     return () => document.removeEventListener('keydown', onKeyCapture, true);
