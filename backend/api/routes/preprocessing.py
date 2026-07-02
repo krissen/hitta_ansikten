@@ -15,12 +15,17 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from ..services.preprocessing_cache import get_cache, PreprocessingCache
 
 # Thread pool for CPU-intensive operations
 _executor = ThreadPoolExecutor(max_workers=4)
+
+# RAW extensions handled via rawpy — kept aligned with detection_service._load_image
+# and the "raw" extension preset.
+_RAW_EXTS = {'.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2'}
 
 logger = logging.getLogger(__name__)
 
@@ -306,6 +311,115 @@ async def preprocess_nef(request: PreprocessRequest):
             status='error',
             error=result.get('error', 'NEF conversion failed')
         )
+
+
+# ============================================================================
+# Overview (grid) Thumbnails
+# ============================================================================
+
+def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
+    """
+    Downscale a whole frame to a JPEG overview thumbnail (runs in thread pool).
+
+    RAW files use the embedded preview (rawpy.extract_thumb) when available —
+    milliseconds vs. seconds for a full postprocess() — falling back to a full
+    decode only if extraction fails. JPEG/other formats are decoded directly.
+    EXIF orientation is honoured; output is JPEG quality 80.
+    """
+    import io
+    from PIL import Image, ImageOps
+
+    ext = os.path.splitext(file_path)[1].lower()
+    img = None
+
+    if ext in _RAW_EXTS:
+        import rawpy
+        try:
+            with rawpy.imread(file_path) as raw:
+                thumb = raw.extract_thumb()
+                if thumb.format == rawpy.ThumbFormat.JPEG:
+                    img = Image.open(io.BytesIO(bytes(thumb.data)))
+                else:  # BITMAP
+                    img = Image.fromarray(thumb.data)
+                img.load()  # force decode while the raw buffer is alive
+        except Exception as e:
+            logger.debug(f"[Preprocessing] extract_thumb failed for {file_path} ({e}); full decode")
+            with rawpy.imread(file_path) as raw:
+                img = Image.fromarray(raw.postprocess())
+
+    if img is None:
+        img = Image.open(file_path)
+
+    img = ImageOps.exif_transpose(img)
+    img = img.convert('RGB')
+    img.thumbnail((size, size), Image.Resampling.LANCZOS)
+
+    buf = io.BytesIO()
+    img.save(buf, format='JPEG', quality=80)
+    return buf.getvalue()
+
+
+def _grid_thumb_sync(file_path: str, grid_key: str, size: int, cache) -> dict:
+    """Synchronous grid-thumbnail generation - runs in thread pool with dedup."""
+    with cache.processing_slot(grid_key, "grid thumbnail") as (should_process, attempt):
+        if not should_process:
+            cached = cache.get_grid_thumb(grid_key)
+            if cached:
+                return {'status': 'completed', 'path': cached}
+            return {'status': 'error', 'error': 'Thumbnail generation failed in another thread'}
+
+        try:
+            jpg_data = _make_preview_thumb_sync(file_path, size)
+            path = cache.store_grid_thumb(grid_key, file_path, jpg_data)
+            return {'status': 'completed', 'path': path}
+        except Exception as e:
+            logger.error(f"[Preprocessing] Grid thumbnail error for {file_path}: {e}")
+            return {'status': 'error', 'error': str(e)}
+
+
+@router.get("/preview-thumb")
+async def get_preview_thumb(path: str, size: int = 256):
+    """
+    Whole-frame overview thumbnail (JPEG) for the culling grid.
+
+    Downscales a JPEG or RAW file to `size` px on the longest edge, cached under
+    grid/ keyed on a cheap path+mtime+size fingerprint (no full-file hashing, so
+    filling a grid of hundreds of files stays fast). RAW uses the embedded
+    preview. Browser cache: 1 week; X-Cache: HIT|MISS.
+    """
+    cache = get_cache()
+
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+    if os.path.isdir(path):
+        raise HTTPException(status_code=400, detail=f"Path is a directory, not a file: {path}")
+
+    size = max(32, min(size, 1024))
+    grid_key = PreprocessingCache.compute_grid_key(path, size)
+
+    cached = cache.get_grid_thumb(grid_key)
+    if cached:
+        with open(cached, 'rb') as f:
+            data = f.read()
+        return Response(
+            content=data,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=604800", "X-Cache": "HIT"}
+        )
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(_executor, _grid_thumb_sync, path, grid_key, size, cache)
+
+    if result['status'] != 'completed':
+        raise HTTPException(status_code=500, detail=result.get('error', 'Thumbnail generation failed'))
+
+    with open(result['path'], 'rb') as f:
+        data = f.read()
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=604800", "X-Cache": "MISS"}
+    )
 
 
 def _detect_faces_sync(file_path: str, file_hash: str, cache) -> dict:
