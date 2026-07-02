@@ -414,7 +414,11 @@ async def get_preview_thumb(path: str, size: int = 256):
         raise HTTPException(status_code=400, detail=f"Path is a directory, not a file: {path}")
 
     size = max(32, min(size, 1024))
-    grid_key = PreprocessingCache.compute_grid_key(path, size)
+    try:
+        grid_key = PreprocessingCache.compute_grid_key(path, size)
+    except OSError:
+        # File vanished/became inaccessible between the checks above and the stat.
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
     cached = cache.get_grid_thumb(grid_key)
     if cached:
