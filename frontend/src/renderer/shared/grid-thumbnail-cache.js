@@ -43,6 +43,9 @@ export class GridThumbnailCache {
    * @returns {Promise<string>} Blob URL for the thumbnail
    */
   async getThumbnail(imagePath, size = 256, fingerprint) {
+    // Clamp to the backend's accepted range so the cache key matches the size
+    // actually served (an out-of-range value is clamped server-side otherwise).
+    size = Math.max(32, Math.min(1024, Math.round(size)));
     const key = this._getCacheKey(imagePath, size, fingerprint);
 
     if (this.cache.has(key)) {
