@@ -590,7 +590,7 @@
   padding: 3px 5px;
   font-size: 0.7em;
   line-height: 1.2;
-  color: #fff;
+  color: var(--overlay-text);
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
   white-space: nowrap;
   overflow: hidden;

@@ -1689,6 +1689,12 @@ function CullingStats({ stats, selected, onSelect, onActivate, mode, width }) {
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const clickTimerRef = useRef(null);
   useEffect(() => () => clearTimeout(clickTimerRef.current), []);
+  // Cancel a pending single-click when the mode changes, so a debounced grid
+  // highlight can't fire after the user has switched to the loupe.
+  useEffect(() => {
+    clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = null;
+  }, [mode]);
 
   // Loupe: fire immediately (no double-click role). Grid: debounce so a double
   // click (filter) can cancel the pending single click (highlight).
