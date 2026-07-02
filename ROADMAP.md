@@ -19,11 +19,16 @@ deliverables, DoD) för en prestandarelease.
 ### Nu
 
 - [ ] **Gallra spelare — thumbnailvy (översiktsläge)** — pågår, uppdelad i två
-  PR:ar. **PR 1 (klar/på granskning):** översiktsthumbnail-endpoint
+  PR:ar, båda uppe för granskning. **PR 1:** översiktsthumbnail-endpoint
   `GET /api/v1/preprocessing/preview-thumb` + `grid/`-cache-kind +
-  klient-cache (`grid-thumbnail-cache.js`). **PR 2 (kvar):** själva rutnäts-UI:t
-  (komponent, läges-toggle, 2D-navigering, per-spelare-highlight, läges-
-  övergångar). Fullständig spec under *Kort/Mellan sikt* nedan.
+  klient-cache (`grid-thumbnail-cache.js`). **PR 2:** rutnäts-UI:t
+  (`CullingGrid.jsx`, läges-toggle, 2D-navigering via `culling-grid-nav.js`,
+  per-spelare-highlight, läges-övergångar). Ta bort denna post och den
+  fullständiga specen (Mellan sikt) när båda är mergade. **Kvar/uppföljning:**
+  översiktsminiatyrer cache-bustar inte i rutnätet vid en in-place om-export
+  (loupe:n gör det via `stat-file-stable`) — miniatyren uppdateras först när man
+  öppnar bilden i enkelbild eller startar om; medvetet val för att undvika att
+  hela rutnätet hämtas om vid varje mappändring.
 
 ### Kort sikt
 
