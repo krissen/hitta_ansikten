@@ -1025,7 +1025,9 @@ export function CullingModule({ node }) {
     const ro = new ResizeObserver(compute);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [viewMode, files.length]);
+    // Column count is width-driven only; don't re-subscribe on list changes
+    // (culling/filtering) — the observed element and its width are unaffected.
+  }, [viewMode]);
 
   // On mount, clamp a restored stats width against the current window so a width
   // saved on a wide window can't squash list+preview on a narrow one (the drag
