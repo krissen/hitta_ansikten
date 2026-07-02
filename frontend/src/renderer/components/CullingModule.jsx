@@ -1527,10 +1527,11 @@ export function CullingModule({ node }) {
           onClick={(e) => e.stopPropagation()}
         >
           <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - 1, 0))); }}>
-            <span>Föregående</span><span className="culling-menu-keys"><kbd>←</kbd><kbd>↑</kbd></span>
+            {/* In the grid ↑/↓ move by rows, so the prev/next hint is just ←/→ there. */}
+            <span>Föregående</span><span className="culling-menu-keys"><kbd>←</kbd>{viewMode !== 'grid' && <kbd>↑</kbd>}</span>
           </li>
           <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + 1, files.length - 1))); }}>
-            <span>Nästa</span><span className="culling-menu-keys"><kbd>→</kbd><kbd>↓</kbd></span>
+            <span>Nästa</span><span className="culling-menu-keys"><kbd>→</kbd>{viewMode !== 'grid' && <kbd>↓</kbd>}</span>
           </li>
           <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - PAGE_STEP, 0))); }}>
             <span>Hoppa bakåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>←</kbd></span>
