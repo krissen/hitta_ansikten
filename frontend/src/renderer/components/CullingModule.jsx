@@ -1512,7 +1512,7 @@ export function CullingModule({ node }) {
               onContextMenu={(e, i, f) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setCurrentIndex(i);
+                guardedNavigate(() => setCurrentIndex(i));
                 setMenu({ x: e.clientX, y: e.clientY, path: f.path });
               }}
             />
