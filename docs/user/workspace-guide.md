@@ -81,8 +81,8 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 ### Gallring (Gallra spelare)
 
 Gallra spelare har två vyer: **enkelbild** (loupe, standard) och **översikt**
-(rutnät/contact sheet). Växla med knappen **Rutnät** / **Enkelbild** i filterraden
-(valet sparas mellan omstarter).
+(rutnät/contact sheet). Växla med **Rutnät**-knappen i filterraden (markerad när
+översikten är aktiv; valet sparas mellan omstarter).
 
 | Genväg | Funktion |
 |--------|----------|
