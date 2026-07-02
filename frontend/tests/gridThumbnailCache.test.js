@@ -61,6 +61,18 @@ describe('GridThumbnailCache', () => {
     expect(calledUrl).toContain('size=200');
   });
 
+  it('includes the fingerprint in the request URL (defeats the HTTP cache)', async () => {
+    const cache = new GridThumbnailCache(10);
+    await cache.getThumbnail('/p/a.jpg', 256, '1700-2048');
+    expect(global.fetch.mock.calls[0][0]).toContain('v=1700-2048');
+  });
+
+  it('omits the v param when no fingerprint is given', async () => {
+    const cache = new GridThumbnailCache(10);
+    await cache.getThumbnail('/p/a.jpg', 256);
+    expect(global.fetch.mock.calls[0][0]).not.toContain('v=');
+  });
+
   it('evicts and revokes the least-recently-used entry past maxSize', async () => {
     const cache = new GridThumbnailCache(2);
     await cache.getThumbnail('/p/a.jpg', 256, 'fp'); // blob:0

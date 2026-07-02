@@ -51,16 +51,21 @@ export class GridThumbnailCache {
     const pending = this.inflight.get(key);
     if (pending) return pending;
 
-    const promise = this._fetchAndCache(key, imagePath, size)
+    const promise = this._fetchAndCache(key, imagePath, size, fingerprint)
       .finally(() => { this.inflight.delete(key); });
     this.inflight.set(key, promise);
     return promise;
   }
 
-  async _fetchAndCache(key, imagePath, size) {
+  async _fetchAndCache(key, imagePath, size, fingerprint) {
     const url = new URL('/api/v1/preprocessing/preview-thumb', apiClient.baseUrl);
     url.searchParams.set('path', imagePath);
     url.searchParams.set('size', size);
+    // Include the fingerprint in the URL too, not just the in-memory key: the
+    // response is served with a long Cache-Control, so a same-URL request would
+    // otherwise let Chromium's HTTP cache return a stale image after a re-export.
+    // (The backend ignores unknown query params.)
+    if (fingerprint) url.searchParams.set('v', fingerprint);
 
     try {
       const response = await fetch(url.toString());
