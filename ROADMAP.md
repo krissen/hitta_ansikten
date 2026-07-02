@@ -32,6 +32,14 @@ deliverables, DoD) för en prestandarelease.
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend).
 - [ ] **Modulgenvägar bör villkoras på aktiv tabset, inte bara synlighet** — globala tangentlyssnare (t.ex. ReviewModule som bekräftar ansikte på `Enter`) gatar idag på `node.isVisible()`. I en delad layout med flera synliga paneler fångar då en *synlig men inaktiv* panel tangenter som hör till den aktiva. CullingModule försvarar sig redan (Enter-genväg på document i capture-fas + aktiv-tabset-gate + `stopImmediatePropagation`), men det generella mönstret kvarstår för övriga moduler. ReviewModule m.fl. bör gatas på aktiv tabset. **Varning:** måste inte bryta Reviews normala flöde där man klickar i bildvisaren och sedan trycker tangent (då blir bildvisarens tabset aktiv) — kräver genomtänkt fokus-/aktiv-modell, egen PR.
 - [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
+- [ ] **Gallra spelare — thumbnailvy (översiktsläge, Lightroom-likt)** — ett rutnät/contact-sheet över den filtrerade fillistan som ett *översiktsläge* vid sidan av dagens enkelbildsvy, med Lightroom-liknande rörelse mellan lägena. Interaktion:
+  - **Dubbelklick på en thumbnail** → enkelbildsvy (dagens default) för den bilden.
+  - **Esc i enkelbildsvy, när inget redigeras** → tillbaka till översiktsvyn (thumbs). Esc behåller sin nuvarande roll när något *är* under redigering (avbryt pending namn-bockning, stäng kontextmeny osv.) — övergången till thumbs sker bara när inget redigeringstillstånd är öppet.
+  - Klick på **spelarnamn** (stats-kolumnen) är lägesberoende:
+    - *I thumbsvy:* **enkelklick** → *highlighta* (markera visuellt) de thumbnails som innehåller spelaren, utan att filtrera bort övriga; **dubbelklick** → filtrera thumbs till endast spelarens bilder.
+    - *I enkelbildsvy:* **enkelklick** → som idag, visa endast spelarens bilder.
+
+  Genomförbart additivt: highlight per spelare kan härledas i klienten ur filnamnen (`namesInBasename` i `culling-names.js`), så ingen ny backend-data krävs för markeringen. Kräver dock: thumbnail-generering/-cache (nedskalad JPEG-avkodning; NEF/raw via befintlig NEF→JPG-pipeline), en rutnätskomponent med markerings-/selektionsmodell, och att cull-tangenterna (`x`/Delete, `Cmd+⌫`, undo) fungerar på fokuserad/markerad thumbnail. Läges-övergångarna måste väva in i den befintliga capture-fas-Esc-hanteringen (som redan gatar på aktiv tabset och pending-tillstånd). Läget bör persistas som del av vy-tillståndet. Egen, större PR.
 - [ ] **Docs-uppdatering (dev-docs)** — användardokumenten och ROADMAP är genomgångna (2026-07-02). Kvar: dev-docs (`docs/dev/architecture.md`, `docs/dev/onboarding.md` m.fl.) kan ha kvar engelska modulnamn/inaktuella referenser efter i18n-svepet och rebranden.
 
 ### Lång sikt
