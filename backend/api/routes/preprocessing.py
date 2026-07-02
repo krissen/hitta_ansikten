@@ -348,7 +348,11 @@ def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
                 img = Image.fromarray(raw.postprocess())
 
     if img is None:
-        img = Image.open(file_path)
+        # Context manager so the file handle is released promptly (matters on
+        # Windows, where an open fd can block a later rename/delete).
+        with Image.open(file_path) as opened:
+            opened.load()
+            img = opened
 
     img = ImageOps.exif_transpose(img)
     img = img.convert('RGB')
@@ -407,7 +411,7 @@ async def get_preview_thumb(path: str, size: int = 256):
             headers={"Cache-Control": "public, max-age=604800", "X-Cache": "HIT"}
         )
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(_executor, _grid_thumb_sync, path, grid_key, size, cache)
 
     if result['status'] != 'completed':
