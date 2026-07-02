@@ -523,7 +523,7 @@ Generate face thumbnails with caching.
 
 Run all preprocessing steps.
 
-### `GET /api/preprocessing/preview-thumb`
+### `GET /api/v1/preprocessing/preview-thumb`
 
 Whole-frame overview thumbnail (JPEG) for the culling grid. Downscales a JPEG or
 RAW file to `size` px on the longest edge. RAW files use the embedded preview
