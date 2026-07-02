@@ -14,6 +14,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
+import { CullingGrid } from './CullingGrid.jsx';
+import { gridNavTarget } from './culling-grid-nav.js';
 import { preferences } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
 import { toFileUrl, bustedFileUrl } from '../shared/fileUrl.js';
@@ -31,10 +33,27 @@ const STATS_WIDTH_DEFAULT = 240;
 const STATS_WIDTH_MIN = 150;
 const LIST_PCT_DEFAULT = 32;
 
+// View mode (single-image "loupe" vs. thumbnail "grid" overview), persisted like
+// the column widths so the chosen mode survives a restart.
+const VIEW_MODE_KEY = 'ansikten.culling.viewMode';
+// Min grid cell width (px) — kept in sync with `minmax(160px, ...)` in
+// CullingModule.css. Used to derive the column count for 2-D keyboard nav.
+const GRID_CELL_MIN = 160;
+const GRID_GAP = 8;
+
 function readStoredNumber(key, fallback) {
   try {
     const v = parseFloat(localStorage.getItem(key));
     return Number.isFinite(v) ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function readStoredString(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v == null ? fallback : v;
   } catch {
     return fallback;
   }
@@ -116,6 +135,19 @@ export function CullingModule({ node }) {
   const [leftWidthPct, setLeftWidthPct] = useState(() =>
     Math.min(70, Math.max(15, readStoredNumber(LIST_PCT_KEY, LIST_PCT_DEFAULT)))
   );
+
+  // View mode: 'single' (loupe, default) or 'grid' (thumbnail overview). Persisted.
+  const [viewMode, setViewMode] = useState(() =>
+    readStoredString(VIEW_MODE_KEY, 'single') === 'grid' ? 'grid' : 'single'
+  );
+  const viewModeRef = useRef(viewMode);
+  viewModeRef.current = viewMode;
+  // Player whose thumbnails are visually highlighted in the grid (session-only,
+  // not a filter — the full set stays visible, non-matches are dimmed).
+  const [highlightPlayer, setHighlightPlayer] = useState('');
+  // Grid container + live column count for 2-D keyboard navigation.
+  const gridRef = useRef(null);
+  const colsRef = useRef(1);
 
   // Resolved preview for the right pane. JPEGs load directly; RAW goes through
   // the NEF->JPG pipeline, so resolution is async.
@@ -330,6 +362,17 @@ export function CullingModule({ node }) {
     setPlayer(name);
     setGlob(name ? `*${name}*` : '');
   }, []);
+
+  // Filter the file list to a player (stats-row click, loupe mode; and grid
+  // double-click). Selecting the already-active player clears the filter — same
+  // hand-off as the player dropdown.
+  const filterToPlayer = useCallback((name) => {
+    selectPlayer(name);
+    if (lastQueryRef.current) {
+      const g = name ? `*${name}*` : '';
+      runFilter({ player: name || null, name_glob: g || null });
+    }
+  }, [selectPlayer, runFilter]);
 
   // Open filtered to a player from the stats module, honouring the count's full
   // scope: folders OR path-globs, the date span, and the recursion flag.
@@ -667,15 +710,33 @@ export function CullingModule({ node }) {
       // active tabset.)
       if (isTextField) return;
 
-      // Next: →/↓/j, Previous: ←/↑/k. Alt+direction pages by PAGE_STEP.
-      const step = e.altKey ? PAGE_STEP : 1;
-      if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'j') {
+      // Navigation. In the grid, arrows/j/k move in 2-D (up/down by a full row);
+      // in the loupe, movement is 1-D (next/previous). Alt pages either way.
+      const navKeys = ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'j', 'k'];
+      if (navKeys.includes(e.key)) {
         e.preventDefault();
-        guardedNavigate(() => setCurrentIndex((i) => Math.min(i + step, files.length - 1)));
-      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'k') {
-        e.preventDefault();
-        guardedNavigate(() => setCurrentIndex((i) => Math.max(i - step, 0)));
-      } else if (!e.altKey && (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x')) {
+        if (viewModeRef.current === 'grid') {
+          const cols = Math.max(1, colsRef.current || 1);
+          let dir;
+          if (e.key === 'ArrowRight') dir = 'right';
+          else if (e.key === 'ArrowLeft') dir = 'left';
+          else if (e.key === 'ArrowDown' || e.key === 'j') dir = 'down';
+          else dir = 'up'; // ArrowUp or k
+          guardedNavigate(() =>
+            setCurrentIndex((i) => gridNavTarget(i, cols, files.length, dir, e.altKey))
+          );
+        } else {
+          const step = e.altKey ? PAGE_STEP : 1;
+          if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'j') {
+            guardedNavigate(() => setCurrentIndex((i) => Math.min(i + step, files.length - 1)));
+          } else {
+            guardedNavigate(() => setCurrentIndex((i) => Math.max(i - step, 0)));
+          }
+        }
+        return;
+      }
+
+      if (!e.altKey && (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x')) {
         // Ignore the cull shortcut while a query is loading — `files` still
         // holds the previous filter, so culling now would trash the wrong file.
         e.preventDefault();
@@ -773,11 +834,21 @@ export function CullingModule({ node }) {
         // the menu effect below, registered later in the same capture phase,
         // closes and swallows it.
         if (menuRef.current) return;
-        if (removedNamesRef.current.size === 0) return; // nothing to discard
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation?.();
-        setRemovedNames(new Set());
+        // Discarding pending name toggles takes priority over any mode switch.
+        if (removedNamesRef.current.size > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation?.();
+          setRemovedNames(new Set());
+          return;
+        }
+        // Nothing being edited: in the loupe, Esc returns to the grid overview.
+        if (viewModeRef.current === 'single') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation?.();
+          setViewMode('grid');
+        }
         return;
       }
 
@@ -790,6 +861,12 @@ export function CullingModule({ node }) {
       e.stopPropagation();
       e.stopImmediatePropagation?.();
       if (menuRef.current) return;
+      if (viewModeRef.current === 'grid') {
+        // In the grid, Enter opens the focused cell in the loupe (keyboard
+        // parity with double-click); ⌘↵ has no name-removal target here.
+        if (!(e.metaKey || e.ctrlKey)) setViewMode('single');
+        return;
+      }
       if (e.metaKey || e.ctrlKey) commitNameToggleRef.current?.();
       else beginEdit(currentIndex);
     };
@@ -925,6 +1002,30 @@ export function CullingModule({ node }) {
   useEffect(() => {
     try { localStorage.setItem(LIST_PCT_KEY, String(leftWidthPct)); } catch { /* ignore */ }
   }, [leftWidthPct]);
+  useEffect(() => {
+    try { localStorage.setItem(VIEW_MODE_KEY, viewMode); } catch { /* ignore */ }
+  }, [viewMode]);
+
+  // The per-player highlight is a grid-only affordance; drop it when leaving grid.
+  useEffect(() => {
+    if (viewMode !== 'grid') setHighlightPlayer('');
+  }, [viewMode]);
+
+  // Track the grid's column count so arrow-key up/down move by a full row.
+  // Only observes while the grid is mounted.
+  useEffect(() => {
+    if (viewMode !== 'grid') return;
+    const el = gridRef.current;
+    if (!el) return;
+    const compute = () => {
+      const w = el.clientWidth - GRID_GAP * 2; // grid has GRID_GAP padding both sides
+      colsRef.current = Math.max(1, Math.floor((w + GRID_GAP) / (GRID_CELL_MIN + GRID_GAP)));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [viewMode, files.length]);
 
   // On mount, clamp a restored stats width against the current window so a width
   // saved on a wide window can't squash list+preview on a narrow one (the drag
@@ -1195,6 +1296,13 @@ export function CullingModule({ node }) {
         <button className="btn-action" onClick={() => runFilter()} disabled={!canFilter || isLoading}>
           {isLoading ? '…' : 'Visa'}
         </button>
+        <button
+          className={viewMode === 'grid' ? 'btn-action' : 'btn-secondary'}
+          onClick={() => setViewMode((m) => (m === 'grid' ? 'single' : 'grid'))}
+          title={viewMode === 'grid' ? 'Visa enkelbild' : 'Visa översikt (rutnät)'}
+        >
+          {viewMode === 'grid' ? 'Enkelbild' : 'Rutnät'}
+        </button>
         <span className="culling-spacer" />
         <button
           className={showTrash ? 'btn-action' : 'btn-secondary'}
@@ -1268,19 +1376,28 @@ export function CullingModule({ node }) {
         <div className="culling-body" ref={bodyRef}>
           <CullingStats
             stats={stats}
-            selected={player}
+            mode={viewMode}
+            selected={viewMode === 'grid' ? highlightPlayer : player}
             width={statsWidth}
             onSelect={(name) => {
-              selectPlayer(name);
-              // Clicking a player filters the list immediately (same hand-off as
-              // the player dropdown); clicking the active one clears the filter.
-              if (lastQueryRef.current) {
-                const g = name ? `*${name}*` : '';
-                runFilter({ player: name || null, name_glob: g || null });
+              if (viewMode === 'grid') {
+                // Grid: single-click highlights the player's thumbnails (no
+                // filtering); clicking the highlighted one clears the highlight.
+                setHighlightPlayer((h) => (h === name ? '' : name));
+              } else {
+                // Loupe: single-click filters the list immediately (same hand-off
+                // as the player dropdown); clicking the active one clears it.
+                filterToPlayer(name);
               }
+            }}
+            onActivate={(name) => {
+              // Grid double-click: filter to the player and drop the highlight.
+              setHighlightPlayer('');
+              filterToPlayer(name);
             }}
           />
           <div className="culling-stats-divider" onMouseDown={startStatsDrag} />
+          {viewMode === 'single' ? (
           <div className="culling-main" ref={mainRef}>
           <div className="culling-list" style={{ width: `${leftWidthPct}%` }}>
             <div className="culling-list-header">
@@ -1378,6 +1495,22 @@ export function CullingModule({ node }) {
             ) : null}
           </div>
           </div>
+          ) : (
+            <CullingGrid
+              files={files}
+              currentIndex={currentIndex}
+              highlightPlayer={highlightPlayer}
+              gridRef={gridRef}
+              onSelect={(i) => guardedNavigate(() => setCurrentIndex(i))}
+              onOpen={(i) => { setCurrentIndex(i); setViewMode('single'); }}
+              onContextMenu={(e, i, f) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setCurrentIndex(i);
+                setMenu({ x: e.clientX, y: e.clientY, path: f.path });
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -1541,14 +1674,35 @@ function CullingExcluded({ excluded }) {
  * Live per-player count for the current scope, shown left of the file list.
  * Mirrors the Räkna spelare table (name · count · % · Δ% · distribution bar)
  * so the same numbers are in front of the user while culling. `stats` is the
- * /players/count response (or null); `selected` highlights the player currently
- * filtered in the list; `onSelect(name)` filters the list to that player (or
- * clears it when the active player is clicked again); `width` is the column's
- * pixel width (resizable via the stats divider).
+ * /players/count response (or null); `selected` highlights the active player;
+ * `width` is the column's pixel width (resizable via the stats divider).
+ *
+ * Row clicks are mode-dependent (`mode`): in the loupe a single click filters
+ * the list to the player (`onSelect`); in the grid a single click highlights the
+ * player's thumbnails (`onSelect`) while a double click filters (`onActivate`).
+ * The single click is debounced in grid mode so a double click can cancel it.
  */
-function CullingStats({ stats, selected, onSelect, width }) {
+function CullingStats({ stats, selected, onSelect, onActivate, mode, width }) {
   const players = stats?.players || [];
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
+  const clickTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(clickTimerRef.current), []);
+
+  // Loupe: fire immediately (no double-click role). Grid: debounce so a double
+  // click (filter) can cancel the pending single click (highlight).
+  const handleRowClick = (name) => {
+    if (mode !== 'grid') { onSelect?.(name); return; }
+    clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = setTimeout(() => {
+      clickTimerRef.current = null;
+      onSelect?.(name);
+    }, 200);
+  };
+  const handleRowDouble = (name) => {
+    clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = null;
+    onActivate?.(name);
+  };
   // Show excluded groups even when no player clears the threshold (small folders,
   // or after culling everyone below min_images) — otherwise the section this
   // change is meant to surface would be hidden behind the empty "—".
@@ -1585,8 +1739,15 @@ function CullingStats({ stats, selected, onSelect, width }) {
                 <tr
                   key={p.name}
                   className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active row-selected' : ''}`}
-                  onClick={onSelect ? () => onSelect(p.name === selected ? '' : p.name) : undefined}
-                  title={onSelect ? `Filtrera på ${p.name}` : `${p.name}: ${p.count}`}
+                  onClick={onSelect ? () => handleRowClick(p.name === selected ? '' : p.name) : undefined}
+                  onDoubleClick={mode === 'grid' && onActivate ? () => handleRowDouble(p.name) : undefined}
+                  title={
+                    !onSelect
+                      ? `${p.name}: ${p.count}`
+                      : mode === 'grid'
+                        ? `Markera ${p.name} · dubbelklick filtrerar`
+                        : `Filtrera på ${p.name}`
+                  }
                 >
                   <td className="culling-stat-name">{p.name}</td>
                   <td className="num">{p.count}</td>

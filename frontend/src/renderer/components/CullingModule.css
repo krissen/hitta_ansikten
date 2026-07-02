@@ -517,3 +517,89 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ----- Overview (grid) mode -------------------------------------------- */
+/* A scrollable contact sheet that replaces the list+preview area when the view
+   mode is "grid". The min column width (160px) is kept in sync with
+   GRID_CELL_MIN in CullingModule.jsx, which drives the keyboard column count. */
+.culling-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  padding: 8px;
+  align-content: start;
+  outline: none;
+}
+
+.culling-grid-cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--bg-elevated);
+  border: 2px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: opacity 0.12s ease, border-color 0.12s ease;
+}
+
+.culling-grid-cell:hover {
+  border-color: var(--border-subtle);
+}
+
+.culling-grid-cell.selected {
+  border-color: var(--accent-primary);
+}
+
+/* Highlighted (contains the clicked player) — accent ring, kept visible even
+   when another cell is selected. Dimmed cells are the non-matches. */
+.culling-grid-cell.highlight {
+  border-color: var(--accent-primary);
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
+}
+
+.culling-grid-cell.dimmed {
+  opacity: 0.35;
+}
+
+.culling-grid-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.culling-grid-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 1.2em;
+}
+
+/* Filename caption, revealed on hover/selection so the grid stays clean. */
+.culling-grid-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 3px 5px;
+  font-size: 0.7em;
+  line-height: 1.2;
+  color: #fff;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.culling-grid-cell:hover .culling-grid-caption,
+.culling-grid-cell.selected .culling-grid-caption {
+  opacity: 1;
+}

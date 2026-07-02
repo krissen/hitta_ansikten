@@ -1,0 +1,93 @@
+/**
+ * CullingGrid - Lightroom-like thumbnail/overview mode for the culling module.
+ *
+ * A scrollable contact sheet over the same `files` + `currentIndex` the loupe
+ * (single-image) view uses, so navigation, culling and undo all operate on the
+ * shared selection. Thumbnails come from the backend overview endpoint via
+ * useGridThumbnail. Per-player highlight is derived client-side from filenames
+ * (namesInBasename) — no backend data needed for the marking.
+ *
+ * Kept deliberately presentational: keyboard handling, mode switching and the
+ * column-count geometry live in the parent (CullingModule).
+ */
+
+import React, { useEffect } from 'react';
+import { useGridThumbnail } from '../shared/grid-thumbnail-cache.js';
+import { namesInBasename } from './culling-names.js';
+
+// Longest-edge px fetched from the backend. Larger than the display cell so the
+// thumbnails stay crisp; the CSS min column width is smaller (see CullingModule.css).
+const THUMB_FETCH_SIZE = 256;
+
+function GridCell({ file, index, selected, highlighted, dimmed, onSelect, onOpen, onContextMenu }) {
+  const { url, error } = useGridThumbnail(file.path, THUMB_FETCH_SIZE);
+  const cls = [
+    'culling-grid-cell',
+    selected ? 'selected' : '',
+    highlighted ? 'highlight' : '',
+    dimmed ? 'dimmed' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div
+      className={cls}
+      data-idx={index}
+      onClick={() => onSelect(index)}
+      onDoubleClick={() => onOpen(index)}
+      onContextMenu={(e) => onContextMenu(e, index, file)}
+      title={file.basename}
+    >
+      {url ? (
+        <img className="culling-grid-img" src={url} alt={file.basename} loading="lazy" draggable={false} />
+      ) : (
+        <div className="culling-grid-placeholder">{error ? '⚠' : ''}</div>
+      )}
+      <div className="culling-grid-caption">{file.basename}</div>
+    </div>
+  );
+}
+
+export function CullingGrid({
+  files,
+  currentIndex,
+  highlightPlayer,
+  onSelect,
+  onOpen,
+  onContextMenu,
+  gridRef,
+}) {
+  // Keep the focused cell visible as the selection moves (arrow nav, advance).
+  useEffect(() => {
+    const grid = gridRef?.current;
+    if (!grid || currentIndex < 0) return;
+    const cell = grid.querySelector(`[data-idx="${currentIndex}"]`);
+    if (cell && typeof cell.scrollIntoView === 'function') {
+      cell.scrollIntoView({ block: 'nearest' });
+    }
+  }, [currentIndex, files, gridRef]);
+
+  const highlightActive = !!highlightPlayer;
+
+  return (
+    <div className="culling-grid" ref={gridRef} tabIndex={-1}>
+      {files.map((f, i) => {
+        const matches = highlightActive && namesInBasename(f.basename).includes(highlightPlayer);
+        return (
+          <GridCell
+            key={f.path}
+            file={f}
+            index={i}
+            selected={i === currentIndex}
+            highlighted={matches}
+            dimmed={highlightActive && !matches}
+            onSelect={onSelect}
+            onOpen={onOpen}
+            onContextMenu={onContextMenu}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+export default CullingGrid;
