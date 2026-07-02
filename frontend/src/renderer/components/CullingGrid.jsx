@@ -32,9 +32,10 @@ function GridCell({ file, index, selected, highlighted, dimmed, onSelect, onOpen
     <div
       className={cls}
       data-idx={index}
-      role="button"
+      id={`culling-grid-cell-${index}`}
+      role="option"
+      aria-selected={selected}
       aria-label={file.basename}
-      aria-pressed={selected}
       onClick={() => onSelect(index)}
       onDoubleClick={() => onOpen(index)}
       onContextMenu={(e) => onContextMenu(e, index, file)}
@@ -71,8 +72,18 @@ export function CullingGrid({
 
   const highlightActive = !!highlightPlayer;
 
+  // Listbox pattern: the container is the focusable control and tracks the
+  // active cell via aria-activedescendant, matching the container-level keyboard
+  // model (arrows/Enter/Esc handled in CullingModule when culling is active).
   return (
-    <div className="culling-grid" ref={gridRef} tabIndex={-1}>
+    <div
+      className="culling-grid"
+      ref={gridRef}
+      tabIndex={0}
+      role="listbox"
+      aria-label="Miniatyröversikt"
+      aria-activedescendant={currentIndex >= 0 ? `culling-grid-cell-${currentIndex}` : undefined}
+    >
       {files.map((f, i) => {
         // Prefer the backend-parsed names (kept in sync with the stats column);
         // fall back to parsing the basename if a file object lacks them.

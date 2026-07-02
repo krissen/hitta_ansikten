@@ -59,6 +59,18 @@ describe('CullingGrid', () => {
     expect(selected[0].getAttribute('data-idx')).toBe('1');
   });
 
+  it('exposes a listbox with option cells and an active descendant', () => {
+    const { container } = renderGrid({ currentIndex: 1 });
+    const list = container.querySelector('.culling-grid');
+    expect(list.getAttribute('role')).toBe('listbox');
+    expect(list.getAttribute('tabindex')).toBe('0');
+    expect(list.getAttribute('aria-activedescendant')).toBe('culling-grid-cell-1');
+    const options = container.querySelectorAll('[role="option"]');
+    expect(options.length).toBe(3);
+    expect(options[1].getAttribute('aria-selected')).toBe('true');
+    expect(options[0].getAttribute('aria-selected')).toBe('false');
+  });
+
   it('highlights cells containing the player and dims the rest', () => {
     const { container } = renderGrid({ highlightPlayer: 'Alice' });
     const cells = container.querySelectorAll('.culling-grid-cell');
