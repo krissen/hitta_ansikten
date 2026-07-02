@@ -13,9 +13,11 @@ describe('gridNavTarget', () => {
     expect(gridNavTarget(0, 4, 0, 'right')).toBe(-1);
   });
 
-  it('treats index -1 as the first cell', () => {
-    expect(gridNavTarget(-1, COLS, N, 'right')).toBe(1);
-    expect(gridNavTarget(-1, COLS, N, 'down')).toBe(4);
+  it('selects the first cell from no selection (any direction)', () => {
+    expect(gridNavTarget(-1, COLS, N, 'right')).toBe(0);
+    expect(gridNavTarget(-1, COLS, N, 'down')).toBe(0);
+    expect(gridNavTarget(-1, COLS, N, 'left')).toBe(0);
+    expect(gridNavTarget(-1, COLS, N, 'up')).toBe(0);
   });
 
   it('moves right/left by one, clamped at the ends', () => {
