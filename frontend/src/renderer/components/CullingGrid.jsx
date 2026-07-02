@@ -32,6 +32,9 @@ function GridCell({ file, index, selected, highlighted, dimmed, onSelect, onOpen
     <div
       className={cls}
       data-idx={index}
+      role="button"
+      aria-label={file.basename}
+      aria-pressed={selected}
       onClick={() => onSelect(index)}
       onDoubleClick={() => onOpen(index)}
       onContextMenu={(e) => onContextMenu(e, index, file)}
