@@ -127,8 +127,9 @@ describe('GridThumbnailCache', () => {
     const p = cache.getThumbnail('/p/a.jpg', 256, 'fp');
     cache.clear();          // clears while the fetch is still pending
     resolveBlob();
-    await p;
 
+    // The fetch is cancelled — it rejects rather than handing back a revoked URL.
+    await expect(p).rejects.toMatchObject({ name: 'CacheClearedError' });
     expect(cache.getStats().size).toBe(0);                 // not repopulated
     expect(global.URL.revokeObjectURL).toHaveBeenCalled(); // the late blob was revoked
   });

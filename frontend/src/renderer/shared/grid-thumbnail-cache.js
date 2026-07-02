@@ -84,10 +84,13 @@ export class GridThumbnailCache {
       const blobUrl = URL.createObjectURL(blob);
 
       // If the cache was cleared while this fetch was in flight, don't
-      // repopulate it — revoke the just-created URL and return it unowned.
+      // repopulate it — revoke the just-created URL and signal cancellation
+      // (returning the revoked URL would hand the caller a broken image).
       if (this.generation !== startGeneration) {
         URL.revokeObjectURL(blobUrl);
-        return blobUrl;
+        const err = new Error('GridThumbnailCache cleared during fetch');
+        err.name = 'CacheClearedError';
+        throw err;
       }
 
       this._enforceLimit();
@@ -171,7 +174,9 @@ export function useGridThumbnail(imagePath, size = 256, fingerprint) {
         }
       })
       .catch((error) => {
-        if (!cancelled) {
+        // A clear() mid-flight cancels this fetch; ignore it rather than showing
+        // an error — the next render re-requests the thumbnail.
+        if (!cancelled && error?.name !== 'CacheClearedError') {
           setState({ url: null, loading: false, error });
         }
       });
