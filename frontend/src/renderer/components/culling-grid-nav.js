@@ -21,7 +21,10 @@ const PAGE_ROWS = 3;    // vertical page jump (rows)
  */
 export function gridNavTarget(index, cols, count, dir, page = false) {
   if (count <= 0) return -1;
-  const i = index < 0 ? 0 : Math.min(index, count - 1);
+  // From no selection, the first keypress lands on the first cell rather than
+  // moving off it (e.g. Right shouldn't skip index 0).
+  if (index < 0) return 0;
+  const i = Math.min(index, count - 1);
   const c = Math.max(1, Math.floor(cols) || 1);
 
   switch (dir) {
