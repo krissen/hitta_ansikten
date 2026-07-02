@@ -71,6 +71,24 @@ describe('GridThumbnailCache', () => {
     expect(cache.getStats().size).toBe(2);
   });
 
+  it('coalesces concurrent requests for the same key into one fetch', async () => {
+    let resolveBlob;
+    global.fetch = vi.fn(() => new Promise((res) => {
+      resolveBlob = () => res({ ok: true, blob: async () => ({ size: 42 }) });
+    }));
+    const cache = new GridThumbnailCache(10);
+
+    const p1 = cache.getThumbnail('/p/a.jpg', 256, 'fp');
+    const p2 = cache.getThumbnail('/p/a.jpg', 256, 'fp');
+    resolveBlob();
+    const [u1, u2] = await Promise.all([p1, p2]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);   // one fetch, not two
+    expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1); // one blob URL
+    expect(u1).toBe(u2);
+    expect(cache.getStats().size).toBe(1);
+  });
+
   it('throws on an empty blob response', async () => {
     global.fetch = vi.fn(async () => ({ ok: true, blob: async () => ({ size: 0 }) }));
     const cache = new GridThumbnailCache(10);

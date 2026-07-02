@@ -22,6 +22,10 @@ export class GridThumbnailCache {
     this.cache = new Map();
     this.maxSize = maxSize;
     this.accessOrder = [];
+    // In-flight fetches, keyed like the cache, so concurrent requests for the
+    // same thumbnail share one fetch/blob URL instead of racing (which would
+    // leak the loser's blob URL and push duplicate keys into accessOrder).
+    this.inflight = new Map();
   }
 
   _getCacheKey(imagePath, size, fingerprint) {
@@ -43,6 +47,17 @@ export class GridThumbnailCache {
       return this.cache.get(key);
     }
 
+    // Coalesce concurrent requests for the same key onto one fetch.
+    const pending = this.inflight.get(key);
+    if (pending) return pending;
+
+    const promise = this._fetchAndCache(key, imagePath, size)
+      .finally(() => { this.inflight.delete(key); });
+    this.inflight.set(key, promise);
+    return promise;
+  }
+
+  async _fetchAndCache(key, imagePath, size) {
     const url = new URL('/api/v1/preprocessing/preview-thumb', apiClient.baseUrl);
     url.searchParams.set('path', imagePath);
     url.searchParams.set('size', size);
