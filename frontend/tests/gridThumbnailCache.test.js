@@ -2,9 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GridThumbnailCache } from '../src/renderer/shared/grid-thumbnail-cache.js';
 
 let blobCounter = 0;
+const originals = {};
 
 beforeEach(() => {
   blobCounter = 0;
+  // Save the real globals so we can restore them — vi.restoreAllMocks() does NOT
+  // revert plain `global.x = ...` assignments, which would leak into other files.
+  originals.createObjectURL = global.URL.createObjectURL;
+  originals.revokeObjectURL = global.URL.revokeObjectURL;
+  originals.fetch = global.fetch;
   global.URL.createObjectURL = vi.fn(() => `blob:${blobCounter++}`);
   global.URL.revokeObjectURL = vi.fn();
   global.fetch = vi.fn(async () => ({
@@ -14,7 +20,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  global.URL.createObjectURL = originals.createObjectURL;
+  global.URL.revokeObjectURL = originals.revokeObjectURL;
+  global.fetch = originals.fetch;
 });
 
 describe('GridThumbnailCache', () => {
