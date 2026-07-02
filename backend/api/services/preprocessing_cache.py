@@ -244,10 +244,12 @@ class PreprocessingCache:
         Cheap cache key for an overview thumbnail.
 
         Unlike compute_file_hash (which reads the whole file to SHA1 its
-        content), this keys on path + mtime + size + thumbnail size via os.stat
-        only. Filling a grid means keying hundreds of files per view, so we
-        avoid reading every file. An in-place re-export changes the mtime, so
-        the key changes and a fresh thumbnail is generated automatically.
+        content), this keys on: absolute path, file mtime (ns), file size
+        (bytes), and the requested thumbnail size (px) — all from a single
+        os.stat, no file read. Filling a grid means keying hundreds of files
+        per view, so we avoid reading every file. An in-place re-export changes
+        the mtime, so the key changes and a fresh thumbnail is generated
+        automatically.
         """
         st = os.stat(file_path)
         raw = f"{os.path.abspath(file_path)}|{st.st_mtime_ns}|{st.st_size}|{size}"
