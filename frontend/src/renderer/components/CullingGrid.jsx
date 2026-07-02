@@ -71,7 +71,10 @@ export function CullingGrid({
   return (
     <div className="culling-grid" ref={gridRef} tabIndex={-1}>
       {files.map((f, i) => {
-        const matches = highlightActive && namesInBasename(f.basename).includes(highlightPlayer);
+        // Prefer the backend-parsed names (kept in sync with the stats column);
+        // fall back to parsing the basename if a file object lacks them.
+        const names = f.names || namesInBasename(f.basename);
+        const matches = highlightActive && names.includes(highlightPlayer);
         return (
           <GridCell
             key={f.path}

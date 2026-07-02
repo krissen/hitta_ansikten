@@ -13,12 +13,17 @@ const FILES = [
   { path: '/p/260601_120200_Carol.jpg', basename: '260601_120200_Carol.jpg' },
 ];
 
+let originalFetch;
+
 beforeEach(() => {
+  // Save/restore the real global — vi.restoreAllMocks() doesn't revert a plain
+  // `global.fetch = ...` assignment, which would leak into other test files.
+  originalFetch = global.fetch;
   global.fetch = vi.fn(async () => { throw new Error('no network in test'); });
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  global.fetch = originalFetch;
 });
 
 function renderGrid(props = {}) {
