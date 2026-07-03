@@ -56,8 +56,6 @@ deliverables, DoD) för en prestandarelease.
 
 - [ ] "Öppna i Lightroom" (`open-raw-in-lightroom`) läser hela RAW-roten rekursivt i minnet per tangenttryck och sorterar för deterministisk första-träff. Räcker för dagens per-match-mappar; för en stor RAW-rot, byt till en strömmande DFS-walk med tidig utgång (behåll deterministisk traverseringsordning) eller cachea filindexet.
 - [ ] **Tangentbordstest för CullingModules Enter/Esc-gate** — capture-fas-lyssnaren (gate på FlexLayout-node/aktiv-tabset + `menuRef`) saknar enhetstest för "Enter är no-op när kontextmenyn är öppen och läcker inte till andra moduler" och motsvarande för `Esc`. Låg impact (musdriven meny), men regressionsbenägen (jfr #81). Kräver tyngre DOM/FlexLayout-mockning eller att beslutslogiken extraheras till en ren predikat-funktion som kan testas. Noterat i granskningen av #106.
-- [ ] **Gallra spelare — rutnätsminiatyrer cache-bustar inte vid in-place om-export** — översiktsvyn (rutnätet, #113) hämtar miniatyren via `useGridThumbnail(path, size)` utan fingerprint, så en om-export i Lightroom (samma sökväg) syns i rutnätet först när man öppnar bilden i enkelbild (loupe:n bustar via `stat-file-stable`) eller startar om. Medvetet val för att slippa hämta om hela rutnätet vid varje mappändring; `grid-thumbnail-cache.js` stödjer redan en `fingerprint`-param (läggs i både cache-nyckel och URL) om den ska trådas in per cell.
-- [ ] **`gridThumbnailCache.clear()` är inte inkopplad** — metoden (med generation-guard mot in-flight-fetchar) finns men anropas inte från någon plats; ren defensiv kod. Koppla in vid t.ex. mapp-/scope-byte om rutnäts-blobar behöver frigöras aktivt, annars kan den förenklas.
 
 ---
 
