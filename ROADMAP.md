@@ -22,7 +22,7 @@ deliverables, DoD) för en prestandarelease.
 
 ### Kort sikt
 
-- [ ] **Import-subkommando** — `ansikten import [MÅL]` öppnar Import-modulen. PATH-semantiken skiljer sig (import tar en *destination*, källan är autodetekterat kort), så det kräver egen design.
+(Inget just nu.)
 
 ### Mellan sikt
 

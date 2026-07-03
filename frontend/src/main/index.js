@@ -174,6 +174,21 @@ function expandFolderPaths(patterns) {
   return [...new Set(dirs)];
 }
 
+// Resolve the optional import destination from the CLI path args. Unlike
+// expandFolderPaths this does NOT stat/verify existence — an import destination
+// may not exist yet (it's created on transfer). Returns the resolved absolute
+// path, or undefined when no destination was given (the module falls back to its
+// preference default).
+function resolveImportDest(patterns) {
+  const first = patterns[0];
+  if (!first) return undefined;
+  let expanded = first;
+  if (first.startsWith("~")) {
+    expanded = path.join(os.homedir(), first.slice(1));
+  }
+  return path.resolve(expanded);
+}
+
 // Send files to renderer's file queue
 function sendFilesToQueue(files, position, startQueue, clear = false) {
   if (!mainWindow) return;
@@ -200,6 +215,15 @@ function sendCullingScope(roots, clear = false, recursive = false) {
     `[Main] Sending ${roots.length} folder(s) to culling (clear: ${clear}, recursive: ${recursive})`,
   );
   mainWindow.webContents.send("open-culling", { roots, clear, recursive });
+}
+
+// Open the import module, optionally pre-filling a destination folder. The
+// source card is autodetected by the module itself; destination may be undefined
+// (module uses its preference default).
+function sendImportScope(destination) {
+  if (!mainWindow) return;
+  console.log(`[Main] Opening import (destination: ${destination || "default"})`);
+  mainWindow.webContents.send("open-import", { destination });
 }
 
 /**
@@ -292,6 +316,10 @@ app.on("second-instance", async (event, argv, workingDirectory) => {
     if (roots.length > 0 || args.clear) {
       sendCullingScope(roots, args.clear, args.recursive);
     }
+  } else if (args.verb === "import") {
+    // Import target: always open the module (source card is autodetected), with
+    // the optional destination folder pre-filled.
+    sendImportScope(resolveImportDest(args.files));
   } else if (args.files.length > 0 || args.clear) {
     const files = await expandFilePaths(args.files);
     console.log("[Main] Expanded files:", JSON.stringify(files));
@@ -375,6 +403,14 @@ app.whenReady().then(async () => {
         }, 1000); // Give the culling module time to mount
       });
     }
+  } else if (initialArgs.verb === "import") {
+    // Import target: always open the module once the renderer is ready.
+    const destination = resolveImportDest(initialArgs.files);
+    mainWindow.webContents.once("did-finish-load", () => {
+      setTimeout(() => {
+        sendImportScope(destination);
+      }, 1000); // Give the import module time to mount
+    });
   } else if (initialArgs.files.length > 0 || initialArgs.clear) {
     const files = await expandFilePaths(initialArgs.files);
     if (files.length > 0 || initialArgs.clear) {

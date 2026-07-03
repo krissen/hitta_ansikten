@@ -1,13 +1,15 @@
 #!/bin/sh
 # Ansikten launcher — open the desktop app with an optional workflow subcommand.
 #
-#   ansikten [faces|culling] [--clear] PATH...
+#   ansikten [faces|culling|import] [--clear] PATH...
 #
 #   ansikten *.NEF                 # face queue + start (legacy behaviour)
 #   ansikten faces --clear *.NEF   # replace the face queue, then start
 #   ansikten culling DIR           # open DIR for culling (append)
 #   ansikten culling --clear DIR   # replace the culling folder set with DIR
 #   ansikten culling --clear       # empty the culling workspace
+#   ansikten import                # open the import module (card autodetected)
+#   ansikten import DIR            # ...and pre-fill DIR as the destination
 #
 # All parsing/routing lives in the app (src/main/cli-args.js); this launcher
 # stays thin. Its only smart bit: default the verb to `faces` when the first
@@ -17,7 +19,7 @@ APP="/Applications/Ansikten.app/Contents/MacOS/Ansikten"
 
 usage() {
   cat >&2 <<'EOF'
-ansikten [faces|culling] [--clear] PATH...
+ansikten [faces|culling|import] [--clear] PATH...
 
   ansikten *.NEF                 face queue + start (default)
   ansikten faces --clear *.NEF   replace the face queue, then start
@@ -25,10 +27,13 @@ ansikten [faces|culling] [--clear] PATH...
   ansikten culling -r DIR        ...including subfolders (recursive)
   ansikten culling --clear DIR   replace the culling folder set with DIR
   ansikten culling --clear       empty the culling workspace
+  ansikten import                open the import module (card autodetected)
+  ansikten import DIR            ...and pre-fill DIR as the destination
 
-Verbs: faces (default), culling (alias cull). --clear/-c resets the
-target's working set first; without it paths are appended. --recursive/-r
-(culling) scans subfolders too; the default is just the named folder.
+Verbs: faces (default), culling (alias cull), import. --clear/-c resets
+the target's working set first; without it paths are appended. --recursive/-r
+(culling) scans subfolders too; the default is just the named folder. import
+takes an optional destination folder; the source card is autodetected.
 EOF
 }
 
@@ -48,7 +53,7 @@ if [ ! -x "$APP" ]; then
 fi
 
 case "$1" in
-  faces | culling | cull | "")
+  faces | culling | cull | import | "")
     "$APP" "$@" >/dev/null 2>&1 &
     ;;
   *)

@@ -128,6 +128,8 @@ ansikten faces *.NEF          # köa NEF för ansiktsgranskning och börja bearb
 ansikten *.NEF                # samma sak — faces är standard när inget verb anges
 ansikten culling MAPP         # öppna MAPP i Gallra spelare
 ansikten cull MAPP            # alias för culling
+ansikten import               # öppna Importera (minneskortet autodetekteras)
+ansikten import MAPP          # ...och för-ifyll MAPP som destination
 ```
 
 **Mål (verb):**
@@ -136,6 +138,13 @@ ansikten cull MAPP            # alias för culling
 |------|-------------|----------|
 | `faces` (standard) | Ansiktskön (filer) | Lägg till + börja bearbeta |
 | `culling` / `cull` | Gallra-mappar (roots) | Lägg till mappen |
+| `import` | Destinationsmapp (valfri) | Öppna Importera; källkortet autodetekteras |
+
+`import` skiljer sig från de övriga: sökvägen är en *destination* (dit filerna
+kopieras), inte en källa — källan är det monterade minneskortet, som upptäcks
+automatiskt. Destinationen behöver inte finnas (den skapas vid överföring), och
+`--clear`/`--recursive` saknar betydelse för `import`. Utan destination används
+den sparade standarddestinationen (samma fält som i Importera-modulen).
 
 **`--clear` / `-c`** nollställer målets arbetsmängd *före* tillägg. Ensam (utan
 sökväg) tömmer den bara:

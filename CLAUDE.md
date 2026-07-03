@@ -211,7 +211,7 @@ Config in `~/.local/share/faceid/config.json`:
 - Backend auto-starts with Electron; use `python -m api.server` for standalone
 - DetectionService caches results by file hash (check cache when debugging)
 - GitHub Actions releases triggered by `v*` tags (e.g., `v1.0.1`)
-- Launch CLI: `ansikten [faces|culling] [--clear] PATH...` — the `bin/ansikten` script forwards args to the app; parsing/routing lives in `frontend/src/main/cli-args.js` (one source of truth) → IPC `queue-files` (faces) / `open-culling` (culling). No verb = faces; faces and culling are separate working sets
+- Launch CLI: `ansikten [faces|culling|import] [--clear] PATH...` — the `bin/ansikten` script forwards args to the app; parsing/routing lives in `frontend/src/main/cli-args.js` (one source of truth) → IPC `queue-files` (faces) / `open-culling` (culling) / `open-import` (import, optional destination). No verb = faces; faces and culling are separate working sets. `import` takes an optional *destination* folder (source card is autodetected); a bare `ansikten import` still opens the module
 
 ---
 
