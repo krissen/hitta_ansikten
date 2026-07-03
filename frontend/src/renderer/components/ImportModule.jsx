@@ -81,15 +81,20 @@ export function ImportModule() {
   }, []);
 
   // CLI hand-off from `ansikten import [DEST]`. A given destination pre-fills the
-  // field and is persisted (mirrors onDestinationChange); no destination is a
-  // no-op, leaving the preference default in place. The source card is
-  // autodetected via loadVolumes, independent of this.
+  // field and is persisted (mirrors onDestinationChange); no destination leaves
+  // the preference default in place.
   useModuleEvent('import-load', (data) => {
     const dest = data?.destination;
-    if (!dest) return;
-    setDestination(dest);
-    preferences.set('import.destination', dest);
-  });
+    if (dest) {
+      setDestination(dest);
+      preferences.set('import.destination', dest);
+    }
+    // A CLI `ansikten import` is the most likely "I just inserted a card"
+    // moment. loadVolumes otherwise runs only on mount, so an already-open
+    // module would show a stale/empty card dropdown until manual refresh —
+    // re-scan here so the command delivers on its "card autodetected" promise.
+    loadVolumes();
+  }, [loadVolumes]);
 
   const runImport = useCallback(async () => {
     if (!selectedMount || !destination.trim()) return;
