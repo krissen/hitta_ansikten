@@ -108,6 +108,36 @@ describe('parseCliArgs', () => {
     });
   });
 
+  describe('import verb', () => {
+    it('routes to import with no destination (card autodetected)', () => {
+      const r = parseCliArgs([APP, 'import']);
+      expect(r.verb).toBe('import');
+      expect(r.files).toEqual([]);
+    });
+
+    it('carries an optional destination folder as the single path arg', () => {
+      const r = parseCliArgs([APP, 'import', '~/foto/2026']);
+      expect(r.verb).toBe('import');
+      expect(r.files).toEqual(['~/foto/2026']);
+    });
+
+    it('does NOT inherit faces queue/start defaults', () => {
+      const r = parseCliArgs([APP, 'import', '~/foto/2026']);
+      expect(r.queuePosition).toBe(null);
+      expect(r.startQueue).toBe(false);
+    });
+
+    it('verb matching is case-insensitive', () => {
+      expect(parseCliArgs([APP, 'Import', '~/foto']).verb).toBe('import');
+    });
+
+    it('a later import token is treated as a path, not the verb', () => {
+      const r = parseCliArgs([APP, '/photos/a.NEF', 'import']);
+      expect(r.verb).toBe(null);
+      expect(r.files).toEqual(['/photos/a.NEF', 'import']);
+    });
+  });
+
   describe('verb detection edge cases', () => {
     it('a verb only counts as the first real token, not later', () => {
       // Here a path comes first, so a later "culling" is treated as a path.

@@ -20,7 +20,7 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
   },
 
   on: (channel, callback) => {
-    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files", "open-culling"];
+    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files", "open-culling", "open-import"];
     if (!allowedChannels.includes(channel)) return undefined;
     // Strip event object for security. Return a disposer so callers can clean
     // up in effect teardown and avoid stacking duplicate listeners on re-runs.

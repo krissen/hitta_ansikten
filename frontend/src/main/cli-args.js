@@ -7,10 +7,12 @@
 // tested without spinning up Electron.
 //
 // Grammar:  ansikten [VERB] [--clear|-c] [--recursive|-r] [-s|--start] PATH...
-//   VERB  faces (default) | culling (alias cull)
+//   VERB  faces (default) | culling (alias cull) | import
 //   --clear/-c      empty the target's working set first (alone = just empty)
 //   --recursive/-r  culling only: also scan sub-folders (default: just the
 //                   named folder, matching shell-glob intuition)
+// The import verb takes an optional destination folder as its single path arg;
+// the source (camera card) is autodetected, and --clear/--recursive are ignored.
 // faces-specific position flags (--queue/-q, --queue-start/-qs, --queue-end/-qe)
 // are kept for back-compat and ignored by the culling target.
 
@@ -19,6 +21,7 @@ const KNOWN_VERBS = {
   faces: "faces",
   culling: "culling",
   cull: "culling",
+  import: "import",
 };
 
 // Known executables/metadata to skip (case-insensitive basename matching), so
@@ -46,7 +49,7 @@ function shouldSkipArg(arg) {
  *
  * @param {string[]} argv
  * @returns {{
- *   verb: 'faces' | 'culling' | null,   // null = no explicit verb (legacy/Finder)
+ *   verb: 'faces' | 'culling' | 'import' | null,   // null = no explicit verb (legacy/Finder)
  *   files: string[],                    // path/glob args (target decides meaning)
  *   queuePosition: 'start' | 'end' | 'sorted' | null,
  *   startQueue: boolean,
