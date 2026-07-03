@@ -20,7 +20,11 @@ import { namesInBasename } from './culling-names.js';
 const THUMB_FETCH_SIZE = 256;
 
 function GridCell({ file, index, selected, highlighted, dimmed, onSelect, onOpen, onContextMenu }) {
-  const { url, error } = useGridThumbnail(file.path, THUMB_FETCH_SIZE);
+  // Fingerprint (mtime+size, from the backend list payload) so an in-place
+  // re-export busts this cell's cached thumbnail — mirrors the loupe's
+  // `${mtimeMs}-${size}`. Absent field → no fingerprint (prior behavior).
+  const fingerprint = file.mtime_ms != null ? `${file.mtime_ms}-${file.size}` : undefined;
+  const { url, error } = useGridThumbnail(file.path, THUMB_FETCH_SIZE, fingerprint);
   const cls = [
     'culling-grid-cell',
     selected ? 'selected' : '',

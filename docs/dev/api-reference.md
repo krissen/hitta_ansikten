@@ -842,7 +842,7 @@ is read from the `YYMMDD_HHMMSS` prefix and they contribute no `players` entries
 ```json
 {
   "files": [
-    { "path": "/path/250601_100000_Anna.jpg", "basename": "250601_100000_Anna.jpg", "names": ["Anna"], "datetime": "2025-06-01T10:00:00" }
+    { "path": "/path/250601_100000_Anna.jpg", "basename": "250601_100000_Anna.jpg", "names": ["Anna"], "datetime": "2025-06-01T10:00:00", "mtime_ms": 1717236000000, "size": 4096 }
   ],
   "players": ["Anna", "Bertil"]
 }
@@ -850,6 +850,11 @@ is read from the `YYMMDD_HHMMSS` prefix and they contribute no `players` entries
 
 `players` lists every name present across the resolved files (computed before
 the `name_glob`/`player` filter, so the dropdown stays complete).
+
+Each file also carries an `mtime_ms`/`size` fingerprint (integer ms + bytes) so
+the overview grid can cache-bust a thumbnail after an in-place re-export. Both
+fields are **omitted** for a file that can't be stat'd (e.g. removed between the
+scan and the response), so consumers must treat them as optional.
 
 ### `POST /api/v1/culling/trash`
 

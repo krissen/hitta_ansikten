@@ -53,3 +53,17 @@ def test_dropdown_lists_multiple_players_sorted(service, tmp_path):
     result = service.list_files(roots=[str(tmp_path)], recursive=False)
 
     assert result["players"] == ["Ada", "Bo"]
+
+
+def test_files_carry_mtime_size_fingerprint(service, tmp_path):
+    # Each listed file exposes an mtime_ms/size fingerprint so the frontend grid
+    # can cache-bust a thumbnail after an in-place re-export.
+    _make(tmp_path, "Ida", DROPDOWN_MIN_IMAGES, start=1)
+
+    result = service.list_files(roots=[str(tmp_path)], recursive=False)
+
+    assert result["files"], "expected listed files"
+    for f in result["files"]:
+        assert isinstance(f["mtime_ms"], int)
+        assert isinstance(f["size"], int)
+        assert f["size"] > 0

@@ -90,4 +90,22 @@ describe('CullingGrid', () => {
     expect(container.querySelectorAll('.culling-grid-cell.highlight').length).toBe(0);
     expect(container.querySelectorAll('.culling-grid-cell.dimmed').length).toBe(0);
   });
+
+  it('sends the mtime/size fingerprint as the thumbnail cache-buster', () => {
+    // Distinct paths from the shared FILES so the singleton grid cache doesn't
+    // serve a prior test's cached entry (which would skip the fetch we assert on).
+    const files = [
+      { path: '/fp/260601_130000_Fp.jpg', basename: '260601_130000_Fp.jpg', mtime_ms: 1700, size: 2048 },
+      { path: '/fp/260601_130100_NoFp.jpg', basename: '260601_130100_NoFp.jpg' },
+    ];
+    renderGrid({ files, currentIndex: 0, highlightPlayer: '' });
+    const urls = global.fetch.mock.calls.map((c) => String(c[0]));
+    const withFp = urls.find((u) => u.includes('260601_130000_Fp'));
+    const noFp = urls.find((u) => u.includes('260601_130100_NoFp'));
+    expect(withFp).toBeTruthy();
+    expect(withFp).toContain('v=1700-2048');
+    // A file the backend couldn't stat (no mtime_ms) carries no cache-buster.
+    expect(noFp).toBeTruthy();
+    expect(noFp).not.toContain('v=');
+  });
 });
