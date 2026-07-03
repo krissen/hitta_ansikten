@@ -80,15 +80,26 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 
 ### Gallring (Gallra spelare)
 
+Gallra spelare har två vyer: **enkelbild** (loupe, standard) och **översikt**
+(rutnät/contact sheet). Växla med **Rutnät**-knappen i filterraden (markerad när
+översikten är aktiv; valet sparas mellan omstarter).
+
 | Genväg | Funktion |
 |--------|----------|
-| `↑` / `↓` (`k` / `j`) | Föregående/nästa bild i listan |
+| `↑` / `↓` (`k` / `j`) | **Enkelbild:** föregående/nästa. **Rutnät:** upp/ned en rad |
+| `←` / `→` | **Rutnät:** en miniatyr åt vänster/höger (enkelbild: föregående/nästa) |
+| `Alt`+pil | Bläddra sidvis (10 bilder, resp. 3 rader i rutnätet) |
 | `x` / `Delete` / `Cmd+⌫` | Flytta bilden till papperskorgen och gå vidare (`Cmd+⌫` följer Finder) |
-| `Enter` | Byt namn på filen manuellt (eller dubbelklicka) |
+| Dubbelklick / `Enter` | **Rutnät:** öppna miniatyren i enkelbild. **Enkelbild:** byt namn manuellt |
+| `Esc` | **Enkelbild:** tillbaka till översikten (om inget redigeras). Annars: kasta förhandsvisningens avbockade namn |
 | `Cmd+Enter` | Tillämpa avbockade namn från förhandsvisningen (döper om filen) |
-| `Esc` | Kasta förhandsvisningens avbockade namn för aktuell fil (ingen dialog) |
 | `Cmd+Z` | Ångra (återställ senast gallrade bild) |
 | `L` | Öppna aktuell bilds original-NEF i Lightroom (även högerklick-menyn) |
+
+I **rutnätet** är klick på ett spelarnamn i statistik-kolumnen lägesberoende:
+**enkelklick markerar** (highlightar) spelarens miniatyrer utan att filtrera bort
+övriga, **dubbelklick filtrerar** rutnätet till bara spelarens bilder. I
+**enkelbild** filtrerar enkelklick som vanligt.
 
 ### Allmänt
 
