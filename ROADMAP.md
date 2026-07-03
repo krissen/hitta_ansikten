@@ -56,6 +56,7 @@ deliverables, DoD) för en prestandarelease.
 
 - [ ] "Öppna i Lightroom" (`open-raw-in-lightroom`) läser hela RAW-roten rekursivt i minnet per tangenttryck och sorterar för deterministisk första-träff. Räcker för dagens per-match-mappar; för en stor RAW-rot, byt till en strömmande DFS-walk med tidig utgång (behåll deterministisk traverseringsordning) eller cachea filindexet.
 - [ ] **Tangentbordstest för CullingModules Enter/Esc-gate** — capture-fas-lyssnaren (gate på FlexLayout-node/aktiv-tabset + `menuRef`) saknar enhetstest för "Enter är no-op när kontextmenyn är öppen och läcker inte till andra moduler" och motsvarande för `Esc`. Låg impact (musdriven meny), men regressionsbenägen (jfr #81). Kräver tyngre DOM/FlexLayout-mockning eller att beslutslogiken extraheras till en ren predikat-funktion som kan testas. Noterat i granskningen av #106.
+- [ ] **Test för `gridThumbnailCache.clear()`-inkopplingen** — själva wiring:en (unmount-cleanup + `--clear`-teardown i CullingModule) saknar test; bara fingerprint-i-URL-vägen täcks (`cullingGridRender.test.jsx`). Låg impact — skulle kräva en full CullingModule-mount. Noterat i granskningen av #114.
 
 ---
 
