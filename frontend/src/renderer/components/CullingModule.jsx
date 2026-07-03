@@ -15,6 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
 import { CullingGrid } from './CullingGrid.jsx';
+import { gridThumbnailCache } from '../shared/grid-thumbnail-cache.js';
 import { gridNavTarget } from './culling-grid-nav.js';
 import { preferences } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
@@ -338,6 +339,10 @@ export function CullingModule({ node }) {
       if (unsubscribe) unsubscribe();
       for (const dir of watchedDirsRef.current) window.ansiktenAPI.unwatchFolder?.(dir);
       watchedDirsRef.current = new Set();
+      // Free the overview grid's blob URLs on teardown (all tabs stay mounted —
+      // enableRenderOnDemand:false — so this runs only on genuine close, not a
+      // tab switch, and won't refetch on return).
+      gridThumbnailCache.clear();
     };
   }, [loadList, loadStats]);
 
@@ -455,6 +460,10 @@ export function CullingModule({ node }) {
         ++reqSeqRef.current;
         ++statsSeqRef.current;
         setFiles([]);
+        // Working set is being emptied — free the grid's cached thumbnail blobs
+        // so a later scope doesn't inherit stale entries (guarded against any
+        // in-flight fetch by the cache's generation counter).
+        gridThumbnailCache.clear();
         setCurrentIndex(-1);
         setStats(null);
         setHasRun(false);
