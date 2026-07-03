@@ -74,7 +74,10 @@ class CullingService:
         (e.g. ``*ArvidW*``) applied to the resolved files within the selected
         folder(s) — it narrows the working set, it does not scan the filesystem.
 
-        Returns {files: [{path, basename, names, datetime}], players: [name,...]}.
+        Returns {files: [{path, basename, names, datetime, mtime_ms, size}],
+        players: [name,...]}. ``mtime_ms``/``size`` are a per-file fingerprint
+        for grid thumbnail cache-busting; both are omitted if the file can't be
+        stat'd.
         ``players`` is the sorted filter-dropdown list: names counted across all
         resolved files (before the player/name_glob narrowing so it stays
         complete) then filtered through the shared exclusions + threshold, so it
@@ -123,12 +126,23 @@ class CullingService:
                 continue
             if glob_lower is not None and not fnmatch.fnmatch(Path(path).name.lower(), glob_lower):
                 continue
-            out.append({
+            entry = {
                 "path": path,
                 "basename": Path(path).name,
                 "names": names,
                 "datetime": dt.isoformat(),
-            })
+            }
+            # mtime+size fingerprint so the frontend grid can cache-bust a
+            # thumbnail after an in-place re-export (same path, changed bytes).
+            # A file that vanished between scan and stat is served without the
+            # fingerprint — the grid cell just won't bust, matching prior behavior.
+            try:
+                st = Path(path).stat()
+                entry["mtime_ms"] = st.st_mtime_ns // 1_000_000
+                entry["size"] = st.st_size
+            except OSError:
+                pass
+            out.append(entry)
 
         # Dropdown players: apply the same exclusions + threshold as the CLI /
         # stats column so group/crowd markers (Laget/FBK/Klacken), coaches, and
