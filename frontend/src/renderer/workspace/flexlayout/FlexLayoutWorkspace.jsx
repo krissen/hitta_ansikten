@@ -8,6 +8,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
 import { resolveTargetTabset } from './tabsetUtils.js';
+import { retranslateTabNames } from './tabNames.js';
 import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
 import { themeManager } from '../../theme-manager.js';
@@ -376,7 +377,9 @@ export function FlexLayoutWorkspace() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         debug('FlexLayout', 'Loading saved layout');
-        layoutConfig = JSON.parse(saved);
+        // Persisted layouts freeze each tab's name; re-apply current
+        // translations so old layouts don't show stale (e.g. English) labels.
+        layoutConfig = retranslateTabNames(JSON.parse(saved), MODULE_TITLES);
       }
     } catch (err) {
       debugWarn('FlexLayout', 'Failed to load saved layout:', err);
