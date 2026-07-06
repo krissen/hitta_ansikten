@@ -71,6 +71,8 @@ hiddenimports = [
     'core.config',
     'core.matching',
     'core.image',
+    'core.attempts',
+    'core.naming',
     'core.playerstats',
 ]
 
