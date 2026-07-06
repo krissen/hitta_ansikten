@@ -25,8 +25,8 @@ from PIL import Image, ImageOps
 
 from core.attempts import log_attempt_stats
 from core.config import load_config
+from core.db import BASE_DIR, get_file_hash, load_database, save_database
 from face_backends import create_backend
-from faceid_db import BASE_DIR, get_file_hash, load_database, save_database
 
 from .management_service import DISTINCT_PAIRS_PATH, _load_distinct_pairs
 from .preprocessing_cache import get_cache as get_preprocessing_cache
@@ -159,13 +159,9 @@ class DetectionService:
             "cache_cleared": old_cache_size
         }
 
-    def _get_file_hash(self, path: Path) -> str:
-        """Compute SHA1 hash of file using chunked reading"""
-        sha1 = hashlib.sha1()
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(65536), b''):
-                sha1.update(chunk)
-        return sha1.hexdigest()
+    def _get_file_hash(self, path: Path) -> str | None:
+        """Compute SHA1 hash of file (delegates to the canonical core.db impl)."""
+        return get_file_hash(path)
 
     def _load_image(self, image_path: Path) -> np.ndarray:
         """Load image as RGB array (supports NEF and standard formats)
