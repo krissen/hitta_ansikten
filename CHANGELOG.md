@@ -6,6 +6,12 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+### Removed
+- Removed root-level `RENAME_MANUAL_FACES_PLAN.md` (a completed bug post-mortem — its fixes are recorded in this changelog) and a stray `.luarc.json` Lua LSP config unrelated to this Python/JS repo.
+
+### Docs
+- README: corrected the Python requirement (3.11+, matching `pyproject.toml`), the dev install command (`pip install -e ".[dev]"`), and the feature list (added Importera, Räkna spelare, Gallra spelare and Papperskorg).
+
 ### Fixed
 - **JPEG-rotation: felplacerad ansiktsruta och roterad miniatyr.** Foton med EXIF-orientering (t.ex. mobil-JPEG tagna i porträtt, `Orientation = Rotate 90 CW`) fick ansikten detekterade i det oroterade pixelplanet medan frontend (Chromium `<img>`) visar bilden EXIF-roterad — så bounding box-rutan hamnade ~90° fel (bredvid ansiktet) och miniatyren i sidopanelen visades liggande. Backend `_load_image` applicerar nu `PIL.ImageOps.exif_transpose()` innan pixlarna läses, så detektion och miniatyrbeskärning sker i samma orienterade plan som visas. RAW/NEF påverkades inte (libraw orienterar redan). Not: ansiktsminiatyrer som redan cachats på disk från en tidigare preprocessing av roterade JPEG:ar kan behöva regenereras.
 - **Kvarhängande engelska flik-namn ("Image Viewer", "File Queue").** Fliktitlarna hade svenska översättningar ("Bildvisare", "Filkö") men visades ändå på engelska för den som sparat en layout innan översättningarna landade: FlexLayout serialiserar varje fliks `name` i den sparade layouten, och `Model.fromJson` kör aldrig om `t()` vid återställning. Layouten som läses från `localStorage` går nu genom `retranslateTabNames`, som återapplicerar aktuell översättning på varje känd modulflik (nyckel: flikens `component`/`moduleId`). Okända/manuellt omdöpta flikar lämnas orörda.
