@@ -56,10 +56,6 @@
     },
     "files": [
       "main.js",
-      "preload.js",
-      "index.html",
-      "styles.css",
-      "renderer.js",
       "src/**/*",
       "assets/**/*",
       "node_modules/**/*",
