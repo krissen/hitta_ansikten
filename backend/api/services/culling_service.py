@@ -5,7 +5,7 @@ soft-delete (trash) / restore them with an app-managed, manifest-backed trash so
 deletions are always reversible.
 
 Reuses the shared file resolution (file_resolver) + filename parsing
-(rakna_spelare.build_entries) for listing, and the sidecar-aware move idea from
+(core.playerstats.parse_filename) for listing, and the sidecar-aware move idea from
 filer2mappar for trashing. No face recognition — players are filename-derived.
 """
 
@@ -18,14 +18,13 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Backend root on sys.path to import the CLI parser (pattern shared with the
-# other services).
+# Backend root on sys.path to import the backend-root config shim (cli_config).
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from collections import Counter  # noqa: E402
 
 from cli_config import load_config, save_config  # noqa: E402
-from rakna_spelare import (  # noqa: E402
+from core.playerstats import (  # noqa: E402
     bucket_counter,
     parse_filename,
     resolve_exclusion_sets,
