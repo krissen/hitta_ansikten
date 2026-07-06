@@ -72,7 +72,7 @@ deliverables, DoD) för en prestandarelease.
 
 dlib-backend är borttaget. InsightFace är det enda stödda backend.
 
-- Alla befintliga dlib-encodings raderas automatiskt vid serverstart
+- Befintliga dlib-encodings *detekteras* vid serverstart (dry-run) med en varning om att köra `rensa_dlib.py` — inget raderas automatiskt (verifierat mot server.py i granskningen av #123)
 - Legacy-scriptet (hitta_ansikten.py) tvingar insightface om dlib konfigureras
 - Encoding-shape är alltid (512,) för InsightFace
 
