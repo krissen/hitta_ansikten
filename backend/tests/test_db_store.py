@@ -1,8 +1,10 @@
 """Unit tests for FaceDBStore (the process-wide face DB repository).
 
 The store is introduced in Phase D but not yet wired to any service. These
-tests pin its contract: initial load, mtime-stable snapshots, external-write
-invalidation, versioning, debounced/coalesced saves, flush durability, no
+tests pin its contract: initial load, fingerprint-stable snapshots
+((st_mtime_ns, st_size) per file), external-write invalidation, versioning,
+LEADING-coalesce saves (fires 500 ms after the FIRST mutation of a burst,
+matching detection_service), read() under the lock, flush durability, no
 false self-reload, thread-safety, and RLock reentrancy.
 
 All core.db path constants are monkeypatched to a temp dir (same pattern as
@@ -215,6 +217,30 @@ def test_newly_created_file_invalidates(db_dir, make_store):
     assert len(snap.ignored_faces) == 1
 
 
+def test_same_mtime_different_size_invalidates(db_dir, make_store):
+    """Size is part of the fingerprint: a rewrite that restores the original
+    mtime but changes the file size must still be detected. (The residual
+    same-mtime AND same-size false-negative is accepted and documented.)"""
+    _seed(known={"Alice": [_entry([1.0])]})
+    store = make_store()
+    first = store.snapshot()
+    recorded = faceid_db.ENCODING_PATH.stat()
+
+    # External rewrite with different content (different size), mtime restored.
+    faceid_db.save_database(
+        {"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]}, [], {}, []
+    )
+    os.utime(
+        faceid_db.ENCODING_PATH,
+        ns=(recorded.st_atime_ns, recorded.st_mtime_ns),
+    )
+    assert faceid_db.ENCODING_PATH.stat().st_mtime_ns == recorded.st_mtime_ns
+
+    snap = store.snapshot()
+    assert snap.version == first.version + 1, "size change alone did not invalidate"
+    assert "Bob" in snap.known_faces
+
+
 # --------------------------------------------------------------------------
 # 4. mutate: bumps version, schedules save
 # --------------------------------------------------------------------------
@@ -261,11 +287,13 @@ def test_mutate_on_fresh_store_loads_first(db_dir, fast_debounce, make_store):
 
 
 # --------------------------------------------------------------------------
-# 5. Debounce coalescing
+# 5. Leading coalesce (matches detection_service's _schedule_save)
 # --------------------------------------------------------------------------
 
-def test_debounce_coalesces_saves(db_dir, monkeypatch, make_store):
-    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 0.15)
+def test_leading_coalesce_single_save_after_first_mutation(db_dir, monkeypatch, make_store):
+    """Two mutates within the window -> ONE save, ~window after the FIRST."""
+    window = 0.3
+    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", window)
     _seed()
     store = make_store()
 
@@ -278,17 +306,53 @@ def test_debounce_coalesces_saves(db_dir, monkeypatch, make_store):
 
     monkeypatch.setattr(db_store_mod.db, "save_database", spy_save)
 
-    # Two rapid mutations within the debounce window -> one save.
+    t0 = time.monotonic()
     store.mutate(lambda k, i, h, p: k.__setitem__("A", [_entry([1.0])]))
+    time.sleep(window * 0.6)  # second mutate late in the window
     store.mutate(lambda k, i, h, p: k.__setitem__("B", [_entry([2.0])]))
 
     assert _wait_for(lambda: saves["n"] >= 1, timeout=2.0)
-    time.sleep(0.2)
+    elapsed = time.monotonic() - t0
+    # Leading: fires ~window after the FIRST mutate. Trailing (re-armed by the
+    # second mutate) would fire no earlier than 1.6 * window.
+    assert elapsed < window * 1.5, (
+        f"save fired {elapsed:.2f}s after first mutate — trailing re-arm detected"
+    )
+
+    time.sleep(window)  # no second save for the same burst
     assert saves["n"] == 1, f"expected coalesced single save, got {saves['n']}"
 
     # Both mutations are present in the single write.
     k, _, _, _ = faceid_db.load_database()
     assert set(k.keys()) == {"A", "B"}
+
+
+def test_sustained_mutation_still_saves_periodically(db_dir, monkeypatch, make_store):
+    """Leading coalesce must not starve saves under back-to-back mutation."""
+    window = 0.1
+    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", window)
+    _seed()
+    store = make_store()
+
+    saves = {"n": 0}
+    real_save = faceid_db.save_database
+
+    def spy_save(*a, **kw):
+        saves["n"] += 1
+        return real_save(*a, **kw)
+
+    monkeypatch.setattr(db_store_mod.db, "save_database", spy_save)
+
+    # Mutate continuously for ~4 windows; a trailing debounce would defer the
+    # save until the burst ends (saves == 0 during the loop).
+    deadline = time.monotonic() + window * 4
+    while time.monotonic() < deadline:
+        store.mutate(lambda k, i, h, p: p.append(1))
+        time.sleep(0.01)
+
+    assert saves["n"] >= 2, (
+        f"expected periodic saves during sustained mutation, got {saves['n']}"
+    )
 
 
 # --------------------------------------------------------------------------
@@ -375,10 +439,15 @@ def test_concurrent_mutations_no_lost_updates(db_dir, monkeypatch, make_store):
 
     n_threads = 20
     per_thread = 50
+    counter = [0]  # shared read-modify-write counter
 
     def bump(known, ignored, hardneg, processed):
-        # processed_files used as a shared counter list.
-        processed.append(1)
+        # Non-atomic read-modify-write: unlike list.append (GIL-atomic), this
+        # LOSES updates if mutate() stops serializing via the RLock. The
+        # sleep(0) yields the GIL between read and write to widen the race.
+        v = counter[0]
+        time.sleep(0)
+        counter[0] = v + 1
 
     def worker():
         for _ in range(per_thread):
@@ -390,8 +459,8 @@ def test_concurrent_mutations_no_lost_updates(db_dir, monkeypatch, make_store):
     for t in threads:
         t.join()
 
-    snap = store.snapshot()
-    assert len(snap.processed_files) == n_threads * per_thread
+    assert counter[0] == n_threads * per_thread
+    assert store.version >= n_threads * per_thread  # every mutate bumped
 
 
 # --------------------------------------------------------------------------
@@ -415,7 +484,61 @@ def test_mutate_can_call_snapshot_reentrantly(db_dir, fast_debounce, make_store)
 
 
 # --------------------------------------------------------------------------
-# 10. Singleton getter
+# 10. read(): locked iteration/aggregation over the live collections
+# --------------------------------------------------------------------------
+
+def test_read_returns_fn_result(db_dir, make_store):
+    _seed(known={"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]})
+    store = make_store()
+    names = store.read(lambda k, i, h, p: sorted(k.keys()))
+    assert names == ["Alice", "Bob"]
+
+
+def test_read_applies_freshness_check(db_dir, make_store):
+    _seed(known={"Alice": [_entry([1.0])]})
+    store = make_store()
+    v0 = store.read(lambda k, i, h, p: len(k))
+    assert v0 == 1
+
+    # External rewrite must be picked up by read() just like snapshot().
+    faceid_db.save_database({"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]}, [], {}, [])
+    _bump_mtime(faceid_db.ENCODING_PATH)
+    assert store.read(lambda k, i, h, p: sorted(k.keys())) == ["Alice", "Bob"]
+
+
+def test_read_blocks_concurrent_mutate(db_dir, fast_debounce, make_store):
+    """A long read under the lock must not interleave with a mutate."""
+    _seed(known={"Alice": [_entry([1.0])]})
+    store = make_store()
+    store.snapshot()  # prime
+
+    in_read = threading.Event()
+    read_done = threading.Event()
+    mutated_during_read = []
+
+    def slow_read(known, ignored, hardneg, processed):
+        in_read.set()
+        time.sleep(0.2)  # hold the lock; a concurrent mutate must wait
+        mutated_during_read.append("Bob" in known)
+        return list(known.keys())
+
+    def mutator():
+        in_read.wait(timeout=2.0)
+        store.mutate(lambda k, i, h, p: k.__setitem__("Bob", [_entry([2.0])]))
+        read_done.set()
+
+    t = threading.Thread(target=mutator)
+    t.start()
+    keys = store.read(slow_read)
+    t.join()
+
+    assert mutated_during_read == [False], "mutate ran while read held the lock"
+    assert keys == ["Alice"]
+    assert "Bob" in store.snapshot().known_faces  # mutate landed afterwards
+
+
+# --------------------------------------------------------------------------
+# 11. Singleton getter
 # --------------------------------------------------------------------------
 
 def test_get_db_store_is_singleton(db_dir, monkeypatch):

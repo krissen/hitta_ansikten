@@ -11,11 +11,21 @@ Semantics mirror today's data layer (`core.db`):
   ``known_faces`` (dict), ``ignored_faces`` (list), ``hard_negatives``
   (dict), ``processed_files`` (list).
 - ``snapshot()`` cheap-stats the four backing files and reloads only when a
-  file's ``st_mtime_ns`` differs from what the store recorded. It returns the
-  LIVE collection objects (no deep copy — same as today), so callers must
-  mutate them ONLY through ``mutate()``, never directly on the snapshot.
+  file's fingerprint — ``(st_mtime_ns, st_size)`` — differs from what the
+  store recorded. It returns the LIVE collection objects (no deep copy — same
+  as today), so callers must mutate them ONLY through ``mutate()``, never
+  directly on the snapshot. Accepted residual false-negative: an external
+  write that preserves BOTH mtime_ns and size (same-length rewrite plus an
+  ``os.utime`` restore) is not detected until the next genuine fingerprint
+  change or ``mutate()``.
 - ``mutate(fn)`` runs ``fn`` under the store lock, bumps the version, and
-  schedules a debounced save (500 ms, matching detection_service today).
+  schedules a leading-coalesce save: the write fires 500 ms after the FIRST
+  mutation of a burst and is NOT re-armed by later mutations (matching
+  detection_service's ``_schedule_save`` semantics today), so sustained
+  mutation still gets a durable save roughly every 500 ms.
+- ``read(fn)`` runs a read-only ``fn`` under the store lock (after the same
+  freshness check as ``snapshot()``) — the safe primitive for iterating or
+  aggregating over the live collections while other threads may mutate.
 - ``flush()`` cancels any pending save and writes now if dirty — for
   endpoints that promise durability and for shutdown.
 
@@ -32,17 +42,27 @@ from core import db
 
 logger = logging.getLogger(__name__)
 
-# Debounce window for coalescing rapid mutations into a single save.
-# Matches detection_service's current 500 ms debounce.
+# Coalesce window for rapid mutations. Leading semantics: the save fires this
+# long after the FIRST mutation of a burst and is not re-armed by later ones —
+# matching detection_service's current _schedule_save behavior (bounded
+# staleness of ~500 ms under sustained mutation).
 SAVE_DEBOUNCE_SECONDS = 0.5
+
+# Per-file external-change fingerprint: (st_mtime_ns, st_size), or None when
+# the file is absent. Size catches same-mtime rewrites of different length.
+Fingerprint = Optional[tuple[int, int]]
 
 
 @dataclass(frozen=True)
 class DBSnapshot:
-    """A consistent view of the four DB collections plus the store version.
+    """A view of the four DB collections plus the store version.
 
-    The collections are the store's LIVE objects (not copies). Read them
-    freely; never mutate them directly — go through ``FaceDBStore.mutate``.
+    The collections are the store's LIVE objects (not copies). Cheap
+    point-reads (key lookup, ``len``) are fine, but iterating or aggregating
+    over them while another thread runs ``mutate()`` can raise
+    ``RuntimeError`` (size changed during iteration) — use
+    ``FaceDBStore.read()`` for that, or compare ``version`` before/after.
+    Never mutate them directly — go through ``FaceDBStore.mutate``.
     """
 
     known_faces: dict[str, list[dict[str, Any]]]
@@ -53,7 +73,7 @@ class DBSnapshot:
 
 
 class FaceDBStore:
-    """Single process-wide, mtime-aware face database repository.
+    """Single process-wide, freshness-aware face database repository.
 
     Thread-safe via a reentrant lock (``RLock``) — services call from
     executor threads, and ``mutate`` may internally call ``snapshot``.
@@ -65,8 +85,8 @@ class FaceDBStore:
         self._dirty = False
         self._save_timer: Optional[threading.Timer] = None
 
-        # Recorded mtime_ns per backing file; None => file absent at record time.
-        self._mtimes: dict[str, Optional[int]] = {}
+        # Recorded fingerprint per backing file; None => file absent at record time.
+        self._fingerprints: dict[str, Fingerprint] = {}
 
         # Populated on first load.
         self._known_faces: dict[str, list[dict[str, Any]]] = {}
@@ -89,56 +109,88 @@ class FaceDBStore:
             "processed": db.PROCESSED_PATH,
         }
 
-    def _current_mtimes(self) -> dict[str, Optional[int]]:
-        """Cheap stat of the four backing files; missing file => None."""
-        mtimes: dict[str, Optional[int]] = {}
+    def _current_fingerprints(self) -> dict[str, Fingerprint]:
+        """Cheap stat of the four backing files; missing file => None.
+
+        Fingerprint is ``(st_mtime_ns, st_size)``. Residual false-negative
+        (accepted): a rewrite that preserves both mtime_ns and size is missed.
+        """
+        fingerprints: dict[str, Fingerprint] = {}
         for key, path in self._paths().items():
             try:
-                mtimes[key] = path.stat().st_mtime_ns
+                st = path.stat()
+                fingerprints[key] = (st.st_mtime_ns, st.st_size)
             except (FileNotFoundError, OSError):
-                mtimes[key] = None
-        return mtimes
+                fingerprints[key] = None
+        return fingerprints
 
-    def _record_mtimes(self) -> None:
-        """Snapshot the on-disk mtimes as the store's known-good baseline."""
-        self._mtimes = self._current_mtimes()
+    def _record_fingerprints(self) -> None:
+        """Snapshot the on-disk fingerprints as the store's known-good baseline."""
+        self._fingerprints = self._current_fingerprints()
 
     def _load_locked(self) -> None:
-        """Load all collections from disk and record their mtimes. Holds lock."""
+        """Load all collections from disk and record fingerprints. Holds lock."""
         (
             self._known_faces,
             self._ignored_faces,
             self._hard_negatives,
             self._processed_files,
         ) = db.load_database()
-        self._record_mtimes()
+        self._record_fingerprints()
         self._loaded = True
+
+    def _refresh_locked(self) -> None:
+        """Load on first use, or reload if a backing file changed. Holds lock."""
+        if not self._loaded:
+            self._load_locked()
+            self._version += 1
+        elif self._current_fingerprints() != self._fingerprints:
+            logger.debug("[FaceDBStore] External change detected — reloading")
+            self._load_locked()
+            self._version += 1
 
     # ----- public API ---------------------------------------------------
 
     def snapshot(self) -> DBSnapshot:
-        """Return a consistent view of the DB, reloading on external change.
+        """Return a view of the DB, reloading on external change.
 
-        Cheap-stats the four files; if any ``st_mtime_ns`` differs from the
-        recorded baseline (or the store hasn't loaded yet), reloads via
-        ``core.db.load_database`` and bumps the version. The returned
-        collections are the store's LIVE objects — mutate only via
-        ``mutate()``.
+        Cheap-stats the four files; if any fingerprint ``(st_mtime_ns,
+        st_size)`` differs from the recorded baseline (or the store hasn't
+        loaded yet), reloads via ``core.db.load_database`` and bumps the
+        version. The returned collections are the store's LIVE objects —
+        mutate only via ``mutate()``; iterate/aggregate via ``read()`` (see
+        ``DBSnapshot`` for the read contract).
         """
         with self._lock:
-            if not self._loaded:
-                self._load_locked()
-                self._version += 1
-            elif self._current_mtimes() != self._mtimes:
-                logger.debug("[FaceDBStore] External change detected — reloading")
-                self._load_locked()
-                self._version += 1
+            self._refresh_locked()
             return DBSnapshot(
                 known_faces=self._known_faces,
                 ignored_faces=self._ignored_faces,
                 hard_negatives=self._hard_negatives,
                 processed_files=self._processed_files,
                 version=self._version,
+            )
+
+    def read(self, fn: Callable[
+        [dict[str, Any], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]],
+        Any,
+    ]) -> Any:
+        """Run a read-only ``fn`` over the live collections under the lock.
+
+        ``fn`` is called as ``fn(known_faces, ignored_faces, hard_negatives,
+        processed_files)`` after the same freshness check as ``snapshot()``;
+        its return value is passed through. Because the lock is held, ``fn``
+        may safely iterate/aggregate without racing a concurrent ``mutate()``
+        on another thread. ``fn`` must not mutate — use ``mutate()`` for that.
+        The lock is reentrant, so ``fn`` may call ``snapshot()`` internally.
+        """
+        with self._lock:
+            self._refresh_locked()
+            return fn(
+                self._known_faces,
+                self._ignored_faces,
+                self._hard_negatives,
+                self._processed_files,
             )
 
     def mutate(self, fn: Callable[
@@ -150,8 +202,10 @@ class FaceDBStore:
         ``fn`` is called as ``fn(known_faces, ignored_faces, hard_negatives,
         processed_files)`` and may return a value, which is passed through to
         the caller. After ``fn`` runs, the version is bumped, the store is
-        marked dirty, and a debounced save (500 ms) is scheduled. Coalesces
-        rapid mutations into a single write.
+        marked dirty, and a save is scheduled with leading coalesce: the timer
+        is armed only if none is pending, so the write lands 500 ms after the
+        FIRST mutation of a burst (matching detection_service today) and
+        sustained mutation still saves roughly every 500 ms.
 
         The lock is reentrant, so ``fn`` may call ``snapshot()`` internally.
         """
@@ -186,9 +240,14 @@ class FaceDBStore:
     # ----- save machinery -----------------------------------------------
 
     def _schedule_save_locked(self) -> None:
-        """(Re)arm the debounce timer. Caller holds the lock."""
+        """Arm the coalesce timer if none is pending. Caller holds the lock.
+
+        Leading coalesce: later mutations within the window do NOT re-arm the
+        timer, so the save fires a bounded 500 ms after the first mutation of
+        a burst (never starved by sustained mutation).
+        """
         if self._save_timer is not None:
-            self._save_timer.cancel()
+            return  # A save is already scheduled — coalesce into it.
         self._save_timer = threading.Timer(SAVE_DEBOUNCE_SECONDS, self._debounced_save)
         self._save_timer.daemon = True
         self._save_timer.start()
@@ -200,12 +259,13 @@ class FaceDBStore:
             self._save_now_locked()
 
     def _save_now_locked(self) -> None:
-        """Write all four files now if dirty and record post-save mtimes.
+        """Write all four files now if dirty and record post-save fingerprints.
 
-        Caller holds the lock. Recording our own post-save mtimes prevents the
-        next ``snapshot()`` from mistaking our write for an external change.
-        Note: dirty-flag granularity (per-file) is deferred to E1 — for now a
-        save always writes all four files (via ``core.db.save_database``).
+        Caller holds the lock. Recording our own post-save fingerprints
+        prevents the next ``snapshot()`` from mistaking our write for an
+        external change. Note: dirty-flag granularity (per-file) is deferred
+        to E1 — for now a save always writes all four files (via
+        ``core.db.save_database``).
         """
         if not self._dirty:
             return
@@ -215,7 +275,7 @@ class FaceDBStore:
             self._hard_negatives,
             self._processed_files,
         )
-        self._record_mtimes()
+        self._record_fingerprints()
         self._dirty = False
         logger.debug("[FaceDBStore] Saved database (version=%d)", self._version)
 
