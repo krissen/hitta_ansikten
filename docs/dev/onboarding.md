@@ -138,7 +138,7 @@ InsightFace is the only supported backend:
 |---------|----------|----------|-----------|
 | InsightFace | 512-dim | Cosine | ~0.4 |
 
-> **Note:** dlib was deprecated in January 2026. Any existing dlib encodings are left in place; remove them on demand with `rensa_dlib.py` or the remove-dlib refinement endpoint.
+> **Note:** dlib was deprecated in January 2026. Any existing dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 
 ### Data Flow
 
@@ -172,7 +172,7 @@ ansikten/
 │   │   ├── server.py         # FastAPI entry
 │   │   ├── routes/           # REST endpoints
 │   │   └── websocket/        # WebSocket handlers
-│   └── hantera_ansikten.py   # DB management tool
+│   └── scripts/archive/      # Archived legacy/one-shot CLI tools
 │
 ├── frontend/
 │   ├── main.js               # Electron entry
@@ -207,8 +207,8 @@ source venv/bin/activate
 # Dry-run rename
 ./hitta_ansikten.py --rename --simulate .
 
-# Database management
-./hantera_ansikten.py
+# Database management (archived legacy tool)
+python scripts/archive/hantera_ansikten.py
 ```
 
 ### Run Frontend

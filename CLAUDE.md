@@ -191,7 +191,7 @@ api.ws.on('progress', callback);
 > **dlib is deprecated.** InsightFace is the sole active backend. Legacy dlib
 > encodings are left untouched at startup — there is no boot-time scan. The CLI
 > forces InsightFace even if dlib is configured. Removal tooling
-> (`DlibBackend`, the remove-dlib refinement endpoint, `rensa_dlib.py`) still
+> (`DlibBackend`, the remove-dlib refinement endpoint, `scripts/archive/rensa_dlib.py`) still
 > exists so any legacy dlib encodings can be cleaned up on demand.
 
 Config in `~/.local/share/faceid/config.json`:
