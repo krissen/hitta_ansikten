@@ -95,6 +95,10 @@ export function ReviewModule({ node }) {
   const [currentImagePath, setCurrentImagePath] = useState(null);
   const [currentFileHash, setCurrentFileHash] = useState(null);
   const [detectedFaces, setDetectedFaces] = useState([]);
+  // True only after a detection completed successfully (0 or more faces). Gates
+  // the "no faces — add a name manually" affordance so it never appears on a
+  // detection error or before an image has actually been detected.
+  const [detectionOk, setDetectionOk] = useState(false);
   const [people, setPeople] = useState([]);
   const [currentFaceIndex, setCurrentFaceIndex] = useState(0);
   const [pendingConfirmations, setPendingConfirmations] = useState([]);
@@ -146,6 +150,7 @@ export function ReviewModule({ node }) {
     setIsLoading(true);
     setStatus(t('review.status.detecting'));
     setDetectedFaces([]);
+    setDetectionOk(false);
     setCurrentFaceIndex(0);
     setPendingConfirmations([]);
     setPendingIgnores([]);
@@ -162,6 +167,7 @@ export function ReviewModule({ node }) {
 
       const faces = result.faces || [];
       setDetectedFaces(faces);
+      setDetectionOk(true);
       setCurrentFileHash(result.file_hash || null);
       setStatus(t('review.status.found', { count: faces.length, ms: result.processing_time_ms?.toFixed(0) || 0 }));
 
@@ -174,6 +180,11 @@ export function ReviewModule({ node }) {
       } else {
         const fileName = imagePath.split('/').pop();
         showToast(t('review.toasts.noFacesFound', { fileName }), 'info');
+        // Keep focus on the module so the manual-name affordance is reachable
+        // (button + the 'm' shortcut) instead of the panel losing focus.
+        setTimeout(() => {
+          moduleRef.current?.focus();
+        }, 100);
       }
     } catch (err) {
       if (abortController.signal.aborted) {
@@ -952,6 +963,7 @@ export function ReviewModule({ node }) {
       debug('ReviewModule', 'Skipping auto-detect for already-processed file:', imagePath);
       setCurrentImagePath(imagePath);
       setDetectedFaces([]);
+      setDetectionOk(false);
       setStatus(t('review.status.alreadyProcessed'));
       return;
     }
@@ -969,6 +981,7 @@ export function ReviewModule({ node }) {
     debug('ReviewModule', 'Clearing review state');
     setCurrentImagePath(null);
     setDetectedFaces([]);
+    setDetectionOk(false);
     setCurrentFaceIndex(-1);
     setStatus(t('review.status.waitingForImage'));
   }, []));
@@ -1022,7 +1035,31 @@ export function ReviewModule({ node }) {
         {isLoading ? (
           <div className="loading">{t('review.status.detecting')}</div>
         ) : detectedFaces.length === 0 ? (
-          <div className="loading">{t('review.noFacesDetected')}</div>
+          detectionOk ? (
+            // A detection actually completed and found no faces. The file can
+            // still be named manually (e.g. a photo of an object), so surface
+            // the action as a button instead of hiding it behind the 'm'
+            // shortcut. Works the same in fix mode, which re-detects into this
+            // branch. Gated on detectionOk so a detection *error* (which also
+            // leaves faces empty) doesn't show a misleading actionable prompt.
+            <div className="no-faces-detected">
+              <p className="no-faces-title">{t('review.noFacesDetected')}</p>
+              <p className="no-faces-hint">{t('review.noFacesHint')}</p>
+              <button
+                type="button"
+                className="btn-secondary add-manual-name-btn"
+                onClick={addManualFace}
+              >
+                {t('review.addManualName')}
+              </button>
+            </div>
+          ) : (
+            // No successful detection yet: before any image, or after an error
+            // (the status line shows the real error). No actionable button.
+            <div className="loading">
+              {currentImagePath ? t('review.noFacesDetected') : t('review.status.waitingForImage')}
+            </div>
+          )
         ) : (
           detectedFaces.map((face, index) => (
             <FaceCard
