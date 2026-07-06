@@ -2,13 +2,12 @@
  * Shared file-extension constants and helpers.
  *
  * RAW_EXTS / JPG_EXTS classify a basename into the same groups the backend
- * uses for the NEF->JPG preview pipeline. The canonical source of truth is the
- * backend list in `backend/api/services/file_resolver.py`
- * (EXTENSION_PRESETS["raw"]); keep this array aligned with it.
+ * uses for the NEF->JPG preview pipeline. The canonical source of truth is
+ * `backend/core/files.py` (RAW_EXTENSIONS); keep this array aligned with it.
  */
 
 // RAW extensions that go through the NEF->JPG preview pipeline
-// (matches file_resolver EXTENSION_PRESETS.raw).
+// (matches core/files.py RAW_EXTENSIONS).
 export const RAW_EXTS = ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2'];
 
 export const JPG_EXTS = ['.jpg', '.jpeg'];
