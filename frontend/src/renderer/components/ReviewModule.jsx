@@ -19,6 +19,7 @@ import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { NetworkError } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { useThumbnail } from '../shared/thumbnail-cache.js';
+import { normalizeSuffix } from '../shared/manualSuffix.js';
 import { Icon } from './Icon.jsx';
 import { t } from '../../i18n/index.js';
 import './ReviewModule.css';
@@ -107,6 +108,7 @@ export function ReviewModule({ node }) {
   const [isLoading, setIsLoading] = useState(false);
   const [clearInputTrigger, setClearInputTrigger] = useState(0);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [suffixDialog, setSuffixDialog] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [queueStatus, setQueueStatus] = useState(null);
 
@@ -775,6 +777,38 @@ export function ReviewModule({ node }) {
   }, [currentImagePath, emit]);
 
   /**
+   * Open the manual filename-suffix dialog for the current image (Alt+Enter).
+   * The suffix is free text, NOT a person name — it only affects the filename.
+   * Prefill from the backend store so re-editing shows the existing value.
+   */
+  const openSuffixDialog = useCallback(async () => {
+    if (!currentImagePath) return;
+    let prefill = '';
+    try {
+      const res = await api.get('/api/v1/files/manual-suffix', { image_path: currentImagePath });
+      prefill = res?.raw || '';
+    } catch (err) {
+      debugWarn('ReviewModule', 'Could not load manual suffix:', err?.message || err);
+    }
+    setSuffixDialog({ imagePath: currentImagePath, prefill });
+  }, [currentImagePath, api]);
+
+  /**
+   * Persist (or clear) the manual filename suffix for a given image.
+   */
+  const saveSuffix = useCallback(async (imagePath, rawSuffix) => {
+    try {
+      await api.post('/api/v1/files/manual-suffix', { image_path: imagePath, suffix: rawSuffix });
+      const cleared = !normalizeSuffix(rawSuffix);
+      showToast(t(cleared ? 'review.manualSuffix.cleared' : 'review.manualSuffix.saved'), 'success', 1500);
+    } catch (err) {
+      debugError('ReviewModule', 'Failed to save manual suffix:', err);
+      showToast(t('review.manualSuffix.saveError'), 'error');
+    }
+    setSuffixDialog(null);
+  }, [api, showToast]);
+
+  /**
    * Keyboard handler
    * Shortcuts active when ReviewModule is visible (rendered in DOM)
    * Blocked in input fields and modules that capture keyboard (Preferences, etc.)
@@ -825,6 +859,15 @@ export function ReviewModule({ node }) {
             confirmFace(currentFaceIndex, alt.name);
           }
         }
+        return;
+      }
+
+      // Alt+Enter - open the manual filename-suffix dialog. Handled before the
+      // plain-Enter branch and works even with focus in a name input, since
+      // Alt+Enter is not a normal text-entry gesture.
+      if (e.key === 'Enter' && e.altKey) {
+        e.preventDefault();
+        openSuffixDialog();
         return;
       }
 
@@ -956,7 +999,7 @@ export function ReviewModule({ node }) {
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions, undoLastAction, isLoading, cancelDetection, showToast, requestDeleteCurrentFile, emit]);
+  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions, undoLastAction, isLoading, cancelDetection, showToast, requestDeleteCurrentFile, openSuffixDialog, emit]);
 
   useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
     if (skipAutoDetect) {
@@ -1123,6 +1166,90 @@ export function ReviewModule({ node }) {
           onCancel={confirmDialog.onCancel}
         />
       )}
+
+      {suffixDialog && (
+        <SuffixDialog
+          initialValue={suffixDialog.prefill}
+          originalName={suffixDialog.imagePath ? suffixDialog.imagePath.split('/').pop() : ''}
+          onSave={(value) => saveSuffix(suffixDialog.imagePath, value)}
+          onCancel={() => setSuffixDialog(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * SuffixDialog Component
+ *
+ * Small dialog to attach a free-text filename suffix to the current image.
+ * Shows a live, client-normalized preview mirroring the backend. Enter saves,
+ * Esc cancels. Reuses the confirm-overlay/confirm-dialog styling.
+ */
+function SuffixDialog({ initialValue, originalName, onSave, onCancel }) {
+  const [value, setValue] = useState(initialValue || '');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    // Focus and select the field on open so re-editing is quick.
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      el.select();
+    }
+  }, []);
+
+  const handleKeyDown = (e) => {
+    // Keep the dialog's own keys from reaching the module keyboard handler.
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onSave(value);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onCancel();
+    }
+  };
+
+  const normalized = normalizeSuffix(value);
+  // Build a filename preview: strip an existing extension for display of the stem.
+  const dotIdx = originalName.lastIndexOf('.');
+  const stem = dotIdx > 0 ? originalName.slice(0, dotIdx) : originalName;
+  const ext = dotIdx > 0 ? originalName.slice(dotIdx) : '';
+  const previewName = normalized ? `${stem}_${normalized}${ext}` : `${stem}${ext}`;
+
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div
+        className="confirm-dialog"
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>{t('review.manualSuffix.title')}</h3>
+        <input
+          ref={inputRef}
+          type="text"
+          className="suffix-input"
+          value={value}
+          placeholder={t('review.manualSuffix.placeholder')}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <div className="match-info">
+          {t('review.manualSuffix.previewLabel')} <strong>{previewName}</strong>
+        </div>
+        <div className="confirm-buttons">
+          <button className="btn-cancel" onClick={onCancel}>
+            {t('common.cancel')}
+          </button>
+          <button className="btn-confirm" onClick={() => onSave(value)}>
+            {t('common.save')}
+          </button>
+        </div>
+        <div className="confirm-hint">
+          {t('review.manualSuffix.hint')} · <kbd>Enter</kbd> {t('review.dialog.hintConfirms')} · <kbd>Esc</kbd> {t('review.dialog.hintCancels')}
+        </div>
+      </div>
     </div>
   );
 }

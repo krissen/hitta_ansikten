@@ -579,6 +579,30 @@ Execute file renames.
 }
 ```
 
+### `GET /api/v1/files/manual-suffix`
+
+Get the stored free-text filename suffix for an image (for UI prefill).
+
+**Query:** `image_path` — absolute path to the image.
+
+**Response:**
+```json
+{ "hash": "<sha1>", "suffix": "vinbar", "raw": "vinbär" }
+```
+
+`suffix` is the normalized (filesystem-safe) form; `raw` is the stored text. Both are `""` when no suffix is set.
+
+### `POST /api/v1/files/manual-suffix`
+
+Set or clear the free-text filename suffix for an image. The suffix is **not** a person name — it never reaches `encodings.pkl`, name autocomplete, or the person pipeline. It is stored keyed by content hash (`manual_suffixes.json` under `BASE_DIR`, stable across rename) and appended after any person names when the file is renamed. An empty / whitespace-only / path-only suffix clears the entry.
+
+**Request:**
+```json
+{ "image_path": "/path/to/260401_140101.jpg", "suffix": "vinbär" }
+```
+
+**Response:** same shape as the GET (returns the normalized preview + stored raw).
+
 ---
 
 ## Refinement

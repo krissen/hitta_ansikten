@@ -376,6 +376,25 @@
   color: var(--accent-primary);
 }
 
+.confirm-dialog .suffix-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  font-size: var(--font-base);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.confirm-dialog .suffix-input:focus {
+  outline: none;
+  border-color: var(--color-info);
+  background: var(--color-info-bg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-info) 30%, transparent);
+}
+
 .confirm-buttons {
   display: flex;
   gap: var(--space-md);

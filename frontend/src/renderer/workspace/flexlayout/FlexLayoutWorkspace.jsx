@@ -85,6 +85,7 @@ const SHORTCUT_SECTIONS = [
       { keys: ['1-N'], desc: t('shortcuts.desc.review.selectAlternative') },
       { keys: ['↑', '↓'], desc: t('shortcuts.desc.review.prevNextFace'), sep: ' / ' },
       { keys: ['X'], desc: t('shortcuts.desc.review.skipFile') },
+      { keys: ['Alt', 'Enter'], desc: t('shortcuts.desc.review.manualSuffix') },
       { keys: ['Shift', 'Cmd', 'A'], desc: t('shortcuts.desc.review.acceptAll') },
       { keys: ['Cmd', 'Z'], desc: t('shortcuts.desc.review.undo') },
       { keys: ['Cmd', '⌫'], desc: t('shortcuts.desc.review.deleteToTrash') },
