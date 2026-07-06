@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.files import SUPPORTED_EXTENSIONS
 from core.naming import normalize_name
 from faceid_db import (
     get_file_hash,
@@ -217,12 +218,7 @@ def format_datetime(dt: datetime, pattern: str) -> str:
 # Supported file extensions
 # ============================================================================
 
-# RAW formats and common image formats supported for rename operations
-SUPPORTED_EXTENSIONS = [
-    ".nef", ".cr2", ".cr3", ".arw", ".dng", ".raw", ".raf", ".orf", ".rw2",  # RAW
-    ".jpg", ".jpeg", ".tiff", ".tif", ".png",  # Standard
-]
-
+# SUPPORTED_EXTENSIONS (RAW + standard) is imported from core.files above.
 # Build regex pattern for extensions (case-insensitive matching done via re.IGNORECASE)
 _EXT_PATTERN = "|".join(re.escape(ext) for ext in SUPPORTED_EXTENSIONS)
 

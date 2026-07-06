@@ -26,6 +26,7 @@ from PIL import Image, ImageOps
 from core.attempts import log_attempt_stats
 from core.config import load_config
 from core.db import BASE_DIR, get_file_hash, load_database, save_database
+from core.files import RAW_EXTENSIONS
 from face_backends import create_backend
 
 from .management_service import DISTINCT_PAIRS_PATH, _load_distinct_pairs
@@ -170,10 +171,8 @@ class DetectionService:
         """
         ext = image_path.suffix.lower()
 
-        # RAW formats handled by rawpy/libraw. Keep this aligned with the "raw"
-        # extension preset (file_resolver.EXTENSION_PRESETS["raw"]) so every RAW
-        # the GUI lets you pick can actually be converted/previewed.
-        if ext in ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2']:  # RAW formats
+        # RAW formats handled by rawpy/libraw (canonical set in core.files).
+        if ext in RAW_EXTENSIONS:  # RAW formats
             # Check preprocessing cache for converted JPG
             try:
                 cache = get_preprocessing_cache()

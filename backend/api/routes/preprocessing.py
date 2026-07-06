@@ -18,14 +18,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from core.files import RAW_EXTENSIONS
+
 from ..services.preprocessing_cache import PreprocessingCache, get_cache
 
 # Thread pool for CPU-intensive operations
 _executor = ThreadPoolExecutor(max_workers=4)
-
-# RAW extensions handled via rawpy — kept aligned with detection_service._load_image
-# and the "raw" extension preset.
-_RAW_EXTS = {'.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2'}
 
 logger = logging.getLogger(__name__)
 
@@ -333,7 +331,7 @@ def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
     ext = os.path.splitext(file_path)[1].lower()
     img = None
 
-    if ext in _RAW_EXTS:
+    if ext in RAW_EXTENSIONS:
         import rawpy
         try:
             with rawpy.imread(file_path) as raw:
