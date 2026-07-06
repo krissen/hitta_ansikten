@@ -16,16 +16,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# Add parent directory to path to import hitta_ansikten modules
+# Add backend dir to path to import shared core modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import numpy as np
 import rawpy
 from PIL import Image, ImageOps
 
+from core.attempts import log_attempt_stats
+from core.config import load_config
 from face_backends import create_backend
 from faceid_db import BASE_DIR, get_file_hash, load_database, save_database
-from hitta_ansikten import load_config, log_attempt_stats
 
 from .management_service import DISTINCT_PAIRS_PATH, _load_distinct_pairs
 from .preprocessing_cache import get_cache as get_preprocessing_cache
