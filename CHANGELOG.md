@@ -7,6 +7,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 ## [Unreleased]
 
 ### Removed
+- Removed the dead `backend/api/services/db_service.py` stub (a ~103-line all-TODO `DatabaseService` scaffold with a module-level singleton, added in the initial Phase 2 backend commit and never implemented — nothing imported it). Also dropped its `api.services.db_service` PyInstaller `hiddenimport` from `ansikten-backend.spec` and the stale `# TODO: Implement using db_service` reference in `routes/status.py`.
 - Removed root-level `RENAME_MANUAL_FACES_PLAN.md` (a completed bug post-mortem — its fixes are recorded in this changelog) and `.luarc.json` (added in 2b67010 to silence Lua LSP false positives from `.venv`/`dist`; deliberately dropped now as editor-specific config that belongs in a personal global ignore rather than the repo).
 
 ### Docs

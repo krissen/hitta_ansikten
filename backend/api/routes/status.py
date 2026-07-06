@@ -56,7 +56,7 @@ async def get_image_status(image_path: str):
     logger.info(f"[Status] Checking status for: {image_path}")
 
     try:
-        # TODO: Implement using db_service
+        # TODO: Implement real status lookup (currently returns a placeholder)
         return ImageStatus(
             image_path=image_path,
             is_processed=False,
