@@ -38,6 +38,7 @@ build = [
 
 [tool.setuptools]
 py-modules = []
+packages = ["core"]
 
 [tool.ruff]
 target-version = "py311"

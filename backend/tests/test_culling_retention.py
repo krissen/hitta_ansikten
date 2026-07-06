@@ -87,9 +87,9 @@ def test_purge_removes_expired_sidecars(service, tmp_path):
 
 
 def test_set_and_get_retention_days(tmp_path, monkeypatch):
-    import cli_config
-    monkeypatch.setattr(cli_config, "BASE_DIR", tmp_path)
-    monkeypatch.setattr(cli_config, "CONFIG_PATH", tmp_path / "config.json")
+    from core import config as core_config
+    monkeypatch.setattr(core_config, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(core_config, "CONFIG_PATH", tmp_path / "config.json")
     service = CullingService()
 
     assert service.set_retention_days(14) == {"days": 14}
