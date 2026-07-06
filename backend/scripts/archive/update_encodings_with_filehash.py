@@ -4,8 +4,11 @@ import pickle
 import sys
 from pathlib import Path
 
+# Archived tool: add backend/ (three levels up) to sys.path so faceid_db resolves.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 # Import utilities from faceid_db
-from faceid_db import get_file_hash, safe_pickle_load
+from faceid_db import get_file_hash, safe_pickle_load  # noqa: E402
 
 ENCODINGS_PATH = Path.home() / ".local/share/faceid/encodings.pkl"
 BACKUP_PATH = Path(str(ENCODINGS_PATH) + ".bak")

@@ -129,7 +129,7 @@ async def reload_database():
     """
     Reload face database from disk
 
-    Useful when database has been modified externally (e.g., by hantera_ansikten script).
+    Useful when database has been modified externally (e.g., by the archived hantera_ansikten.py script).
     Clears detection cache to ensure fresh results with updated data.
     """
     logger.info("[Detection] Reloading database...")
