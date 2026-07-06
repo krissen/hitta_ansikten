@@ -138,7 +138,7 @@ InsightFace is the only supported backend:
 |---------|----------|----------|-----------|
 | InsightFace | 512-dim | Cosine | ~0.4 |
 
-> **Note:** dlib was deprecated in January 2026. Any existing dlib encodings are automatically removed at server startup.
+> **Note:** dlib was deprecated in January 2026. Any existing dlib encodings are left in place; remove them on demand with `rensa_dlib.py` or the remove-dlib refinement endpoint.
 
 ### Data Flow
 

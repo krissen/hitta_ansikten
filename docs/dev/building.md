@@ -28,7 +28,7 @@ For distribution, the Python backend is bundled into a standalone executable usi
 # Xcode Command Line Tools
 xcode-select --install
 
-# Homebrew packages (for face_recognition)
+# Homebrew packages (build tooling for InsightFace's native deps)
 brew install cmake
 ```
 
