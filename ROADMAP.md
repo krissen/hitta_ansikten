@@ -56,6 +56,10 @@ deliverables, DoD) för en prestandarelease.
 
 ## Teknisk skuld
 
+### Backend
+
+- [ ] **Latenta buggar i faceid_db, pinnade av karakteriseringstesterna (#125):** (1) `normalize_encoding_entry` muterar input-dicten in place och returnerar samma objekt; (2) asymmetrisk `encoding_hash` — dict-grenen sätter bara nyckeln när `encoding is not None`, så manuella ansikten saknar den helt (KeyError-risk downstream) medan bare-array-grenen alltid sätter den; (3) `load_database` propagerar rå `UnpicklingError` vid korrupt/otillåten pickle — en trasig fil fäller hela laddningen. Åtgärdas lämpligen i fas C/D av auditen (core/db.py-flytten eller FaceDBStore).
+
 ### Frontend
 
 - [ ] "Öppna i Lightroom" (`open-raw-in-lightroom`) läser hela RAW-roten rekursivt i minnet per tangenttryck och sorterar för deterministisk första-träff. Räcker för dagens per-match-mappar; för en stor RAW-rot, byt till en strömmande DFS-walk med tidig utgång (behåll deterministisk traverseringsordning) eller cachea filindexet.
