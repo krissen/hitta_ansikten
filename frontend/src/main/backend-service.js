@@ -294,8 +294,13 @@ class BackendService {
       );
 
       req.on('error', (err) => {
-        if (DEBUG && err.code !== 'ECONNREFUSED') {
-          console.log(`[BackendService] [${this._timestamp()}] Health check error: ${err.message}`);
+        if (err.code !== 'ECONNREFUSED') {
+          // Capture unusual probe errors in startupLogs so the eventual
+          // timeout diagnostic includes them even when DEBUG is off.
+          this._addLog(`Health check error: ${err.code || ''} ${err.message}`);
+          if (DEBUG) {
+            console.log(`[BackendService] [${this._timestamp()}] Health check error: ${err.message}`);
+          }
         }
         resolve(false);
       });
