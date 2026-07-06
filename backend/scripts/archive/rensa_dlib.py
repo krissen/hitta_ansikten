@@ -19,10 +19,10 @@ from typing import Any
 
 import numpy as np
 
-# Add current directory to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Archived tool: add backend/ (three levels up) to sys.path so faceid_db resolves.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from faceid_db import load_database, save_database
+from faceid_db import load_database, save_database  # noqa: E402
 
 
 def is_insightface(entry: dict[str, Any] | np.ndarray) -> bool:

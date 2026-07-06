@@ -56,7 +56,7 @@ Known faces database. Dictionary mapping person names to encoding lists.
 - All encodings are InsightFace (512-dim, cosine distance)
 - Legacy entries (bare numpy arrays) auto-migrate to dict format
 - One person can have multiple encodings from different images
-- dlib encodings (128-dim) are deprecated; remove them on demand with `rensa_dlib.py` or the remove-dlib refinement endpoint
+- dlib encodings (128-dim) are deprecated; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint
 
 **Manual faces.** A face added by hand in review (not auto-detected) is stored as an
 entry with `encoding: None`, `encoding_hash: None`, `bounding_box: None`, and
@@ -178,7 +178,7 @@ User configuration overrides.
 | `twin_margin` | `0.1` | When the top-2 candidates are a confirmed-distinct pair within this cosine distance, break the tie with a k-NN vote. |
 | `twin_knn_k` | `5` | Neighbours in the twin-disambiguation k-NN vote (effective `k = min(this, photos per person)`). |
 
-> **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are left in place; remove them on demand with `rensa_dlib.py` or the remove-dlib refinement endpoint.
+> **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 
 ---
 
@@ -277,12 +277,15 @@ Old encodings (bare numpy arrays) automatically migrate to dict format:
 ]}
 ```
 
-> **Note:** Any legacy dlib (128-dim) encodings are left in place; remove them on demand with `rensa_dlib.py` or the remove-dlib refinement endpoint.
+> **Note:** Any legacy dlib (128-dim) encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 
 ### Migration Scripts
 
-- `migrera_processed.py` - Migrate processed_files format
-- `update_encodings_with_filehash.py` - Add file hashes to old encodings
+Archived one-shot tools in `backend/scripts/archive/` (run from `backend/` with
+`python scripts/archive/<tool>.py`):
+
+- `scripts/archive/migrera_processed.py` - Migrate processed_files format
+- `scripts/archive/update_encodings_with_filehash.py` - Add file hashes to old encodings
 
 ---
 

@@ -2,13 +2,17 @@
 
 import fnmatch
 import hashlib
+import sys
 from pathlib import Path
 from typing import Any
 
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from faceid_db import (
+# Archived tool: add backend/ (three levels up) to sys.path so faceid_db resolves.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from faceid_db import (  # noqa: E402
     load_attempt_log,
     load_database,
     load_processed_files,

@@ -4,13 +4,17 @@ import argparse
 import fnmatch
 import json
 import pickle
+import sys
 from pathlib import Path
 
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
 
+# Archived tool: add backend/ (three levels up) to sys.path so faceid_db resolves.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 # Import safe pickle loader from faceid_db
-from faceid_db import safe_pickle_load
+from faceid_db import safe_pickle_load  # noqa: E402
 
 # === Konstanter ===
 BASE_DIR = Path(xdg_data_home) / "faceid"

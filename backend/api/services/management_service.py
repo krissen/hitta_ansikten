@@ -2,7 +2,7 @@
 Database Management Service
 
 Provides database management operations for the workspace.
-Ports functionality from hantera_ansikten.py to API-friendly format.
+Ports functionality from scripts/archive/hantera_ansikten.py to API-friendly format.
 """
 
 import fnmatch

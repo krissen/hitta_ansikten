@@ -6,9 +6,12 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from faceid_db import ARCHIVE_DIR, extract_face_labels, load_database
-from faceid_db import ATTEMPT_LOG_PATH as ATTEMPT_FILE
-from faceid_db import LOGGING_PATH as LOG_FILE
+# Archived tool: add backend/ (three levels up) to sys.path so faceid_db resolves.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from faceid_db import ARCHIVE_DIR, extract_face_labels, load_database  # noqa: E402
+from faceid_db import ATTEMPT_LOG_PATH as ATTEMPT_FILE  # noqa: E402
+from faceid_db import LOGGING_PATH as LOG_FILE  # noqa: E402
 
 # ================== Laddning och grundstatistik ====================
 

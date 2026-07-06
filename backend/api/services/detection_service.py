@@ -131,7 +131,7 @@ class DetectionService:
         """
         Reload face database from disk
 
-        Useful when database has been modified externally (e.g., by hantera_ansikten).
+        Useful when database has been modified externally (e.g., by scripts/archive/hantera_ansikten.py).
         Clears detection cache to ensure fresh results with new data.
 
         Returns:

@@ -2,7 +2,7 @@
 Statistics Service
 
 Provides statistics and analytics data for the workspace dashboard.
-Ports functionality from analysera_ansikten.py to API-friendly format.
+Ports functionality from scripts/archive/analysera_ansikten.py to API-friendly format.
 """
 
 import logging
