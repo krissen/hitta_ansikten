@@ -23,7 +23,7 @@ from face_backends import create_backend
 from faceid_db import load_database, save_database, get_file_hash, BASE_DIR
 from hitta_ansikten import load_config, log_attempt_stats
 import rawpy
-from PIL import Image
+from PIL import Image, ImageOps
 import numpy as np
 
 from .preprocessing_cache import get_cache as get_preprocessing_cache
@@ -184,7 +184,7 @@ class DetectionService:
 
                 if cached_jpg and os.path.exists(cached_jpg):
                     logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
-                    img = Image.open(cached_jpg)
+                    img = ImageOps.exif_transpose(Image.open(cached_jpg))
                     return np.array(img.convert('RGB'))
             except Exception as e:
                 logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
@@ -196,7 +196,12 @@ class DetectionService:
             return rgb
         else:  # Standard formats (JPG, PNG, etc.)
             logger.debug(f"[DetectionService] Loading standard image: {image_path}")
-            img = Image.open(image_path)
+            # Honor EXIF orientation so detection/thumbnail coordinates match how the
+            # frontend (Chromium <img>) displays the image, which auto-applies EXIF.
+            # PIL does not transpose on its own; without this, phone JPEGs with an
+            # orientation tag get faces detected in the un-rotated frame → misplaced
+            # boxes and sideways thumbnail crops. RAW is unaffected (libraw orients).
+            img = ImageOps.exif_transpose(Image.open(image_path))
             return np.array(img.convert('RGB'))
 
     def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
