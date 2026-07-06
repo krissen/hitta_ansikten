@@ -110,17 +110,21 @@ npm run build:linux                        # Linux .AppImage/.deb
 
 ```
 backend/api/
-├── server.py              # FastAPI app entry, CORS, startup
+├── server.py              # FastAPI app entry, CORS, startup (all routers mounted under /api/v1)
 ├── routes/
-│   ├── detection.py       # /api/detect-faces, /api/confirm-identity
-│   ├── management.py      # /api/management/rename-person, merge, delete
-│   ├── database.py        # /api/database/people, names
-│   ├── files.py           # /api/files/rename, rename-preview
-│   ├── refinement.py      # /api/refinement/outliers, update
-│   ├── statistics.py      # /api/statistics
-│   ├── preprocessing.py   # /api/preprocessing
-│   ├── startup.py         # /api/startup/status
-│   └── status.py          # /api/status
+│   ├── detection.py       # /api/v1/detect-faces, /api/v1/confirm-identity
+│   ├── management.py      # /api/v1/management/rename-person, merge, delete
+│   ├── database.py        # /api/v1/database/people, names
+│   ├── files.py           # /api/v1/files/rename, rename-preview, manual-suffix
+│   ├── refinement.py      # /api/v1/refinement/preview, apply
+│   ├── statistics.py      # /api/v1/statistics/summary
+│   ├── preprocessing.py   # /api/v1/preprocessing/*
+│   ├── player_count.py    # /api/v1/players/count, exclusions
+│   ├── culling.py         # /api/v1/culling/* (photo culling / trash)
+│   ├── imports.py         # /api/v1/import/volumes, run
+│   ├── rename_nef.py      # /api/v1/rename-nef/preview, execute
+│   ├── startup.py         # /api/v1/startup/status
+│   └── status.py          # /api/v1/status
 ├── services/
 │   ├── detection_service.py    # Core detection logic, face matching
 │   ├── management_service.py   # Database operations (rename, merge)
@@ -168,7 +172,7 @@ api.emit('image-loaded', { path });
 api.on('face-selected', callback);
 
 // Backend HTTP
-const result = await api.http.post('/api/detect-faces', { image_path });
+const result = await api.http.post('/api/v1/detect-faces', { image_path });
 
 // WebSocket
 api.ws.on('progress', callback);
@@ -182,8 +186,13 @@ api.ws.on('progress', callback);
 
 | Backend | Encoding | Threshold | Status |
 |---------|----------|-----------|--------|
-| InsightFace | 512-dim | ~0.4 | Primary |
-| dlib | 128-dim | ~0.54 | Legacy |
+| InsightFace | 512-dim | ~0.4 | Only supported backend |
+
+> **dlib is deprecated.** InsightFace is the sole active backend. Legacy dlib
+> encodings are left untouched at startup — there is no boot-time scan. The CLI
+> forces InsightFace even if dlib is configured. Removal tooling
+> (`DlibBackend`, the remove-dlib refinement endpoint, `rensa_dlib.py`) still
+> exists so any legacy dlib encodings can be cleaned up on demand.
 
 Config in `~/.local/share/faceid/config.json`:
 ```json

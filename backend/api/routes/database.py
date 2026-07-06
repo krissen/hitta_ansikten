@@ -41,7 +41,7 @@ async def get_people():
     logger.info("[Database] Fetching people list")
 
     try:
-        # TODO: Implement using db_service
+        # TODO: Implement real people listing (currently returns a placeholder)
         return []
     except Exception as e:
         logger.error(f"[Database] Error fetching people: {e}")

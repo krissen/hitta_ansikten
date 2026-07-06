@@ -38,13 +38,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/pyproject.toml
 
-      # face_recognition builds dlib from source, which needs cmake and a
-      # C/C++ toolchain (mirrors the linux job in release.yml).
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake libdlib-dev
-
       - name: Install Python dependencies
         working-directory: backend
         run: |

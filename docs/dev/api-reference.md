@@ -6,7 +6,7 @@ REST and WebSocket API for the Ansikten backend.
 
 ## Overview
 
-- **Base URL**: `http://127.0.0.1:5001/api/v1`
+- **Base URL**: `http://127.0.0.1:5001` (endpoint paths below include the full `/api/v1/...` prefix)
 - **WebSocket**: `ws://127.0.0.1:5001/ws/progress`
 - **Format**: JSON
 - **API Version**: v1
@@ -56,7 +56,7 @@ Check backend status and component readiness.
 
 ## Face Detection
 
-### `POST /detect-faces`
+### `POST /api/v1/detect-faces`
 
 Detect faces in an image.
 
@@ -104,7 +104,7 @@ When set, the chosen name is also moved to the front of `match_alternatives` (so
 the recommended option matches the decision); the remaining alternatives keep
 their distance order. Tuned by `twin_margin` / `twin_knn_k` in `config.json`.
 
-### `GET /face-thumbnail`
+### `GET /api/v1/face-thumbnail`
 
 Get cropped face thumbnail.
 
@@ -120,7 +120,7 @@ Get cropped face thumbnail.
 
 **Response:** JPEG image binary
 
-### `POST /confirm-identity`
+### `POST /api/v1/confirm-identity`
 
 Confirm face identity and save to database.
 
@@ -143,7 +143,7 @@ Confirm face identity and save to database.
 }
 ```
 
-### `POST /ignore-face`
+### `POST /api/v1/ignore-face`
 
 Mark face as ignored.
 
@@ -163,7 +163,7 @@ Mark face as ignored.
 }
 ```
 
-### `POST /mark-review-complete`
+### `POST /api/v1/mark-review-complete`
 
 Mark file review as complete, log to attempt_stats.
 
@@ -200,7 +200,7 @@ Mark file review as complete, log to attempt_stats.
 }
 ```
 
-### `POST /reload-database`
+### `POST /api/v1/reload-database`
 
 Reload face database from disk.
 
@@ -218,7 +218,7 @@ Reload face database from disk.
 
 ## Database
 
-### `GET /api/database/people`
+### `GET /api/v1/database/people`
 
 Get all people with encoding counts.
 
@@ -230,7 +230,7 @@ Get all people with encoding counts.
 ]
 ```
 
-### `GET /api/database/people/names`
+### `GET /api/v1/database/people/names`
 
 Get list of person names (for autocomplete).
 
@@ -243,7 +243,7 @@ Get list of person names (for autocomplete).
 
 ## Statistics
 
-### `GET /api/statistics/summary`
+### `GET /api/v1/statistics/summary`
 
 Get complete statistics summary.
 
@@ -262,27 +262,27 @@ Get complete statistics summary.
 }
 ```
 
-### `GET /api/statistics/attempt-stats`
+### `GET /api/v1/statistics/attempt-stats`
 
 Get attempt statistics table.
 
-### `GET /api/statistics/top-faces`
+### `GET /api/v1/statistics/top-faces`
 
 Get top faces by encoding count.
 
-### `GET /api/statistics/recent-images`
+### `GET /api/v1/statistics/recent-images`
 
 Get recently processed images.
 
 **Query:** `?n=3` (default: 3)
 
-### `GET /api/statistics/recent-logs`
+### `GET /api/v1/statistics/recent-logs`
 
 Get recent log entries.
 
 **Query:** `?n=3` (default: 3)
 
-### `GET /api/statistics/processed-files`
+### `GET /api/v1/statistics/processed-files`
 
 Get processed files list.
 
@@ -292,7 +292,7 @@ Get processed files list.
 
 ## Management
 
-### `GET /api/management/stats`
+### `GET /api/v1/management/stats`
 
 Quick database statistics for UI.
 
@@ -306,11 +306,11 @@ Quick database statistics for UI.
 }
 ```
 
-### `GET /api/management/database-state`
+### `GET /api/v1/management/database-state`
 
 Get current database state.
 
-### `GET /api/management/find-duplicates`
+### `GET /api/v1/management/find-duplicates`
 
 Find pairs of distinctly-named people whose faces look like the same person
 (centroid cosine distance ≤ `threshold`), as merge candidates. People with no
@@ -345,13 +345,13 @@ People who look alike but are different (e.g. identical twins) can be marked so
 the scanner stops suggesting them. Stored in `distinct_pairs.json` as sorted
 name-pairs.
 
-- `GET /api/management/distinct-pairs` → `{ pairs: [{name_a, name_b}], count }`.
+- `GET /api/v1/management/distinct-pairs` → `{ pairs: [{name_a, name_b}], count }`.
   Pairs whose names no longer exist are pruned (self-healing).
-- `POST /api/management/distinct-pair` `{name_a, name_b}` → add (400 if the names
+- `POST /api/v1/management/distinct-pair` `{name_a, name_b}` → add (400 if the names
   are equal/empty or either person doesn't currently exist).
-- `POST /api/management/distinct-pair/remove` `{name_a, name_b}` → un-exclude.
+- `POST /api/v1/management/distinct-pair/remove` `{name_a, name_b}` → un-exclude.
 
-### `GET /api/management/redundant-encodings`
+### `GET /api/v1/management/redundant-encodings`
 
 Per-person count of redundant encodings *within* a person. `threshold` (query,
 default `0.0`, cosine distance): `0.0` counts only exact (byte-identical)
@@ -360,7 +360,7 @@ counted. Lists only people with redundancy.
 
 **Response:** `{ people: [{name, total, redundant, kept}], threshold, total_redundant }`.
 
-### `POST /api/management/dedup-people`
+### `POST /api/v1/management/dedup-people`
 
 Remove redundant encodings from the named people, keeping one per group.
 
@@ -368,7 +368,7 @@ Remove redundant encodings from the named people, keeping one per group.
 `dry_run: true` nothing is removed (preview). Returns `OperationResponse` with
 `removed_per_person`, `total_removed`, and `new_state`.
 
-### `POST /api/management/rename-person`
+### `POST /api/v1/management/rename-person`
 
 Rename person in database.
 
@@ -380,7 +380,7 @@ Rename person in database.
 }
 ```
 
-### `POST /api/management/merge-people`
+### `POST /api/v1/management/merge-people`
 
 Merge multiple people into target.
 
@@ -392,7 +392,7 @@ Merge multiple people into target.
 }
 ```
 
-### `DELETE /api/management/delete-person`
+### `DELETE /api/v1/management/delete-person`
 
 Delete person from database.
 
@@ -403,7 +403,7 @@ Delete person from database.
 }
 ```
 
-### `POST /api/management/move-to-ignore`
+### `POST /api/v1/management/move-to-ignore`
 
 Move person's encodings to ignored list.
 
@@ -414,7 +414,7 @@ Move person's encodings to ignored list.
 }
 ```
 
-### `POST /api/management/move-from-ignore`
+### `POST /api/v1/management/move-from-ignore`
 
 Move encodings from ignored to person.
 
@@ -426,7 +426,7 @@ Move encodings from ignored to person.
 }
 ```
 
-### `POST /api/management/undo-file`
+### `POST /api/v1/management/undo-file`
 
 Undo processing for files matching pattern.
 
@@ -437,7 +437,7 @@ Undo processing for files matching pattern.
 }
 ```
 
-### `POST /api/management/purge-encodings`
+### `POST /api/v1/management/purge-encodings`
 
 Remove last X encodings from person.
 
@@ -449,7 +449,7 @@ Remove last X encodings from person.
 }
 ```
 
-### `GET /api/management/recent-files`
+### `GET /api/v1/management/recent-files`
 
 Get last N processed files.
 
@@ -459,7 +459,7 @@ Get last N processed files.
 
 ## Preprocessing
 
-### `GET /api/preprocessing/cache/status`
+### `GET /api/v1/preprocessing/cache/status`
 
 Get cache status.
 
@@ -472,19 +472,19 @@ Get cache status.
 }
 ```
 
-### `POST /api/preprocessing/cache/settings`
+### `POST /api/v1/preprocessing/cache/settings`
 
 Update cache settings.
 
-### `DELETE /api/preprocessing/cache`
+### `DELETE /api/v1/preprocessing/cache`
 
 Clear all cache entries.
 
-### `DELETE /api/preprocessing/cache/{file_hash}`
+### `DELETE /api/v1/preprocessing/cache/{file_hash}`
 
 Remove specific cache entry.
 
-### `POST /api/preprocessing/hash`
+### `POST /api/v1/preprocessing/hash`
 
 Compute SHA1 hash of file.
 
@@ -495,11 +495,11 @@ Compute SHA1 hash of file.
 }
 ```
 
-### `POST /api/preprocessing/check`
+### `POST /api/v1/preprocessing/check`
 
 Check what's cached for a file.
 
-### `POST /api/preprocessing/nef`
+### `POST /api/v1/preprocessing/nef`
 
 Convert NEF to JPG with caching.
 
@@ -511,15 +511,15 @@ Convert NEF to JPG with caching.
 }
 ```
 
-### `POST /api/preprocessing/faces`
+### `POST /api/v1/preprocessing/faces`
 
 Detect faces with caching.
 
-### `POST /api/preprocessing/thumbnails`
+### `POST /api/v1/preprocessing/thumbnails`
 
 Generate face thumbnails with caching.
 
-### `POST /api/preprocessing/all`
+### `POST /api/v1/preprocessing/all`
 
 Run all preprocessing steps.
 
@@ -545,11 +545,11 @@ directory).
 
 ## Files
 
-### `GET /api/files/rename-config`
+### `GET /api/v1/files/rename-config`
 
 Get rename configuration and presets.
 
-### `POST /api/files/rename-preview`
+### `POST /api/v1/files/rename-preview`
 
 Preview proposed file renames.
 
@@ -563,7 +563,7 @@ Preview proposed file renames.
 }
 ```
 
-### `POST /api/files/rename`
+### `POST /api/v1/files/rename`
 
 Execute file renames.
 
@@ -609,7 +609,7 @@ Set or clear the free-text filename suffix for an image. The suffix is **not** a
 
 Endpoints for filtering outlier encodings and maintaining database quality.
 
-### `GET /api/refinement/preview`
+### `GET /api/v1/refinement/preview`
 
 Preview what encodings would be removed.
 
@@ -651,7 +651,7 @@ Preview what encodings would be removed.
 }
 ```
 
-### `POST /api/refinement/apply`
+### `POST /api/v1/refinement/apply`
 
 Apply filtering to remove outlier encodings.
 
@@ -676,7 +676,7 @@ Apply filtering to remove outlier encodings.
 }
 ```
 
-### `POST /api/refinement/repair-shapes`
+### `POST /api/v1/refinement/repair-shapes`
 
 Remove encodings with inconsistent shapes (keeps majority shape).
 
@@ -706,7 +706,7 @@ Remove encodings with inconsistent shapes (keeps majority shape).
 }
 ```
 
-### `POST /api/refinement/remove-dlib`
+### `POST /api/v1/refinement/remove-dlib`
 
 Remove ALL dlib (128-dim) encodings. dlib backend is deprecated.
 
