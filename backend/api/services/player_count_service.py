@@ -9,16 +9,9 @@ never fork, and the file resolution with the shared ``file_resolver``.
 """
 
 import logging
-import sys
-from pathlib import Path
+import os
 
-# Backend root on sys.path to import the CLI counting core (pattern shared with
-# the other services).
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-import os  # noqa: E402
-
-from rakna_spelare import (  # noqa: E402
+from core.playerstats import (
     compute_player_stats,
     load_exclusion_config,
     resolve_always_markers,

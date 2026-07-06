@@ -23,7 +23,7 @@ def _isolate_exclusion_config(monkeypatch):
     for var in ("RAKNA_TRANARE", "RAKNA_PUBLIK", "RAKNA_GRUPP"):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setattr(
-        "rakna_spelare.load_exclusion_config",
+        "core.playerstats.load_exclusion_config",
         lambda: {"tranare": [], "publik": [], "grupp": []},
     )
 

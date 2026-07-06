@@ -5,9 +5,9 @@ import json
 
 import pytest
 
-import rakna_spelare
 from api.services.player_count_service import PlayerCountService
-from rakna_spelare import (
+from core import playerstats
+from core.playerstats import (
     ALWAYS_GRUPP,
     ALWAYS_PUBLIK,
     compute_player_stats,
@@ -22,8 +22,8 @@ from rakna_spelare import (
 def config(tmp_path, monkeypatch):
     """Point the exclusion config at a temp file (no real ~/.local writes)."""
     cfg = tmp_path / "rakna_spelare.json"
-    monkeypatch.setattr(rakna_spelare, "CONFIG_DIR", tmp_path)
-    monkeypatch.setattr(rakna_spelare, "CONFIG_FILE", cfg)
+    monkeypatch.setattr(playerstats, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(playerstats, "CONFIG_FILE", cfg)
     # Env overrides config in resolve_exclusion_sets — clear so tests are
     # deterministic regardless of the host environment.
     for env in (

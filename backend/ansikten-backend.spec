@@ -73,6 +73,7 @@ hiddenimports = [
     'core.image',
     'core.attempts',
     'core.naming',
+    'core.playerstats',
 ]
 
 datas = []

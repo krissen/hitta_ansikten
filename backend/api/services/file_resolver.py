@@ -11,16 +11,12 @@ so globbing semantics stay consistent across features.
 
 import glob
 import os
-import sys
 from datetime import date, datetime
 from pathlib import Path
 
-# Backend root on sys.path so we can import the CLI parser (pattern used by the
-# other services, e.g. statistics_service).
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from rakna_spelare import parse_filename  # noqa: E402
+from core.playerstats import parse_filename
 
-from .rename_service import SUPPORTED_EXTENSIONS, extract_filename_datetime  # noqa: E402
+from .rename_service import SUPPORTED_EXTENSIONS, extract_filename_datetime
 
 # App-managed trash (soft-deleted files live here). Resolution always skips it so
 # trashed files are never re-counted or re-listed by any feature. The culling
