@@ -61,6 +61,13 @@ export function ImageViewer() {
   // Track skipAutoDetect for re-emission on request-current-image
   const lastSkipAutoDetectRef = useRef(false);
 
+  // Monotonic load generation. The loader's awaits (NEF conversion, decode(),
+  // createImageBitmap()) widen the window where a newer load can overtake an
+  // older one; each load takes a token and bails after every await if a newer
+  // load has started, so a stale image is never displayed and stale
+  // dimensions are never emitted.
+  const loadGenerationRef = useRef(0);
+
   // Auto-center state (enabled by default for review workflow)
   const [autoCenterOnFace, setAutoCenterOnFace] = useState(true);
 
@@ -92,6 +99,16 @@ export function ImageViewer() {
   // ============================================
 
   const loadImage = useCallback(async (filepath) => {
+    // Take a load token; any await below must re-check it so an overlapping
+    // newer load wins (see loadGenerationRef comment above).
+    const generation = ++loadGenerationRef.current;
+    const isStale = () => generation !== loadGenerationRef.current;
+    const supersededError = () => {
+      const err = new Error(`Image load superseded by a newer load: ${filepath}`);
+      err.superseded = true;
+      return err;
+    };
+
     // Clear bounding boxes immediately before loading new image
     setFaces([]);
 
@@ -105,6 +122,7 @@ export function ImageViewer() {
       try {
         // Call preprocessing API - handles cache check and conversion in one call
         const result = await apiClient.post('/api/v1/preprocessing/nef', { file_path: filepath });
+        if (isStale()) throw supersededError();
 
         if (result.status === 'cached') {
           debug('ImageViewer', 'Using cached JPG:', result.nef_jpg_path);
@@ -118,6 +136,7 @@ export function ImageViewer() {
 
         loadPath = result.nef_jpg_path;
       } catch (err) {
+        if (err.superseded) throw err; // newer load owns the loading state
         setIsLoading(false);
         debugError('ImageViewer', 'NEF conversion failed:', err);
         throw new Error(`Failed to convert NEF file: ${err.message}`);
@@ -133,11 +152,22 @@ export function ImageViewer() {
         let drawable = img;
         try {
           if (typeof createImageBitmap === 'function') {
-            drawable = await createImageBitmap(img);
+            // 'from-image' applies EXIF orientation, matching how Chromium
+            // draws an HTMLImageElement (CSS image-orientation: from-image
+            // default). The backend bakes EXIF orientation into face-box
+            // coordinates, so both drawable types must be EXIF-oriented.
+            drawable = await createImageBitmap(img, { imageOrientation: 'from-image' });
           }
         } catch (e) {
           debug('ImageViewer', 'createImageBitmap failed, using HTMLImageElement:', e);
           drawable = img;
+        }
+
+        if (isStale()) {
+          // A newer load overtook this one while decoding: discard silently.
+          if (drawable !== img && typeof drawable.close === 'function') drawable.close();
+          reject(supersededError());
+          return;
         }
 
         debug('ImageViewer', `Image decoded: ${img.width}x${img.height} (${(img.width * img.height / 1e6).toFixed(1)}MP)`);
@@ -160,6 +190,10 @@ export function ImageViewer() {
       };
 
       img.onerror = (err) => {
+        if (isStale()) {
+          reject(supersededError());
+          return;
+        }
         setIsLoading(false);
         const errorDetails = err?.type || err?.message || 'Unknown error';
         debugError('ImageViewer', 'Failed to load image:', loadPath, '- Error:', errorDetails);
@@ -724,12 +758,19 @@ export function ImageViewer() {
         skipAutoDetect
       });
     } catch (err) {
+      if (err.superseded) {
+        // Expected during fast navigation: a newer load won the race.
+        debug('ImageViewer', 'Image load superseded:', path);
+        return;
+      }
       debugError('ImageViewer', 'Failed to load image:', err);
     }
   });
 
   useModuleEvent('clear-image', () => {
     debug('ImageViewer', 'Clearing image');
+    // Invalidate any in-flight load so it cannot repopulate the cleared viewer
+    loadGenerationRef.current++;
     setImage(null);
     setImagePath(null);
     setOriginalImagePath(null);
