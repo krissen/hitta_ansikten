@@ -179,6 +179,9 @@ def init_logging(
         for h in logger.handlers
     )
     if not file_handler_exists:
+        # Ensure the data dir exists — init_logging can run at import time,
+        # before load_config() has created BASE_DIR (e.g. a fresh machine/CI).
+        Path(logfile).parent.mkdir(parents=True, exist_ok=True)
         handler = logging.FileHandler(logfile, mode="a", encoding="utf-8")
         handler.setLevel(logging.INFO)
         formatter = logging.Formatter(
