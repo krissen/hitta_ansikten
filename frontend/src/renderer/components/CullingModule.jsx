@@ -21,6 +21,7 @@ import { gridNavTarget } from './culling-grid-nav.js';
 import { preferences } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
 import { toFileUrl, bustedFileUrl } from '../shared/fileUrl.js';
+import { RAW_EXTS, extOf } from '../shared/fileExts.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -1526,10 +1527,6 @@ export function CullingModule({ node }) {
   );
 }
 
-// RAW extensions that must go through the NEF->JPG preview pipeline
-// (matches file_resolver EXTENSION_PRESETS.raw).
-const RAW_EXTS = ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2'];
-
 function isRaw(p) {
   const i = p.lastIndexOf('.');
   return i !== -1 && RAW_EXTS.includes(p.slice(i).toLowerCase());
@@ -1548,13 +1545,6 @@ function globBaseDir(pattern) {
 function basename(p) {
   const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
   return parts[parts.length - 1] || p;
-}
-
-// Split a basename into its editable name and its extension (incl. the dot).
-// A leading dot (dotfile) is treated as part of the name, not an extension.
-function extOf(name) {
-  const i = name.lastIndexOf('.');
-  return i > 0 ? name.slice(i) : '';
 }
 
 function stripExt(name) {

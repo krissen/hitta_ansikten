@@ -13,25 +13,20 @@ import fnmatch
 import json
 import logging
 import shutil
-import sys
 import uuid
+from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Backend root on sys.path to import the backend-root config shim (cli_config).
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from collections import Counter  # noqa: E402
-
-from cli_config import load_config, save_config  # noqa: E402
-from core.playerstats import (  # noqa: E402
+from cli_config import load_config, save_config
+from core.playerstats import (
     bucket_counter,
     parse_filename,
     resolve_exclusion_sets,
 )
 
-from .file_resolver import TRASH_DIR, preset_extensions, resolve_files  # noqa: E402
-from .rename_service import (  # noqa: E402
+from .file_resolver import TRASH_DIR, preset_extensions, resolve_files
+from .rename_service import (
     extract_filename_datetime,
     find_sidecar_files,
     validate_path_security,

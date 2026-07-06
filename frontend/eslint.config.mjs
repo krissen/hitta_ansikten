@@ -61,7 +61,7 @@ export default [
   // Renderer code. Electron renderer runs with node integration, so both
   // browser and Node (require) globals are available here.
   {
-    files: ['src/renderer/**/*.{js,jsx}', 'src/preload/**/*.js', 'renderer.js', 'preload.js'],
+    files: ['src/renderer/**/*.{js,jsx}', 'src/preload/**/*.js'],
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },

@@ -109,21 +109,31 @@ export class APIClient {
 
   async _fetchWithTimeout(url, options = {}) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this._requestTimeout);
-
     const externalSignal = options.signal;
-    if (externalSignal) {
-      externalSignal.addEventListener('abort', () => controller.abort());
+
+    // Honour a signal that is already aborted before the request starts.
+    if (externalSignal?.aborted) {
+      controller.abort();
     }
+
+    // Forward a later external abort. Use { once: true } and remove in finally
+    // so a long-lived caller signal does not accumulate listeners across calls.
+    const onExternalAbort = () => controller.abort();
+    if (externalSignal && !externalSignal.aborted) {
+      externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+    }
+
+    const timeoutId = setTimeout(() => controller.abort(), this._requestTimeout);
 
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeoutId);
       this._setOffline(false);
       return response;
-    } catch (err) {
+    } finally {
       clearTimeout(timeoutId);
-      throw err;
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', onExternalAbort);
+      }
     }
   }
 
@@ -483,11 +493,28 @@ export class APIClient {
    */
   async clearCache() {
     const url = new URL('/api/v1/preprocessing/cache', this.baseUrl);
-    const response = await fetch(url.toString(), { method: 'DELETE' });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+    let response;
+    try {
+      response = await this._fetchWithTimeout(url.toString(), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw this._classifyError(null, response);
+      }
+
+      return await response.json();
+    } catch (err) {
+      if (err instanceof NetworkError) {
+        debugError('Backend', 'DELETE /api/v1/preprocessing/cache failed:', err.message);
+        throw err;
+      }
+      const classified = this._classifyError(err, response);
+      debugError('Backend', 'DELETE /api/v1/preprocessing/cache failed:', classified.message);
+      throw classified;
     }
-    return await response.json();
   }
 
   /**
