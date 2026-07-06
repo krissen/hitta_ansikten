@@ -7,6 +7,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 ## [Unreleased]
 
 ### Removed
+- **dlib startup dry-run scan borttagen.** Servern körde vid varje boot en full-DB-genomsökning (`_check_dlib_encodings`) som letade efter föråldrade dlib-encodings och, om några hittades, loggade en varning + skickade en persistent svensk frontend-notis om att köra `rensa_dlib.py`. Skanningen är nu borttagen: en hel-DB-scan per uppstart elimineras (snabbare boot), och den svenska notis-wiringen tas bort med den. Borttagningsverktygen finns kvar och körs på begäran — `rensa_dlib.py` och remove-dlib-endpointen i refinement.
 - **`face_recognition`-beroendet borttaget ur `backend/pyproject.toml`.** InsightFace är enda aktiva backend; `face_recognition` (som bygger dlib från källkod) importeras numera bara lat inuti `DlibBackend.__init__`, så paketet är optionellt och behövs inte för normal drift. `DlibBackend` och `rensa_dlib.py` behålls som borttagningsverktyg. Följdändring: CI- (`ci.yml`) och release- (`release.yml`) workflows installerar inte längre systempaketen `cmake`/`libdlib-dev` — backend-jobbet slipper därmed dlib-bygget och blir snabbare.
 - Removed root-level `RENAME_MANUAL_FACES_PLAN.md` (a completed bug post-mortem — its fixes are recorded in this changelog) and `.luarc.json` (added in 2b67010 to silence Lua LSP false positives from `.venv`/`dist`; deliberately dropped now as editor-specific config that belongs in a personal global ignore rather than the repo).
 
