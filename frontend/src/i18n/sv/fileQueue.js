@@ -104,6 +104,7 @@ module.exports = {
     "trashFailed": "Kunde inte flytta {fileName} till papperskorgen",
     "restoredFromTrash": "↩️ Återställde {fileName} från papperskorgen",
     "nothingToDelete": "Ingen bild vald att radera",
+    "nothingToUndo": "Inget att ångra",
     "preprocessingComplete": { "one": "Förbehandling klar ({count} fil cachad)", "other": "Förbehandling klar ({count} filer cachade)" },
     "backendReconnected": "🟢 Servern återansluten",
     "backendDisconnected": "🔴 Servern frånkopplad",

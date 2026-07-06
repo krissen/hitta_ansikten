@@ -85,6 +85,8 @@ const SHORTCUT_SECTIONS = [
       { keys: ['X'], desc: t('shortcuts.desc.review.skipFile') },
       { keys: ['Shift', 'Cmd', 'A'], desc: t('shortcuts.desc.review.acceptAll') },
       { keys: ['Cmd', 'Z'], desc: t('shortcuts.desc.review.undo') },
+      { keys: ['Cmd', '⌫'], desc: t('shortcuts.desc.review.deleteToTrash') },
+      { keys: ['Cmd', 'Shift', '⌫'], desc: t('shortcuts.desc.review.undoDelete') },
       { keys: ['Esc'], desc: t('shortcuts.desc.review.cancel') }
     ]
   },
@@ -97,9 +99,7 @@ const SHORTCUT_SECTIONS = [
       { keys: ['↑', '↓'], desc: t('shortcuts.desc.queue.navigate'), sep: ' / ' },
       { keys: ['Enter'], desc: t('shortcuts.desc.queue.loadFile') },
       { keys: ['Delete'], desc: t('shortcuts.desc.queue.remove') },
-      { keys: ['Cmd', 'A'], desc: t('shortcuts.desc.queue.selectAll') },
-      { keys: ['Cmd', '⌫'], desc: t('shortcuts.desc.queue.deleteToTrash') },
-      { keys: ['Cmd', 'Shift', '⌫'], desc: t('shortcuts.desc.queue.undoDelete') }
+      { keys: ['Cmd', 'A'], desc: t('shortcuts.desc.queue.selectAll') }
     ]
   },
   {

@@ -45,6 +45,8 @@ module.exports = {
       skipFile: "Hoppa till nästa fil",
       acceptAll: "Acceptera alla förslag",
       undo: "Ångra senaste ansiktsåtgärd",
+      deleteToTrash: "Flytta aktuell fil till papperskorgen",
+      undoDelete: "Ångra radering",
       cancel: "Avbryt detektering / kasta ändringar"
     },
     queue: {
@@ -52,9 +54,7 @@ module.exports = {
       navigate: "Navigera i kön",
       loadFile: "Läs in markerad fil",
       remove: "Ta bort från kön",
-      selectAll: "Markera alla filer",
-      deleteToTrash: "Flytta aktuell fil till papperskorgen",
-      undoDelete: "Ångra radering"
+      selectAll: "Markera alla filer"
     },
     culling: {
       nextImage: "Nästa bild",

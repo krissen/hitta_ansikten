@@ -1656,21 +1656,13 @@ export function FileQueueModule({ node }) {
     }
   }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit, isFileEligible]));
 
-  // Soft-delete the currently-loaded file to the app trash, then advance to the
-  // next eligible file. Reachable from anywhere via the File-menu accelerator
-  // (Cmd+Backspace) → 'delete-current-file'. Owned here (single subscriber) so
-  // the file is trashed once and the queue prune/advance reuses the existing
-  // logic; ImageViewer/ReviewModule deliberately do NOT subscribe.
-  const deleteCurrentFile = useCallback(async () => {
-    // Don't trash while typing in a name field: the global menu accelerator fires
-    // regardless of focus, so guard against text inputs (Cmd+Backspace there is a
-    // text-edit gesture, not a delete).
-    const el = document.activeElement;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
-      return;
-    }
-
-    const path = currentFileRef.current;
+  // Soft-delete a file to the app trash, then advance to the next eligible file.
+  // The path is supplied by the caller (the visible review surface via
+  // 'file-queue:trash'), NOT read from this module's own current-file ref —
+  // the queue module stays mounted in other layouts (e.g. culling) where that
+  // ref is stale, so trusting it would trash the wrong file.
+  const deleteFile = useCallback(async (targetPath) => {
+    const path = targetPath || null;
     if (!path) {
       showToast(t('fileQueue.toasts.nothingToDelete'), 'info', 2500);
       return;
@@ -1687,8 +1679,9 @@ export function FileQueueModule({ node }) {
     )?.filePath || null;
 
     // Optimistic removal so the UI reacts immediately.
+    const wasCurrent = currentFileRef.current === path;
     setQueue((prev) => prev.filter((item) => item.filePath !== path));
-    currentFileRef.current = null;
+    if (wasCurrent) currentFileRef.current = null;
 
     let trashedId = null;
     try {
@@ -1710,9 +1703,18 @@ export function FileQueueModule({ node }) {
         copy.splice(Math.min(idx, copy.length), 0, victim);
         return copy;
       });
-      currentFileRef.current = path;
+      if (wasCurrent) currentFileRef.current = path;
       return;
     }
+
+    // The file is gone — drop any dirty/unsaved-review marker for it so it can't
+    // hold up a later rename of the remaining files.
+    setDirtyPaths((prev) => {
+      if (!prev.has(path)) return prev;
+      const next = new Set(prev);
+      next.delete(path);
+      return next;
+    });
 
     deleteUndoStackRef.current.push({ id: trashedId, item: victim, index: idx });
     showToast(t('fileQueue.toasts.movedToTrash', { fileName }), 'info', 4000);
@@ -1734,6 +1736,10 @@ export function FileQueueModule({ node }) {
   // accelerator, NOT Cmd+Z, which is already Review's face-undo).
   const undoDeleteFile = useCallback(async () => {
     const stack = deleteUndoStackRef.current;
+    if (stack.length === 0) {
+      showToast(t('fileQueue.toasts.nothingToUndo'), 'info', 2500);
+      return;
+    }
     while (stack.length > 0) {
       const entry = stack.pop();
       try {
@@ -1759,10 +1765,17 @@ export function FileQueueModule({ node }) {
         return;
       }
     }
+    // Stack drained without a successful restore (e.g. trash emptied).
+    showToast(t('fileQueue.toasts.nothingToUndo'), 'info', 2500);
   }, [api, showToast]);
 
-  useModuleEvent('delete-current-file', deleteCurrentFile);
-  useModuleEvent('undo-delete-file', undoDeleteFile);
+  // Trash/undo requests come from the visible review surface (ReviewModule),
+  // which passes the exact file path — see deleteFile's comment for why this
+  // module never reads its own (possibly stale) current-file ref here.
+  useModuleEvent('file-queue:trash', useCallback(({ imagePath } = {}) => {
+    deleteFile(imagePath);
+  }, [deleteFile]));
+  useModuleEvent('file-queue:undo-trash', undoDeleteFile);
 
   // Track files whose review has unsaved changes; while dirty they're held out of
   // rename so a rename can't read the database before a just-added manual face persists.

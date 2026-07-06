@@ -119,8 +119,11 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          // No accelerator: Cmd+Shift+Backspace is handled by the visible review
+          // surface's keydown (ReviewModule), not a global menu accelerator, so
+          // it can't shadow other modules' key handling. Menu item stays for
+          // discoverability.
           label: t('menu.edit.undoDelete'),
-          accelerator: 'CmdOrCtrl+Shift+Backspace',
           click: () => {
             sendMenuCommand('undo-delete-file');
           }
@@ -179,8 +182,12 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          // No accelerator: Cmd+Backspace is handled by the visible review
+          // surface's keydown (ReviewModule), not a global menu accelerator —
+          // a global one would shadow Gallra spelare's own Cmd+Backspace (its
+          // tab's file-queue stays mounted) and trash the wrong file. Menu item
+          // stays for discoverability.
           label: t('menu.file.deleteToTrash'),
-          accelerator: 'CmdOrCtrl+Backspace',
           click: () => {
             sendMenuCommand('delete-current-file');
           }
