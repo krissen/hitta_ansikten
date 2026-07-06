@@ -11,6 +11,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ### Docs
 - README: corrected the Python requirement (3.11+, matching `pyproject.toml`), the dev install command (`pip install -e ".[dev]"`), and the feature list (added Importera, Räkna spelare, Gallra spelare and Papperskorg).
+- **API-path och backend-tabell rättade i dokumentationen.** Alla routrar monteras under `/api/v1`, men CLAUDE.md (arkitektur + Module Communication-exemplet) och delar av `docs/dev/api-reference.md` (Database/Statistics/Management/Preprocessing/Files/Refinement samt Face Detection-avsnittet) angav sökvägar utan `/v1`. Sökvägarna är nu normaliserade till fullständiga `/api/v1/...` genomgående (utom `/health` och `ws://.../ws/progress` som ligger i roten). CLAUDE.md:s route-träd listar nu även de faktiska route-filerna (`player_count`, `culling`, `imports`, `rename_nef`), och backend-tabellen anger InsightFace som enda backend (kvarvarande dlib-encodings detekteras vid serverstart med en varning om att köra `rensa_dlib.py`; inget raderas automatiskt), i stället för att lista dlib som ett levande legacy-backend.
 
 ### Fixed
 - **`init_logging` kraschade när datamappen saknades (fresh machine / CI).** `init_logging()` körs vid import av `hitta_ansikten` — före `load_config()` som skapar `BASE_DIR` (`~/.local/share/faceid/`) — och `logging.FileHandler` kastade `FileNotFoundError` när mappen inte fanns. Loggningen skapar nu logfilens föräldramapp (`mkdir(parents=True, exist_ok=True)`) innan filhandtaget öppnas.
