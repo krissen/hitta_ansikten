@@ -6,7 +6,7 @@ REST and WebSocket API for the Ansikten backend.
 
 ## Overview
 
-- **Base URL**: `http://127.0.0.1:5001/api/v1`
+- **Base URL**: `http://127.0.0.1:5001` (endpoint paths below include the full `/api/v1/...` prefix)
 - **WebSocket**: `ws://127.0.0.1:5001/ws/progress`
 - **Format**: JSON
 - **API Version**: v1
