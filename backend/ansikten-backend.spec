@@ -67,6 +67,10 @@ hiddenimports = [
     # Local modules
     'faceid_db',
     'face_backends',
+    'core',
+    'core.config',
+    'core.matching',
+    'core.image',
 ]
 
 datas = []
