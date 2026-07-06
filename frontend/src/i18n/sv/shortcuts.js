@@ -43,6 +43,7 @@ module.exports = {
       selectAlternative: "Välj matchningsalternativ",
       prevNextFace: "Föregående/nästa ansikte",
       skipFile: "Hoppa till nästa fil",
+      manualSuffix: "Lägg till filnamnstillägg (ej namn)",
       acceptAll: "Acceptera alla förslag",
       undo: "Ångra senaste ansiktsåtgärd",
       deleteToTrash: "Flytta aktuell fil till papperskorgen",

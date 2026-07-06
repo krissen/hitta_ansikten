@@ -433,7 +433,8 @@ def build_new_filename_with_config(
     personer: List[str],
     namnmap: Dict[str, str],
     file_path: Optional[Path],
-    config: Optional[Dict[str, Any]]
+    config: Optional[Dict[str, Any]],
+    manual_suffix: Optional[str] = None
 ) -> Optional[str]:
     """
     Build new filename with person names using configuration.
@@ -444,6 +445,8 @@ def build_new_filename_with_config(
         namnmap: Dict mapping full name to short name
         file_path: Path to file (for EXIF/date extraction)
         config: Rename configuration
+        manual_suffix: Optional free-text suffix (raw). Normalized and appended
+            AFTER the person names. NOT a person name; never touches the DB.
 
     Returns:
         New filename or None if cannot build.
@@ -473,6 +476,16 @@ def build_new_filename_with_config(
                 kort = kort.replace('/', '_').replace('\\', '_').replace('\0', '_')
             name_list.append(kort)
 
+    # Append the free-text manual suffix (if any) AFTER the person names, so a
+    # suffix-only file (no faces) still renames. Lazy import avoids a circular
+    # dependency (manual_suffix_service imports normalize_name from here).
+    if manual_suffix:
+        from api.services.manual_suffix_service import normalize_suffix
+        normalized_suffix = normalize_suffix(manual_suffix)
+        if normalized_suffix:
+            name_list.append(normalized_suffix)
+
+    # Return None only when there is nothing to write (no names AND no suffix).
     if not name_list:
         return None
 
@@ -785,6 +798,18 @@ class RenameService:
             processed_files
         )
 
+        # Build a manual-suffix map keyed by full path (content-hash lookup).
+        # A free-text suffix is NOT a person name and never touches the DB.
+        from api.services.manual_suffix_service import get_manual_suffix
+        suffix_map: Dict[str, str] = {}
+        for fp in validated_paths:
+            p = Path(fp)
+            if p.exists():
+                h = get_file_hash(p)
+                raw = get_manual_suffix(h) if h else None
+                if raw:
+                    suffix_map[fp] = raw
+
         # Collect all person names for disambiguation
         all_persons = []
         for persons in persons_map.values():
@@ -834,8 +859,11 @@ class RenameService:
 
             # Get persons for this file (keyed by full path to avoid basename collisions)
             persons = persons_map.get(file_path, [])
-            logger.debug(f"[RenameService] {fname}: persons={persons}")
-            if not persons:
+            raw_suffix = suffix_map.get(file_path)
+            logger.debug(f"[RenameService] {fname}: persons={persons} suffix={raw_suffix!r}")
+            # Skip only when there are neither faces nor a manual suffix — a
+            # faceless photo with a suffix must still rename.
+            if not persons and not raw_suffix:
                 items.append({
                     "original_path": file_path,
                     "original_name": fname,
@@ -847,8 +875,10 @@ class RenameService:
                 })
                 continue
 
-            # Build new filename using config
-            new_name = build_new_filename_with_config(fname, persons, name_map, path, effective_config)
+            # Build new filename using config (suffix appended after any names)
+            new_name = build_new_filename_with_config(
+                fname, persons, name_map, path, effective_config, manual_suffix=raw_suffix
+            )
             logger.debug(f"[RenameService] {fname} -> {new_name}")
             if not new_name:
                 items.append({

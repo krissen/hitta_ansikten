@@ -44,6 +44,16 @@ module.exports = {
     "undoIgnore": "Ångra: ignorera"
   },
 
+  "manualSuffix": {
+    "title": "Filnamnstillägg",
+    "placeholder": "t.ex. vinbär",
+    "previewLabel": "Nytt namn:",
+    "hint": "_ för mellanslag, å/ä→a, ö→o",
+    "saved": "Filnamnstillägg sparat",
+    "cleared": "Filnamnstillägg borttaget",
+    "saveError": "Kunde inte spara filnamnstillägg"
+  },
+
   "dialog": {
     "confirmNameChange": "Bekräfta namnändring",
     "confirmIgnore": "Bekräfta ignorering",
