@@ -8,11 +8,11 @@ Ported from the Ansikten CLI rename functionality.
 import logging
 import os
 import re
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.naming import normalize_name
 from faceid_db import (
     get_file_hash,
     load_attempt_log,
@@ -311,22 +311,6 @@ def is_unrenamed(fname: str) -> bool:
     pattern = rf"^(\d{{6}}_\d{{6}}(?:-\d+)?[a-zA-Z]{{0,3}})({_EXT_PATTERN})$"
     m = re.match(pattern, fname, re.IGNORECASE)
     return bool(m)
-
-
-def normalize_name(name: str) -> str:
-    """
-    Normalize name by removing diacritics and sanitizing for safe filename use.
-
-    Security: Replaces path separators and null bytes to prevent path traversal.
-    """
-    # Remove diacritics (Källa → Kalla, François → Francois)
-    n = unicodedata.normalize('NFKD', name)
-    n = "".join(c for c in n if not unicodedata.combining(c))
-
-    # Sanitize for filesystem safety: remove path separators and null bytes
-    n = n.replace('/', '_').replace('\\', '_').replace('\0', '_')
-
-    return n
 
 
 def split_fornamn_efternamn(namn: str) -> Tuple[str, str]:
