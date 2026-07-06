@@ -1,8 +1,0 @@
-{
-  "workspace.ignoreDir": [
-    "backend/.venv",
-    "backend/dist",
-    "frontend/dist",
-    "frontend/resources"
-  ]
-}

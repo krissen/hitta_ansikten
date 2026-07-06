@@ -6,6 +6,12 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+### Removed
+- Removed root-level `RENAME_MANUAL_FACES_PLAN.md` (a completed bug post-mortem — its fixes are recorded in this changelog) and `.luarc.json` (added in 2b67010 to silence Lua LSP false positives from `.venv`/`dist`; deliberately dropped now as editor-specific config that belongs in a personal global ignore rather than the repo).
+
+### Docs
+- README: corrected the Python requirement (3.11+, matching `pyproject.toml`), the dev install command (`pip install -e ".[dev]"`), and the feature list (added Importera, Räkna spelare, Gallra spelare and Papperskorg).
+
 ### Fixed
 - **`init_logging` kraschade när datamappen saknades (fresh machine / CI).** `init_logging()` körs vid import av `hitta_ansikten` — före `load_config()` som skapar `BASE_DIR` (`~/.local/share/faceid/`) — och `logging.FileHandler` kastade `FileNotFoundError` när mappen inte fanns. Loggningen skapar nu logfilens föräldramapp (`mkdir(parents=True, exist_ok=True)`) innan filhandtaget öppnas.
 - **`cli_config` kraschade vid import på icke-macOS (t.ex. Linux CI).** `TEMP_DIR` var hårdkodad till `/private/tmp/ansikten` och gjorde `mkdir(parents=True)` vid import — sökvägen finns inte och går inte att skapa på Linux, så varje modul som importerar `hitta_ansikten`/`detection_service` kraschade med `PermissionError: '/private'`. `TEMP_DIR` väljs nu efter plattform: `/private/tmp` på macOS (den paketerade appen tillåter `/tmp` och `/private/tmp`, men inte systemets temp `/var/folders/…`), annars `tempfile.gettempdir()`. macOS-beteendet är oförändrat.

@@ -22,7 +22,7 @@ The tool is designed for sports events, school activities, or any context where 
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e "."
+pip install -e ".[dev]"
 
 # Process images
 ./hitta_ansikten.py 2024*.NEF
@@ -74,6 +74,10 @@ Backend auto-starts on `http://127.0.0.1:5001`
 - **Interactive review** - confirm, reject, or manually name faces
 - **Automatic file renaming** based on detected people
 - **InsightFace** face recognition (512-dim embeddings, cosine distance)
+- **Import (Importera)** - transfer NEFs from a memory card to a destination folder, then eject the card
+- **Player count (Räkna spelare)** - count photos per named player from filenames, with over/under-representation stats
+- **Culling (Gallra spelare)** - cull photos per player with preview, keystroke culling and undo, backed by a restore-capable trash
+- **Trash (Papperskorg)** - review, restore, or empty soft-deleted files
 - **Modular workspace** - GIMP-like dockable panel UI
 - **Real-time updates** via WebSocket
 
@@ -109,7 +113,7 @@ All persistent data in `~/.local/share/faceid/`:
 ## Technology
 
 **Backend:**
-- Python 3.9+
+- Python 3.11+
 - InsightFace (ONNX Runtime)
 - FastAPI, WebSocket, rawpy
 
