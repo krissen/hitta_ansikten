@@ -58,6 +58,7 @@ deliverables, DoD) för en prestandarelease.
 
 ### Backend
 
+- [ ] **Versionsnumret är dubblerat på tre ställen.** Appversionen står hårdkodad i `frontend/package.json`, `backend/pyproject.toml` och som `version=`-strängen i `backend/api/server.py` (exponeras via `/health`). Vid release skriver CI över `frontend/package.json` från `v*`-taggen, men de två backend-förekomsterna måste bumpas för hand och kan glida isär (som de gjorde: backend låg kvar på 1.0.0 medan frontend var 1.3.0). Idealt läser `server.py` versionen från paketmetadata (`importlib.metadata.version("ansikten-backend")`) med en fallback — men det kräver verifiering att metadatan finns i det PyInstaller-paketerade bygget innan det görs. Tills vidare: bumpa alla tre tillsammans (se [release-guide.md](docs/dev/release-guide.md)).
 - [ ] **Latenta buggar i faceid_db, pinnade av karakteriseringstesterna (#125):** (1) `normalize_encoding_entry` muterar input-dicten in place och returnerar samma objekt; (2) asymmetrisk `encoding_hash` — dict-grenen sätter bara nyckeln när `encoding is not None`, så manuella ansikten saknar den helt (KeyError-risk downstream) medan bare-array-grenen alltid sätter den; (3) `load_database` propagerar rå `UnpicklingError` vid korrupt/otillåten pickle — en trasig fil fäller hela laddningen. Åtgärdas lämpligen i fas C/D av auditen (core/db.py-flytten eller FaceDBStore).
 
 ### Frontend
