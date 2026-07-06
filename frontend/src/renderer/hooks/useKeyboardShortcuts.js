@@ -8,7 +8,7 @@
  * - Support key hold detection for continuous actions
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * Check if keyboard event should be ignored (e.g., in input fields)
@@ -146,7 +146,6 @@ export function useKeyHold(key, callbacks, options = {}) {
       }
 
       // Start hold detection after delay
-      const holdStartTime = performance.now();
       holdTimeoutRef.current = setTimeout(() => {
         isHoldingRef.current = true;
         // Cancel pending single tap if we're now holding

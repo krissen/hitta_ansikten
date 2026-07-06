@@ -14,7 +14,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { useOperationStatus } from '../hooks/useOperationStatus.js';
 import { useFormState } from '../hooks/useFormState.js';
-import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { debugError } from '../shared/debug.js';
 import { t } from '../../i18n/index.js';
 import './DatabaseManagement.css';
 

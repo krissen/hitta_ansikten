@@ -7,7 +7,7 @@
 
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
 const path = require("path");
-const { spawn, execFile } = require("child_process");
+const { execFile } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const { BackendService } = require("./backend-service");
@@ -34,7 +34,6 @@ let mainWindow = null;
 let splashWindow = null;
 let backendService = null;
 let initialFilePath = null;
-let initialQueueFiles = [];
 let isQuitting = false;
 
 /**
@@ -904,7 +903,7 @@ ipcMain.on("unwatch-file", (event, filePath) => {
 });
 
 ipcMain.on("unwatch-all-files", () => {
-  for (const [dir, { watcher }] of directoryWatchers) {
+  for (const [, { watcher }] of directoryWatchers) {
     watcher.close();
   }
   directoryWatchers.clear();

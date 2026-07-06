@@ -11,7 +11,6 @@ const ZOOM_FACTOR_STEP = 1.07; // Zoom in/out by 7% per step
 const ZOOM_MAX = 10; // Maximum zoom level (10x)
 const ZOOM_MIN = 0.1; // Minimum zoom level (0.1x = 10% of original)
 const ZOOM_INTERVAL_MS = 120; // Continuous zoom every 120ms when key held
-const FILE_RELOAD_CHECK_INTERVAL_MS = 1000; // Check for file changes every 1s
 const SCROLL_DEBOUNCE_MS = 16; // Debounce scroll events (~60fps)
 const RESIZE_DEBOUNCE_MS = 100; // Debounce resize events
 
@@ -56,7 +55,6 @@ function getBildPath() {
   return val ? decodeURIComponent(val) : null;
 }
 const bildPath = getBildPath();
-let lastMtime = 0;
 
 // Create overlay element in DOM
 const waitOverlay = document.createElement("div");

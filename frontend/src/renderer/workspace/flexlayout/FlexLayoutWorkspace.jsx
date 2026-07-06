@@ -288,10 +288,6 @@ const MODULE_LAYOUT = {
 };
 
 // Simple width ratios for backward compatibility
-const MODULE_RATIOS = Object.fromEntries(
-  Object.entries(MODULE_LAYOUT).map(([k, v]) => [k, v.widthRatio])
-);
-
 /**
  * Apply UI preferences to FlexLayout CSS variables
  * Maps preferences to FlexLayout's theming system

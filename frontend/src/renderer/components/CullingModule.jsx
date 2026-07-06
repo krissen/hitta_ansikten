@@ -538,7 +538,7 @@ export function CullingModule({ node }) {
       if (base) dirs.add(base);
     }
     updateWatches(dirs);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // ----- cull loop ----------------------------------------------------
@@ -1017,7 +1017,7 @@ export function CullingModule({ node }) {
     if (!body) return;
     const max = Math.max(STATS_WIDTH_MIN, body.getBoundingClientRect().width - 300);
     setStatsWidth((w) => Math.min(w, max));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const current = currentIndex >= 0 ? files[currentIndex] : null;
@@ -1534,8 +1534,6 @@ function isRaw(p) {
   const i = p.lastIndexOf('.');
   return i !== -1 && RAW_EXTS.includes(p.slice(i).toLowerCase());
 }
-
-const JPG_EXTS = ['.jpg', '.jpeg'];
 
 function globBaseDir(pattern) {
   const idx = pattern.search(/[*?[]/);

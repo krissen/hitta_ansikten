@@ -9,7 +9,7 @@
  * - Batch mode with auto-save
  */
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
@@ -1324,7 +1324,6 @@ function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef,
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
   const localInputRef = useRef(null);
-  const { api } = useBackend();
 
   const setInputRef = useCallback((el) => {
     localInputRef.current = el;
