@@ -201,7 +201,7 @@ async def test_delete_missing_person_raises(db_dir):
 
 
 # --------------------------------------------------------------------------
-# 4. move_to_ignore (hard/ignored handling)
+# 4. move_to_ignore / move_from_ignore / undo_file (ignored + processed handling)
 # --------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -214,6 +214,84 @@ async def test_move_to_ignore_moves_all_encodings(db_dir):
     known, ignored, _, _ = faceid_db.load_database()
     assert "Alice" not in known
     assert len(ignored) == 2
+
+
+@pytest.mark.asyncio
+async def test_move_from_ignore_persists_shrunk_ignored_list(db_dir):
+    """Pins the in-place mutation contract for move_from_ignore.
+
+    The mutate() callback prunes the store's LIVE ignored list via slice
+    assignment (`ignored[:] = ...`); a rebind (`ignored = ...`) would pass the
+    suite while silently writing nothing. Assert the persisted on-disk state
+    after flush: ignored actually SHRANK and the target gained the encodings.
+    """
+    _seed(ignored=[_entry([1.0]), _entry([2.0]), _entry([3.0])])
+    svc = ManagementService()
+
+    result = await svc.move_from_ignore(count=2, target_name="Alice")
+
+    known, ignored, _, _ = faceid_db.load_database()
+    assert len(ignored) == 1  # shrunk on disk, not just in the returned state
+    np.testing.assert_array_equal(ignored[0]["encoding"], np.array([3.0]))
+    assert len(known["Alice"]) == 2
+    assert result["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_undo_file_shrinks_processed_and_encodings_on_disk(db_dir):
+    """Pins the in-place mutation contract for undo_file.
+
+    undo_file prunes `processed` and `ignored` via slice assignment on the
+    store's live lists. Assert the persisted shrink of processed_files,
+    known_faces AND ignored_faces — not just the distinct-pairs side effect.
+    """
+    _seed(
+        known={
+            "Alice": [_entry([1.0], hash="fh1")],
+            "Bob": [_entry([2.0], hash="fh2")],
+        },
+        ignored=[_entry([3.0], hash="fh1"), _entry([4.0], hash="fh2")],
+        processed=[
+            {"name": "a.NEF", "hash": "fh1"},
+            {"name": "b.NEF", "hash": "fh2"},
+        ],
+    )
+    svc = ManagementService()
+
+    result = await svc.undo_file("a.NEF")
+
+    known, ignored, _, processed = faceid_db.load_database()
+    # processed shrank on disk: only the unmatched file remains.
+    assert [pf["name"] for pf in processed] == ["b.NEF"]
+    # Alice's only encoding came from a.NEF -> emptied and removed; Bob intact.
+    assert set(known) == {"Bob"}
+    # ignored shrank on disk: the fh1 entry is gone, the fh2 entry remains.
+    assert len(ignored) == 1
+    np.testing.assert_array_equal(ignored[0]["encoding"], np.array([4.0]))
+    assert result["files_undone"] == ["a.NEF"]
+
+
+# --------------------------------------------------------------------------
+# 4b. dedup_people no-op guard
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_dedup_noop_schedules_no_save(db_dir):
+    """A confirm that removes nothing must not mutate or schedule a save.
+
+    Preserves the old `if total and not dry_run: save()` no-op contract: the
+    plan runs under read() first, and mutate()/flush() only fire when there is
+    something to remove.
+    """
+    _seed(known={"Alice": [_entry([1.0], encoding_hash="h1")]})  # no redundancy
+    svc = ManagementService()
+
+    result = await svc.dedup_people(["Alice"], threshold=0.0, dry_run=False)
+
+    assert result["total_removed"] == 0
+    store = db_store_mod.get_db_store()
+    assert store._dirty is False  # no mutation was recorded
+    assert store._save_timer is None  # and no save is pending
 
 
 # --------------------------------------------------------------------------

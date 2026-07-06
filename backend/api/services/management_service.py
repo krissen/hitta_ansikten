@@ -672,11 +672,13 @@ class ManagementService:
                     known[name] = [e for i, e in enumerate(encs) if i not in remove]
             return removed_per_person, total
 
-        if dry_run:
-            removed_per_person, total = self.store.read(
-                lambda known, ignored, hardneg, processed: plan(known, False)
-            )
-        else:
+        # Plan under read() first so a zero-removal confirm schedules no save —
+        # preserves the old `if total and not dry_run: save()` no-op guard
+        # (mirrors undo_file's read-only pre-check).
+        removed_per_person, total = self.store.read(
+            lambda known, ignored, hardneg, processed: plan(known, False)
+        )
+        if total and not dry_run:
             removed_per_person, total = self.store.mutate(
                 lambda known, ignored, hardneg, processed: plan(known, True)
             )
