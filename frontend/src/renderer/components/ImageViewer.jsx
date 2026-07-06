@@ -14,6 +14,7 @@ import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { debug, debugError } from '../shared/debug.js';
 import { toFileUrl } from '../shared/fileUrl.js';
+import { computeFitTransform } from '../shared/fitTransform.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { LoadingOverlay } from './ProgressBar.jsx';
@@ -74,6 +75,15 @@ export function ImageViewer() {
   // Canvas dimensions
   const dimensions = useCanvasDimensions(containerRef);
 
+  // Device pixel ratio — tracked in state so a monitor move (DPR change) both
+  // resizes the backing store and repaints.
+  const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
+
+  // Cached face-box theme colors (read from CSS vars). Invalidated on theme
+  // change; `themeVersion` bumps to force a repaint with the new colors.
+  const themeColorsRef = useRef(null);
+  const [themeVersion, setThemeVersion] = useState(0);
+
   // Get module API
   const emit = useEmitEvent();
 
@@ -117,9 +127,21 @@ export function ImageViewer() {
     return new Promise((resolve, reject) => {
       const img = new Image();
 
-      img.onload = () => {
+      // Finish loading with a ready-to-paint drawable. Prefer an ImageBitmap
+      // (already decoded, cheap to draw), falling back to the HTMLImageElement.
+      const finalize = async () => {
+        let drawable = img;
+        try {
+          if (typeof createImageBitmap === 'function') {
+            drawable = await createImageBitmap(img);
+          }
+        } catch (e) {
+          debug('ImageViewer', 'createImageBitmap failed, using HTMLImageElement:', e);
+          drawable = img;
+        }
+
         debug('ImageViewer', `Image decoded: ${img.width}x${img.height} (${(img.width * img.height / 1e6).toFixed(1)}MP)`);
-        setImage(img);
+        setImage(drawable);
         setImagePath(loadPath);
         setOriginalImagePath(originalPath);
         setZoomMode('auto');
@@ -127,7 +149,14 @@ export function ImageViewer() {
         setPan({ x: 0, y: 0 });
         setIsLoading(false);
 
-        resolve({ img, loadPath, originalPath });
+        resolve({ img: drawable, loadPath, originalPath });
+      };
+
+      img.onload = () => {
+        // onload already guarantees the image is usable; decode() just moves the
+        // decode off the first-paint critical path, so ignore its errors.
+        const decoded = typeof img.decode === 'function' ? img.decode() : Promise.resolve();
+        decoded.catch(() => {}).then(finalize);
       };
 
       img.onerror = (err) => {
@@ -155,49 +184,36 @@ export function ImageViewer() {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');  // Allow transparency for themed background
-    const dpr = window.devicePixelRatio || 1;
 
     const canvasWidth = dimensions.width;
     const canvasHeight = dimensions.height;
 
-    // Update canvas size
-    canvas.width = canvasWidth * dpr;
-    canvas.height = canvasHeight * dpr;
-    ctx.scale(dpr, dpr);
-
-    // Clear canvas
+    // Map CSS pixels to device pixels. setTransform replaces the whole matrix,
+    // so this both applies the DPR scale and resets any prior transform without
+    // reallocating the backing store (the resize effect owns canvas.width/height).
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
     let imageScale, imageX, imageY;
 
     if (zoomMode === 'auto') {
       // Auto-fit mode
-      const imgRatio = image.width / image.height;
-      const canvasRatio = canvasWidth / canvasHeight;
-
-      if (imgRatio > canvasRatio) {
-        imageScale = canvasWidth / image.width;
-        imageX = 0;
-        imageY = (canvasHeight - image.height * imageScale) / 2;
-      } else {
-        imageScale = canvasHeight / image.height;
-        imageX = (canvasWidth - image.width * imageScale) / 2;
-        imageY = 0;
-      }
-
-      ctx.drawImage(image, imageX, imageY, image.width * imageScale, image.height * imageScale);
+      const fit = computeFitTransform(image.width, image.height, canvasWidth, canvasHeight);
+      imageScale = fit.scale;
+      imageX = fit.x;
+      imageY = fit.y;
     } else {
       // Manual zoom mode
       imageScale = zoomFactor;
       imageX = pan.x;
       imageY = pan.y;
-
-      ctx.drawImage(image, imageX, imageY, image.width * imageScale, image.height * imageScale);
     }
+
+    ctx.drawImage(image, imageX, imageY, image.width * imageScale, image.height * imageScale);
 
     // Draw face bounding boxes
     drawFaceBoxes(ctx, canvasWidth, canvasHeight, imageScale, imageX, imageY);
-  }, [image, dimensions, zoomMode, zoomFactor, pan, faces, faceBoxMode, activeFaceIndex]);
+  }, [image, dimensions, dpr, zoomMode, zoomFactor, pan, faces, faceBoxMode, activeFaceIndex, themeVersion]);
 
   // ============================================
   // Face Box Rendering
@@ -217,16 +233,20 @@ export function ImageViewer() {
     ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.lineWidth = 3;
 
-    const activeHighlightColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--face-active-highlight').trim() || '#00bcd4';
-    const confirmedColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--face-confirmed-color').trim() || '#4caf50';
-    const confirmedBg = getComputedStyle(document.documentElement)
-      .getPropertyValue('--face-confirmed-bg').trim() || 'rgba(76, 175, 80, 0.9)';
-    const ignoredColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--face-ignored-color').trim() || '#9e9e9e';
-    const ignoredBg = getComputedStyle(document.documentElement)
-      .getPropertyValue('--face-ignored-bg').trim() || 'rgba(158, 158, 158, 0.9)';
+    // Face-box colors are read from CSS vars once and cached; the cache is
+    // invalidated on theme change (see the theme-invalidation effect below),
+    // keeping getComputedStyle out of the render hot path.
+    if (!themeColorsRef.current) {
+      const styles = getComputedStyle(document.documentElement);
+      themeColorsRef.current = {
+        activeHighlightColor: styles.getPropertyValue('--face-active-highlight').trim() || '#00bcd4',
+        confirmedColor: styles.getPropertyValue('--face-confirmed-color').trim() || '#4caf50',
+        confirmedBg: styles.getPropertyValue('--face-confirmed-bg').trim() || 'rgba(76, 175, 80, 0.9)',
+        ignoredColor: styles.getPropertyValue('--face-ignored-color').trim() || '#9e9e9e',
+        ignoredBg: styles.getPropertyValue('--face-ignored-bg').trim() || 'rgba(158, 158, 158, 0.9)'
+      };
+    }
+    const { activeHighlightColor, confirmedColor, confirmedBg, ignoredColor, ignoredBg } = themeColorsRef.current;
 
     // Calculate placements with collision avoidance
     const placedBoxes = [];
@@ -792,38 +812,77 @@ export function ImageViewer() {
   }, []); // Only on mount
 
   // ============================================
-  // Render on state change
+  // Canvas resize (backing store) — split from the draw path
+  // ============================================
+
+  // Own the canvas backing store. Reassigning canvas.width/height reallocates
+  // and clears it, so this must run ONLY when the size actually changes
+  // (dimensions or DPR) — never on pan/zoom. The draw effect below repaints
+  // afterwards because `render` also depends on [dimensions, dpr].
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    canvas.width = dimensions.width * dpr;
+    canvas.height = dimensions.height * dpr;
+  }, [dimensions, dpr]);
+
+  // Track DPR changes (e.g. dragging the window between monitors of different
+  // pixel density). matchMedia fires once per change, so re-arm on each event.
+  useEffect(() => {
+    let mql;
+    const listener = () => {
+      const next = window.devicePixelRatio || 1;
+      setDpr(next);
+      arm(); // re-arm against the new DPR
+    };
+    const arm = () => {
+      if (mql) mql.removeEventListener('change', listener);
+      mql = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+      mql.addEventListener('change', listener);
+    };
+    arm();
+    return () => { if (mql) mql.removeEventListener('change', listener); };
+  }, []);
+
+  // Invalidate the cached face-box colors when the theme changes. Two triggers
+  // are needed: theme-manager fires a `theme-changed` event and flips the
+  // `data-theme` attribute, while the ThemeEditor live preview writes inline
+  // CSS vars on <html> with no event — a MutationObserver on data-theme + style
+  // covers both. Bumping themeVersion forces render() to repaint.
+  useEffect(() => {
+    const invalidate = () => {
+      themeColorsRef.current = null;
+      setThemeVersion(v => v + 1);
+    };
+    window.addEventListener('theme-changed', invalidate);
+    const observer = new MutationObserver(invalidate);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'style']
+    });
+    return () => {
+      window.removeEventListener('theme-changed', invalidate);
+      observer.disconnect();
+    };
+  }, []);
+
+  // Free the previous ImageBitmap when the drawable is replaced or on unmount.
+  // HTMLImageElement has no close(); the guard keeps the fallback path safe.
+  useEffect(() => {
+    return () => {
+      if (image && typeof image.close === 'function') {
+        image.close();
+      }
+    };
+  }, [image]);
+
+  // ============================================
+  // Draw on state change
   // ============================================
 
   useEffect(() => {
     render();
   }, [render]);
-
-  // ============================================
-  // Warm-up: JIT-compile zoom code on first image load
-  // ============================================
-
-  const hasWarmedUpRef = useRef(false);
-
-  useEffect(() => {
-    if (!image || hasWarmedUpRef.current) return;
-
-    // Wait for first render, then do a tiny zoom to trigger JIT compilation
-    const warmupTimer = setTimeout(() => {
-      if (!hasWarmedUpRef.current) {
-        hasWarmedUpRef.current = true;
-        // Trigger zoom code path with imperceptible zoom
-        zoom(1.0001);
-        // Immediately reset
-        requestAnimationFrame(() => {
-          setZoomMode('auto');
-          setPan({ x: 0, y: 0 });
-        });
-      }
-    }, 100);
-
-    return () => clearTimeout(warmupTimer);
-  }, [image, zoom]);
 
   // ============================================
   // Render
