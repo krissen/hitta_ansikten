@@ -45,6 +45,8 @@ module.exports = {
       skipFile: "Hoppa till nästa fil",
       acceptAll: "Acceptera alla förslag",
       undo: "Ångra senaste ansiktsåtgärd",
+      deleteToTrash: "Flytta aktuell fil till papperskorgen",
+      undoDelete: "Ångra radering",
       cancel: "Avbryt detektering / kasta ändringar"
     },
     queue: {

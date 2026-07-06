@@ -118,6 +118,16 @@ function createApplicationMenu(mainWindow) {
             sendMenuCommand('undo-face-action');
           }
         },
+        {
+          // No accelerator: Cmd+Shift+Backspace is handled by the visible review
+          // surface's keydown (ReviewModule), not a global menu accelerator, so
+          // it can't shadow other modules' key handling. Menu item stays for
+          // discoverability.
+          label: t('menu.edit.undoDelete'),
+          click: () => {
+            sendMenuCommand('undo-delete-file');
+          }
+        },
         { type: 'separator' },
         { role: 'cut', label: t('menu.edit.cut') },
         { role: 'copy', label: t('menu.edit.copy') },
@@ -168,6 +178,18 @@ function createApplicationMenu(mainWindow) {
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
             sendMenuCommand('open-raw-in-lightroom');
+          }
+        },
+        { type: 'separator' },
+        {
+          // No accelerator: Cmd+Backspace is handled by the visible review
+          // surface's keydown (ReviewModule), not a global menu accelerator —
+          // a global one would shadow Gallra spelare's own Cmd+Backspace (its
+          // tab's file-queue stays mounted) and trash the wrong file. Menu item
+          // stays for discoverability.
+          label: t('menu.file.deleteToTrash'),
+          click: () => {
+            sendMenuCommand('delete-current-file');
           }
         },
         { type: 'separator' },

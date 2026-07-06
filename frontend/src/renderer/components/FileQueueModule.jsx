@@ -288,6 +288,10 @@ export function FileQueueModule({ node }) {
 
   const loadFileRef = useRef(null);
 
+  // Undo stack for delete-to-trash. Each entry: { id, item, index } — the trash
+  // id (for restore), the removed queue item, and its original index.
+  const deleteUndoStackRef = useRef([]);
+
   const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
   const savedIndexRef = useRef(-1);
 
@@ -1651,6 +1655,127 @@ export function FileQueueModule({ node }) {
       }
     }
   }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit, isFileEligible]));
+
+  // Soft-delete a file to the app trash, then advance to the next eligible file.
+  // The path is supplied by the caller (the visible review surface via
+  // 'file-queue:trash'), NOT read from this module's own current-file ref —
+  // the queue module stays mounted in other layouts (e.g. culling) where that
+  // ref is stale, so trusting it would trash the wrong file.
+  const deleteFile = useCallback(async (targetPath) => {
+    const path = targetPath || null;
+    if (!path) {
+      showToast(t('fileQueue.toasts.nothingToDelete'), 'info', 2500);
+      return;
+    }
+    const beforeQueue = queueRef.current;
+    const idx = beforeQueue.findIndex((item) => item.filePath === path);
+    if (idx < 0) return;
+    const victim = beforeQueue[idx];
+    const fileName = path.split('/').pop();
+    // First eligible file that isn't the one being deleted (matches the
+    // review-complete advance semantics), captured before the optimistic remove.
+    const nextPath = beforeQueue.find(
+      (item) => item.filePath !== path && isFileEligible(item)
+    )?.filePath || null;
+
+    // Optimistic removal so the UI reacts immediately.
+    const wasCurrent = currentFileRef.current === path;
+    setQueue((prev) => prev.filter((item) => item.filePath !== path));
+    if (wasCurrent) currentFileRef.current = null;
+
+    let trashedId = null;
+    try {
+      const res = await api.post('/api/v1/culling/trash', { paths: [path] });
+      trashedId = res?.trashed?.[0]?.id || null;
+      if (!trashedId) {
+        // 200 with errors[] means the file is still on disk (lock/permission/race).
+        showToast(res?.errors?.[0]?.error || t('fileQueue.toasts.trashFailed', { fileName }), 'error', 5000);
+      }
+    } catch (err) {
+      showToast(err.message || String(err), 'error', 5000);
+    }
+
+    if (!trashedId) {
+      // Roll back the optimistic removal.
+      setQueue((prev) => {
+        if (prev.some((item) => item.filePath === path)) return prev;
+        const copy = [...prev];
+        copy.splice(Math.min(idx, copy.length), 0, victim);
+        return copy;
+      });
+      if (wasCurrent) currentFileRef.current = path;
+      return;
+    }
+
+    // The file is gone — drop any dirty/unsaved-review marker for it so it can't
+    // hold up a later rename of the remaining files.
+    setDirtyPaths((prev) => {
+      if (!prev.has(path)) return prev;
+      const next = new Set(prev);
+      next.delete(path);
+      return next;
+    });
+
+    deleteUndoStackRef.current.push({ id: trashedId, item: victim, index: idx });
+    showToast(t('fileQueue.toasts.movedToTrash', { fileName }), 'info', 4000);
+
+    // Advance to the next eligible file (if any), reading the freshly-synced
+    // queue ref after the removal has rendered.
+    if (autoAdvance && nextPath) {
+      setTimeout(() => {
+        const nextIdx = queueRef.current.findIndex((item) => item.filePath === nextPath);
+        if (nextIdx >= 0) loadFileRef.current?.(nextIdx);
+      }, 250);
+    } else {
+      setCurrentIndex(-1);
+    }
+  }, [api, autoAdvance, isFileEligible, showToast]);
+
+  // Undo the most recent delete-to-trash: restore the file and re-insert it into
+  // the queue at its original position. Bound to Cmd+Shift+Backspace (a dedicated
+  // accelerator, NOT Cmd+Z, which is already Review's face-undo).
+  const undoDeleteFile = useCallback(async () => {
+    const stack = deleteUndoStackRef.current;
+    if (stack.length === 0) {
+      showToast(t('fileQueue.toasts.nothingToUndo'), 'info', 2500);
+      return;
+    }
+    while (stack.length > 0) {
+      const entry = stack.pop();
+      try {
+        const res = await api.post('/api/v1/culling/restore', { ids: [entry.id] });
+        if (res?.restored?.length > 0) {
+          setQueue((prev) => {
+            if (prev.some((item) => item.filePath === entry.item.filePath)) return prev;
+            const copy = [...prev];
+            copy.splice(Math.min(entry.index, copy.length), 0, entry.item);
+            return copy;
+          });
+          const fileName = entry.item.filePath.split('/').pop();
+          showToast(t('fileQueue.toasts.restoredFromTrash', { fileName }), 'success', 3000);
+          setTimeout(() => {
+            const ri = queueRef.current.findIndex((item) => item.filePath === entry.item.filePath);
+            if (ri >= 0) loadFileRef.current?.(ri);
+          }, 250);
+          return;
+        }
+        // Entry no longer in trash (e.g. emptied) — try the next one down.
+      } catch (err) {
+        showToast(err.message || String(err), 'error', 5000);
+        return;
+      }
+    }
+    // Stack drained without a successful restore (e.g. trash emptied).
+    showToast(t('fileQueue.toasts.nothingToUndo'), 'info', 2500);
+  }, [api, showToast]);
+
+  // Trash/undo requests come from the visible review surface (ReviewModule),
+  // which passes the exact file path — see deleteFile's comment for why this
+  // module never reads its own (possibly stale) current-file ref here.
+  useModuleEvent('file-queue:trash', useCallback(({ imagePath } = {}) => {
+    deleteFile(imagePath);
+  }, [deleteFile]));
+  useModuleEvent('file-queue:undo-trash', undoDeleteFile);
 
   // Track files whose review has unsaved changes; while dirty they're held out of
   // rename so a rename can't read the database before a just-added manual face persists.

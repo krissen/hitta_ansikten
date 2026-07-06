@@ -750,6 +750,20 @@ export function ReviewModule({ node }) {
   }, [currentFaceIndex]);
 
   /**
+   * Ask the file queue to soft-delete the file currently under review (and
+   * advance). The path is passed explicitly so the queue trashes exactly the
+   * file being reviewed — the queue module stays mounted in other layouts (e.g.
+   * culling), where its own "current file" ref is stale. Routing delete from
+   * here (a review-only, visibility-gated surface) instead of a global menu
+   * accelerator keeps culling's own Cmd+Backspace intact and never trashes the
+   * wrong file. Deleting discards any unsaved review of that file (it's gone).
+   */
+  const requestDeleteCurrentFile = useCallback(() => {
+    if (!currentImagePath) return;
+    emit('file-queue:trash', { imagePath: currentImagePath });
+  }, [currentImagePath, emit]);
+
+  /**
    * Keyboard handler
    * Shortcuts active when ReviewModule is visible (rendered in DOM)
    * Blocked in input fields and modules that capture keyboard (Preferences, etc.)
@@ -898,6 +912,20 @@ export function ReviewModule({ node }) {
         return;
       }
 
+      // Cmd+Backspace - soft-delete the current file to trash (Finder convention).
+      if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInput) {
+        e.preventDefault();
+        requestDeleteCurrentFile();
+        return;
+      }
+
+      // Cmd+Shift+Backspace - undo the last delete-to-trash.
+      if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey) && e.shiftKey && !isInput) {
+        e.preventDefault();
+        emit('file-queue:undo-trash');
+        return;
+      }
+
       // Escape - cancel detection if running, else blur input or discard changes
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -917,7 +945,7 @@ export function ReviewModule({ node }) {
 
     document.addEventListener('keydown', handleKeyboard);
     return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions, undoLastAction, isLoading, cancelDetection, showToast]);
+  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions, undoLastAction, isLoading, cancelDetection, showToast, requestDeleteCurrentFile, emit]);
 
   useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
     if (skipAutoDetect) {
@@ -950,6 +978,17 @@ export function ReviewModule({ node }) {
    */
   useModuleEvent('save-all-changes', saveAllChanges);
   useModuleEvent('discard-changes', discardChanges);
+  // File menu → "Flytta till papperskorgen" / "Ångra radering". Gated by
+  // visibility so the menu items act on the reviewed file only when the review
+  // surface is up (they no-op during culling, which has its own delete).
+  useModuleEvent('delete-current-file', useCallback(() => {
+    if (node && !node.isVisible()) return;
+    requestDeleteCurrentFile();
+  }, [node, requestDeleteCurrentFile]));
+  useModuleEvent('undo-delete-file', useCallback(() => {
+    if (node && !node.isVisible()) return;
+    emit('file-queue:undo-trash');
+  }, [node, emit]));
   useModuleEvent('queue-status', setQueueStatus);
   // Pull the current queue status on mount so the overview bar isn't blank
   // when the Review panel is opened after navigation has already happened.

@@ -64,6 +64,8 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `↑` / `↓` | Föregående/nästa ansikte |
 | `Tab` | Komplettera autocomplete-förslag |
 | `x` | Hoppa till nästa fil |
+| `Cmd+⌫` | Flytta aktuell fil till papperskorgen och gå vidare (`Cmd+⌫` följer Finder; även Arkiv → "Flytta till papperskorgen") |
+| `Cmd+Shift+⌫` | Ångra senaste radering (återställ filen till kön; Redigera → "Ångra radering") |
 | `Esc` | Avbryt ändringar |
 
 ### Layout
