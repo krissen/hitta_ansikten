@@ -13,7 +13,7 @@ import re
 import unicodedata
 from pathlib import Path
 
-from faceid_db import get_file_hash, load_attempt_log
+from core.db import get_file_hash, load_attempt_log
 
 
 def extract_prefix_suffix(fname: str) -> tuple[str | None, str | None]:

@@ -25,6 +25,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.db import get_file_hash
+
 logger = logging.getLogger(__name__)
 
 
@@ -228,14 +230,9 @@ class PreprocessingCache:
         yield (False, attempt)
 
     @staticmethod
-    def compute_file_hash(file_path: str) -> str:
-        """Compute SHA1 hash of file content."""
-        sha1 = hashlib.sha1()
-        with open(file_path, 'rb') as f:
-            # Read in chunks to handle large files
-            for chunk in iter(lambda: f.read(8192), b''):
-                sha1.update(chunk)
-        return sha1.hexdigest()
+    def compute_file_hash(file_path: str) -> str | None:
+        """Compute SHA1 hash of file content (delegates to core.db)."""
+        return get_file_hash(file_path)
 
     @staticmethod
     def compute_grid_key(file_path: str, size: int) -> str:

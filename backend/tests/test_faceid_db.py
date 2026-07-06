@@ -1,4 +1,4 @@
-"""Characterization tests for faceid_db (the pickle + jsonl data layer).
+"""Characterization tests for core.db (the pickle + jsonl data layer).
 
 These tests pin CURRENT behavior of the data layer so upcoming refactors
 have a safety net. They intentionally document behavior as-is — including
@@ -17,7 +17,7 @@ import pickle
 import numpy as np
 import pytest
 
-import faceid_db
+from core import db as faceid_db
 
 # --------------------------------------------------------------------------
 # Fixtures

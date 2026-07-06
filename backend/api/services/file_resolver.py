@@ -14,9 +14,10 @@ import os
 from datetime import date, datetime
 from pathlib import Path
 
+from core.files import RAW_EXTENSIONS, SUPPORTED_EXTENSIONS
 from core.playerstats import parse_filename
 
-from .rename_service import SUPPORTED_EXTENSIONS, extract_filename_datetime
+from .rename_service import extract_filename_datetime
 
 # App-managed trash (soft-deleted files live here). Resolution always skips it so
 # trashed files are never re-counted or re-listed by any feature. The culling
@@ -29,7 +30,7 @@ TRASH_DIR = _DATA_HOME / "faceid" / "trash"
 EXTENSION_PRESETS: dict[str, list[str]] = {
     "jpg": [".jpg", ".jpeg"],
     "nef": [".nef"],
-    "raw": [".nef", ".cr2", ".cr3", ".arw", ".dng", ".raw", ".raf", ".orf", ".rw2"],
+    "raw": list(RAW_EXTENSIONS),
     "images": [".jpg", ".jpeg", ".png", ".tiff", ".tif"],
     "all": list(SUPPORTED_EXTENSIONS),
 }

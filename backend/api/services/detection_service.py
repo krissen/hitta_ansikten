@@ -25,8 +25,9 @@ from PIL import Image, ImageOps
 
 from core.attempts import log_attempt_stats
 from core.config import load_config
+from core.db import BASE_DIR, get_file_hash, load_database, save_database
+from core.files import RAW_EXTENSIONS
 from face_backends import create_backend
-from faceid_db import BASE_DIR, get_file_hash, load_database, save_database
 
 from .management_service import DISTINCT_PAIRS_PATH, _load_distinct_pairs
 from .preprocessing_cache import get_cache as get_preprocessing_cache
@@ -159,13 +160,9 @@ class DetectionService:
             "cache_cleared": old_cache_size
         }
 
-    def _get_file_hash(self, path: Path) -> str:
-        """Compute SHA1 hash of file using chunked reading"""
-        sha1 = hashlib.sha1()
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(65536), b''):
-                sha1.update(chunk)
-        return sha1.hexdigest()
+    def _get_file_hash(self, path: Path) -> str | None:
+        """Compute SHA1 hash of file (delegates to the canonical core.db impl)."""
+        return get_file_hash(path)
 
     def _load_image(self, image_path: Path) -> np.ndarray:
         """Load image as RGB array (supports NEF and standard formats)
@@ -174,10 +171,8 @@ class DetectionService:
         """
         ext = image_path.suffix.lower()
 
-        # RAW formats handled by rawpy/libraw. Keep this aligned with the "raw"
-        # extension preset (file_resolver.EXTENSION_PRESETS["raw"]) so every RAW
-        # the GUI lets you pick can actually be converted/previewed.
-        if ext in ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2']:  # RAW formats
+        # RAW formats handled by rawpy/libraw (canonical set in core.files).
+        if ext in RAW_EXTENSIONS:  # RAW formats
             # Check preprocessing cache for converted JPG
             try:
                 cache = get_preprocessing_cache()
