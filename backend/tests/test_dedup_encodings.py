@@ -1,12 +1,12 @@
 """Tests for within-person redundant-encoding dedup."""
 
 import hashlib
-import threading
 
 import numpy as np
 import pytest
 
 from api.services.management_service import ManagementService, _redundant_indices
+from tests.conftest import InMemoryDBStore
 
 
 def _unit(seed, dim=16):
@@ -27,17 +27,15 @@ _MANUAL = {"encoding": None, "is_manual": True, "backend": "insightface"}
 
 
 @pytest.fixture
-def service(monkeypatch):
+def service():
     svc = ManagementService.__new__(ManagementService)
     svc.known_faces = {}
     svc.ignored_faces = []
     svc.hard_negatives = {}
     svc.processed_files = []
-    svc._reload_lock = threading.Lock()
-    svc._last_reload = 9e18
-    svc._cache_ttl = 2.0
-    monkeypatch.setattr(svc, "_reload_from_disk", lambda: None)
-    monkeypatch.setattr(svc, "save", lambda: None)
+    # Route store reads/mutations at the service's own live in-memory
+    # collections, so nothing touches the real DB.
+    svc.store = InMemoryDBStore(svc)
     return svc
 
 

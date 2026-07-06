@@ -1,11 +1,10 @@
 """Tests for ManagementService.find_duplicate_people — cross-person merge candidates."""
 
-import threading
-
 import numpy as np
 import pytest
 
 from api.services.management_service import ManagementService, _person_centroid
+from tests.conftest import InMemoryDBStore
 
 
 def _unit(seed):
@@ -27,12 +26,9 @@ def service(tmp_path, monkeypatch):
     svc.ignored_faces = []
     svc.hard_negatives = {}
     svc.processed_files = []
-    svc._reload_lock = threading.Lock()
-    svc._last_reload = 9e18
-    svc._cache_ttl = 2.0
-    # Keep the in-memory known_faces authoritative; never touch the real DB.
-    monkeypatch.setattr(svc, "_reload_from_disk", lambda: None)
-    monkeypatch.setattr(svc, "save", lambda: None)
+    # Route the service's store reads/mutations at the service's own live
+    # in-memory collections, so nothing touches the real DB.
+    svc.store = InMemoryDBStore(svc)
     return svc
 
 

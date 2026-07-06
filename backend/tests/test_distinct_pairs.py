@@ -1,12 +1,11 @@
 """Tests for the confirmed-distinct pair registry + head-to-head separability."""
 
-import threading
-
 import numpy as np
 import pytest
 
 import api.services.management_service as m
 from api.services.management_service import ManagementService, _pair_separability
+from tests.conftest import InMemoryDBStore
 
 
 def _unit(seed):
@@ -39,12 +38,9 @@ def service(tmp_path, monkeypatch):
     svc.ignored_faces = []
     svc.hard_negatives = {}
     svc.processed_files = []
-    svc._reload_lock = threading.Lock()
-    svc._last_reload = 9e18  # never re-read disk
-    svc._cache_ttl = 2.0
-    # Keep the in-memory known_faces authoritative and never touch the real DB.
-    monkeypatch.setattr(svc, "_reload_from_disk", lambda: None)
-    monkeypatch.setattr(svc, "save", lambda: None)
+    # Route the service's store reads/mutations at the service's own live
+    # in-memory collections, so nothing touches the real DB.
+    svc.store = InMemoryDBStore(svc)
     return svc
 
 
@@ -153,16 +149,18 @@ async def test_add_rejects_unknown_person(service):
 
 
 @pytest.mark.asyncio
-async def test_scan_reloads_before_pruning(service, monkeypatch):
-    # Guards against deleting a valid pair off a stale cache: the in-memory
-    # known_faces is missing a person, but the forced disk reload restores them,
-    # so the scan/list must NOT prune the still-valid exclusion.
+async def test_scan_reconciles_against_fresh_names(service):
+    # INTENTIONALLY UPDATED for the FaceDBStore migration (was
+    # test_scan_reloads_before_pruning). The old test relied on
+    # find_duplicate_people forcing a `_reload_from_disk` to repair a stale
+    # in-memory cache before reconcile-pruning. There is no stale cache anymore:
+    # the service reads through FaceDBStore, which reflects ground truth on every
+    # call (reloading on external file change). The surviving invariant — a valid
+    # pair whose members both still exist must NOT be pruned by a scan — is now
+    # guaranteed by construction because reconcile runs against the store's live
+    # names.
     service.known_faces = _people("Wilmer", "Maximilian")
     await service.add_distinct_pair("Wilmer", "Maximilian")
-    fresh = _people("Wilmer", "Maximilian")
-    service.known_faces = {"Wilmer": fresh["Wilmer"]}  # stale: Maximilian dropped
-    monkeypatch.setattr(service, "_reload_from_disk",
-                        lambda: service.known_faces.update(fresh))
     await service.find_duplicate_people(0.35)
     assert (await service.list_distinct_pairs())["count"] == 1
 
