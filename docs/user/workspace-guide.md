@@ -22,6 +22,7 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | **Byt namn** | Döper om NEF efter EXIF CreateDate (YYMMDD_HHMMSS) med förhandsvisning |
 | **Räkna spelare** | Räknar bilder per spelare (från filnamn) med över-/underrepresentation |
 | **Gallra spelare** | Gallra bilder per spelare med förhandsvisning och papperskorg |
+| **Papperskorg** | Visa/återställ/töm borttagna filer (Visa → Papperskorg) |
 | **Databashantering** | Databashantering |
 | **Inställningar** | Inställningar |
 | **Temaredigerare** | Anpassa utseende |

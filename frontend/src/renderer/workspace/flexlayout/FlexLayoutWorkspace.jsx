@@ -29,6 +29,7 @@ import { PreferencesModule } from '../../components/PreferencesModule.jsx';
 import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
 import { PlayerCountModule } from '../../components/PlayerCountModule.jsx';
 import { CullingModule } from '../../components/CullingModule.jsx';
+import { TrashPanel } from '../../components/TrashPanel.jsx';
 import { ImportModule } from '../../components/ImportModule.jsx';
 import { RenameNefModule } from '../../components/RenameNefModule.jsx';
 import { StartupLanding } from '../../components/StartupLanding.jsx';
@@ -202,6 +203,7 @@ const MODULE_COMPONENTS = {
   'preferences': PreferencesModule,
   'player-count': PlayerCountModule,
   'culling': CullingModule,
+  'trash': TrashPanel,
   'import': ImportModule,
   'rename-nef': RenameNefModule
 };
@@ -264,6 +266,11 @@ const MODULE_LAYOUT = {
   },
   'culling': {
     widthRatio: 0.70,     // wide - it holds list + image side by side
+    heightRatio: 0.70,    // Primary row
+    row: 1
+  },
+  'trash': {
+    widthRatio: 1.0,      // full pane - a simple list view
     heightRatio: 0.70,    // Primary row
     row: 1
   },
@@ -528,6 +535,7 @@ export function FlexLayoutWorkspace() {
     'theme-editor',
     'player-count',
     'culling',
+    'trash',
     'import',
     'rename-nef'
   ]);
@@ -1244,6 +1252,9 @@ export function FlexLayoutWorkspace() {
           break;
         case 'open-culling':
           openModule('culling');
+          break;
+        case 'open-trash':
+          openModule('trash');
           break;
         case 'open-import':
           openModule('import');

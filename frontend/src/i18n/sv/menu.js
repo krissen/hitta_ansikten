@@ -44,6 +44,7 @@ module.exports = {
     "openOriginalView": "Öppna originalvy",
     "openLogViewer": "Öppna loggar",
     "openReviewModule": "Öppna Granska ansikten",
+    "openTrash": "Papperskorg",
     "toggleDevTools": "Växla utvecklarverktyg",
     "reload": "Ladda om"
   },

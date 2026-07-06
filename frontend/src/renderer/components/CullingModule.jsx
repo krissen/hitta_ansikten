@@ -14,6 +14,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
+import { TrashPanel } from './TrashPanel.jsx';
 import { CullingGrid } from './CullingGrid.jsx';
 import { gridThumbnailCache } from '../shared/grid-thumbnail-cache.js';
 import { gridNavTarget } from './culling-grid-nav.js';
@@ -123,8 +124,6 @@ export function CullingModule({ node }) {
   const [hasRun, setHasRun] = useState(false);
 
   const [showTrash, setShowTrash] = useState(false);
-  const [trashItems, setTrashItems] = useState([]);
-  const [trashFilter, setTrashFilter] = useState('all'); // 'all' | 'jpg' | 'nef'
 
   // Widths of the two resizable column boundaries, restored from localStorage.
   // leftWidthPct is clamped to the drag range on read; statsWidth gets a lower
@@ -915,57 +914,26 @@ export function CullingModule({ node }) {
   }, [menu]);
 
   // ----- trash view --------------------------------------------------
-  const openTrash = useCallback(async () => {
-    setShowTrash(true);
-    try {
-      const data = await api.get('/api/v1/culling/trash');
-      setTrashItems(data.items || []);
-    } catch (err) {
-      setError(err.message || String(err));
-    }
-  }, [api]);
-
-  const restoreItem = useCallback(
-    async (id) => {
-      try {
-        const res = await api.post('/api/v1/culling/restore', { ids: [id] });
-        if (res.restored && res.restored.length > 0) {
-          setTrashItems((prev) => prev.filter((it) => it.id !== id));
-          // Keep the cull-loop undo stack in sync - this id is no longer trashable.
-          undoStackRef.current = undoStackRef.current.filter((x) => x !== id);
-          if (lastQueryRef.current) {
-            loadList(lastQueryRef.current, { keepIndex: true });
-            refreshStatsDebounced();
-          }
-        } else {
-          // 200 with errors[] (unwritable folder, missing stored file): the item
-          // stays in the manifest, so keep it visible and surface the reason.
-          setError(res.errors?.[0]?.error || 'Kunde inte återställa filen.');
-        }
-      } catch (err) {
-        setError(err.message || String(err));
-      }
-    },
-    [api, loadList, refreshStatsDebounced]
-  );
-
-  // Empty the trash. With no ids, clears everything; with ids, deletes just
-  // those (used to empty only the currently filtered subset).
-  const emptyTrash = useCallback(async (ids = null) => {
-    try {
-      await api.post('/api/v1/culling/empty', ids ? { ids } : {});
+  // TrashPanel owns the trash list/filter and the restore/empty calls; this
+  // callback keeps CullingModule's own state in sync after a change. On restore
+  // or a filtered empty the affected ids are no longer trashable, so drop them
+  // from the cull-loop undo stack; an empty-all (ids null) clears it entirely.
+  // A restore also puts files back on disk, so refresh the file list and stats.
+  const handleTrashChange = useCallback(
+    (kind, ids) => {
       if (ids) {
         const gone = new Set(ids);
-        setTrashItems((prev) => prev.filter((it) => !gone.has(it.id)));
         undoStackRef.current = undoStackRef.current.filter((x) => !gone.has(x));
       } else {
-        setTrashItems([]);
         undoStackRef.current = [];
       }
-    } catch (err) {
-      setError(err.message || String(err));
-    }
-  }, [api]);
+      if (kind === 'restore' && lastQueryRef.current) {
+        loadList(lastQueryRef.current, { keepIndex: true });
+        refreshStatsDebounced();
+      }
+    },
+    [loadList, refreshStatsDebounced]
+  );
 
   // ----- divider drag ------------------------------------------------
   // List/preview split: percent of the list+preview area (excludes the stats
@@ -1053,10 +1021,6 @@ export function CullingModule({ node }) {
   }, []);
 
   const current = currentIndex >= 0 ? files[currentIndex] : null;
-  const filteredTrash =
-    trashFilter === 'all'
-      ? trashItems
-      : trashItems.filter((it) => trashGroup(it.basename) === trashFilter);
   const canFilter = roots.length > 0 || glob.trim() !== '';
 
   // ----- on-the-fly name removal (preview overlay) -------------------
@@ -1321,7 +1285,7 @@ export function CullingModule({ node }) {
         <span className="culling-spacer" />
         <button
           className={showTrash ? 'btn-action' : 'btn-secondary'}
-          onClick={() => (showTrash ? setShowTrash(false) : openTrash())}
+          onClick={() => setShowTrash((v) => !v)}
         >
           Papperskorg
         </button>
@@ -1341,52 +1305,7 @@ export function CullingModule({ node }) {
       {error && <div className="status-message error">Fel: {error}</div>}
 
       {showTrash ? (
-        <div className="module-body culling-trashview">
-          <div className="culling-trash-header">
-            <span>
-              {trashFilter === 'all'
-                ? `${trashItems.length} i papperskorgen`
-                : `${filteredTrash.length} av ${trashItems.length} i papperskorgen`}
-            </span>
-            {trashItems.length > 0 && (
-              <>
-                <select
-                  className="form-select"
-                  value={trashFilter}
-                  onChange={(e) => setTrashFilter(e.target.value)}
-                  title="Filtyp"
-                >
-                  <option value="all">Alla</option>
-                  <option value="jpg">jpg / jpeg</option>
-                  <option value="nef">nef / raw</option>
-                </select>
-                <button
-                  className="btn-secondary"
-                  onClick={() =>
-                    emptyTrash(trashFilter === 'all' ? null : filteredTrash.map((it) => it.id))
-                  }
-                  disabled={filteredTrash.length === 0}
-                >
-                  {trashFilter === 'all' ? 'Töm' : `Töm ${filteredTrash.length}`}
-                </button>
-              </>
-            )}
-          </div>
-          {trashItems.length === 0 ? (
-            <div className="empty-state">Papperskorgen är tom.</div>
-          ) : filteredTrash.length === 0 ? (
-            <div className="empty-state">Inga filer av den typen i papperskorgen.</div>
-          ) : (
-            <ul className="culling-trash-list">
-              {filteredTrash.map((it) => (
-                <li key={it.id}>
-                  <span className="culling-trash-name" title={it.original_path}>{it.basename}</span>
-                  <button className="btn-secondary" onClick={() => restoreItem(it.id)}>Återställ</button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <TrashPanel onAfterChange={handleTrashChange} />
       ) : (
         <div className="culling-body" ref={bodyRef}>
           <CullingStats
@@ -1617,15 +1536,6 @@ function isRaw(p) {
 }
 
 const JPG_EXTS = ['.jpg', '.jpeg'];
-
-// Classify a trashed file by type for the trash-view filter: JPEG vs raw
-// (nef/cr2/…) vs anything else (png/tiff). Mirrors the EXTENSION_PRESETS groups.
-export function trashGroup(name) {
-  const ext = extOf(name).toLowerCase();
-  if (JPG_EXTS.includes(ext)) return 'jpg';
-  if (RAW_EXTS.includes(ext)) return 'nef';
-  return 'other';
-}
 
 function globBaseDir(pattern) {
   const idx = pattern.search(/[*?[]/);

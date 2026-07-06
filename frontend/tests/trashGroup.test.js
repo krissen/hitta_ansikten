@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { trashGroup } from '../src/renderer/components/CullingModule.jsx';
+import { trashGroup } from '../src/renderer/components/trashGroup.js';
 
 describe('trashGroup', () => {
   it('classifies JPEG basenames', () => {
