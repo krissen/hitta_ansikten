@@ -44,6 +44,14 @@ class TestNormalizeSuffix:
         # collapses to a single underscore, then trimmed to ''
         assert normalize_suffix("///") == ""
 
+    def test_dot_runs_collapsed(self):
+        # No '..' traversal token survives (build_new_filename_with_config's
+        # guard would otherwise reject it after the preview showed it as valid).
+        assert normalize_suffix("sommar..24") == "sommar_24"
+        assert normalize_suffix("a...b") == "a_b"
+        assert normalize_suffix("...") == ""
+        assert ".." not in normalize_suffix("x....y")
+
 
 # ---------------------------------------------------------------------------
 # store round-trip

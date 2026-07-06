@@ -21,6 +21,12 @@ describe('normalizeSuffix', () => {
     expect(normalizeSuffix('/etc/passwd')).toBe('etc_passwd');
   });
 
+  it('collapses dot-runs so no ".." traversal token survives', () => {
+    expect(normalizeSuffix('sommar..24')).toBe('sommar_24');
+    expect(normalizeSuffix('a...b')).toBe('a_b');
+    expect(normalizeSuffix('...')).toBe('');
+  });
+
   it('returns empty for empty/whitespace/path-only input', () => {
     expect(normalizeSuffix('')).toBe('');
     expect(normalizeSuffix('   ')).toBe('');

@@ -45,6 +45,9 @@ def normalize_suffix(raw: str) -> str:
     s = re.sub(r"\s+", "_", s)
     # Diacritic folding + path-safety (å/ä -> a, ö -> o, / \ \0 -> _)
     s = normalize_name(s)
+    # No '..' path-traversal tokens: build_new_filename_with_config's guard
+    # rejects them, so keep the suffix (and the UI preview) buildable.
+    s = re.sub(r"\.{2,}", "_", s)
     # Collapse repeated underscores and trim edges
     s = re.sub(r"_+", "_", s).strip("_")
     return s

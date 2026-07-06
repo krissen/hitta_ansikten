@@ -24,6 +24,9 @@ export function normalizeSuffix(raw) {
   s = s.normalize('NFKD').replace(/[̀-ͯ]/g, '');
   // Path-safety: replace separators / backslash / null with underscore
   s = s.replace(/[/\\\0]/g, '_');
+  // No '..' path-traversal tokens (the backend filename guard rejects them, so
+  // the preview must not show a name the rename would then refuse).
+  s = s.replace(/\.{2,}/g, '_');
   // Collapse repeated underscores and trim edges
   s = s.replace(/_+/g, '_').replace(/^_+|_+$/g, '');
   return s;
