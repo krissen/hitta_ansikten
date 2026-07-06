@@ -18,6 +18,7 @@ import json
 import numpy as np
 import pytest
 
+import api.services.db_store as db_store_mod
 import api.services.management_service as m
 import faceid_db
 from api.services.management_service import ManagementService
@@ -39,6 +40,10 @@ def db_dir(tmp_path, monkeypatch):
     # The service's registry path + base are bound at import time.
     monkeypatch.setattr(m, "BASE_DIR", base)
     monkeypatch.setattr(m, "DISTINCT_PAIRS_PATH", base / "distinct_pairs.json")
+    # ManagementService now reads/writes through the process-wide FaceDBStore
+    # singleton. Reset it per test so each starts with a fresh authority bound
+    # to this temp dir (no state carried over from a previous test's dir).
+    monkeypatch.setattr(db_store_mod, "_store", None)
     return base
 
 
@@ -212,27 +217,35 @@ async def test_move_to_ignore_moves_all_encodings(db_dir):
 
 
 # --------------------------------------------------------------------------
-# 5. TTL reload behavior (2.0 s cache)
+# 5. Freshness via FaceDBStore (replaces the old 2.0 s TTL tests)
+#
+# INTENTIONALLY UPDATED for the FaceDBStore migration: ManagementService no
+# longer holds its own copies behind a 2.0 s time-to-live cache. It reads
+# through the process-wide FaceDBStore, which invalidates by file fingerprint
+# (st_mtime_ns + st_size), not by elapsed time. The old TTL tests
+# (test_reload_database_skips_within_ttl / _rereads_after_ttl) asserted a
+# now-removed behavior (a within-TTL external write is deliberately NOT seen);
+# that contract is gone by design. The equivalent guarantee is: an external
+# write is visible on the *next* read, with no TTL wait.
 # --------------------------------------------------------------------------
 
-def test_reload_database_skips_within_ttl(db_dir):
-    _seed(known={"Alice": [_entry([1.0])]})
-    svc = ManagementService()  # loads {Alice}, sets _last_reload=now
+@pytest.mark.asyncio
+async def test_external_write_visible_on_next_read(db_dir):
+    """External DB write is picked up immediately (fingerprint invalidation).
 
-    # Change the DB on disk behind the service's back.
-    _seed(known={"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]})
-
-    svc.reload_database()  # within the 2.0 s TTL -> should NOT re-read
-    assert set(svc.known_faces) == {"Alice"}
-
-
-def test_reload_database_rereads_after_ttl(db_dir):
+    Replaces the two TTL tests: there is no timed cache to wait out. The next
+    read after an external write reflects it.
+    """
     _seed(known={"Alice": [_entry([1.0])]})
     svc = ManagementService()
 
+    state1 = await svc.get_database_state()
+    assert {p["name"] for p in state1["people"]} == {"Alice"}
+
+    # An external process rewrites the DB behind the service's back.
     _seed(known={"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]})
 
-    # Age the last-reload stamp past the TTL without sleeping.
-    svc._last_reload -= (svc._cache_ttl + 10)
-    svc.reload_database()
-    assert set(svc.known_faces) == {"Alice", "Bob"}
+    # No TTL wait: the store invalidates on the changed file fingerprint, so the
+    # very next read sees the new person.
+    state2 = await svc.get_database_state()
+    assert {p["name"] for p in state2["people"]} == {"Alice", "Bob"}
