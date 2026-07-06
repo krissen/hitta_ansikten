@@ -7,7 +7,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 ## [Unreleased]
 
 ### Removed
-- Removed root-level `RENAME_MANUAL_FACES_PLAN.md` (a completed bug post-mortem — its fixes are recorded in this changelog) and a stray `.luarc.json` Lua LSP config unrelated to this Python/JS repo.
+- Removed root-level `RENAME_MANUAL_FACES_PLAN.md` (a completed bug post-mortem — its fixes are recorded in this changelog) and `.luarc.json` (added in 2b67010 to silence Lua LSP false positives from `.venv`/`dist`; deliberately dropped now as editor-specific config that belongs in a personal global ignore rather than the repo).
 
 ### Docs
 - README: corrected the Python requirement (3.11+, matching `pyproject.toml`), the dev install command (`pip install -e ".[dev]"`), and the feature list (added Importera, Räkna spelare, Gallra spelare and Papperskorg).
