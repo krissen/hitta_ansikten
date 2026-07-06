@@ -174,6 +174,11 @@ export function ReviewModule({ node }) {
       } else {
         const fileName = imagePath.split('/').pop();
         showToast(t('review.toasts.noFacesFound', { fileName }), 'info');
+        // Keep focus on the module so the manual-name affordance is reachable
+        // (button + the 'm' shortcut) instead of the panel losing focus.
+        setTimeout(() => {
+          moduleRef.current?.focus();
+        }, 100);
       }
     } catch (err) {
       if (abortController.signal.aborted) {
@@ -1022,7 +1027,25 @@ export function ReviewModule({ node }) {
         {isLoading ? (
           <div className="loading">{t('review.status.detecting')}</div>
         ) : detectedFaces.length === 0 ? (
-          <div className="loading">{t('review.noFacesDetected')}</div>
+          currentImagePath ? (
+            // No faces found, but the file can still be named manually (e.g. a
+            // photo of an object). Surface the action as a button instead of
+            // hiding it behind the 'm' shortcut. Works the same in fix mode,
+            // which re-detects into this branch when a processed file has none.
+            <div className="no-faces-detected">
+              <p className="no-faces-title">{t('review.noFacesDetected')}</p>
+              <p className="no-faces-hint">{t('review.noFacesHint')}</p>
+              <button
+                type="button"
+                className="btn-secondary add-manual-name-btn"
+                onClick={addManualFace}
+              >
+                {t('review.addManualName')}
+              </button>
+            </div>
+          ) : (
+            <div className="loading">{t('review.status.waitingForImage')}</div>
+          )
         ) : (
           detectedFaces.map((face, index) => (
             <FaceCard

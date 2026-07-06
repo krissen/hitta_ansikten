@@ -4,6 +4,8 @@ module.exports = {
   "ignoredBadge": "Ignorerad",
   "unknown": "Okänd",
   "noFacesDetected": "Inga ansikten identifierade",
+  "noFacesHint": "Bilden kan ändå döpas – lägg till ett namn manuellt.",
+  "addManualName": "Lägg till namn manuellt",
   "undoTitle": "Dubbelklicka för att ångra",
 
   "status": {
