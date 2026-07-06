@@ -52,7 +52,9 @@ module.exports = {
       navigate: "Navigera i kön",
       loadFile: "Läs in markerad fil",
       remove: "Ta bort från kön",
-      selectAll: "Markera alla filer"
+      selectAll: "Markera alla filer",
+      deleteToTrash: "Flytta aktuell fil till papperskorgen",
+      undoDelete: "Ångra radering"
     },
     culling: {
       nextImage: "Nästa bild",

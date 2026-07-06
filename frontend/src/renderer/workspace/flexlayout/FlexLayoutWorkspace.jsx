@@ -97,7 +97,9 @@ const SHORTCUT_SECTIONS = [
       { keys: ['↑', '↓'], desc: t('shortcuts.desc.queue.navigate'), sep: ' / ' },
       { keys: ['Enter'], desc: t('shortcuts.desc.queue.loadFile') },
       { keys: ['Delete'], desc: t('shortcuts.desc.queue.remove') },
-      { keys: ['Cmd', 'A'], desc: t('shortcuts.desc.queue.selectAll') }
+      { keys: ['Cmd', 'A'], desc: t('shortcuts.desc.queue.selectAll') },
+      { keys: ['Cmd', '⌫'], desc: t('shortcuts.desc.queue.deleteToTrash') },
+      { keys: ['Cmd', 'Shift', '⌫'], desc: t('shortcuts.desc.queue.undoDelete') }
     ]
   },
   {

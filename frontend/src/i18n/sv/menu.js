@@ -12,6 +12,7 @@ module.exports = {
   "edit": {
     "title": "Redigera",
     "undoFaceAction": "Ångra ansiktsåtgärd",
+    "undoDelete": "Ångra radering",
     "undo": "Ångra",
     "redo": "Gör om",
     "cut": "Klipp ut",
@@ -27,6 +28,7 @@ module.exports = {
     "saveAll": "Spara alla ändringar",
     "discard": "Kasta ändringar",
     "openInLightroom": "Öppna i Lightroom",
+    "deleteToTrash": "Flytta till papperskorgen",
     "quit": "Avsluta"
   },
   "view": {

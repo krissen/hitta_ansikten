@@ -118,6 +118,13 @@ function createApplicationMenu(mainWindow) {
             sendMenuCommand('undo-face-action');
           }
         },
+        {
+          label: t('menu.edit.undoDelete'),
+          accelerator: 'CmdOrCtrl+Shift+Backspace',
+          click: () => {
+            sendMenuCommand('undo-delete-file');
+          }
+        },
         { type: 'separator' },
         { role: 'cut', label: t('menu.edit.cut') },
         { role: 'copy', label: t('menu.edit.copy') },
@@ -168,6 +175,14 @@ function createApplicationMenu(mainWindow) {
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
             sendMenuCommand('open-raw-in-lightroom');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: t('menu.file.deleteToTrash'),
+          accelerator: 'CmdOrCtrl+Backspace',
+          click: () => {
+            sendMenuCommand('delete-current-file');
           }
         },
         { type: 'separator' },
