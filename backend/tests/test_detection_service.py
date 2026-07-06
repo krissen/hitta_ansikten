@@ -187,7 +187,8 @@ def test_cache_key_changes_when_registry_changes(tmp_path, monkeypatch):
     key1 = svc._detection_cache_key("h")
     # A registry edit (new mtime) invalidates cached suggestions.
     import os
-    bumped = reg.stat().st_mtime_ns + 1_000_000
+    # Bump by a full second so even coarse-mtime filesystems register the change.
+    bumped = reg.stat().st_mtime_ns + 1_000_000_000
     os.utime(reg, ns=(bumped, bumped))
     key2 = svc._detection_cache_key("h")
     assert key1 != key2
@@ -309,7 +310,9 @@ async def test_schedule_save_coalesces_rapid_calls(monkeypatch):
     # Two rapid schedules within the 500 ms debounce window -> one save.
     await svc._schedule_save()
     await svc._schedule_save()
-    await asyncio.sleep(0.7)
+    # The second call coalesced into the first task; awaiting it is
+    # deterministic (no wall-clock race with the debounce + executor hop).
+    await svc._save_task
 
     assert len(calls) == 1
     assert svc._save_pending is False
@@ -323,8 +326,9 @@ async def test_flush_save_cancels_pending_and_saves_now(monkeypatch):
 
     await svc._schedule_save()   # schedule a debounced save
     await svc._flush_save()      # force immediate save, cancel the debounce
-    await asyncio.sleep(0.7)     # let any leaked debounce fire
 
-    # Exactly one save happened (the flush); the debounce was cancelled.
+    # _flush_save awaits the cancelled debounce task before saving, so by now
+    # the task is settled: exactly one save happened (the flush).
+    assert svc._save_task.done()
     assert len(calls) == 1
     assert svc._save_pending is False
