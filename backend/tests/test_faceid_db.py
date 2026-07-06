@@ -19,7 +19,6 @@ import pytest
 
 import faceid_db
 
-
 # --------------------------------------------------------------------------
 # Fixtures
 # --------------------------------------------------------------------------
@@ -255,7 +254,7 @@ def test_rotate_logs_trims_processed(db_dir, monkeypatch):
 
     faceid_db.rotate_logs()
 
-    kept = [json.loads(l) for l in faceid_db.PROCESSED_PATH.read_text(encoding="utf-8").splitlines()]
+    kept = [json.loads(line) for line in faceid_db.PROCESSED_PATH.read_text(encoding="utf-8").splitlines()]
     assert len(kept) == 5
     # Keeps the MOST RECENT entries.
     assert kept == entries[-5:]
@@ -270,12 +269,12 @@ def test_rotate_logs_archives_attempts(db_dir, monkeypatch):
 
     faceid_db.rotate_logs()
 
-    recent = [json.loads(l) for l in faceid_db.ATTEMPT_LOG_PATH.read_text(encoding="utf-8").splitlines()]
+    recent = [json.loads(line) for line in faceid_db.ATTEMPT_LOG_PATH.read_text(encoding="utf-8").splitlines()]
     assert recent == entries[-5:]
 
     archives = list(faceid_db.ARCHIVE_DIR.glob("attempt_stats_*.jsonl"))
     assert len(archives) == 1
-    archived = [json.loads(l) for l in archives[0].read_text(encoding="utf-8").splitlines()]
+    archived = [json.loads(line) for line in archives[0].read_text(encoding="utf-8").splitlines()]
     assert archived == entries[:-5]  # the older 15
 
 
