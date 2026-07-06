@@ -9,7 +9,9 @@
  * layouts pick up the current language.
  *
  * Mutates `config` in place (and returns it). Tabs whose component is absent
- * from `titles` are left untouched — including any the user renamed manually.
+ * from `titles` (non-module tabs) are left untouched. Known module tabs always
+ * reflect the module's current translated title — tab renaming is disabled for
+ * them anyway (global `tabEnableRename: false`), so no user rename is lost.
  *
  * @param {object} config - parsed FlexLayout JSON ({ layout, borders, ... })
  * @param {Record<string,string>} titles - moduleId -> translated title

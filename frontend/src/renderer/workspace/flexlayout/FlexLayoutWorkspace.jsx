@@ -399,6 +399,10 @@ export function FlexLayoutWorkspace() {
       splitterSize: 4,                  // Consistent splitter appearance
       tabSetMinWidth: 100,              // Prevent panels from becoming too small
       tabSetMinHeight: 100,
+      tabEnableRename: false,           // Tabs are fixed module labels — their
+                                        // names are re-derived from i18n on
+                                        // restore (retranslateTabNames), so a
+                                        // manual rename couldn't survive anyway.
     };
     layoutConfig.global = { ...layoutConfig.global, ...criticalSettings };
 
