@@ -12,6 +12,7 @@ module.exports = {
   "preferences": "Inställningar",
   "player-count": "Räkna spelare",
   "culling": "Gallra spelare",
+  "trash": "Papperskorg",
   "import": "Importera",
   "rename-nef": "Byt namn"
 };

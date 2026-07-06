@@ -344,6 +344,12 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: t('menu.view.openTrash'),
+          click: () => {
+            sendMenuCommand('open-trash');
+          }
+        },
+        {
           label: t('modules.database-management'),
           accelerator: 'CmdOrCtrl+Shift+D',
           click: () => {

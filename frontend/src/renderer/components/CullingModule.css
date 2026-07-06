@@ -480,44 +480,6 @@
   object-fit: contain;
 }
 
-/* Trash view */
-.culling-trashview {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.culling-trash-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  font-size: 0.9em;
-  color: var(--text-secondary);
-}
-
-.culling-trash-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.culling-trash-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 0;
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 0.85em;
-}
-
-.culling-trash-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ----- Overview (grid) mode -------------------------------------------- */
 /* A scrollable contact sheet that replaces the list+preview area when the view
    mode is "grid". The min column width (160px) is kept in sync with
