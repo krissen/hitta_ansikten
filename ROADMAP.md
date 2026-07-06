@@ -48,6 +48,10 @@ deliverables, DoD) för en prestandarelease.
 
 - [ ] **CLI launch: landing döljs vid sökväg som expanderar till tomt** — renderaren härleder landningssidans suppression från råa arg-antalet (`hasFiles`), men huvudprocessen skickar bara handoff efter sökvägsexpansion (`expandFolderPaths`/`expandFilePaths` → `length>0 || clear`). En syntaktiskt giltig men icke-matchande sökväg (t.ex. `ansikten culling /typo` eller en glob utan träffar) döljer landningen utan att öppna något → användaren hamnar i default-layouten istället. Ren fix: låt huvudprocessen beräkna post-expansion-villkoret och exponera den boolean:en som launch intent istället för att renderaren gissar från råa argument (kräver async-hantering för faces). Pre-existerande edge (user-error), icke-blockerande; flaggad i PR #67-granskningen.
 
+### Dokumentation
+
+- [ ] **Odokumenterade endpoints i api-reference.md** — `POST /api/v1/batch-confirm` (detection.py) och `POST /api/v1/statistics/file-stats` (statistics.py) saknas i docs/dev/api-reference.md. Noterat i granskningen av #123; tas i auditens docs-slutsvep.
+
 ---
 
 ## Teknisk skuld
