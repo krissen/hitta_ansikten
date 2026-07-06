@@ -17,7 +17,8 @@ const path = require('path');
 const fs = require('fs');
 const { t } = require('../i18n');
 
-const DEBUG = true;
+// Verbose backend logging is opt-in via ANSIKTEN_DEBUG=1 (off in production).
+const DEBUG = process.env.ANSIKTEN_DEBUG === '1';
 
 class BackendService {
   constructor() {
@@ -221,8 +222,8 @@ class BackendService {
     console.log(`[BackendService] [${this._timestamp()}] Starting health check polling...`);
     this._updateStatus(t('dialogs.splash.initializingPython'), 10);
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
+    // Poll immediately, then retry. The backend takes time to boot, so early
+    // ECONNREFUSED is expected and swallowed quietly by checkHealth().
     for (let i = 0; i < this.maxRetries; i++) {
       if (this.childExited) {
         const logs = this.startupLogs.slice(-20).join('\n');
@@ -320,23 +321,28 @@ class BackendService {
 
     console.log('[BackendService] Stopping backend server...');
 
+    // Capture the handle now: start()'s exit handler nulls this.process, so the
+    // force-kill closure below must not read this.process (it may be null by then).
+    const proc = this.process;
+
     return new Promise((resolve) => {
-      this.process.on('exit', () => {
+      // Force kill after 5 seconds if graceful shutdown did not complete.
+      const forceKillTimer = setTimeout(() => {
+        console.warn('[BackendService] Force killing server');
+        proc.kill('SIGKILL');
+      }, 5000);
+      // Don't let the pending timer keep the Electron main process alive on quit.
+      forceKillTimer.unref();
+
+      proc.on('exit', () => {
+        clearTimeout(forceKillTimer);
         console.log('[BackendService] Server stopped');
         this.process = null;
         resolve();
       });
 
       // Send SIGTERM for graceful shutdown
-      this.process.kill('SIGTERM');
-
-      // Force kill after 5 seconds if not stopped
-      setTimeout(() => {
-        if (this.process) {
-          console.warn('[BackendService] Force killing server');
-          this.process.kill('SIGKILL');
-        }
-      }, 5000);
+      proc.kill('SIGTERM');
     });
   }
 
