@@ -14,6 +14,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -29,9 +31,14 @@ if TYPE_CHECKING:
 
 
 # === CONSTANTS === #
-# Use /private/tmp for macOS compatibility with Ansikten security restrictions
-# Ansikten whitelists /tmp and /private/tmp but not system temp (/var/folders/...)
-TEMP_DIR = Path("/private/tmp") / "ansikten"
+# On macOS use /private/tmp: the packaged app whitelists /tmp and /private/tmp
+# but not the system temp dir (/var/folders/...). /private/tmp does not exist on
+# other platforms (e.g. Linux CI), so fall back to the standard temp dir there.
+if sys.platform == "darwin":
+    _TEMP_BASE = Path("/private/tmp")
+else:
+    _TEMP_BASE = Path(tempfile.gettempdir())
+TEMP_DIR = _TEMP_BASE / "ansikten"
 TEMP_DIR.mkdir(exist_ok=True, parents=True)
 ORDINARY_PREVIEW_PATH = str(TEMP_DIR / "preview.jpg")
 MAX_ATTEMPTS = 2
