@@ -274,6 +274,7 @@ pip install onnxruntime insightface
 |----------|-------------|---------|
 | `ANSIKTEN_PORT` | Backend server port | `5001` |
 | `ANSIKTEN_PYTHON` | Python path (dev only) | Auto-detect |
+| `ANSIKTEN_DEBUG` | Verbose backend-service logging (`1` = on) | Off |
 | `CSC_IDENTITY_AUTO_DISCOVERY` | Disable code signing | - |
 
 ---
