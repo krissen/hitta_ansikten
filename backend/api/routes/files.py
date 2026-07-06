@@ -4,18 +4,20 @@ File Routes
 Endpoints for file operations including rename functionality.
 """
 
+import logging
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-import logging
 
-from ..services.rename_service import rename_service, validate_path_security
+from faceid_db import get_file_hash
+
 from ..services.manual_suffix_service import (
     get_manual_suffix,
-    set_manual_suffix,
     normalize_suffix,
+    set_manual_suffix,
 )
-from faceid_db import get_file_hash
+from ..services.rename_service import rename_service, validate_path_security
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

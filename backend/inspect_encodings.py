@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-import pickle
-from pathlib import Path
-import hashlib
 import argparse
+from pathlib import Path
 
 # Import utilities from faceid_db
-from faceid_db import safe_pickle_load, get_file_hash
+from faceid_db import get_file_hash, safe_pickle_load
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mode", choices=["filnamn", "hash", "både"], default="både",

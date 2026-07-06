@@ -12,7 +12,7 @@ import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { useBackend } from '../context/BackendContext.jsx';
-import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { debug, debugError } from '../shared/debug.js';
 import { t } from '../../i18n/index.js';
 import './OriginalView.css';
 

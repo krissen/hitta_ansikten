@@ -4,13 +4,14 @@ WebSocket Progress Streaming
 Real-time progress updates for face detection and processing.
 """
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import Set
-import logging
-import json
 import asyncio
+import json
+import logging
 import queue
 from datetime import datetime
+from typing import Set
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

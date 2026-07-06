@@ -10,10 +10,10 @@
  * - Configurable sections via preferences
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
-import { debug, debugWarn, debugError, getLogBuffer } from '../shared/debug.js';
+import { debug, debugError, getLogBuffer } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
 import { t } from '../../i18n/index.js';
 import './StatisticsDashboard.css';

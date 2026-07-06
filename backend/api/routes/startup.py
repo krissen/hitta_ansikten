@@ -4,8 +4,9 @@ Startup Status Routes
 Endpoint for frontend to check initialization status of backend components.
 """
 
-from fastapi import APIRouter
 import logging
+
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

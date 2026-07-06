@@ -5,11 +5,10 @@ Provides statistics and analytics data for the workspace dashboard.
 Ports functionality from analysera_ansikten.py to API-friendly format.
 """
 
-import json
 import logging
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -17,7 +16,6 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from faceid_db import (
-    ATTEMPT_LOG_PATH,
     LOGGING_PATH,
     extract_face_labels,
     get_file_hash,

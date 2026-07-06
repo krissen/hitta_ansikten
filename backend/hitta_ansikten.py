@@ -7,7 +7,6 @@ warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition
 
 import copy
 import fnmatch
-import glob
 import hashlib
 import json
 import logging
@@ -20,40 +19,55 @@ import re
 import shutil
 import signal
 import sys
-import tempfile
 import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import TYPE_CHECKING, Callable, Iterator, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator
 
 if TYPE_CHECKING:
     from prompt_toolkit.completion import Completer
 
 import numpy as np
 
-from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
-                       CONFIG_PATH, LOGGING_PATH, SUPPORTED_EXT, get_file_hash,
-                       load_attempt_log, load_database, save_database, safe_pickle_load)
-from face_backends import create_backend, FaceBackend
 from cli_config import (
+    CACHE_DIR,
+    MAX_ATTEMPTS,
+    MAX_QUEUE,
+    MAX_WORKER_WAIT_TIME,
+    ORDINARY_PREVIEW_PATH,
+    QUEUE_GET_TIMEOUT,
+    RESERVED_COMMANDS,
     # Constants
-    TEMP_DIR, ORDINARY_PREVIEW_PATH, MAX_ATTEMPTS, MAX_QUEUE, CACHE_DIR,
-    RESERVED_COMMANDS, MAX_WORKER_WAIT_TIME,
-    QUEUE_GET_TIMEOUT, WORKER_JOIN_TIMEOUT, WORKER_TERMINATE_TIMEOUT,
+    TEMP_DIR,
+    WORKER_JOIN_TIMEOUT,
+    WORKER_TERMINATE_TIMEOUT,
+    archive_stats_if_needed,
+    get_attempt_settings,
+    get_max_possible_attempts,
+    get_settings_signature,
+    hash_encoding,
     # Config
-    init_logging, load_config,
-    get_attempt_settings, get_max_possible_attempts,
-    get_settings_signature, archive_stats_if_needed, hash_encoding
+    init_logging,
+    load_config,
 )
 from cli_image import (
-    load_and_resize_raw, create_labeled_image,
-    export_and_show_original, show_temp_image
+    create_labeled_image,
+    export_and_show_original,
+    load_and_resize_raw,
+    show_temp_image,
 )
-from cli_matching import (
-    best_matches, get_face_match_status,
-    label_preview_for_encodings
+from cli_matching import best_matches, get_face_match_status, label_preview_for_encodings
+from face_backends import FaceBackend, create_backend
+from faceid_db import (
+    BASE_DIR,
+    SUPPORTED_EXT,
+    get_file_hash,
+    load_attempt_log,
+    load_database,
+    safe_pickle_load,
+    save_database,
 )
 
 # Initialize logging at module load
@@ -332,9 +346,6 @@ def user_review_encodings(
     labels = []
     all_ignored = True
     retry_requested = False
-    margin = config["prefer_name_margin"]
-    name_thr = config["match_threshold"]
-    ignore_thr = config["ignore_distance"]
 
     def handle_answer(ans, actions, default=None):
         if ans in ("", "enter"):
@@ -544,12 +555,12 @@ def user_review_encodings(
             labels.append({"label": f"#{i+1}\n{name}", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
 
     if retry_requested:
-        logging.debug(f"[REVIEW] Retry ombett, återgår till anropare")
+        logging.debug("[REVIEW] Retry ombett, återgår till anropare")
         return "retry", []
     if all_ignored:
-        logging.debug(f"[REVIEW] Alla ansikten ignorerade; returnerar 'all_ignored'.")
+        logging.debug("[REVIEW] Alla ansikten ignorerade; returnerar 'all_ignored'.")
         return "all_ignored", []
-    logging.debug(f"[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
+    logging.debug("[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
     return "ok", labels
 
 
@@ -923,7 +934,6 @@ def collect_persons_for_files(
     Returnera dict: { filename: [namn, ...] }
     Merge-strategi: review-ordning först, sedan komplettera från encodings.
     """
-    import hashlib
     from pathlib import Path
 
     file_to_persons = {}
@@ -1334,7 +1344,7 @@ def preprocess_worker(
     try:
         # Initialize backend in worker process
         from face_backends import create_backend
-        logging.debug(f"[WORKER] About to create backend from config")
+        logging.debug("[WORKER] About to create backend from config")
         backend = create_backend(config)
         logging.debug(f"[WORKER] Initialized backend: {backend.backend_name}")
 
@@ -1385,10 +1395,10 @@ def preprocess_worker(
         logging.error(f"[PREPROCESS worker][ERROR] {e}")
         import traceback
         # Print error to stderr so it's visible to user
-        print(f"\n⚠️  KRITISKT FEL: Worker-processen kraschade!", file=sys.stderr)
+        print("\n⚠️  KRITISKT FEL: Worker-processen kraschade!", file=sys.stderr)
         print(f"⚠️  Fel: {type(e).__name__}: {e}", file=sys.stderr)
-        print(f"⚠️  Main-processen kommer att fortsätta utan parallell preprocessing.", file=sys.stderr)
-        print(f"⚠️  Se ansikten.log för detaljer.\n", file=sys.stderr)
+        print("⚠️  Main-processen kommer att fortsätta utan parallell preprocessing.", file=sys.stderr)
+        print("⚠️  Se ansikten.log för detaljer.\n", file=sys.stderr)
         traceback.print_exc()
     finally:
         # Always signal completion, even on error, to unblock main loop
@@ -1596,9 +1606,9 @@ def main() -> None:
     time.sleep(0.1)  # Give workers a moment to start
     if preprocess_done.is_set() and preprocessed_queue.empty():
         logging.warning("[PREPROCESS] Worker exited immediately - will fall back to main process")
-        print(f"\n⚠️  VARNING: Worker-processen avslutades omedelbart!", file=sys.stderr)
-        print(f"⚠️  Detta tyder på ett fel i worker-processen.", file=sys.stderr)
-        print(f"⚠️  Preprocessing kommer att göras i main-processen istället (långsammare).\n", file=sys.stderr)
+        print("\n⚠️  VARNING: Worker-processen avslutades omedelbart!", file=sys.stderr)
+        print("⚠️  Detta tyder på ett fel i worker-processen.", file=sys.stderr)
+        print("⚠️  Preprocessing kommer att göras i main-processen istället (långsammare).\n", file=sys.stderr)
 
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()

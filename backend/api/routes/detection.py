@@ -5,11 +5,12 @@ Endpoints for face detection operations.
 ML libraries loaded lazily on first detection request.
 """
 
+import logging
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import Any, Dict, List, Optional
-import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -211,6 +212,7 @@ async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height
         - Browser cache: 1 week (604800s)
     """
     from pathlib import Path
+
     from ..services.preprocessing_cache import get_cache
 
     logger.debug(f"[Detection] Getting thumbnail from {image_path} at ({x},{y},{width},{height})")

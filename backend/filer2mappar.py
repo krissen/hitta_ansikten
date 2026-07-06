@@ -384,7 +384,7 @@ def main() -> int:
         if date_source == "filename":
             print("Inga filer med YYMMDD_* mönster hittades.")
         else:
-            print(f"Kunde inte extrahera datum från några filer.")
+            print("Kunde inte extrahera datum från några filer.")
         return 0
 
     # Applicera datumfilter

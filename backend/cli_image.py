@@ -20,9 +20,9 @@ from typing import Any
 
 import numpy as np
 import rawpy
+from numpy.typing import NDArray
 from PIL import Image, ImageDraw, ImageFont
 from PIL.ImageFont import FreeTypeFont
-from numpy.typing import NDArray
 
 from cli_config import TEMP_DIR
 
@@ -313,7 +313,7 @@ def show_temp_image(
                     logging.debug(f"[ANSIKTEN] Kan inte jämföra filer, öppnar {expected_path}")
 
             elif app_status == "exited":
-                logging.debug(f"[ANSIKTEN] Appen har avslutats, kommer öppna bild")
+                logging.debug("[ANSIKTEN] Appen har avslutats, kommer öppna bild")
                 should_open = True
             else:
                 logging.debug(f"[ANSIKTEN] App-status: {app_status} inte behandlad, kommer öppna bild")
@@ -341,5 +341,5 @@ def show_temp_image(
             print(f"⚠️  Kunde inte öppna extern bildvisare: {e}", file=sys.stderr)
         last_shown[0] = expected_path
     else:
-        logging.debug(f"[ANSIKTEN] Hoppar över open")
+        logging.debug("[ANSIKTEN] Hoppar över open")
         last_shown[0] = str(preview_path)

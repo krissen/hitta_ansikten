@@ -5,6 +5,7 @@
   "description": "Face detection and annotation tool for image review",
   "main": "main.js",
   "scripts": {
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist resources/backend ../backend/dist ../backend/build",
@@ -35,12 +36,17 @@
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@testing-library/react": "^16.0.0",
     "electron": "^36.3.2",
     "electron-builder": "^26.0.0",
     "esbuild": "^0.27.2",
-    "vitest": "^3.0.0",
-    "@testing-library/react": "^16.0.0",
-    "jsdom": "^26.0.0"
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "jsdom": "^26.0.0",
+    "vitest": "^3.0.0"
   },
   "build": {
     "appId": "se.krissen.ansikten",

@@ -5,7 +5,7 @@
  * Supports dot notation for nested access (e.g., 'backend.port').
  */
 
-import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { debug, debugError } from '../shared/debug.js';
 
 export class PreferencesManager {
   constructor() {

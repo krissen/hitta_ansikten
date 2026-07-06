@@ -7,9 +7,10 @@ them EXIF-rotated. That mismatch put the bounding box ~90 deg off and rendered a
 sideways thumbnail crop. _load_image must now honour EXIF orientation.
 """
 
+from unittest.mock import MagicMock
+
 import numpy as np
 from PIL import Image
-from unittest.mock import MagicMock
 
 from api.services.detection_service import DetectionService
 

@@ -89,7 +89,7 @@ def main() -> None:
         if not hardneg[name]:
             del hardneg[name]
 
-    print(f"\n=== After removal ===")
+    print("\n=== After removal ===")
     print(f"known_faces:    {sum(len(v) for v in known.values()):5} encodings")
     print(f"ignored_faces:  {len(ignored):5} encodings")
     print(f"hard_negatives: {sum(len(v) for v in hardneg.values()):5} encodings")
@@ -98,7 +98,7 @@ def main() -> None:
         print(f"\n[DRY RUN] Would remove {total_dlib} dlib encodings.")
         print("Run without --dry-run to apply changes.")
     else:
-        print(f"\nSaving database...")
+        print("\nSaving database...")
         save_database(known, ignored, hardneg, processed)
         print(f"Removed {total_dlib} dlib encodings.")
 

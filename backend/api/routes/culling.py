@@ -5,7 +5,7 @@ restore them via the app-managed trash.
 """
 
 import logging
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel

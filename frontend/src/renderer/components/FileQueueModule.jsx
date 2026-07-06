@@ -848,10 +848,6 @@ export function FileQueueModule({ node }) {
   }, [queue, queueToast, api]);
 
   // Check if file is already processed
-  const isFileProcessed = useCallback((fileName) => {
-    return processedFiles.has(fileName);
-  }, [processedFiles]);
-
   const getEligibilityContext = useCallback(() => ({
     fixMode: fixModeRef.current,
     processedFiles: processedFilesRef.current
@@ -2072,8 +2068,6 @@ export function FileQueueModule({ node }) {
   const completedCount = queue.filter(q =>
     q.status === 'completed' || (!fixMode && q.isAlreadyProcessed)
   ).length;
-  const pendingCount = queue.filter(q => q.status === 'pending').length;
-  const activeCount = queue.filter(q => q.status === 'active').length;
 
   const hasSelection = selectedFiles.size > 0;
 

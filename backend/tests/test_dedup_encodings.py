@@ -6,7 +6,6 @@ import threading
 import numpy as np
 import pytest
 
-import api.services.management_service as m
 from api.services.management_service import ManagementService, _redundant_indices
 
 

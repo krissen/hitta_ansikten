@@ -8,8 +8,6 @@ Verifies that:
 4. Encoding data is merged correctly with review data
 """
 
-import pytest
-from pathlib import Path
 from unittest.mock import patch
 
 from api.services.rename_service import collect_persons_for_files

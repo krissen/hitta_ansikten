@@ -6,10 +6,9 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from faceid_db import ARCHIVE_DIR
+from faceid_db import ARCHIVE_DIR, extract_face_labels, load_database
 from faceid_db import ATTEMPT_LOG_PATH as ATTEMPT_FILE
 from faceid_db import LOGGING_PATH as LOG_FILE
-from faceid_db import extract_face_labels, load_database
 
 # ================== Laddning och grundstatistik ====================
 

@@ -5,7 +5,7 @@
  * Toggle menu items use checkboxes to show current state.
  */
 
-const { Menu, shell, ipcMain, app, dialog } = require('electron');
+const { Menu, shell, ipcMain, dialog } = require('electron');
 const { t } = require('../i18n');
 const path = require('path');
 const fs = require('fs');

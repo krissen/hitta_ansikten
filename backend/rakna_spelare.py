@@ -11,7 +11,7 @@ import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from statistics import median, mean
+from statistics import mean, median
 
 CONFIG_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "faceid"
 CONFIG_FILE = CONFIG_DIR / "rakna_spelare.json"

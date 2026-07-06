@@ -5,29 +5,30 @@ Wraps existing face detection logic from the Ansikten CLI.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import sys
 import time
-import hashlib
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Any, Optional, Tuple
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 # Add parent directory to path to import hitta_ansikten modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from face_backends import create_backend
-from faceid_db import load_database, save_database, get_file_hash, BASE_DIR
-from hitta_ansikten import load_config, log_attempt_stats
+import numpy as np
 import rawpy
 from PIL import Image, ImageOps
-import numpy as np
 
+from face_backends import create_backend
+from faceid_db import BASE_DIR, get_file_hash, load_database, save_database
+from hitta_ansikten import load_config, log_attempt_stats
+
+from .management_service import DISTINCT_PAIRS_PATH, _load_distinct_pairs
 from .preprocessing_cache import get_cache as get_preprocessing_cache
-from .management_service import _load_distinct_pairs, DISTINCT_PAIRS_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -858,7 +859,7 @@ class DetectionService:
 
         # Handle manual faces (no encoding to add to ignored list)
         if face_id.startswith("manual_"):
-            logger.info(f"[DetectionService] Manual face ignored (no encoding to save)")
+            logger.info("[DetectionService] Manual face ignored (no encoding to save)")
             return {
                 "status": "success",
                 "ignored_count": len(self.ignored_faces)
@@ -1182,7 +1183,6 @@ def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> Optional[str]:
         Path to JPG file, or None if conversion failed
     """
     import tempfile
-    import io
 
     path = Path(nef_path)
     if not path.exists():

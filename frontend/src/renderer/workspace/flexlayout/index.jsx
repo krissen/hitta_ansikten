@@ -13,7 +13,7 @@ import { BackendProvider } from '../../context/BackendContext.jsx';
 import { ToastProvider } from '../../context/ToastContext.jsx';
 import { NotificationListener } from '../../components/NotificationListener.jsx';
 import { ConnectionStatus } from '../../components/ConnectionStatus.jsx';
-import { debug, debugWarn, debugError } from '../../shared/debug.js';
+import { debug, debugError } from '../../shared/debug.js';
 
 // Import theme system (must be first among CSS imports to define variables)
 import '../../theme.css';

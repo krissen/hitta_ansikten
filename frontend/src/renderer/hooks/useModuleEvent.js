@@ -5,7 +5,7 @@
  * This replaces the old vanilla JS ModuleAPI event system.
  */
 
-import { useEffect, useCallback, useContext } from 'react';
+import { useEffect, useContext } from 'react';
 import { ModuleAPIContext } from '../context/ModuleAPIContext.jsx';
 import { debug } from '../shared/debug.js';
 

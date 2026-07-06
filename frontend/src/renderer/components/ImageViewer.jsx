@@ -9,10 +9,10 @@
  */
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { useModuleAPI, useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
+import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
-import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { debug, debugError } from '../shared/debug.js';
 import { toFileUrl } from '../shared/fileUrl.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
@@ -402,7 +402,6 @@ export function ImageViewer() {
 
   const zoom = useCallback((factor, centerX = null, centerY = null) => {
     if (!image) return;
-    const startTime = performance.now();
 
     let newZoomFactor = zoomFactor;
     let newPan = { ...pan };

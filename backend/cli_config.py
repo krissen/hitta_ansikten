@@ -20,14 +20,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from faceid_db import (
-    ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
-    CONFIG_PATH, LOGGING_PATH
-)
+from faceid_db import ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR, CONFIG_PATH, LOGGING_PATH
 
 if TYPE_CHECKING:
-    from face_backends import FaceBackend
     import numpy as np
+
+    from face_backends import FaceBackend
 
 
 # === CONSTANTS === #

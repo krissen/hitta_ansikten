@@ -5,12 +5,13 @@ Endpoints for accessing face database (people, statistics).
 Uses faceid_db directly to avoid loading heavy ML libraries on startup.
 """
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List
 import logging
 import sys
 from pathlib import Path
+from typing import List
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 # Add backend to path for faceid_db import
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

@@ -177,7 +177,7 @@ export function PlayerCountModule() {
     };
     setInput(adopted);
     submitWith(adopted, perMatch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Select/checkbox changes from the InputBar apply immediately, but only once a
