@@ -7,18 +7,7 @@
  * mirroring the backend EXTENSION_PRESETS groups.
  */
 
-// RAW extensions that go through the NEF->JPG preview pipeline
-// (matches file_resolver EXTENSION_PRESETS.raw).
-const RAW_EXTS = ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2'];
-
-const JPG_EXTS = ['.jpg', '.jpeg'];
-
-// Extract a file extension (incl. the leading dot). A leading dot (dotfile) is
-// treated as part of the name, not an extension, so `.hidden` has no extension.
-function extOf(name) {
-  const i = name.lastIndexOf('.');
-  return i > 0 ? name.slice(i) : '';
-}
+import { RAW_EXTS, JPG_EXTS, extOf } from '../shared/fileExts.js';
 
 /**
  * Classify a filename as 'jpg' | 'nef' | 'other'.
