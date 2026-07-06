@@ -6,6 +6,7 @@ import json
 import pytest
 
 import rakna_spelare
+from api.services.player_count_service import PlayerCountService
 from rakna_spelare import (
     ALWAYS_GRUPP,
     ALWAYS_PUBLIK,
@@ -15,7 +16,6 @@ from rakna_spelare import (
     resolve_exclusion_sets,
     save_exclusion_config,
 )
-from api.services.player_count_service import PlayerCountService
 
 
 @pytest.fixture
@@ -95,6 +95,7 @@ def test_post_partial_payload_rejected_without_wiping(config):
     # Both lists are required: an accidental {} must 422, not silently wipe the
     # existing config.
     from fastapi.testclient import TestClient
+
     from api.server import app
 
     save_exclusion_config(tranare=["Anna"], publik=["Cecilia"])

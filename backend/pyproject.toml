@@ -31,6 +31,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
+    "ruff>=0.6",
 ]
 build = [
     "pyinstaller>=6.0",
@@ -38,6 +39,26 @@ build = [
 
 [tool.setuptools]
 py-modules = []
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [
+    "dist",
+    "build",
+    ".venv",
+    "preprocessed_cache",
+]
+
+[tool.ruff.lint]
+# Defaults (E4/E7/E9 + F) plus import sorting (I). Pragmatic: keep the
+# rule set to what the existing code already satisfies after safe autofixes.
+extend-select = ["I"]
+
+[tool.ruff.lint.per-file-ignores]
+# server.py imports its routers after the FastAPI app is constructed to
+# avoid circular imports; E402 (import-not-at-top) is intentional here.
+"api/server.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

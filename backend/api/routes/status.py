@@ -4,10 +4,11 @@ Status Routes
 Endpoints for checking image processing status.
 """
 
+import logging
+from typing import List, Literal, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Literal, List
-import logging
 
 from ..websocket.progress import set_log_categories
 

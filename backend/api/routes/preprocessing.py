@@ -8,17 +8,17 @@ Endpoints for:
 - Thumbnail generation with caching
 """
 
-import os
 import asyncio
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, List
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from ..services.preprocessing_cache import get_cache, PreprocessingCache
+from ..services.preprocessing_cache import PreprocessingCache, get_cache
 
 # Thread pool for CPU-intensive operations
 _executor = ThreadPoolExecutor(max_workers=4)
@@ -327,6 +327,7 @@ def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
     EXIF orientation is honoured; output is JPEG quality 80.
     """
     import io
+
     from PIL import Image, ImageOps
 
     ext = os.path.splitext(file_path)[1].lower()

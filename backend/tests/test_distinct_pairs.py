@@ -1,7 +1,6 @@
 """Tests for the confirmed-distinct pair registry + head-to-head separability."""
 
 import threading
-from pathlib import Path
 
 import numpy as np
 import pytest

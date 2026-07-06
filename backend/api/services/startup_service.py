@@ -4,12 +4,12 @@ Startup State Service
 Tracks initialization status of backend components for KASAM UX.
 """
 
-import logging
 import asyncio
-from enum import Enum
-from typing import Dict, Any, Optional, Callable, List
-from dataclasses import dataclass, field
+import logging
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +111,10 @@ class StartupState:
             try:
                 if asyncio.iscoroutinefunction(listener):
                     asyncio.create_task(listener(status))
-                    logger.debug(f"[StartupState] Created task for async listener")
+                    logger.debug("[StartupState] Created task for async listener")
                 else:
                     listener(status)
-                    logger.debug(f"[StartupState] Called sync listener")
+                    logger.debug("[StartupState] Called sync listener")
             except Exception as e:
                 logger.error(f"[StartupState] Listener error: {e}", exc_info=True)
 

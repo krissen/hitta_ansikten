@@ -1,12 +1,11 @@
 import glob
-import hashlib
 import json
 import pickle
 import sys
 from pathlib import Path
 
 # Import utilities from faceid_db
-from faceid_db import safe_pickle_load, get_file_hash
+from faceid_db import get_file_hash, safe_pickle_load
 
 ENCODINGS_PATH = Path.home() / ".local/share/faceid/encodings.pkl"
 BACKUP_PATH = Path(str(ENCODINGS_PATH) + ".bak")

@@ -15,8 +15,8 @@ import os
 import re
 import tempfile
 
-from faceid_db import BASE_DIR
 from api.services.rename_service import normalize_name
+from faceid_db import BASE_DIR
 
 logger = logging.getLogger(__name__)
 

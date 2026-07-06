@@ -5,8 +5,9 @@ Entry point for PyInstaller bundle.
 This script properly initializes the package context before running the server.
 """
 
-import sys
 import os
+import sys
+
 
 def main() -> None:
     # Ensure we can find our modules
@@ -37,10 +38,10 @@ def main() -> None:
     os.environ['ANSIKTEN_PORT'] = str(args.port)
     
     # Import the app object directly (string imports don't work in PyInstaller)
-    from api.server import app
-    
     # Run uvicorn with app object
     import uvicorn
+
+    from api.server import app
     uvicorn.run(
         app,
         host=args.host,

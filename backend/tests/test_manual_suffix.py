@@ -13,7 +13,6 @@ from api.services import manual_suffix_service as mss
 from api.services.manual_suffix_service import normalize_suffix
 from api.services.rename_service import build_new_filename_with_config
 
-
 # ---------------------------------------------------------------------------
 # normalize_suffix
 # ---------------------------------------------------------------------------

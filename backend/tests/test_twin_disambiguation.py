@@ -137,7 +137,7 @@ def test_maybe_disambiguate_skips_unregistered_or_wide_gap():
 def test_detected_face_model_carries_disambiguated():
     # The route model must pass the field through to clients (else the feature is
     # silently dropped before the frontend can render it).
-    from api.routes.detection import DetectedFace, BoundingBox
+    from api.routes.detection import BoundingBox, DetectedFace
 
     face = DetectedFace(
         face_id="x",

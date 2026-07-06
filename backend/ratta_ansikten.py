@@ -4,10 +4,10 @@ import argparse
 import fnmatch
 import json
 import pickle
+from pathlib import Path
 
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
-from pathlib import Path
 
 # Import safe pickle loader from faceid_db
 from faceid_db import safe_pickle_load

@@ -5,8 +5,7 @@ Wraps existing face database logic from faceid_db.
 """
 
 import logging
-from typing import List, Dict, Any, Optional
-from pathlib import Path
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 

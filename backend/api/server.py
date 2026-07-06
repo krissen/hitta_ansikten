@@ -5,11 +5,12 @@ Main entry point for the Ansikten backend API.
 Provides REST endpoints and WebSocket streaming for face detection.
 """
 
-from contextlib import asynccontextmanager
+import logging
 import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import logging
 
 # Configure logging - level from env var ANSIKTEN_LOG_LEVEL (default: info)
 _log_level_str = os.environ.get('ANSIKTEN_LOG_LEVEL', 'info').upper()
@@ -24,12 +25,12 @@ logger = logging.getLogger(__name__)
 # Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
     import os
     import time
-    import asyncio
-    from .services.startup_service import get_startup_state, LoadingState
-    
-    startup_start = time.perf_counter()
+
+    from .services.startup_service import LoadingState, get_startup_state
+
     startup_state = get_startup_state()
     port = int(os.getenv('ANSIKTEN_PORT', '5001'))
     logger.info("Ansikten Backend API starting up...")
@@ -37,8 +38,9 @@ async def lifespan(app: FastAPI):
     
     def _load_database_sync():
         """Sync function for thread pool - loads database, rotates logs, and migrates dlib"""
-        from .services.management_service import get_management_service
         from faceid_db import rotate_logs
+
+        from .services.management_service import get_management_service
 
         # Rotate logs on startup to prevent unbounded growth
         rotate_logs()
@@ -148,7 +150,7 @@ async def lifespan(app: FastAPI):
     
     asyncio.create_task(eager_load_ml())
     
-    from .websocket.progress import setup_startup_listener, WebSocketLogHandler, process_log_queue
+    from .websocket.progress import WebSocketLogHandler, process_log_queue, setup_startup_listener
     setup_startup_listener()
     
     ws_handler = WebSocketLogHandler()
@@ -186,7 +188,7 @@ async def health_check():
     - status: "ok" (all ready), "degraded" (has errors), "starting" (still loading)
     - components: backend, database, mlModels with individual states
     """
-    from .services.startup_service import get_startup_state, LoadingState
+    from .services.startup_service import get_startup_state
 
     startup = get_startup_state()
     status_data = startup.get_status()
@@ -218,7 +220,22 @@ async def health_check():
 API_V1_PREFIX = "/api/v1"
 
 # Import routes
-from .routes import detection, status, database, statistics, management, preprocessing, files, startup, refinement, player_count, culling, imports, rename_nef
+from .routes import (
+    culling,
+    database,
+    detection,
+    files,
+    imports,
+    management,
+    player_count,
+    preprocessing,
+    refinement,
+    rename_nef,
+    startup,
+    statistics,
+    status,
+)
+
 app.include_router(detection.router, prefix=API_V1_PREFIX, tags=["detection"])
 app.include_router(status.router, prefix=API_V1_PREFIX, tags=["status"])
 app.include_router(database.router, prefix=API_V1_PREFIX, tags=["database"])
@@ -235,11 +252,13 @@ app.include_router(startup.router, prefix=API_V1_PREFIX, tags=["startup"])
 
 # WebSocket endpoint
 from .websocket import progress
+
 app.include_router(progress.router)
 
 if __name__ == "__main__":
-    import uvicorn
     import os
+
+    import uvicorn
 
     # Get port from environment variable, default to 5001
     port = int(os.getenv('ANSIKTEN_PORT', '5001'))

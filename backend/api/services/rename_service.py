@@ -9,15 +9,15 @@ import logging
 import os
 import re
 import unicodedata
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from faceid_db import (
+    get_file_hash,
+    load_attempt_log,
     load_database,
     save_database,
-    load_attempt_log,
-    get_file_hash,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ def extract_exif_datetime(file_path: Path) -> Optional[datetime]:
     if ext in ['.nef', '.cr2', '.arw', '.dng', '.raw']:
         try:
             import rawpy
-            with rawpy.imread(str(file_path)) as raw:
+            with rawpy.imread(str(file_path)):
                 # rawpy doesn't expose EXIF directly, try exifread as fallback
                 pass
         except Exception as e:
