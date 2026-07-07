@@ -39,6 +39,9 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | `Tab` | Nästa ansikte/fält |
 | `Shift+Tab` | Föregående ansikte/fält |
 
+I **Filkö** hamnar `Tab` på en rad i listan; `↑`/`↓` flyttar mellan raderna och
+`Enter`/`Blanksteg` laddar den fokuserade filen (samma som dubbelklick).
+
 ### Bildvisning
 
 | Genväg | Funktion |
