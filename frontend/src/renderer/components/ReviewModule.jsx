@@ -23,6 +23,21 @@ import { t } from '../../i18n/index.js';
 import { SuffixDialog } from './review/SuffixDialog.jsx';
 import { ConfirmDialog } from './review/ConfirmDialog.jsx';
 import { FaceCard } from './review/FaceCard.jsx';
+import {
+  getTopMatch as getTopMatchPure,
+  willAllBeDone,
+  nextFaceIndex,
+  confirmFaceState,
+  ignoreFaceState,
+  unconfirmFaceState,
+  undoFaceState,
+  acceptAllState,
+  upsertConfirmation,
+  appendIgnore,
+  mergeConfirmations,
+  mergeIgnores,
+  buildReviewedFaces as buildReviewedFacesPure,
+} from './review/reviewActions.js';
 import './ReviewModule.css';
 
 /**
@@ -157,19 +172,7 @@ export function ReviewModule({ node }) {
     if (detectedFaces.length === 0) return;
 
     setCurrentFaceIndex(prev => {
-      let newIndex = prev + direction;
-
-      if (newIndex >= detectedFaces.length) newIndex = 0;
-      if (newIndex < 0) newIndex = detectedFaces.length - 1;
-
-      // Skip confirmed faces AND explicitly skipped index (handles stale closure)
-      let attempts = 0;
-      while ((detectedFaces[newIndex]?.is_confirmed || newIndex === skipIndex) && attempts < detectedFaces.length) {
-        newIndex += direction;
-        if (newIndex >= detectedFaces.length) newIndex = 0;
-        if (newIndex < 0) newIndex = detectedFaces.length - 1;
-        attempts++;
-      }
+      const newIndex = nextFaceIndex(detectedFaces, prev, direction, skipIndex);
 
       // Only emit if we found an unconfirmed face (avoid centering on old face when all done)
       const targetFace = detectedFaces[newIndex];
@@ -180,78 +183,38 @@ export function ReviewModule({ node }) {
     });
   }, [detectedFaces, emit]);
 
-  const HIGH_CONFIDENCE_THRESHOLD = 75;
-
-  const getTopMatch = useCallback((face) => {
-    if (!face?.match_alternatives?.length) return null;
-    const top = face.match_alternatives[0];
-    if (top.confidence >= HIGH_CONFIDENCE_THRESHOLD && !top.is_ignored) {
-      return { name: top.name, confidence: top.confidence };
-    }
-    return null;
-  }, []);
+  const getTopMatch = useCallback((face) => getTopMatchPure(face), []);
 
   const doConfirmFace = useCallback((index, personName) => {
-    const face = detectedFaces[index];
-    if (!face || face.is_confirmed) return;
+    const result = confirmFaceState(detectedFaces, index, personName, currentImagePath);
+    if (!result) return;
 
-    setUndoStack(prev => [...prev, { type: 'confirm', index, face: { ...face } }]);
+    setUndoStack(prev => [...prev, result.undoEntry]);
+    setDetectedFaces(result.faces);
 
-    const updatedFaces = [...detectedFaces];
-    updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, person_name: personName.trim() };
+    emit('faces-detected', { faces: result.faces, imagePath: currentImagePath });
 
-    setDetectedFaces(updatedFaces);
-
-    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
-
-    setPendingConfirmations(prev => {
-      const existing = prev.findIndex(p => p.face_id === face.face_id);
-      const suggestedName = face.person_name || null;
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = { ...updated[existing], person_name: personName.trim() };
-        return updated;
-      }
-      return [...prev, {
-        face_id: face.face_id,
-        person_name: personName.trim(),
-        image_path: currentImagePath,
-        suggested_name: suggestedName !== personName.trim() ? suggestedName : null
-      }];
-    });
+    setPendingConfirmations(prev => upsertConfirmation(prev, result.confirmation));
 
     // Skip navigation if all faces will be done - auto-save will handle transition
-    const willAllBeDone = detectedFaces.every((f, i) =>
-      i === index || f.is_confirmed || f.is_rejected
-    );
-    if (!willAllBeDone) {
+    if (!willAllBeDone(detectedFaces, index)) {
       navigateToFace(1, index);
     }
   }, [detectedFaces, currentImagePath, navigateToFace, emit]);
 
   const doIgnoreFace = useCallback((index) => {
-    const face = detectedFaces[index];
-    if (!face || face.is_confirmed) return;
+    const result = ignoreFaceState(detectedFaces, index, currentImagePath);
+    if (!result) return;
 
-    setUndoStack(prev => [...prev, { type: 'ignore', index, face: { ...face } }]);
+    setUndoStack(prev => [...prev, result.undoEntry]);
+    setDetectedFaces(result.faces);
 
-    const updatedFaces = [...detectedFaces];
-    updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
+    emit('faces-detected', { faces: result.faces, imagePath: currentImagePath });
 
-    setDetectedFaces(updatedFaces);
-
-    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
-
-    setPendingIgnores(prev => {
-      if (prev.some(p => p.face_id === face.face_id)) return prev;
-      return [...prev, { face_id: face.face_id, image_path: currentImagePath }];
-    });
+    setPendingIgnores(prev => appendIgnore(prev, result.ignore));
 
     // Skip navigation if all faces will be done - auto-save will handle transition
-    const willAllBeDone = detectedFaces.every((f, i) =>
-      i === index || f.is_confirmed || f.is_rejected
-    );
-    if (!willAllBeDone) {
+    if (!willAllBeDone(detectedFaces, index)) {
       navigateToFace(1, index);
     }
   }, [detectedFaces, currentImagePath, navigateToFace, emit]);
@@ -318,8 +281,7 @@ export function ReviewModule({ node }) {
 
     debug('ReviewModule', 'Undo action:', type, 'face:', face.face_id);
 
-    const updatedFaces = [...detectedFaces];
-    updatedFaces[index] = { ...face };
+    const updatedFaces = undoFaceState(detectedFaces, lastAction);
     setDetectedFaces(updatedFaces);
 
     emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
@@ -340,28 +302,18 @@ export function ReviewModule({ node }) {
    * Unconfirm a face - revert to unconfirmed state for re-review
    */
   const unconfirmFace = useCallback((index) => {
-    const face = detectedFaces[index];
-    if (!face || !face.is_confirmed) return;
+    const result = unconfirmFaceState(detectedFaces, index);
+    if (!result) return;
 
     debug('ReviewModule', 'Unconfirming face at index:', index);
 
-    // Create updated faces array for both state and event
-    const updatedFaces = [...detectedFaces];
-    const originalFace = updatedFaces[index];
-    updatedFaces[index] = {
-      ...originalFace,
-      is_confirmed: false,
-      is_rejected: false,
-      person_name: originalFace._original_person_name || null
-    };
-
-    setDetectedFaces(updatedFaces);
+    setDetectedFaces(result.faces);
 
     // Emit updated faces to sync ImageViewer
-    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
+    emit('faces-detected', { faces: result.faces, imagePath: currentImagePath });
 
-    setPendingConfirmations(prev => prev.filter(p => p.face_id !== face.face_id));
-    setPendingIgnores(prev => prev.filter(p => p.face_id !== face.face_id));
+    setPendingConfirmations(prev => prev.filter(p => p.face_id !== result.faceId));
+    setPendingIgnores(prev => prev.filter(p => p.face_id !== result.faceId));
 
     setCurrentFaceIndex(index);
     emit('active-face-changed', { index });
@@ -375,75 +327,15 @@ export function ReviewModule({ node }) {
    * Accept all suggestions - confirm/ignore all unconfirmed faces using their top suggestion
    */
   const acceptAllSuggestions = useCallback(() => {
-    let accepted = 0;
-    let ignored = 0;
-    let skipped = 0;
-    const confirmations = [];
-    const ignores = [];
-
-    const updatedFaces = detectedFaces.map((face) => {
-      if (face.is_confirmed) return face;
-
-      const firstAlt = face.match_alternatives?.[0];
-      if (!firstAlt) {
-        skipped++;
-        return face;
-      }
-
-      if (firstAlt.is_ignored || firstAlt.name === 'ign') {
-        ignored++;
-        if (face.face_id) {
-          ignores.push({ face_id: face.face_id, image_path: currentImagePath });
-        }
-        return { ...face, is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
-      }
-
-      const trimmedName = firstAlt.name?.trim() || firstAlt.name;
-      accepted++;
-
-      if (face.face_id) {
-        const suggestedName = face.person_name || null;
-        confirmations.push({
-          face_id: face.face_id,
-          person_name: trimmedName,
-          image_path: currentImagePath,
-          suggested_name: suggestedName && suggestedName.toLowerCase() !== trimmedName.toLowerCase()
-            ? suggestedName
-            : null
-        });
-      }
-
-      return { ...face, is_confirmed: true, is_rejected: false, person_name: trimmedName };
-    });
+    const { faces: updatedFaces, confirmations, ignores, accepted, ignored, skipped } =
+      acceptAllState(detectedFaces, currentImagePath);
 
     if (confirmations.length > 0 || ignores.length > 0) {
       setDetectedFaces(updatedFaces);
       emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
 
-      setPendingConfirmations((prev) => {
-        if (confirmations.length === 0) return prev;
-        const next = [...prev];
-        confirmations.forEach((confirmation) => {
-          const existingIndex = next.findIndex(item => item.face_id === confirmation.face_id);
-          if (existingIndex >= 0) {
-            next[existingIndex] = { ...next[existingIndex], person_name: confirmation.person_name, suggested_name: confirmation.suggested_name };
-          } else {
-            next.push(confirmation);
-          }
-        });
-        return next;
-      });
-
-      setPendingIgnores((prev) => {
-        if (ignores.length === 0) return prev;
-        const next = [...prev];
-        ignores.forEach((ignoreEntry) => {
-          if (!next.some(item => item.face_id === ignoreEntry.face_id)) {
-            next.push(ignoreEntry);
-          }
-        });
-        return next;
-      });
+      setPendingConfirmations((prev) => mergeConfirmations(prev, confirmations));
+      setPendingIgnores((prev) => mergeIgnores(prev, ignores));
     }
 
     setStatus(
@@ -455,15 +347,10 @@ export function ReviewModule({ node }) {
   /**
    * Build reviewedFaces array for rename functionality
    */
-  const buildReviewedFaces = useCallback(() => {
-    return detectedFaces.map((face, index) => ({
-      faceIndex: index,
-      faceId: face.face_id,
-      encodingHash: face.encoding_hash,  // Permanent identifier for undo/rename operations
-      personName: face.is_confirmed && !face.is_rejected ? face.person_name : null,
-      isIgnored: face.is_rejected || false
-    }));
-  }, [detectedFaces]);
+  const buildReviewedFaces = useCallback(
+    () => buildReviewedFacesPure(detectedFaces),
+    [detectedFaces]
+  );
 
   /**
    * Mark review as complete (logs to attempt_stats.jsonl for rename)
