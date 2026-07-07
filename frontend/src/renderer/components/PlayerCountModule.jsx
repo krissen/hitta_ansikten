@@ -11,6 +11,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleAPI } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
+import { Button, Alert } from './shared';
 import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
 import { t } from '../../i18n/index.js';
 import './PlayerCountModule.css';
@@ -351,9 +352,9 @@ export function PlayerCountModule() {
   const totalImages = result?.total_images ?? 0;
 
   return (
-    <div className="module-container player-count">
+    <div className="module-container player-count" data-keyboard-scope="isolated">
       <div className="module-header">
-        <h3 className="module-title">Räkna spelare</h3>
+        <h3 className="module-title">{t('playerCount.title')}</h3>
         <div className="button-group">
           <label className="form-checkbox">
             <input
@@ -367,7 +368,7 @@ export function PlayerCountModule() {
             />
             {t('playerCount.perMatch')}
           </label>
-          {isRefreshing && <span className="player-count-refreshing">uppdaterar…</span>}
+          {isRefreshing && <span className="player-count-refreshing">{t('playerCount.refreshing')}</span>}
         </div>
       </div>
 
@@ -397,13 +398,15 @@ export function PlayerCountModule() {
       />
 
       <div className="module-body player-count-body">
-        {error && <div className="status-message error">Fel: {error}</div>}
+        {error && <Alert variant="error">{t('playerCount.errorPrefix')} {error}</Alert>}
 
-        {isLoading && <div className="empty-state">Räknar…</div>}
+        {isLoading && <div className="empty-state">{t('playerCount.counting')}</div>}
 
         {!isLoading && !error && !hasRun && (
           <div className="empty-state">
-            Välj en mapp eller ange ett wildcard och tryck <strong>Räkna</strong>.
+            {t('playerCount.emptyPrompt.before')}
+            <strong>{t('playerCount.emptyPrompt.action')}</strong>
+            {t('playerCount.emptyPrompt.after')}
           </div>
         )}
 
@@ -411,7 +414,7 @@ export function PlayerCountModule() {
           <>
             <ResultSummary result={result} />
             {totalImages === 0 ? (
-              <div className="empty-state">Inga matchande bilder hittades.</div>
+              <div className="empty-state">{t('playerCount.noMatches')}</div>
             ) : (
               <>
                 <PlayerTable players={result.players} baseline={result.baseline} timeRange={result.time_range} onPlayerClick={openCullForPlayer} />
@@ -432,15 +435,15 @@ function ResultSummary({ result }) {
   const tr = result.time_range;
   return (
     <div className="player-count-summary">
-      <span><strong>{result.total_images}</strong> bilder</span>
-      <span><strong>{result.players.length}</strong> spelare</span>
-      <span>Baslinje ({result.baseline_method}): <strong>{result.baseline}</strong></span>
+      <span><strong>{result.total_images}</strong> {t('playerCount.summary.images')}</span>
+      <span><strong>{result.players.length}</strong> {t('playerCount.summary.players')}</span>
+      <span>{t('playerCount.summary.baseline', { method: result.baseline_method })}: <strong>{result.baseline}</strong></span>
       {result.files_resolved != null && (
-        <span className="player-count-dim">{result.files_resolved} filer</span>
+        <span className="player-count-dim">{t('playerCount.summary.files', { count: result.files_resolved })}</span>
       )}
       {tr && (
         <span className="player-count-dim">
-          {fmtTime(tr.start)} → {fmtTime(tr.end)} ({Math.round(tr.duration_minutes)} min)
+          {fmtTime(tr.start)} → {fmtTime(tr.end)} {t('playerCount.summary.duration', { minutes: Math.round(tr.duration_minutes) })}
         </span>
       )}
     </div>
@@ -487,7 +490,7 @@ export function CountOptions({
     <div className="player-count-options">
       <div className="player-count-options-row">
         <label className="pc-option">
-          {t('playerCount.matchGap')}
+          {t('playerCount.options.matchGap')}
           <input
             className="form-input pc-num"
             type="number"
@@ -497,24 +500,24 @@ export function CountOptions({
             onBlur={commitOptions}
             onKeyDown={(e) => e.key === 'Enter' && commitOptions()}
             disabled={busy}
-            title="Minsta lucka mellan matcher (delar upp bilderna i matcher)"
+            title={t('playerCount.options.matchGapTitle')}
           />
         </label>
         <label className="pc-option">
-          Baslinje
+          {t('playerCount.options.baseline')}
           <select
             className="form-select"
             value={options.baseline}
             onChange={(e) => onOptionsChange({ ...options, baseline: e.target.value })}
             disabled={busy}
-            title="Referens för över-/underrepresentation"
+            title={t('playerCount.options.baselineTitle')}
           >
-            <option value="median">median</option>
-            <option value="mean">medel</option>
+            <option value="median">{t('playerCount.options.baselineMedian')}</option>
+            <option value="mean">{t('playerCount.options.baselineMean')}</option>
           </select>
         </label>
         <label className="pc-option">
-          Min bilder
+          {t('playerCount.options.minImages')}
           <input
             className="form-input pc-num"
             type="number"
@@ -524,23 +527,23 @@ export function CountOptions({
             onBlur={commitOptions}
             onKeyDown={(e) => e.key === 'Enter' && commitOptions()}
             disabled={busy}
-            title="Minsta antal bilder för att räknas som spelare"
+            title={t('playerCount.options.minImagesTitle')}
           />
         </label>
-        <button
-          type="button"
-          className="btn-secondary pc-excl-toggle"
+        <Button
+          variant="secondary"
+          className="pc-excl-toggle"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          Uteslutna{total > 0 ? ` (${total})` : ''} {open ? '▾' : '▸'}
-        </button>
+          {t('playerCount.options.excludedToggle')}{total > 0 ? ` (${total})` : ''} {open ? '▾' : '▸'}
+        </Button>
       </div>
 
       {open && (
         <div className="player-count-exclusions">
           <ExclusionList
-            title="Tränare"
+            title={t('playerCount.exclusions.tranare')}
             kind="tranare"
             names={exclusions.tranare}
             onAdd={onAddExcluded}
@@ -548,7 +551,7 @@ export function CountOptions({
             busy={busy}
           />
           <ExclusionList
-            title="Publik"
+            title={t('playerCount.exclusions.publik')}
             kind="publik"
             names={exclusions.publik}
             onAdd={onAddExcluded}
@@ -557,11 +560,11 @@ export function CountOptions({
           />
 
           {/* Config-level always-excluded markers (take effect after saving). */}
-          <div className="pc-always-heading" title="Alltid uteslutna oavsett tröskel — gäller efter Spara som standard">
-            Alltid uteslutna (sparas)
+          <div className="pc-always-heading" title={t('playerCount.exclusions.alwaysHeadingTitle')}>
+            {t('playerCount.exclusions.alwaysHeading')}
           </div>
           <ExclusionList
-            title="Gruppbilder"
+            title={t('playerCount.exclusions.grupp')}
             kind="grupp"
             names={grupp}
             onAdd={onAddExcluded}
@@ -569,7 +572,7 @@ export function CountOptions({
             busy={busy}
           />
           <ExclusionList
-            title="Publik (alltid)"
+            title={t('playerCount.exclusions.alwaysPublik')}
             kind="alwaysPublik"
             names={alwaysPublik}
             onAdd={onAddExcluded}
@@ -579,31 +582,28 @@ export function CountOptions({
 
           {envKeys && envKeys.length > 0 && (
             <div className="player-count-dim pc-env-note">
-              Obs: {envKeys.join(', ')} är satt i miljön och överstyr config —
-              &quot;Spara som standard&quot; kanske inte får effekt.
+              {t('playerCount.exclusions.envNote', { keys: envKeys.join(', ') })}
             </div>
           )}
 
           <div className="pc-actions">
-            <button
-              type="button"
-              className="btn-secondary"
+            <Button
+              variant="secondary"
               onClick={onSaveDefaults}
               disabled={busy || savingDefaults || !dirty}
-              title="Spara listorna till config (gäller framtida räkningar och CLI)"
+              title={t('playerCount.exclusions.saveDefaultsTitle')}
             >
-              {savingDefaults ? 'Sparar…' : 'Spara som standard'}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
+              {savingDefaults ? t('playerCount.exclusions.saving') : t('playerCount.exclusions.saveDefaults')}
+            </Button>
+            <Button
+              variant="secondary"
               onClick={onReset}
               disabled={busy || savingDefaults}
-              title="Återställ till sparade standardlistor"
+              title={t('playerCount.exclusions.resetTitle')}
             >
-              Återställ
-            </button>
-            {dirty && <span className="player-count-dim">osparade ändringar</span>}
+              {t('playerCount.exclusions.reset')}
+            </Button>
+            {dirty && <span className="player-count-dim">{t('playerCount.exclusions.unsaved')}</span>}
           </div>
         </div>
       )}
@@ -631,19 +631,19 @@ function ExclusionList({ title, kind, names, onAdd, onRemove, busy }) {
               className="pc-chip-remove"
               onClick={() => onRemove(kind, name)}
               disabled={busy}
-              aria-label={`Ta bort ${name}`}
+              aria-label={t('playerCount.exclusions.remove', { name })}
             >
               ×
             </button>
           </span>
         ))}
-        {names.length === 0 && <span className="player-count-dim pc-empty">inga</span>}
+        {names.length === 0 && <span className="player-count-dim pc-empty">{t('playerCount.exclusions.empty')}</span>}
       </div>
       <input
         className="form-input pc-add"
         type="text"
-        aria-label={`Lägg till ${title.toLowerCase()}`}
-        placeholder={`Lägg till ${title.toLowerCase()}…`}
+        aria-label={t('playerCount.exclusions.add', { title: title.toLowerCase() })}
+        placeholder={t('playerCount.exclusions.addPlaceholder', { title: title.toLowerCase() })}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -688,7 +688,7 @@ function Spark({ timestamps, start, end, bins = 24 }) {
   }
   const max = Math.max(1, ...counts);
   return (
-    <span className="player-spark" title={`${timestamps.length} bilder över tid`}>
+    <span className="player-spark" title={t('playerCount.table.sparkTitle', { count: timestamps.length })}>
       {counts.map((c, i) => (
         <span
           key={i}
@@ -710,22 +710,34 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick }) {
     <table className="player-count-table">
       <thead>
         <tr>
-          <th>Namn</th>
-          <th className="num">Antal</th>
-          <th className="num">%</th>
-          <th className="num">Δ%</th>
-          <th className="num">ΔN</th>
-          <th className="bar-col">Fördelning</th>
-          <th className="spark-col">Tidslinje</th>
+          <th>{t('playerCount.table.name')}</th>
+          <th className="num">{t('playerCount.table.count')}</th>
+          <th className="num">{t('playerCount.table.pct')}</th>
+          <th className="num">{t('playerCount.table.deltaPct')}</th>
+          <th className="num">{t('playerCount.table.deltaN')}</th>
+          <th className="bar-col">{t('playerCount.table.distribution')}</th>
+          <th className="spark-col">{t('playerCount.table.timeline')}</th>
         </tr>
       </thead>
       <tbody>
-        {players.map((p) => (
+        {players.map((p) => {
+          const rowTitle = onPlayerClick ? t('playerCount.table.rowTitle', { name: p.name }) : undefined;
+          return (
           <tr
             key={p.name}
             className={onPlayerClick ? 'clickable' : ''}
             onClick={onPlayerClick ? () => onPlayerClick(p.name) : undefined}
-            title={onPlayerClick ? `Gallra ${p.name}` : undefined}
+            role={onPlayerClick ? 'button' : undefined}
+            tabIndex={onPlayerClick ? 0 : undefined}
+            aria-label={rowTitle}
+            onKeyDown={onPlayerClick ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onPlayerClick(p.name);
+              }
+            } : undefined}
+            title={rowTitle}
           >
             <td>{p.name}</td>
             <td className="num">{p.count}</td>
@@ -738,7 +750,7 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick }) {
             </td>
             <td className="bar-col">
               <div className="player-bar-track">
-                <div className="player-bar-baseline" title={`Baslinje ${baseline}`} />
+                <div className="player-bar-baseline" title={t('playerCount.table.baselineBarTitle', { baseline })} />
                 <div
                   className={`player-bar-fill level-${p.level}`}
                   style={{ width: `${Math.min(100, (p.count / (ref * 2)) * 100)}%` }}
@@ -749,31 +761,30 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick }) {
               <Spark timestamps={p.timestamps} start={timeRange?.start} end={timeRange?.end} />
             </td>
           </tr>
-        ))}
+          );
+        })}
       </tbody>
     </table>
   );
 }
 
-const EXCLUDED_LABELS = {
-  tranare: 'Tränare',
-  grupp: 'Gruppbilder',
-  publik: 'Publik',
-  below_threshold: 'Under tröskeln',
-};
+// Bucket keys rendered by ExcludedSections; labels come from the catalog
+// (playerCount.excludedLabels.<key>). excludedCount sums over the same keys so
+// the two never drift.
+const EXCLUDED_KEYS = ['tranare', 'grupp', 'publik', 'below_threshold'];
 
 function ExcludedSections({ excluded }) {
   if (!excluded) return null;
-  const groups = Object.entries(EXCLUDED_LABELS).filter(
-    ([key]) => excluded[key] && excluded[key].length > 0
+  const groups = EXCLUDED_KEYS.filter(
+    (key) => excluded[key] && excluded[key].length > 0
   );
   if (groups.length === 0) return null;
 
   return (
     <div className="player-count-excluded">
-      {groups.map(([key, label]) => (
+      {groups.map((key) => (
         <details key={key} className="player-count-group">
-          <summary>{label} ({excluded[key].length})</summary>
+          <summary>{t(`playerCount.excludedLabels.${key}`)} ({excluded[key].length})</summary>
           <ul>
             {excluded[key].map((e) => (
               <li key={e.name}>{e.name}: {e.count} ({e.pct}%)</li>
@@ -791,7 +802,7 @@ function ExcludedSections({ excluded }) {
 // two never drift.
 function excludedCount(excluded) {
   if (!excluded) return 0;
-  return Object.keys(EXCLUDED_LABELS).reduce(
+  return EXCLUDED_KEYS.reduce(
     (sum, key) => sum + (excluded[key]?.length || 0),
     0
   );
@@ -804,11 +815,11 @@ function MatchInfoRow({ match }) {
   const total = match.players.length + excl;
   return (
     <div className="player-count-summary player-count-match-info">
-      <span><strong>{match.players.length}</strong> spelare</span>
+      <span><strong>{match.players.length}</strong> {t('playerCount.summary.players')}</span>
       {excl > 0 && (
-        <span className="player-count-dim">(av {total}, exkl. {excl})</span>
+        <span className="player-count-dim">{t('playerCount.match.info', { total, excluded: excl })}</span>
       )}
-      <span>Baslinje ({match.baseline_method}): <strong>{match.baseline}</strong></span>
+      <span>{t('playerCount.summary.baseline', { method: match.baseline_method })}: <strong>{match.baseline}</strong></span>
     </div>
   );
 }
@@ -819,13 +830,19 @@ export function MatchSections({ matches, onPlayerClick }) {
       {matches.map((m) => (
         <details key={m.index} className="player-count-group">
           <summary>
-            Match {m.index} — {fmtDateTime(m.start)} → {fmtTime(m.end)} ({Math.round(m.duration_minutes)} min, {m.total_images} bilder)
+            {t('playerCount.match.summary', {
+              index: m.index,
+              start: fmtDateTime(m.start),
+              end: fmtTime(m.end),
+              minutes: Math.round(m.duration_minutes),
+              images: m.total_images,
+            })}
           </summary>
           <MatchInfoRow match={m} />
           {m.players.length > 0 ? (
             <PlayerTable players={m.players} baseline={m.baseline} timeRange={{ start: m.start, end: m.end }} onPlayerClick={onPlayerClick} />
           ) : (
-            <div className="empty-state compact">Inga spelare över tröskeln.</div>
+            <div className="empty-state compact">{t('playerCount.match.noPlayers')}</div>
           )}
           <ExcludedSections excluded={m.excluded} />
         </details>
