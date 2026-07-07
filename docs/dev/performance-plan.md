@@ -7,9 +7,12 @@ backlog / known-issues / tech-debt list across all horizons. When any of the
 work below is picked up, track it as a normal roadmap item and check it off in
 [CHANGELOG.md](../../CHANGELOG.md) once shipped.
 
-> **Status:** this plan is not yet executed. It was originally scoped to
-> `v1.2.0`; that tag has shipped without this work, so treat the sprints below
-> as the plan for a *future* performance release rather than a specific version.
+> **Status: largely delivered.** The 2026 full-codebase audit (PRs #122–#162)
+> shipped most of this plan piecemeal rather than as a single tagged release.
+> Each sprint below is annotated with what landed and its PR/area; the genuinely
+> open items are collected under [Remaining work](#remaining-work) and tracked in
+> [ROADMAP.md](../../ROADMAP.md). This document is now a record of that plan and
+> its outcome, not an unexecuted proposal.
 
 ---
 
@@ -34,10 +37,19 @@ This release focuses on end-to-end performance and efficiency improvements:
 
 ### Planned work
 
-- Move heavy detection and thumbnail work off the async event loop (thread/process workers)
-- Add concurrency limits for expensive endpoints (`detect`, `thumbnail`, `preprocess`)
-- Reuse `file_hash` across flows to avoid repeated large-file hashing
-- Reduce aggressive frontend polling where event-driven updates are available
+- **[Done]** Move heavy detection and thumbnail work off the async event loop —
+  `detection_service`, `statistics_service`, and `import_service` run blocking
+  CPU/IO work via `asyncio.to_thread` / executors (delivered piecemeal across
+  the audit).
+- **[Remaining]** Add concurrency limits for expensive endpoints (`detect`,
+  `thumbnail`, `preprocess`) — no per-endpoint semaphore exists yet.
+- **[Done]** Reuse `file_hash` across flows to avoid repeated large-file hashing
+  — detection returns `file_hash`; `mark-review-complete`/`batch-confirm` accept
+  it back so the file isn't re-hashed.
+- **[Done]** Reduce aggressive frontend polling where event-driven updates are
+  available — `LogViewer` reacts to log events instead of its old 100 ms poll;
+  the statistics dashboard's refresh is user-toggleable with a configurable
+  interval.
 
 ### Deliverables
 
@@ -76,8 +88,10 @@ This release focuses on end-to-end performance and efficiency improvements:
   shared store's 500 ms leading-coalesce debounce already collapses a burst of
   per-face mutations into one save (`batch_confirm`/`mark_review_complete`
   flush synchronously for durability).
-- **[Remaining] Batch review-save endpoint** (confirm + ignore in one request
-  per image) and the frontend review flow that submits to it.
+- **[Done] Batch review-save endpoint** — `POST /api/v1/batch-confirm`
+  (`routes/detection.py`) takes an image's confirmations + ignores in one
+  request with a single database save; the review flow submits there
+  (`ReviewModule.saveAllChanges`) instead of N individual calls.
 - **[Done] One-time DB normalization with schema marker** — `core.db.load_database`
   no longer re-runs `normalize_encoding_entry` over every entry on every load.
   The first load of an un-migrated DB normalizes, saves the result back (via
@@ -96,15 +110,17 @@ This release focuses on end-to-end performance and efficiency improvements:
   now version-keyed on `store.version` (DB parts invalidate immediately; TTL
   only guards the non-store attempt/app-log parts). Any further incremental
   handling is optional.
-- **[Remaining] Ensure statistics refresh interval in UI controls actual fetch
-  cadence.**
+- **[Done] Statistics refresh interval in UI controls actual fetch cadence** —
+  `StatisticsDashboard` drives its `useAutoRefresh` from a user-set interval and
+  an on/off toggle (`refreshInterval` pref → `interval`).
 
 ### Deliverables
 
 - 60-90% fewer database writes during review sessions
-  - Delivered on the per-save axis: confirm/ignore saves now touch 1-2 of the
-    four files instead of all four. The remaining lever is the batch-save
-    endpoint (fewer *saves*, not just smaller ones).
+  - Delivered on both axes: confirm/ignore saves now touch 1-2 of the four files
+    instead of all four (per-collection saves), and `batch-confirm` collapses an
+    image's per-face writes into a single save (fewer *saves*, not just smaller
+    ones).
 - P95 for review-save improved by at least 50%
 - Reduced disk I/O spikes during batch review
 
@@ -132,9 +148,12 @@ This release focuses on end-to-end performance and efficiency improvements:
   is tagged with the `FaceDBStore.version` it was built from and rebuilt (under `store.read`,
   guarded by double-checked locking) whenever the version moves; every mutation/reload bumps
   the version, so a confirm/ignore or external reload can never be served against a stale index.
-- Replace log polling with event-driven updates in UI
-- Pause or throttle background refresh for hidden/inactive modules
-- Reduce unnecessary global listener rebinding
+- **[Done]** Replace log polling with event-driven updates in UI — `LogViewer`
+  now reacts to log events instead of its old 100 ms poll.
+- **[Remaining]** Pause or throttle background refresh for hidden/inactive
+  modules — refresh is user-toggleable but not auto-paused when a module is off
+  the active tabset.
+- **[Remaining]** Reduce unnecessary global listener rebinding.
 
 ### Deliverables
 
@@ -156,6 +175,23 @@ This release focuses on end-to-end performance and efficiency improvements:
   reproduces each helper's exact filtering/order (distances, tie-breaking, argmin index, alternative
   ranking) and is version-invalidated; an explicit confirm-then-match test proves a newly written
   encoding is visible on the next match.
+
+---
+
+## Remaining work
+
+The following items from this plan are **not** yet done and are tracked as
+forward-looking entries in [ROADMAP.md](../../ROADMAP.md):
+
+- **Concurrency limits** for expensive endpoints (`detect`, `thumbnail`,
+  `preprocess`) — no per-endpoint semaphore yet.
+- **Backend distance-optimization** — the broader matching/distance-compute work
+  beyond the `MatchingIndex` already shipped.
+- **Auto-pause/throttle background refresh** for hidden/inactive modules, and
+  reducing global listener rebinding.
+
+Everything else in Sprints 1-3 has landed (see the per-item `[Done]` annotations
+above).
 
 ---
 
