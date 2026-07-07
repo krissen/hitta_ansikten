@@ -52,7 +52,8 @@ module.exports = {
   "emptyStates": {
     "noMatches": "Inga träffar",
     "noDuplicates": "Inga dubblettkandidater vid denna tröskel.",
-    "noRedundant": "Inga överflödiga kodningar vid denna tröskel."
+    "noRedundant": "Inga överflödiga kodningar vid denna tröskel.",
+    "noRecentFiles": "Inga bearbetade filer"
   },
   "ops": {
     "rename": { "title": "1. Byt namn på person" },
@@ -137,7 +138,7 @@ module.exports = {
     "moveToIgnoreConfirm": "Flytta '{name}' till ignorerade{backendDesc}?",
     "moveFromIgnoreConfirm": "Flytta {count} kodningar från ignorerade till '{target}'{backendDesc}?",
     "undoConfirm": "Ångra bearbetning för filer som matchar '{pattern}'?",
-    "recentFiles": "Senaste 10 bearbetade filer:\n\n{list}",
+    "recentFilesTitle": "Senaste bearbetade filer",
     "purgeConfirm": "Ta bort de senaste {count} kodningarna från '{name}'{backendDesc}? Detta kan inte ångras."
   }
 };
