@@ -1,14 +1,15 @@
 """Characterization tests for StatisticsService.
 
-These pin CURRENT behavior of the seams an upcoming refactor will touch (the
-service moves onto a unified FaceDBStore):
+These pin the behavior of the seams after the FaceDBStore migration:
 
   * the shape of get_summary() for a small synthetic DB + attempt log
-  * that get_summary reads via load_database / load_attempt_log per uncached
-    request (spied through a call counter)
+  * that get_summary reads DB figures via the shared store (spied through a
+    call counter) and caches the computed summary keyed by the store version:
+    a second call while the version is unchanged hits the cache; bumping the
+    version invalidates it instantly
 
-``load_database`` and ``load_attempt_log`` are monkeypatched with synthetic
-data + counters, so no real database is touched.
+The DB reads are served by a fake store (so no real database is touched); the
+attempt log — which is NOT in the store — is still monkeypatched on the module.
 """
 
 import pytest
@@ -40,9 +41,27 @@ def _attempt_entry(filename, names, face_count=2, timestamp="2026-07-01T10:00:00
     }
 
 
+class _FakeStore:
+    """Minimal stand-in for FaceDBStore: a bumpable version + a counting read().
+
+    ``read(fn)`` calls ``fn(known, ignored, hard_negatives, processed)`` — the
+    same contract as the real store — and tallies invocations.
+    """
+
+    def __init__(self, known, processed, counters):
+        self._known = known
+        self._processed = processed
+        self._counters = counters
+        self.version = 1
+
+    def read(self, fn):
+        self._counters["store_reads"] += 1
+        return fn(self._known, [], {}, self._processed)
+
+
 @pytest.fixture
 def synthetic(monkeypatch):
-    """Wire load_database + load_attempt_log to synthetic data with call counters."""
+    """Wire a fake store + load_attempt_log to synthetic data with call counters."""
     known = {
         "Alice": [{"encoding": None}, {"encoding": None}, {"encoding": None}],
         "Bob": [{"encoding": None}],
@@ -55,17 +74,14 @@ def synthetic(monkeypatch):
         _attempt_entry("260701_100000.NEF", ["Alice", "Bob"], timestamp="2026-07-01T10:00:00"),
         _attempt_entry("260701_100100.NEF", ["Alice", "ignorerad"], timestamp="2026-07-01T10:01:00"),
     ]
-    counters = {"load_database": 0, "load_attempt_log": 0}
-
-    def fake_load_database():
-        counters["load_database"] += 1
-        return known, [], {}, processed
+    counters = {"store_reads": 0, "load_attempt_log": 0}
+    fake_store = _FakeStore(known, processed, counters)
 
     def fake_load_attempt_log(all_files=False):
         counters["load_attempt_log"] += 1
         return log
 
-    monkeypatch.setattr(stats_mod, "load_database", fake_load_database)
+    monkeypatch.setattr(stats_mod, "get_db_store", lambda: fake_store)
     monkeypatch.setattr(stats_mod, "load_attempt_log", fake_load_attempt_log)
     # get_recent_logs reads LOGGING_PATH from disk; point it at a missing file
     # so it returns a graceful error entry instead of the real log.
@@ -121,41 +137,47 @@ async def test_summary_shape(synthetic):
 
 
 # --------------------------------------------------------------------------
-# 2. load-per-request behavior
+# 2. store-read + version-keyed cache behavior
 # --------------------------------------------------------------------------
-# NOTE (refactor seam): get_summary calls load_database + load_attempt_log
-# ONCE per uncached request, and caches the result for `cache_ttl` seconds.
-# The upcoming FaceDBStore refactor changes this loading strategy — update
-# these counts intentionally when it lands.
+# get_summary reads DB figures via the shared store ONCE per uncached request
+# (attempt-log data comes from load_attempt_log). The computed summary is
+# cached keyed by the store version: a repeat call while the version is
+# unchanged is served from cache; bumping the version (a DB mutation) or an
+# explicit invalidate_cache() forces a recompute.
 
 @pytest.mark.asyncio
-async def test_summary_loads_once_per_uncached_request(synthetic):
+async def test_summary_caches_by_store_version(synthetic):
     svc = StatisticsService()
 
     await svc.get_summary()
-    assert synthetic["load_database"] == 1
+    assert synthetic["store_reads"] == 1
     assert synthetic["load_attempt_log"] == 1
 
-    # Second call within TTL is served from cache — no extra loads.
+    # Second call, store version unchanged and within TTL → served from cache.
     await svc.get_summary()
-    assert synthetic["load_database"] == 1
+    assert synthetic["store_reads"] == 1
     assert synthetic["load_attempt_log"] == 1
 
-    # After invalidation, the next request reloads from source.
-    svc.invalidate_cache()
+    # Bumping the store version (a DB mutation) invalidates the cache instantly.
+    svc.store.version += 1
     await svc.get_summary()
-    assert synthetic["load_database"] == 2
+    assert synthetic["store_reads"] == 2
     assert synthetic["load_attempt_log"] == 2
 
+    # Explicit invalidation also forces a recompute.
+    svc.invalidate_cache()
+    await svc.get_summary()
+    assert synthetic["store_reads"] == 3
+    assert synthetic["load_attempt_log"] == 3
 
-@pytest.mark.asyncio
-async def test_count_faces_per_name_loads_when_not_supplied(synthetic):
+
+def test_count_faces_per_name_reads_store_when_not_supplied(synthetic):
     svc = StatisticsService()
     counts = svc.count_faces_per_name()
     assert counts == {"Alice": 3, "Bob": 1}
-    assert synthetic["load_database"] == 1
+    assert synthetic["store_reads"] == 1
 
-    # Supplying known_faces bypasses the load entirely.
+    # Supplying known_faces bypasses the store read entirely.
     counts2 = svc.count_faces_per_name({"X": [1, 2]})
     assert counts2 == {"X": 2}
-    assert synthetic["load_database"] == 1  # unchanged
+    assert synthetic["store_reads"] == 1  # unchanged
