@@ -38,10 +38,8 @@ import { PreprocessingStatus } from '../src/renderer/services/preprocessing/inde
 // H8. They are pinned as pure units (no React) here. The `export` on each is a
 // behavior-neutral seam added for this fence (noted in the PR body).
 // ---------------------------------------------------------------------------
-import {
-  FileQueueModule,
-  naturalSortCompare,
-} from '../src/renderer/components/FileQueueModule.jsx';
+import { FileQueueModule } from '../src/renderer/components/FileQueueModule.jsx';
+import { naturalSortCompare } from '../src/renderer/components/fileQueue/queueUtils.js';
 import {
   getAutoLoadPreference,
   getRenameConfig,
