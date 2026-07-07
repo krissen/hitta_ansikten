@@ -18,7 +18,6 @@ import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { NetworkError } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { normalizeSuffix } from '../shared/manualSuffix.js';
-import { Icon } from './Icon.jsx';
 import { t } from '../../i18n/index.js';
 import { SuffixDialog } from './review/SuffixDialog.jsx';
 import { ConfirmDialog } from './review/ConfirmDialog.jsx';
