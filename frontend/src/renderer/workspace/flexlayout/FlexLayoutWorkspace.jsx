@@ -293,7 +293,7 @@ export function FlexLayoutWorkspace() {
 
     if (!ModuleComponent) {
       return (
-        <div style={{ padding: 20, color: '#666' }}>
+        <div className="workspace-placeholder-text" style={{ padding: 20 }}>
           {t('workspace.unknownModule', { component })}
         </div>
       );
@@ -660,12 +660,11 @@ export function FlexLayoutWorkspace() {
 
   if (!model) {
     return (
-      <div style={{
+      <div className="workspace-placeholder-text" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        height: '100%',
-        color: '#666'
+        height: '100%'
       }}>
         {t('workspace.loading')}
       </div>

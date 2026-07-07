@@ -46,7 +46,7 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 | `--bg-tertiary` | #987840 | #252525 | Headers, toolbars |
 | `--bg-elevated` | #d8c8a0 | #2a2a2a | Cards, modals |
 | `--bg-hover` | #a08050 | #303030 | Hover states |
-| `--bg-active` | #886830 | #383838 | Active/selected |
+| `--bg-active` | #c8a060 | #383838 | Active/selected |
 
 ### Text Colors
 
@@ -56,7 +56,7 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 | `--text-secondary` | #2d1810 | #a8a698 | Secondary text |
 | `--text-tertiary` | #483020 | #7a7870 | Muted text |
 | `--text-inverse` | #f8f0e0 | #0f0f0f | Text on accent bg |
-| `--text-on-accent` | #ffffff | #ffffff | Text on accent buttons |
+| `--text-on-accent` | #0a0a0a | #0a0a0a | Text on accent buttons |
 
 ### Border Colors
 
@@ -72,6 +72,7 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 |----------|-------|------|-------|
 | `--accent-primary` | #38a818 | #9acd32 | Primary actions |
 | `--accent-primary-hover` | #2a8010 | #b8e856 | Primary hover |
+| `--accent-primary-alpha-20` | rgba(56,168,24,0.2) | rgba(154,205,50,0.2) | Faint accent tint (selected rows) |
 | `--accent-secondary` | #e85820 | #daa520 | Secondary actions |
 | `--accent-secondary-hover` | #c03810 | #eebb30 | Secondary hover |
 
@@ -80,13 +81,69 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 | Variable | Light | Dark | Usage |
 |----------|-------|------|-------|
 | `--color-success` | #38a818 | #9acd32 | Success state |
-| `--color-success-bg` | #b0e898 | #1a2a1a | Success background |
+| `--color-success-bg` | #d8dcc8 | #1a2a1a | Success background |
+| `--color-success-text` | #1f6b0a | #9acd32 | Success text (theme-legible) |
 | `--color-warning` | #f87820 | #ffa500 | Warning state |
-| `--color-warning-bg` | #ffc898 | #2a2015 | Warning background |
+| `--color-warning-bg` | #e8d8c8 | #2a2015 | Warning background |
+| `--color-warning-text` | #b34a00 | #ffa500 | Warning text (theme-legible) |
 | `--color-error` | #e83020 | #ff6347 | Error state |
-| `--color-error-bg` | #ffb0a8 | #2a1515 | Error background |
+| `--color-error-bg` | #e8c8c8 | #2a1515 | Error background |
+| `--color-error-text` | #b81e10 | #ff6347 | Error text (theme-legible) |
 | `--color-info` | #1888d8 | #87ceeb | Info state |
-| `--color-info-bg` | #a0d0f8 | #15202a | Info background |
+| `--color-info-bg` | #c8dce8 | #15202a | Info background |
+
+> `--color-*-text` variants are the theme-legible text colors (dark on beige in
+> light, bright on near-black in dark). Use them for status *text*; pair with the
+> matching `--color-*-bg` for the fill. There is no `--color-info-text` — use
+> `--color-info` for info text.
+
+### Row / Selection Highlights
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `--bg-row-hover` | #e8d8b0 | #252525 | List/table row hover |
+| `--bg-row-active` | `--accent-primary-alpha-20` | `--accent-primary-alpha-20` | Selected/current row tint |
+| `--dropdown-selected-bg` | `--color-info-bg` | #454545 | Highlighted dropdown option |
+
+### Canvas Face Boxes
+
+Colors for face bounding boxes drawn over the photo in `ImageViewer`. They are
+read once via `getComputedStyle` and cached (invalidated on theme change). Kept
+equal across themes because they sit on image pixels, not the UI chrome.
+
+| Variable | Value | Usage |
+|----------|-------|-------|
+| `--face-active-highlight` | #e85820 (light) / #00bcd4 (dark) | Active face outline |
+| `--face-confirmed-color` / `-bg` | green | Confirmed name |
+| `--face-ignored-color` / `-bg` | gray | Ignored face |
+| `--face-uncertain-color` / `-bg` | #ffc107 | Uncertain name/ignore band |
+| `--face-confidence-medium-color` / `-bg` | #2196f3 | Medium confidence (≥0.50) |
+| `--face-confidence-low-color` / `-bg` | #ff9800 | Low confidence (≥0.35) |
+| `--face-confidence-none-color` / `-bg` | #f44336 | Very low confidence (<0.35) |
+
+### Overlay
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `--overlay-bg` | #987840 | #0a0a0a | Overlay/scrim background |
+| `--overlay-text` | #f8f0e0 | #d4d2c0 | Text on overlay |
+
+### Progress
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `--progress-track-bg` | #a08858 | #353535 | Progress track |
+| `--progress-fill` | `--accent-primary` | `--accent-primary` | Progress fill |
+| `--progress-text` | `--text-primary` | `--text-primary` | Progress label |
+| `--progress-height` | 4px | 4px | Bar height |
+| `--progress-radius` | 2px | 2px | Bar radius |
+
+### Button Hover States
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `--btn-secondary-hover-bg` | #e8d8b0 | `--bg-hover` | Secondary button hover |
+| `--btn-icon-hover-bg` | #e8d8b0 | `--bg-hover` | Icon button hover |
 
 ---
 
@@ -149,6 +206,20 @@ Based on 4px grid:
 
 ---
 
+## Z-Index Scale
+
+Theme-independent stacking order. Reference these instead of raw z-index values.
+
+| Variable | Value | Usage |
+|----------|-------|-------|
+| `--z-base` | 1 | Default raised elements |
+| `--z-dropdown` | 100 | Dropdowns, autocomplete popups |
+| `--z-sticky` | 200 | Sticky headers/toolbars |
+| `--z-modal` | 1000 | Modals, dialogs |
+| `--z-tooltip` | 2000 | Tooltips, transient overlays |
+
+---
+
 ## Shadows
 
 | Variable | Usage |
@@ -192,28 +263,31 @@ Based on 4px grid:
 
 ### Buttons
 
-```css
-/* Base */
-.btn {
-  padding: var(--space-sm) var(--space-md);
-  font-size: var(--font-sm);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-base);
-}
+The real button classes live in `theme.css`: `.btn-action` (primary CTA),
+`.btn-secondary` (standard action), `.btn-danger` (destructive), and `.btn-icon`
+(toolbar icon). They share a base rule; see the "Button Categories" section for
+the full model.
 
-/* Primary - use --text-on-accent for contrast */
-.btn-primary {
+```css
+/* Primary action (Start, Save, Confirm) - use --text-on-accent for contrast */
+.btn-action {
   background: var(--accent-primary);
   color: var(--text-on-accent);
+  border: none;
 }
 
-/* Ghost */
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
+/* Secondary action (Refresh, Clear, Rename) */
+.btn-secondary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   border: 1px solid var(--border-medium);
+}
+
+/* Danger (Delete permanently) */
+.btn-danger {
+  background: var(--color-error);
+  color: var(--text-inverse);
+  border: none;
 }
 ```
 
@@ -235,21 +309,26 @@ Based on 4px grid:
 }
 ```
 
-### Badges
+### Icon Buttons
 
 ```css
-.badge {
-  display: inline-block;
-  padding: var(--space-xs) var(--space-sm);
-  font-size: var(--font-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  border-radius: var(--radius-full);
+/* Toolbar icon button - square, hover-elevated */
+.btn-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.badge-success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+.btn-icon:hover {
+  background: var(--btn-icon-hover-bg);
+  box-shadow: var(--shadow-sm);
 }
 ```
 
