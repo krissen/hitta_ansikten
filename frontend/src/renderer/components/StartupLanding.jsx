@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { Icon } from './Icon.jsx';
+import { Button } from './shared';
 import { t } from '../../i18n/index.js';
 import './StartupLanding.css';
 
@@ -67,17 +68,17 @@ export function StartupLanding({ onOpenModule }) {
   const renderStep = (step) => {
     const disabled = step.requiresCard && !cardPresent;
     return (
-      <button
+      <Button
         key={step.moduleId}
-        type="button"
-        className="btn-action startup-landing-step"
+        variant="primary"
+        className="startup-landing-step"
         disabled={disabled}
         title={disabled ? t('startupLanding.importCardHint') : undefined}
         onClick={() => onOpenModule(step.moduleId)}
       >
         <Icon name={step.icon} size={20} />
         <span>{t(`modules.${step.moduleId}`)}</span>
-      </button>
+      </Button>
     );
   };
 

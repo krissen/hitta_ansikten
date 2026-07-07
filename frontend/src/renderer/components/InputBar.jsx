@@ -10,6 +10,7 @@
  */
 
 import React, { useCallback } from 'react';
+import { Button } from './shared';
 import './InputBar.css';
 
 export const DEFAULT_PRESETS = [
@@ -86,9 +87,9 @@ export function InputBar({
   return (
     <div className="input-bar">
       <div className="input-bar-row">
-        <button className="btn-secondary" onClick={addFolders} disabled={busy}>
+        <Button variant="secondary" onClick={addFolders} disabled={busy}>
           + Mapp
-        </button>
+        </Button>
 
         <input
           className="form-input input-bar-glob"
@@ -114,9 +115,9 @@ export function InputBar({
           ))}
         </select>
 
-        <button className="btn-action" onClick={submit} disabled={!canSubmit}>
+        <Button variant="primary" onClick={submit} disabled={!canSubmit}>
           {busy ? '…' : submitLabel}
-        </button>
+        </Button>
       </div>
 
       <div className="input-bar-row input-bar-row-secondary">

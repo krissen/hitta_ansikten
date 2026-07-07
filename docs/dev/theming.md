@@ -266,30 +266,33 @@ Theme-independent stacking order. Reference these instead of raw z-index values.
 
 ### Buttons
 
-Prefer the shared `<Button>` / `<IconButton>` primitives (`components/shared/`)
-for new and migrated UI — see the "Button Categories" section for the semantic
-model and the migration table. The legacy classes in `theme.css` — `.btn-action`
-(primary CTA), `.btn-secondary` (standard action), `.btn-danger` (destructive),
-and `.btn-icon` (toolbar icon) — remain as aliases until the cleanup PR (B7) and
-still back any un-migrated call site. They share a base rule.
+Always use the shared `<Button>` / `<IconButton>` primitives
+(`components/shared/`) — see the "Button Categories" section for the semantic
+model and the migration table. The primitives style `.btn` / `.icon-btn`
+directly against the tokens in `shared.css`.
+
+The legacy `.btn-action` / `.btn-secondary` / `.btn-danger` / `.btn-icon` alias
+classes were **removed in B7** once every call site had migrated; there is no
+raw button class to reach for. The `.btn--primary` variant carries the primary
+CTA styling:
 
 ```css
 /* Primary action (Start, Save, Confirm) - use --text-on-accent for contrast */
-.btn-action {
+.btn--primary {
   background: var(--accent-primary);
   color: var(--text-on-accent);
   border: none;
 }
 
 /* Secondary action (Refresh, Clear, Rename) */
-.btn-secondary {
+.btn--secondary {
   background: var(--bg-elevated);
   color: var(--text-primary);
   border: 1px solid var(--border-medium);
 }
 
 /* Danger (Delete permanently) */
-.btn-danger {
+.btn--danger {
   background: var(--color-error);
   color: var(--text-inverse);
   border: none;
@@ -316,22 +319,17 @@ still back any un-migrated call site. They share a base rule.
 
 ### Icon Buttons
 
+Use `<IconButton>`; its default `elevated` variant is the square, hover-elevated
+toolbar chip (styled as `.icon-btn--elevated` in `shared.css`, consuming the
+`--btn-icon-hover-bg` token):
+
 ```css
 /* Toolbar icon button - square, hover-elevated */
-.btn-icon {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
+.icon-btn--elevated {
   background: var(--bg-elevated);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.btn-icon:hover {
+.icon-btn--elevated:hover:not(:disabled) {
   background: var(--btn-icon-hover-bg);
   box-shadow: var(--shadow-sm);
 }
@@ -346,8 +344,8 @@ hand-rolling banners.
 
 - **`Alert`** (`.alert` + `.alert--{success|warning|info|error}`) — persistent
   inline status. Uses the `--color-*-bg` / `--color-*-text` / `--color-*` token
-  trio, matching the legacy `.status-message` banners so phase-B swaps are
-  visually lossless.
+  trio. It replaced the legacy `.status-message` banners, whose CSS was removed
+  in B7.
 - **Toasts** (`.global-toast` + variant class, in `flexlayout-overrides.css`) —
   transient global feedback on the solid `--color-{success|info|warning|error}`
   fills with `--text-inverse`; each carries an `IconButton` dismiss
@@ -590,9 +588,10 @@ ARIA/keyboard contract.
 
 ### Migration from the legacy `.btn-*` classes
 
-The old classes in `theme.css` (`.btn-action`, `.btn-secondary`, `.btn-danger`,
-`.btn-icon`) still exist and are **kept as aliases** until the cleanup PR (B7);
-modules migrate to the primitives incrementally. Map old → new as follows:
+The legacy `.btn-action` / `.btn-secondary` / `.btn-danger` / `.btn-icon` alias
+classes were **removed from `theme.css` in B7** once every call site had
+migrated to the primitives. The mapping below is kept for reference (e.g. when
+porting old snippets or reviewing history):
 
 | Legacy class | New primitive | Notes |
 |--------------|---------------|-------|
@@ -601,7 +600,7 @@ modules migrate to the primitives incrementally. Map old → new as follows:
 | `.btn-secondary` | `<Button variant="secondary">` **or** `variant="ghost"` | Triage per use: Refresh/Reload → secondary; Clear/Remove/close → ghost |
 | `.btn-action` | `<Button variant="primary">` **or** `variant="secondary">` | Triage per use; enforce **max one primary per view** |
 | `.btn-danger` | `<Button variant="danger">` | |
-| `.btn-icon` | `<IconButton>` | Default `elevated` variant = visual parity with `.btn-icon`; use `variant="ghost"` for low-profile buttons. Requires a `label` (aria-label + title) |
+| `.btn-icon` | `<IconButton>` | Default `elevated` variant = visual parity with the old `.btn-icon`; use `variant="ghost"` for low-profile buttons. Requires a `label` (aria-label + title) |
 
 ---
 
