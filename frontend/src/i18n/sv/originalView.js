@@ -7,6 +7,6 @@ module.exports = {
   "synced": "🔗 Synkroniserad",
   "detached": "🔓 Frikopplad",
   "error": "Fel: {message}",
-  "conversionFailed": "NEF-konvertering misslyckades",
+  "conversionFailed": "Kunde inte konvertera NEF-filen",
   "loadImageFailed": "Kunde inte ladda bilden"
 };

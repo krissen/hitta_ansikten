@@ -72,18 +72,18 @@ module.exports = {
   },
   "messages": {
     "noEncodingsToRemove": "Inga kodningar att ta bort med nuvarande inställningar.",
-    "previewFailed": "Förhandsgranskning misslyckades: {error}",
+    "previewFailed": "Kunde inte förhandsgranska: {error}",
     "runPreviewFirst": "Kör förhandsgranskning först",
     "simulateConfirm": { "one": "Vill du simulera borttagning av {count} kodning från {people} personer?", "other": "Vill du simulera borttagning av {count} kodningar från {people} personer?" },
     "removeConfirm": { "one": "Vill du ta bort {count} kodning från {people} personer?", "other": "Vill du ta bort {count} kodningar från {people} personer?" },
     "dryRunRemoved": { "one": "Simulering: {count} kodning skulle tas bort", "other": "Simulering: {count} kodningar skulle tas bort" },
     "removed": { "one": "{count} kodning borttagen", "other": "{count} kodningar borttagna" },
-    "applyFailed": "Tillämpning misslyckades: {error}",
+    "applyFailed": "Kunde inte tillämpa filtreringen: {error}",
     "noInconsistentShapes": "Inga inkonsekventa former hittades.",
     "repairDetail": "{person}: {removed} av {total} (behåller {shape})",
     "repairModalTitle": "Formreparation – förhandsgranskning",
     "dryRunWrongShape": { "one": "Simulering: {count} kodning med fel form", "other": "Simulering: {count} kodningar med fel form" },
     "inconsistentShapeRemoved": { "one": "{count} kodning med inkonsekvent form borttagen", "other": "{count} kodningar med inkonsekvent form borttagna" },
-    "repairFailed": "Formreparation misslyckades: {error}"
+    "repairFailed": "Kunde inte reparera formerna: {error}"
   }
 };

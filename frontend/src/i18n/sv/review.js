@@ -27,7 +27,7 @@ module.exports = {
   "status": {
     "waitingForImage": "Väntar på bild…",
     "detecting": "Söker ansikten…",
-    "detectionFailed": "Identifiering misslyckades",
+    "detectionFailed": "Kunde inte söka efter ansikten",
     "detectionCancelled": "Sökning avbruten",
     "connectionError": "Anslutningsfel",
     "found": {

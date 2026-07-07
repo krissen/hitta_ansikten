@@ -96,14 +96,14 @@ module.exports = {
   "toasts": {
     "loadFailed": "Kunde inte ladda databasens tillstånd: {error}",
     "enterBothNames": "Ange både gammalt och nytt namn",
-    "renameFailed": "Namnbyte misslyckades: {error}",
+    "renameFailed": "Kunde inte byta namn: {error}",
     "enterTwoPeople": "Ange två personer att slå samman",
-    "mergeFailed": "Sammanslagning misslyckades: {error}",
+    "mergeFailed": "Kunde inte slå samman: {error}",
     "foundDuplicates": {
       "one": "Hittade {count} dubblettkandidat bland {people} personer (≤ {threshold})",
       "other": "Hittade {count} dubblettkandidater bland {people} personer (≤ {threshold})"
     },
-    "duplicateScanFailed": "Dubblettsökning misslyckades: {error}",
+    "duplicateScanFailed": "Kunde inte söka efter dubbletter: {error}",
     "excludePairFailed": "Kunde inte utesluta paret: {error}",
     "markedNotDuplicate": "Markerade ”{a}” och ”{b}” som inte en dubblett",
     "removeExclusionFailed": "Kunde inte ta bort uteslutningen: {error}",
@@ -111,20 +111,20 @@ module.exports = {
       "one": "{count} överflödig kodning bland {people} {peopleWord} (≤ {threshold})",
       "other": "{count} överflödiga kodningar bland {people} {peopleWord} (≤ {threshold})"
     },
-    "redundancyScanFailed": "Redundanssökning misslyckades: {error}",
-    "dedupFailed": "Rensning misslyckades: {error}",
+    "redundancyScanFailed": "Kunde inte söka efter överflödiga kodningar: {error}",
+    "dedupFailed": "Kunde inte ta bort de överflödiga kodningarna: {error}",
     "enterPersonToDelete": "Ange namn på person att radera",
-    "deleteFailed": "Radering misslyckades: {error}",
+    "deleteFailed": "Kunde inte radera personen: {error}",
     "enterPersonName": "Ange personnamn",
-    "moveToIgnoreFailed": "Flytt till ignorerade misslyckades: {error}",
+    "moveToIgnoreFailed": "Kunde inte flytta till ignorerade: {error}",
     "enterCountAndTarget": "Ange antal och målnamn",
-    "moveFromIgnoreFailed": "Flytt från ignorerade misslyckades: {error}",
+    "moveFromIgnoreFailed": "Kunde inte flytta från ignorerade: {error}",
     "enterFilenamePattern": "Ange filnamn eller mönster",
     "filesUndone": "Filer: ",
-    "undoFailed": "Ångra misslyckades: {error}",
+    "undoFailed": "Kunde inte ångra: {error}",
     "recentFilesFailed": "Kunde inte ladda senaste filer: {error}",
     "enterPersonAndCount": "Ange personnamn och antal",
-    "purgeFailed": "Rensning misslyckades: {error}"
+    "purgeFailed": "Kunde inte ta bort kodningarna: {error}"
   },
   "dialogs": {
     "renameConfirm": "Byt namn på ”{old}” till ”{new}”?",

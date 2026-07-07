@@ -88,15 +88,15 @@ module.exports = {
     }
   },
   "errors": {
-    "trashFailed": "Kunde inte flytta filen till papperskorgen.",
+    "trashFailed": "Kunde inte flytta filen till papperskorgen. Försök igen.",
     "nefNotFound": "Ingen NEF hittad för {token} i {rawRoot}",
     "noTimestamp": "Kunde inte härleda tidsstämpel ur filnamnet",
     "scanError": "Kunde inte söka i RAW-mappen {rawRoot}{detail}",
     "unsupportedPlatform": "Öppna i Lightroom stöds bara på macOS",
     "lightroomFailed": "Kunde inte öppna i Lightroom{detail}",
-    "fileNotFound": "Filen hittades inte.",
-    "fileUnreadable": "Filen kunde inte läsas.",
-    "nefConvertFailed": "Kunde inte konvertera NEF.",
+    "fileNotFound": "Filen hittades inte. Den kan ha flyttats eller tagits bort.",
+    "fileUnreadable": "Filen kunde inte läsas. Kontrollera att den finns och inte används av ett annat program.",
+    "nefConvertFailed": "Kunde inte konvertera NEF-filen.",
     "imageLoadFailed": "Kunde inte läsa in bilden."
   }
 };

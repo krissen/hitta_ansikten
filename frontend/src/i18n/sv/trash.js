@@ -18,5 +18,5 @@ module.exports = {
   "isEmpty": "Papperskorgen är tom.",
   "noneOfType": "Inga filer av den typen i papperskorgen.",
   "restore": "Återställ",
-  "restoreFailed": "Kunde inte återställa filen."
+  "restoreFailed": "Kunde inte återställa filen. Den ursprungliga platsen kanske inte längre finns."
 };

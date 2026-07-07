@@ -85,7 +85,7 @@ module.exports = {
     "rename": "Byt namn:",
     "fileNotFound": "Filen hittades inte",
     "cached": "Cachad",
-    "preprocessingFailed": "Förbehandling misslyckades",
+    "preprocessingFailed": "Kunde inte förbehandla",
     "preprocessing": "Förbehandlar: {status}",
     "confirmedList": "Bekräftade: {names}",
     "detectedCount": { "one": "{count} ansikte hittat", "other": "{count} ansikten hittade" },
@@ -96,7 +96,7 @@ module.exports = {
 
   "toasts": {
     "loadProcessedFailed": "⚠️ Kunde inte läsa in status för behandlade filer",
-    "preprocessingFailed": "Förbehandling misslyckades: {fileName}",
+    "preprocessingFailed": "Kunde inte förbehandla {fileName}",
     "removedMissing": {
       "one": "Tog bort {count} saknad fil ur kön",
       "other": "Tog bort {count} saknade filer ur kön"
@@ -105,7 +105,7 @@ module.exports = {
     "preprocessingResumed": "Förbehandling återupptagen",
     "removedDeletedFile": "Tog bort raderad fil: {fileName}",
     "movedToTrash": "🗑️ Flyttade {fileName} till papperskorgen · ⌘⇧⌫ ångrar",
-    "trashFailed": "Kunde inte flytta {fileName} till papperskorgen",
+    "trashFailed": "Kunde inte flytta {fileName} till papperskorgen. Försök igen.",
     "restoredFromTrash": "↩️ Återställde {fileName} från papperskorgen",
     "nothingToDelete": "Ingen bild vald att radera",
     "nothingToUndo": "Inget att ångra",
@@ -141,7 +141,7 @@ module.exports = {
     },
     "renamedSkippedSuffix": " · {count} hoppades över",
     "renamedErrorSuffix": " · {count} fel",
-    "renameFailed": "Namnbyte misslyckades: {message}",
+    "renameFailed": "Kunde inte byta namn: {message}",
     "savedReview": {
       "one": "Sparade granskning av {fileName} ({count} ansikte)",
       "other": "Sparade granskning av {fileName} ({count} ansikten)"
