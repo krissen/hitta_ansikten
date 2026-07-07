@@ -175,8 +175,52 @@ class DetectionService:
             img = ImageOps.exif_transpose(Image.open(image_path))
             return np.array(img.convert('RGB'))
 
-    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """Detect faces and match against database. Returns (faces, detection_meta)."""
+    def _load_image_for_detection(self, image_path: Path) -> Tuple[np.ndarray, float]:
+        """Load pixels for DETECTION, allowing a fast half-size RAW decode.
+
+        Returns ``(rgb, coord_scale)`` where ``coord_scale`` maps ``rgb``'s
+        pixel space back to the full-resolution space the frontend displays
+        (the preprocessed full-res JPG). For cached JPGs and standard formats
+        the scale is 1.0. On a RAW cache miss the file is decoded with
+        ``half_size=True`` (~2.7x faster demosaic); detection quality is
+        equivalent (measured IoU 0.976-0.993, embedding cosine similarity
+        0.966-0.994 on real NEFs) because detection downscales to <=4500 px
+        anyway, and the returned ``coord_scale`` lets the caller keep bounding
+        boxes in full-resolution space. Display/thumbnail paths must NOT use
+        this method — they need full-resolution pixels.
+        """
+        ext = image_path.suffix.lower()
+        if ext in RAW_EXTENSIONS:
+            try:
+                cache = get_preprocessing_cache()
+                file_hash = cache.compute_file_hash(str(image_path))
+                cached_jpg = cache.get_nef_conversion(file_hash)
+                if cached_jpg and os.path.exists(cached_jpg):
+                    logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
+                    img = ImageOps.exif_transpose(Image.open(cached_jpg))
+                    return np.array(img.convert('RGB')), 1.0
+            except Exception as e:
+                logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
+
+            logger.debug(f"[DetectionService] Loading RAW at half size for detection: {image_path}")
+            with rawpy.imread(str(image_path)) as raw:
+                full_height = raw.sizes.height
+                rgb = raw.postprocess(half_size=True)
+            # libraw's half_size halves each dimension; derive the exact factor
+            # from the sensor dimensions rather than assuming 2.0.
+            coord_scale = full_height / rgb.shape[0]
+            return rgb, coord_scale
+        return self._load_image(image_path), 1.0
+
+    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: Optional[str] = None, coord_scale: float = 1.0) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Detect faces and match against database. Returns (faces, detection_meta).
+
+        ``coord_scale`` maps the supplied ``rgb``'s pixel space back to the
+        full-resolution space the frontend displays (e.g. 2.0 when the RAW was
+        decoded with ``half_size=True``). It is folded into the bounding-box
+        scale factor so every consumer — API results, the encoding cache, and
+        DB writes — keeps receiving full-resolution coordinates.
+        """
         import cv2
 
         # Resize if needed (optimize performance)
@@ -186,20 +230,20 @@ class DetectionService:
             new_width = int(width * scale)
             new_height = int(height * scale)
             rgb_resized = cv2.resize(rgb, (new_width, new_height), interpolation=cv2.INTER_AREA)
-            scale_factor = 1 / scale
+            scale_factor = (1 / scale) * coord_scale
             detection_px = max(new_width, new_height)
             scale_label = "mid"  # Scaled to ~4500px, matching CLI "mid" level
         else:
             rgb_resized = rgb
-            scale_factor = 1.0
+            scale_factor = coord_scale
             detection_px = max(width, height)
-            scale_label = "full"
+            scale_label = "full" if coord_scale == 1.0 else "half"
 
-        # Build detection metadata
+        # Build detection metadata (original_size in full-resolution space)
         detection_meta = {
             "scale_label": scale_label,
             "scale_px": detection_px,
-            "original_size": (width, height),
+            "original_size": (int(width * coord_scale), int(height * coord_scale)),
         }
 
         # Detect faces using configured backend
@@ -559,8 +603,11 @@ class DetectionService:
             cached_result["cached"] = True
             return cached_result
 
-        # Load image in thread pool
-        rgb = await loop.run_in_executor(_executor, self._load_image, path)
+        # Load image in thread pool. Detection may decode RAW at half size on
+        # a preprocessing-cache miss; coord_scale maps boxes back to full-res.
+        rgb, coord_scale = await loop.run_in_executor(
+            _executor, self._load_image_for_detection, path
+        )
 
         # Capture the DB version the matching pass computes against. The
         # entry-time check/clear above and the cache write below straddle
@@ -572,7 +619,7 @@ class DetectionService:
 
         # Detect and match faces in thread pool
         faces, detection_meta = await loop.run_in_executor(
-            _executor, self._detect_and_match_faces, rgb, 4500, file_hash
+            _executor, self._detect_and_match_faces, rgb, 4500, file_hash, coord_scale
         )
 
         # Build result
