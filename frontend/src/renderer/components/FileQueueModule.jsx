@@ -15,7 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
-import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
+import { PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex, isRenameEligible } from './fileQueueEligibility.js';
 import { compileFilter } from './filterExpression.js';
@@ -24,13 +24,12 @@ import {
   getAutoLoadPreference,
   getRenameConfig,
   getNotificationPreference,
-  getPreprocessingConfig,
   getRequireRenameConfirmation,
-  getAutoRemoveMissingPreference,
   getToastDurationMultiplier,
   getInsertModePreference,
 } from './fileQueue/fileQueuePrefs.js';
 import { naturalSortCompare, generateId, SUPPORTED_EXTENSIONS } from './fileQueue/queueUtils.js';
+import { usePreprocessing } from './fileQueue/usePreprocessing.js';
 import FileQueueItem from './fileQueue/FileQueueItem.jsx';
 import './FileQueueModule.css';
 
@@ -50,11 +49,7 @@ export function FileQueueModule({ node }) {
   const [fixMode, setFixMode] = useState(false);
   const [processedFiles, setProcessedFiles] = useState(new Set());
   const [processedHashes, setProcessedHashes] = useState(new Set());
-  const processedHashesRef = useRef(processedHashes);
-  processedHashesRef.current = processedHashes;
   const [processedFilesLoaded, setProcessedFilesLoaded] = useState(false);
-  const [preprocessingStatus, setPreprocessingStatus] = useState({});
-  const [preprocessingPaused, setPreprocessingPaused] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState(new Set()); // Checkbox-selected file IDs
   const [focusedIndex, setFocusedIndex] = useState(-1); // Clicked-on item (visual highlight only)
 
@@ -89,10 +84,6 @@ export function FileQueueModule({ node }) {
   // Alias for backwards compatibility
   const queueToast = showToast;
 
-  // Track missing files for batched removal
-  const missingFilesRef = useRef([]);
-  const missingFilesTimeoutRef = useRef(null);
-
   // Refs for processed files state (for use in callbacks without stale closure)
   const processedFilesLoadedRef = useRef(false);
   processedFilesLoadedRef.current = processedFilesLoaded;
@@ -102,12 +93,22 @@ export function FileQueueModule({ node }) {
   // Queued manual load: stores index to load once processedFiles are ready
   const pendingManualLoadRef = useRef(-1);
 
-  // Get preprocessing manager (singleton)
-  const preprocessingManager = useRef(null);
-  if (!preprocessingManager.current) {
-    const config = getPreprocessingConfig();
-    preprocessingManager.current = getPreprocessingManager(config);
-  }
+  // Preprocessing orchestration: the getPreprocessingManager singleton, its event
+  // subscriptions, pause/resume toasts, missing-file batching, hash checker,
+  // cache-priority push and the "all done" completion toast all live in this hook.
+  const {
+    preprocessingManager,
+    preprocessingStatus,
+    setPreprocessingStatus,
+    preprocessingStatusRef,
+    preprocessingPaused,
+    countPreprocessed,
+  } = usePreprocessing(queue, {
+    processedHashes,
+    processedFilesLoaded,
+    showToast,
+    setQueue,
+  });
 
   // Refs
   const moduleRef = useRef(null);
@@ -185,12 +186,6 @@ export function FileQueueModule({ node }) {
     loadProcessedFiles();
   }, [loadProcessedFiles]);
 
-  useEffect(() => {
-    if (preprocessingManager.current) {
-      preprocessingManager.current.setHashChecker((hash) => processedHashesRef.current.has(hash));
-    }
-  }, [processedFilesLoaded]);
-
   // Execute queued manual load once processed files are ready
   useEffect(() => {
     if (processedFilesLoaded && pendingManualLoadRef.current >= 0) {
@@ -255,172 +250,8 @@ export function FileQueueModule({ node }) {
       });
   }, [processedFilesLoaded, processedFiles, api, queue]);
 
-  // Subscribe to preprocessing manager events
-  useEffect(() => {
-    const manager = preprocessingManager.current;
-    if (!manager) return;
-
-    const handleStatusChange = ({ filePath, status }) => {
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { ...(prev[filePath] || {}), status }
-      }));
-    };
-
-    const handleCompleted = ({ filePath, hash, faceCount }) => {
-      setPreprocessingStatus(prev => {
-        const existing = prev[filePath];
-        // Preserve existing faceCount if it's valid (faces-detected may have set it)
-        const actualFaceCount = (existing?.faceCount > 0) ? existing.faceCount : faceCount;
-        return {
-          ...prev,
-          [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount: actualFaceCount, hash }
-        };
-      });
-
-      // Check if file hash matches a processed file (handles renamed files)
-      if (hash && processedHashes.has(hash)) {
-        setQueue(prev => prev.map(item =>
-          item.filePath === filePath && !item.isAlreadyProcessed
-            ? { ...item, isAlreadyProcessed: true }
-            : item
-        ));
-        debug('FileQueue', 'File recognized by hash as already processed:', filePath);
-      }
-
-      debug('FileQueue', 'Preprocessing completed:', filePath, `(${faceCount ?? 0} faces)`);
-    };
-
-    const handleError = ({ filePath, error }) => {
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { status: PreprocessingStatus.ERROR }
-      }));
-      debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
-      // Show error toast for preprocessing failure
-      const fileName = filePath.split('/').pop();
-      showToast(t('fileQueue.toasts.preprocessingFailed', { fileName }), 'error', 4000);
-    };
-
-    const handleFileNotFound = ({ filePath }) => {
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { status: PreprocessingStatus.FILE_NOT_FOUND }
-      }));
-
-      const hash = preprocessingManager.current?.removeFile(filePath);
-      if (hash) {
-        apiClient.batchDeleteCache([hash]).catch(() => {});
-      }
-
-      const autoRemove = getAutoRemoveMissingPreference();
-
-      if (autoRemove) {
-        missingFilesRef.current.push(filePath);
-
-        if (missingFilesTimeoutRef.current) {
-          clearTimeout(missingFilesTimeoutRef.current);
-        }
-
-        missingFilesTimeoutRef.current = setTimeout(() => {
-          const count = missingFilesRef.current.length;
-          if (count > 0) {
-            const pathsToRemove = new Set(missingFilesRef.current);
-            setQueue(prev => prev.filter(item => !pathsToRemove.has(item.filePath)));
-            showToast(t('fileQueue.toasts.removedMissing', { count }), 'info', 3000);
-            debug('FileQueue', `Auto-removed ${count} missing files`);
-            missingFilesRef.current = [];
-          }
-        }, 500);
-      } else {
-        setQueue(prev => prev.map(item =>
-          item.filePath === filePath
-            ? { ...item, status: 'missing', error: 'File not found' }
-            : item
-        ));
-      }
-      debug('FileQueue', 'File not found:', filePath);
-    };
-
-    const handlePaused = ({ readyCount, queueLength }) => {
-      debug('FileQueue', `Preprocessing paused: ${readyCount} ready, ${queueLength} in queue`);
-      setPreprocessingPaused(true);
-      const showPauseToast = getNotificationPreference('showToastOnPause');
-      if (showPauseToast) {
-        showToast(t('fileQueue.toasts.preprocessingPaused', { count: readyCount }), 'info', 3000);
-      }
-    };
-
-    const handleResumed = () => {
-      debug('FileQueue', 'Preprocessing resumed');
-      setPreprocessingPaused(false);
-      const showResumeToast = getNotificationPreference('showToastOnResume');
-      if (showResumeToast) {
-        showToast(t('fileQueue.toasts.preprocessingResumed'), 'info', 2000);
-      }
-    };
-
-    const handleCacheCleared = async ({ count, hashes }) => {
-      debug('FileQueue', `Preprocessing cache cleared: ${count} items`);
-      if (hashes && hashes.length > 0) {
-        try {
-          await apiClient.batchDeleteCache(hashes);
-          debug('FileQueue', `Cleared ${hashes.length} items from backend cache`);
-        } catch (err) {
-          debugWarn('FileQueue', 'Failed to clear backend cache:', err.message);
-        }
-      }
-    };
-
-    const handleAlreadyProcessed = ({ filePath, hash }) => {
-      debug('FileQueue', 'File skipped (hash already processed):', filePath);
-      setQueue(prev => prev.map(item =>
-        item.filePath === filePath
-          ? { ...item, isAlreadyProcessed: true }
-          : item
-      ));
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { status: PreprocessingStatus.COMPLETED, skipped: true }
-      }));
-    };
-
-    manager.on('status-change', handleStatusChange);
-    manager.on('completed', handleCompleted);
-    manager.on('error', handleError);
-    manager.on('file-not-found', handleFileNotFound);
-    manager.on('paused', handlePaused);
-    manager.on('resumed', handleResumed);
-    manager.on('cache-cleared', handleCacheCleared);
-    manager.on('already-processed', handleAlreadyProcessed);
-
-    return () => {
-      manager.off('status-change', handleStatusChange);
-      manager.off('completed', handleCompleted);
-      manager.off('error', handleError);
-      manager.off('file-not-found', handleFileNotFound);
-      manager.off('paused', handlePaused);
-      manager.off('resumed', handleResumed);
-      manager.off('cache-cleared', handleCacheCleared);
-      manager.off('already-processed', handleAlreadyProcessed);
-    };
-  }, [showToast, processedHashes]);
-
   // Handle file-deleted events from file watcher
   // Use refs to avoid re-subscribing on every preprocessingStatus change
-  const preprocessingStatusRef = useRef(preprocessingStatus);
-  preprocessingStatusRef.current = preprocessingStatus;
-
-  // Count files that are preprocessed (in the cache, ready to open) but not yet
-  // reviewed this session. Used for the queue overview bar in ReviewModule.
-  const countPreprocessed = useCallback((queueArr) => {
-    const pp = preprocessingStatusRef.current;
-    return queueArr.filter(
-      item => item.status !== 'completed' &&
-              pp[item.filePath]?.status === PreprocessingStatus.COMPLETED
-    ).length;
-  }, []);
-
   useEffect(() => {
     const handleFileDeleted = (filePath) => {
       debug('FileQueue', 'File deleted from disk:', filePath);
@@ -553,59 +384,6 @@ export function FileQueueModule({ node }) {
       watchedFilesRef.current.clear();
     };
   }, []);
-
-  // Update backend cache priority (queue files evicted last)
-  const priorityHashesTimerRef = useRef(null);
-  useEffect(() => {
-    if (priorityHashesTimerRef.current) {
-      clearTimeout(priorityHashesTimerRef.current);
-    }
-
-    priorityHashesTimerRef.current = setTimeout(() => {
-      const queueHashes = queue
-        .map(item => preprocessingStatus[item.filePath]?.hash)
-        .filter(Boolean);
-
-      // Always send, even empty list to clear old priorities
-      apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
-    }, 500);
-
-    return () => {
-      if (priorityHashesTimerRef.current) {
-        clearTimeout(priorityHashesTimerRef.current);
-      }
-    };
-  }, [queue, preprocessingStatus]);
-
-  // Track preprocessing completion for toast notification
-  const prevPreprocessingCountRef = useRef({ pending: 0, total: 0 });
-  useEffect(() => {
-    if (queue.length === 0) return;
-
-    // Count files still preprocessing
-    const pendingPreprocessing = queue.filter(item => {
-      const status = preprocessingStatus[item.filePath];
-      // Still preprocessing if no status yet or in progress
-      return !status ||
-             (status !== PreprocessingStatus.COMPLETED &&
-              status !== PreprocessingStatus.ERROR &&
-              status !== PreprocessingStatus.FILE_NOT_FOUND);
-    }).length;
-
-    const prev = prevPreprocessingCountRef.current;
-
-    // Show toast when preprocessing completes (was pending, now all done)
-    if (prev.pending > 0 && pendingPreprocessing === 0 && queue.length > 0) {
-      const completedCount = queue.filter(item =>
-        preprocessingStatus[item.filePath] === PreprocessingStatus.COMPLETED
-      ).length;
-      if (completedCount > 0) {
-        showToast(t('fileQueue.toasts.preprocessingComplete', { count: completedCount }), 'success', 3000);
-      }
-    }
-
-    prevPreprocessingCountRef.current = { pending: pendingPreprocessing, total: queue.length };
-  }, [queue, preprocessingStatus, showToast]);
 
   // Backend connection status - only show toast on RECONNECTION (not initial connect)
   const connectionStateRef = useRef({ prev: null, hasEverConnected: false });
