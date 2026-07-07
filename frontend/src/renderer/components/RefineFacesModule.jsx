@@ -13,6 +13,9 @@
 import React, { useState, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useOperationStatus } from '../hooks/useOperationStatus.js';
+import { useToast } from '../context/ToastContext.jsx';
+import { useConfirm } from '../context/ConfirmContext.jsx';
+import { Alert, Button, Modal } from './shared';
 import { debugError } from '../shared/debug.js';
 import { t } from '../../i18n/index.js';
 import './RefineFacesModule.css';
@@ -22,6 +25,8 @@ import './RefineFacesModule.css';
  */
 export function RefineFacesModule() {
   const { api } = useBackend();
+  const showToast = useToast();
+  const confirm = useConfirm();
 
   // Mode selection
   const [mode, setMode] = useState('std');  // 'std', 'cluster', 'mahalanobis', 'shape'
@@ -38,9 +43,12 @@ export function RefineFacesModule() {
 
   // State
   const [preview, setPreview] = useState(null);
+  // Shape-repair dry-run detail list shown in a modal (null = closed).
+  const [repairPreview, setRepairPreview] = useState(null);
 
-  // Operation status (loading, success, error) - replaces manual isLoading/status/showSuccess/showError
-  const { isLoading, setIsLoading, status, showSuccess, showError, clearStatus } = useOperationStatus();
+  // Operation status: persistent errors surfaced via Alert; transient success
+  // receipts go to toasts.
+  const { isLoading, setIsLoading, status, showError, clearStatus } = useOperationStatus();
 
   /**
    * Fetch preview from API
@@ -70,7 +78,7 @@ export function RefineFacesModule() {
       setPreview(result);
 
       if (result.summary.total_remove === 0) {
-        showSuccess(t('refineFaces.messages.noEncodingsToRemove'));
+        showToast(t('refineFaces.messages.noEncodingsToRemove'), { type: 'info' });
       }
     } catch (err) {
       debugError('RefineFaces', 'Preview failed:', err);
@@ -95,7 +103,7 @@ export function RefineFacesModule() {
       people: preview.summary.affected_people
     });
 
-    if (!dryRun && !confirm(confirmMsg)) return;
+    if (!dryRun && !(await confirm({ message: confirmMsg, variant: 'danger' }))) return;
 
     setIsLoading(true);
 
@@ -114,9 +122,9 @@ export function RefineFacesModule() {
       const result = await api.post('/api/v1/refinement/apply', body);
 
       if (dryRun) {
-        showSuccess(t('refineFaces.messages.dryRunRemoved', { count: result.removed }));
+        showToast(t('refineFaces.messages.dryRunRemoved', { count: result.removed }), { type: 'info' });
       } else {
-        showSuccess(t('refineFaces.messages.removed', { count: result.removed }));
+        showToast(t('refineFaces.messages.removed', { count: result.removed }), { type: 'success' });
         setPreview(null);  // Clear preview after successful apply
       }
     } catch (err) {
@@ -125,7 +133,7 @@ export function RefineFacesModule() {
     } finally {
       setIsLoading(false);
     }
-  }, [api, mode, config, preview]);
+  }, [api, mode, config, preview, confirm, showToast]);
 
   /**
    * Apply shape repair
@@ -143,25 +151,16 @@ export function RefineFacesModule() {
       const result = await api.post('/api/v1/refinement/repair-shapes', body);
 
       if (result.total_removed === 0) {
-        showSuccess(t('refineFaces.messages.noInconsistentShapes'));
+        showToast(t('refineFaces.messages.noInconsistentShapes'), { type: 'info' });
         return;
       }
 
       if (dryRun) {
-        // Show detailed preview
-        const details = result.repaired.map(r =>
-          t('refineFaces.messages.repairDetail', {
-            person: r.person,
-            removed: r.removed,
-            total: r.total,
-            shape: r.kept_shape.join('x')
-          })
-        ).join('\n');
-
-        alert(t('refineFaces.messages.repairAlert', { count: result.total_removed, details }));
-        showSuccess(t('refineFaces.messages.dryRunWrongShape', { count: result.total_removed }));
+        // Show the detailed per-person breakdown in a modal (replaces alert()).
+        setRepairPreview({ count: result.total_removed, rows: result.repaired });
+        showToast(t('refineFaces.messages.dryRunWrongShape', { count: result.total_removed }), { type: 'info' });
       } else {
-        showSuccess(t('refineFaces.messages.inconsistentShapeRemoved', { count: result.total_removed }));
+        showToast(t('refineFaces.messages.inconsistentShapeRemoved', { count: result.total_removed }), { type: 'success' });
       }
     } catch (err) {
       debugError('RefineFaces', 'Repair shapes failed:', err);
@@ -169,7 +168,7 @@ export function RefineFacesModule() {
     } finally {
       setIsLoading(false);
     }
-  }, [api, config.person]);
+  }, [api, config.person, showToast]);
 
   return (
     <div className="module-container refine-faces">
@@ -329,38 +328,38 @@ export function RefineFacesModule() {
         <div className="action-buttons">
           {mode === 'shape' ? (
             <>
-              <button
-                className="btn-secondary"
+              <Button
+                variant="secondary"
                 onClick={() => handleRepairShapes(true)}
                 disabled={isLoading}
               >
                 {t('refineFaces.buttons.simulateRepair')}
-              </button>
-              <button
-                className="btn-danger"
+              </Button>
+              <Button
+                variant="danger"
                 onClick={() => handleRepairShapes(false)}
                 disabled={isLoading}
               >
                 {t('refineFaces.buttons.repairShapes')}
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button
-                className="btn-action"
+              <Button
+                variant="primary"
                 onClick={handlePreview}
-                disabled={isLoading}
+                loading={isLoading}
               >
                 {isLoading ? t('refineFaces.buttons.loading') : t('refineFaces.buttons.preview')}
-              </button>
+              </Button>
               {preview && preview.summary.total_remove > 0 && (
-                <button
-                  className="btn-danger"
+                <Button
+                  variant="danger"
                   onClick={() => handleApply(false)}
                   disabled={isLoading}
                 >
                   {t('refineFaces.buttons.applyFiltering')}
-                </button>
+                </Button>
               )}
             </>
           )}
@@ -373,7 +372,7 @@ export function RefineFacesModule() {
             {preview.warnings && preview.warnings.length > 0 && (
               <div className="preview-warnings">
                 {preview.warnings.map((warning, idx) => (
-                  <div key={idx} className="warning-message">{warning}</div>
+                  <Alert key={idx} variant="warning">{warning}</Alert>
                 ))}
               </div>
             )}
@@ -413,11 +412,14 @@ export function RefineFacesModule() {
           </div>
         )}
 
-        {/* Status Message */}
+        {/* Persistent error status */}
         {status.message && (
-          <div className={`status-message ${status.type}`}>
+          <Alert
+            variant={status.type === 'error' ? 'error' : (status.type || 'info')}
+            onDismiss={clearStatus}
+          >
             {status.message}
-          </div>
+          </Alert>
         )}
 
         {/* Info Box */}
@@ -433,6 +435,39 @@ export function RefineFacesModule() {
           </p>
         </div>
       </div>
+
+      {/* Shape-repair dry-run breakdown (replaces native alert) */}
+      <Modal
+        open={repairPreview !== null}
+        onClose={() => setRepairPreview(null)}
+        title={t('refineFaces.messages.repairModalTitle')}
+        size="md"
+        footer={
+          <Button variant="secondary" onClick={() => setRepairPreview(null)}>
+            {t('common.dismiss')}
+          </Button>
+        }
+      >
+        {repairPreview && (
+          <>
+            <p className="repair-modal-summary">
+              {t('refineFaces.messages.dryRunWrongShape', { count: repairPreview.count })}
+            </p>
+            <ul className="repair-modal-list">
+              {repairPreview.rows.map((r, idx) => (
+                <li key={idx}>
+                  {t('refineFaces.messages.repairDetail', {
+                    person: r.person,
+                    removed: r.removed,
+                    total: r.total,
+                    shape: r.kept_shape.join('x')
+                  })}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

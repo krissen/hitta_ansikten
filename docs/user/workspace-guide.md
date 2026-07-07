@@ -373,3 +373,4 @@ inställningar** och **Rensa cache**.
 5. **Ångra**: Använd Database-modulen för att ångra filändringar
 6. **Autocomplete**: Använd `↑`/`↓` för att bläddra i förslag och `Tab` för att komplettera valt namn
 7. **Database-filter**: I Database-modulen finns ett filterfält ("Filter names...") med fuzzy-matchning
+8. **Enter kör åtgärden**: I Databashantering och Förfina ansikten är varje åtgärd ett formulär — tryck `Enter` i valfritt fält för att köra den (t.ex. byt namn, slå samman, radera). Namnfälten har autocomplete över kända personer: `↑`/`↓` bläddrar och `Enter` väljer markerat förslag (annars kör `Enter` åtgärden). Destruktiva åtgärder (radera, rensa kodningar) ber om bekräftelse först.
