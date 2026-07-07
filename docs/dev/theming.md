@@ -21,6 +21,9 @@ CSS variable system and styling guidelines for Ansikten workspace.
 - Clear button/interactive element separation
 - Obvious hover states without being flashy
 
+For keyboard navigation, ARIA roles, status live-regions and the
+reduced-motion policy, see [Accessibility](accessibility.md).
+
 ---
 
 ## CSS Variables
