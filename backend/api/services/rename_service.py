@@ -1049,7 +1049,8 @@ class RenameService:
         )
         if updated_count > 0:
             updated_count = store.mutate(
-                lambda known, ignored, hardneg, processed: compute(known, processed, True)
+                lambda known, ignored, hardneg, processed: compute(known, processed, True),
+                touches={"known", "processed"},
             )
             store.flush()  # user-confirmed rename → persist synchronously
             logger.info(f"[RenameService] Updated {updated_count} database entries after rename")

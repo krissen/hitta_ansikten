@@ -728,7 +728,7 @@ class DetectionService:
 
             # store.mutate schedules the debounced save (leading-coalesce),
             # matching the old per-face _schedule_save cadence — no flush.
-            count = self.store.mutate(add_manual)
+            count = self.store.mutate(add_manual, touches={"known"})
             logger.info(f"[DetectionService] Saved manual face for {person_name} (total: {count})")
 
             return {
@@ -794,7 +794,9 @@ class DetectionService:
 
         # store.mutate schedules the debounced save (leading-coalesce) — the old
         # per-face _schedule_save cadence; no synchronous flush here.
-        count = self.store.mutate(add_known)
+        # Touches known always; hardneg only when the user corrected a suggestion.
+        touches = {"known"} | ({"hardneg"} if hard_neg_entry is not None else set())
+        count = self.store.mutate(add_known, touches=touches)
         if hard_neg_entry is not None:
             logger.info(f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})")
 
@@ -868,7 +870,7 @@ class DetectionService:
             return len(ignored)
 
         # store.mutate schedules the debounced save (leading-coalesce).
-        ignored_count = self.store.mutate(add_ignored)
+        ignored_count = self.store.mutate(add_ignored, touches={"ignored"})
 
         logger.info(f"[DetectionService] Added face to ignored list (total: {ignored_count})")
 
@@ -914,7 +916,7 @@ class DetectionService:
                 known[person_name].append(entry)
                 return len(known[person_name])
 
-            count = self.store.mutate(add_manual)
+            count = self.store.mutate(add_manual, touches={"known"})
             return {"status": "success", "person_name": person_name,
                     "encodings_count": count}
 
@@ -960,7 +962,9 @@ class DetectionService:
                 hardneg[suggested_name].append(hard_neg_entry)
             return len(known[person_name])
 
-        count = self.store.mutate(add_known)
+        # Touches known always; hardneg only when the user corrected a suggestion.
+        touches = {"known"} | ({"hardneg"} if hard_neg_entry is not None else set())
+        count = self.store.mutate(add_known, touches=touches)
         return {"status": "success", "person_name": person_name,
                 "encodings_count": count}
 
@@ -996,7 +1000,7 @@ class DetectionService:
             ignored.append(entry)
             return len(ignored)
 
-        ignored_count = self.store.mutate(add_ignored)
+        ignored_count = self.store.mutate(add_ignored, touches={"ignored"})
         return {"status": "success", "ignored_count": ignored_count}
 
     async def batch_confirm(
@@ -1141,7 +1145,7 @@ class DetectionService:
                 return True
             return False
 
-        added = self.store.mutate(add_processed) if self.store.read(
+        added = self.store.mutate(add_processed, touches={"processed"}) if self.store.read(
             lambda known, ignored, hardneg, processed: entry not in processed
         ) else False
         if added:

@@ -383,7 +383,7 @@ class ManagementService:
             # Rename by moving encodings
             known[new_name] = known.pop(old_name)
 
-        self.store.mutate(do)
+        self.store.mutate(do, touches={"known"})
         self.store.flush()  # user-confirmed rename → persist synchronously
         _rename_in_distinct_pairs(old_name, new_name)
 
@@ -481,7 +481,7 @@ class ManagementService:
 
             return encodings_unique, backends_involved
 
-        encodings_unique, backends_involved = self.store.mutate(do)
+        encodings_unique, backends_involved = self.store.mutate(do, touches={"known"})
         self.store.flush()  # user-confirmed merge → persist synchronously
         # A source merged into the target is asserted to BE the target, so any
         # "distinct from X" exclusion it anchored transfers to the target (a
@@ -681,7 +681,8 @@ class ManagementService:
         )
         if total and not dry_run:
             removed_per_person, total = self.store.mutate(
-                lambda known, ignored, hardneg, processed: plan(known, True)
+                lambda known, ignored, hardneg, processed: plan(known, True),
+                touches={"known"},
             )
             self.store.flush()  # user-confirmed dedup → persist synchronously
 
@@ -714,7 +715,7 @@ class ManagementService:
             del known[name]
             return encoding_count
 
-        encoding_count = self.store.mutate(do)
+        encoding_count = self.store.mutate(do, touches={"known"})
         self.store.flush()  # user-confirmed delete → persist synchronously
         _drop_from_distinct_pairs(name)
 
@@ -765,7 +766,7 @@ class ManagementService:
 
             return to_move, removed
 
-        to_move, removed = self.store.mutate(do)
+        to_move, removed = self.store.mutate(do, touches={"known", "ignored"})
         self.store.flush()  # user-confirmed move → persist synchronously
         if removed:
             # Clear exclusions at removal time, so a later recreated name can't
@@ -820,7 +821,7 @@ class ManagementService:
 
             return to_move, n
 
-        to_move, count = self.store.mutate(do)
+        to_move, count = self.store.mutate(do, touches={"known", "ignored"})
         self.store.flush()  # user-confirmed move → persist synchronously
 
         moved_by_backend = _count_encodings_by_backend(to_move)
@@ -912,7 +913,9 @@ class ManagementService:
 
             return matched_files, removed_total, emptied
 
-        matched_files, removed_total, emptied = self.store.mutate(do)
+        matched_files, removed_total, emptied = self.store.mutate(
+            do, touches={"known", "ignored", "processed"}
+        )
         self.store.flush()  # user-confirmed undo → persist synchronously
         if emptied:
             _drop_from_distinct_pairs(*emptied)
@@ -991,7 +994,7 @@ class ManagementService:
             else:
                 raise ValueError(f"Person '{name}' not found")
 
-        kind, purged_by_backend, emptied = self.store.mutate(do)
+        kind, purged_by_backend, emptied = self.store.mutate(do, touches={"known", "ignored"})
         self.store.flush()  # user-confirmed purge → persist synchronously
 
         if kind == "ignore":

@@ -320,9 +320,9 @@ class RecordingStore(InMemoryDBStore):
         self.mutations = 0
         self.flushes = 0
 
-    def mutate(self, fn):
+    def mutate(self, fn, touches=None):
         self.mutations += 1
-        return super().mutate(fn)
+        return super().mutate(fn, touches=touches)
 
     def flush(self):
         self.flushes += 1

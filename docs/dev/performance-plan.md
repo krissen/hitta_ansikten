@@ -61,15 +61,36 @@ This release focuses on end-to-end performance and efficiency improvements:
 
 ### Planned work
 
-- Add batch review-save endpoint (confirm + ignore in one request per image)
-- Persist database once per image review (not once per face)
-- Improve statistics caching strategy (longer TTL and incremental handling where possible)
-- Update frontend review flow to use batch submit
-- Ensure statistics refresh interval in UI controls actual fetch cadence
+- **[Done] Per-collection dirty-flag saves** — `core.db.save_database` now
+  takes an optional `only={'known','ignored','hardneg','processed'}` so a save
+  rewrites only the named files (single-file saves skip the thread pool);
+  `FaceDBStore.mutate(fn, touches=...)` accumulates a dirty union across
+  coalesced mutations and the debounced save writes exactly that union, then
+  clears the flags and re-records only the written files' fingerprints. Net
+  effect on the review hot path: a confirm-identity now rewrites `encodings.pkl`
+  (+ `hardneg.pkl` only when the user corrected a suggestion) and, separately,
+  `processed_files.jsonl` — never `ignored.pkl`; an ignore rewrites only
+  `ignored.pkl`. This cuts write amplification from 4 files/save to 1-2 on the
+  common paths.
+- **[Done, Phase D] Persist database once per burst, not once per face** — the
+  shared store's 500 ms leading-coalesce debounce already collapses a burst of
+  per-face mutations into one save (`batch_confirm`/`mark_review_complete`
+  flush synchronously for durability).
+- **[Remaining] Batch review-save endpoint** (confirm + ignore in one request
+  per image) and the frontend review flow that submits to it.
+- **[Done, Phase D, step D4] Statistics caching strategy** — `get_summary` is
+  now version-keyed on `store.version` (DB parts invalidate immediately; TTL
+  only guards the non-store attempt/app-log parts). Any further incremental
+  handling is optional.
+- **[Remaining] Ensure statistics refresh interval in UI controls actual fetch
+  cadence.**
 
 ### Deliverables
 
 - 60-90% fewer database writes during review sessions
+  - Delivered on the per-save axis: confirm/ignore saves now touch 1-2 of the
+    four files instead of all four. The remaining lever is the batch-save
+    endpoint (fewer *saves*, not just smaller ones).
 - P95 for review-save improved by at least 50%
 - Reduced disk I/O spikes during batch review
 
