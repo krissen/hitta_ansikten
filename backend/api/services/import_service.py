@@ -16,6 +16,7 @@ import os
 import plistlib
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 from ..websocket.progress import broadcast_event
@@ -233,11 +234,14 @@ class ImportService:
 # Lazy singleton — construction is deferred so importing this module has no
 # side effects at import time.
 _import_service = None
+_import_service_lock = threading.Lock()
 
 
 def get_import_service() -> ImportService:
     """Return the process-wide ImportService, constructing it on first use."""
     global _import_service
     if _import_service is None:
-        _import_service = ImportService()
+        with _import_service_lock:
+            if _import_service is None:
+                _import_service = ImportService()
     return _import_service

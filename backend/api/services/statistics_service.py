@@ -8,6 +8,7 @@ Ports functionality from scripts/archive/analysera_ansikten.py to API-friendly f
 import asyncio
 import logging
 import sys
+import threading
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -500,11 +501,14 @@ class StatisticsService:
 # Lazy singleton — construction is deferred so importing this module has no
 # side effects at import time.
 _statistics_service = None
+_statistics_service_lock = threading.Lock()
 
 
 def get_statistics_service() -> StatisticsService:
     """Return the process-wide StatisticsService, constructing it on first use."""
     global _statistics_service
     if _statistics_service is None:
-        _statistics_service = StatisticsService()
+        with _statistics_service_lock:
+            if _statistics_service is None:
+                _statistics_service = StatisticsService()
     return _statistics_service

@@ -9,6 +9,7 @@ import hashlib
 import logging
 import os
 import sys
+import threading
 import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
@@ -1230,14 +1231,21 @@ class DetectionService:
 
 # Lazy singleton — construction is deferred so importing this module has no
 # side effects (no InsightFace load, no real data-dir access at import time).
+# Double-checked locking: first calls can race in from worker threads (e.g.
+# preprocessing's ThreadPoolExecutor via the module-level helpers below), and
+# an unguarded check-then-set could construct several instances (multiple
+# InsightFace loads, split caches).
 _detection_service = None
+_detection_service_lock = threading.Lock()
 
 
 def get_detection_service() -> DetectionService:
     """Return the process-wide DetectionService, constructing it on first use."""
     global _detection_service
     if _detection_service is None:
-        _detection_service = DetectionService()
+        with _detection_service_lock:
+            if _detection_service is None:
+                _detection_service = DetectionService()
     return _detection_service
 
 

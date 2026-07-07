@@ -10,6 +10,7 @@ never fork, and the file resolution with the shared ``file_resolver``.
 
 import logging
 import os
+import threading
 
 from core.playerstats import (
     compute_player_stats,
@@ -153,11 +154,14 @@ class PlayerCountService:
 # Lazy singleton — construction is deferred so importing this module has no
 # side effects at import time.
 _player_count_service = None
+_player_count_service_lock = threading.Lock()
 
 
 def get_player_count_service() -> PlayerCountService:
     """Return the process-wide PlayerCountService, constructing it on first use."""
     global _player_count_service
     if _player_count_service is None:
-        _player_count_service = PlayerCountService()
+        with _player_count_service_lock:
+            if _player_count_service is None:
+                _player_count_service = PlayerCountService()
     return _player_count_service
