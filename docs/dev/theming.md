@@ -266,10 +266,12 @@ Theme-independent stacking order. Reference these instead of raw z-index values.
 
 ### Buttons
 
-The real button classes live in `theme.css`: `.btn-action` (primary CTA),
-`.btn-secondary` (standard action), `.btn-danger` (destructive), and `.btn-icon`
-(toolbar icon). They share a base rule; see the "Button Categories" section for
-the full model.
+Prefer the shared `<Button>` / `<IconButton>` primitives (`components/shared/`)
+for new and migrated UI — see the "Button Categories" section for the semantic
+model and the migration table. The legacy classes in `theme.css` — `.btn-action`
+(primary CTA), `.btn-secondary` (standard action), `.btn-danger` (destructive),
+and `.btn-icon` (toolbar icon) — remain as aliases until the cleanup PR (B7) and
+still back any un-migrated call site. They share a base rule.
 
 ```css
 /* Primary action (Start, Save, Confirm) - use --text-on-accent for contrast */
@@ -512,53 +514,61 @@ You're probably using the wrong variable in the base rule. Fix the base rule ins
 
 ## Button Categories
 
-Standardized button styles for consistency across all modules:
+Buttons are a **semantic model**, not a per-file style. The canonical implementation
+is the shared `<Button>` / `<IconButton>` primitives in
+`components/shared/` — prefer these over hand-rolled `<button className="btn-…">`.
+The primitives render the class contract `btn btn--{variant} btn--{size}` (and
+`icon-btn icon-btn--{variant} icon-btn--{size}`), styled in
+`components/shared/shared.css` directly against the theme tokens.
 
-| Category | Background | Text | Hover | Use For |
-|----------|------------|------|-------|---------|
-| **Primary** | `--accent-primary` | `--text-on-accent` | `--accent-primary-hover` | Main action (Start, Save) |
-| **Secondary** | `--bg-tertiary` | `--text-primary` | `--bg-hover` | Secondary action (Refresh, Reload) |
-| **Ghost** | `transparent` | `--text-secondary` | `--bg-hover` | Tertiary action (Clear, Remove) |
-| **Danger** | `--color-error` | `--text-inverse` | brightness filter | Destructive (Delete, Purge) |
+```jsx
+import { Button, IconButton, Kbd } from '../shared';
 
-### Examples
-
-```css
-/* Primary button */
-.btn-primary {
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-}
-.btn-primary:hover {
-  background: var(--accent-primary-hover);
-}
-
-/* Secondary button */
-.btn-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-.btn-secondary:hover {
-  background: var(--bg-hover);
-}
-
-/* Ghost button */
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-medium);
-}
-.btn-ghost:hover {
-  background: var(--bg-hover);
-}
+<Button variant="primary" onClick={onStart}>Starta</Button>
+<Button variant="secondary" size="sm" onClick={onReload}>Ladda om</Button>
+<Button variant="danger" loading={deleting} onClick={onDelete}>Radera</Button>
+<IconButton icon="trash" label="Ta bort" variant="ghost" onClick={onRemove} />
+<span>Tryck <Kbd>Enter</Kbd> för att bekräfta</span>
 ```
 
-### Button Semantics
+| Variant | Background | Text | Hover | Use For |
+|---------|------------|------|-------|---------|
+| **primary** | `--accent-primary` | `--text-on-accent` | `--accent-primary-hover` | The one main action of a view (Start, Save) |
+| **secondary** | `--bg-elevated` | `--text-primary` | `--btn-secondary-hover-bg` | Standard action (Refresh, Reload, Rename) |
+| **ghost** | `transparent` | `--text-secondary` | `--bg-hover` | Low-emphasis / tertiary action (Clear, Remove, close) |
+| **danger** | `--color-error` | `--text-inverse` | brightness filter | Destructive (Delete, Purge) |
 
-- **Refresh/Reload actions** → Secondary (not Primary)
-- **Clear queue** → Ghost (not Danger - it's not destructive)
-- **Delete permanently** → Danger
-- **Start/Save/Submit** → Primary
+`IconButton` supports `ghost` (default) and `danger`. `Button` supports all four
+variants and two sizes (`sm`, `md`). `loading` implies `disabled`, sets
+`aria-busy`, and renders an inline spinner whose animation is a CSS class
+(so the reduced-motion guard can disable it). `IconButton`'s `label` is required
+and becomes both `aria-label` and `title`.
+
+### Semantics
+
+- **Max ONE primary per view/panel.** Primary marks the single most important
+  action. If two buttons look equally important, at most one is primary; the
+  rest are secondary.
+- **Refresh/Reload** → secondary (not primary).
+- **Clear / Remove / close** → ghost (not danger — clearing a queue is not
+  destructive to saved data).
+- **Delete permanently / Purge** → danger.
+- **Start / Save / Submit** → primary.
+
+### Migration from the legacy `.btn-*` classes
+
+The old classes in `theme.css` (`.btn-action`, `.btn-secondary`, `.btn-danger`,
+`.btn-icon`) still exist and are **kept as aliases** until the cleanup PR (B7);
+modules migrate to the primitives incrementally. Map old → new as follows:
+
+| Legacy class | New primitive | Notes |
+|--------------|---------------|-------|
+| `.btn-primary` / `.btn-confirm` | `<Button variant="primary">` | |
+| `.btn-cancel` | `<Button variant="secondary">` | |
+| `.btn-secondary` | `<Button variant="secondary">` **or** `variant="ghost"` | Triage per use: Refresh/Reload → secondary; Clear/Remove/close → ghost |
+| `.btn-action` | `<Button variant="primary">` **or** `variant="secondary">` | Triage per use; enforce **max one primary per view** |
+| `.btn-danger` | `<Button variant="danger">` | |
+| `.btn-icon` | `<IconButton>` | Requires a `label` (aria-label + title) |
 
 ---
 
