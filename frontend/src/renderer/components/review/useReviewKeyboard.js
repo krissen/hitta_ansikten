@@ -54,11 +54,14 @@ export function useReviewKeyboard(handlers, { isActive }) {
 
       const activeEl = document.activeElement;
       const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
-      const inBlockingModule =
-        activeEl?.closest('.log-viewer') !== null ||
-        activeEl?.closest('.preferences-module') !== null ||
-        activeEl?.closest('.database-management') !== null ||
-        activeEl?.closest('.theme-editor') !== null;
+      // Modules that own their own keyboard opt out of the review shortcuts by
+      // marking their root with `data-keyboard-scope="isolated"`. Replaces the
+      // former hardcoded `.log-viewer, .preferences-module, …` selector list:
+      // an explicit, discoverable contract (grep the attribute) that can't
+      // silently rot when a module's root class is renamed. (The old list's
+      // `.database-management` had already gone stale — that root is
+      // `.db-management` — so DatabaseManagement was no longer being shielded.)
+      const inBlockingModule = activeEl?.closest('[data-keyboard-scope="isolated"]') != null;
 
       if (inBlockingModule) {
         return;
