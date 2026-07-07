@@ -5,5 +5,6 @@ module.exports = {
   "convertingNef": "Konverterar NEF-fil...",
   "loadingFromCache": "Laddar från cache...",
   "unknown": "Okänd",
-  "queueProgress": "{done} klara · {remaining} kvar"
+  "queueProgress": "{done} klara · {remaining} kvar",
+  "loadFailed": "Kunde inte läsa in bilden: {fileName}"
 };
