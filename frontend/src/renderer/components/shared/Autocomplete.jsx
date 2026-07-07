@@ -29,7 +29,7 @@
  * / `.autocomplete-item`), so every consumer renders the same dropdown.
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useDropdownPosition } from '../../hooks/useDropdownPosition.js';
 import './shared.css';
@@ -105,8 +105,11 @@ export function Autocomplete({
     }
   }, [inputRef]);
 
-  // A fresh option set (typing) invalidates the previous highlight.
-  useEffect(() => {
+  // A fresh option set (typing) invalidates the previous highlight. Layout
+  // effect so the reset lands before paint — otherwise aria-activedescendant
+  // and .selected point at the wrong option for one frame (and a
+  // selectOnEnter consumer could commit a stale highlight).
+  useLayoutEffect(() => {
     setHighlighted(-1);
   }, [optionsSig]);
 
