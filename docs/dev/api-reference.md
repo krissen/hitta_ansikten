@@ -200,6 +200,45 @@ Mark file review as complete, log to attempt_stats.
 }
 ```
 
+### `POST /api/v1/batch-confirm`
+
+Confirm and/or ignore multiple faces in a single request with one database save.
+More efficient than issuing individual `confirm-identity` / `ignore-face` calls
+when saving all of an image's faces at once (the review flow submits here).
+
+**Request:**
+```json
+{
+  "confirmations": [
+    {
+      "face_id": "face_0_abcd1234",
+      "person_name": "Anna",
+      "image_path": "/path/to/image.NEF",
+      "suggested_name": "Ann"
+    }
+  ],
+  "ignores": [
+    { "face_id": "face_1_efgh5678", "image_path": "/path/to/image.NEF" }
+  ]
+}
+```
+
+`suggested_name` is optional (records what the scanner proposed, for
+hard-negative learning when the user corrected it). Both arrays default to
+empty.
+
+**Response:**
+```json
+{
+  "status": "success",
+  "confirmed_count": 1,
+  "ignored_count": 1,
+  "errors": []
+}
+```
+
+`errors` collects per-item failures without aborting the rest of the batch.
+
 ### `POST /api/v1/reload-database`
 
 Reload face database from disk.
@@ -287,6 +326,27 @@ Get recent log entries.
 Get processed files list.
 
 **Query:** `?n=200&source=cli`
+
+### `POST /api/v1/statistics/file-stats`
+
+Get face-detection stats for specific files. Provide `filepaths` (preferred —
+resolved by content hash, so the lookup survives renames) and/or `filenames`.
+
+**Request:**
+```json
+{
+  "filepaths": ["/path/to/250101_120000.NEF"],
+  "filenames": ["250101_120001.NEF"]
+}
+```
+
+**Response:** an object keyed by filename; only files with a match in the
+attempt log are included.
+```json
+{
+  "250101_120000.NEF": { "face_count": 3, "persons": ["Anna", "Bert"] }
+}
+```
 
 ---
 
