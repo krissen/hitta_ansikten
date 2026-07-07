@@ -22,6 +22,10 @@ import '../../theme-manager.js'; // Side-effect: initializes theme on load
 // Import FlexLayout CSS
 import 'flexlayout-react/style/light.css';
 
+// FlexLayout chrome + toast overrides — MUST be imported last so its rules
+// win over both component CSS and flexlayout-react's default light.css.
+import './flexlayout-overrides.css';
+
 /**
  * Initialize the FlexLayout workspace
  */
