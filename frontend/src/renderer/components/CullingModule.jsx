@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { usePersistedValue } from '../hooks/usePersistedValue.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
 import { TrashPanel } from './TrashPanel.jsx';
 import { CullingGrid } from './CullingGrid.jsx';
@@ -20,8 +21,12 @@ import { gridThumbnailCache } from '../shared/grid-thumbnail-cache.js';
 import { gridNavTarget } from './culling-grid-nav.js';
 import { preferences } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
-import { toFileUrl, bustedFileUrl } from '../shared/fileUrl.js';
-import { RAW_EXTS, extOf } from '../shared/fileExts.js';
+import { extOf } from '../shared/fileExts.js';
+import { statsScopeFromQuery, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
+import { CullingStats } from './culling/StatsPanel.jsx';
+import { useCullingPreview } from './culling/useCullingPreview.js';
+import { CullingContextMenu } from './culling/ContextMenu.jsx';
+import { CullingFilterBar } from './culling/FilterBar.jsx';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -44,50 +49,10 @@ const VIEW_MODE_KEY = 'ansikten.culling.viewMode';
 const GRID_CELL_MIN = 160;
 const GRID_GAP = 8;
 
-function readStoredNumber(key, fallback) {
-  try {
-    const v = parseFloat(localStorage.getItem(key));
-    return Number.isFinite(v) ? v : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function readStoredString(key, fallback) {
-  try {
-    const v = localStorage.getItem(key);
-    return v == null ? fallback : v;
-  } catch {
-    return fallback;
-  }
-}
-// Delay RAW conversion until the selection settles, so fast keyboard stepping
-// only converts the file the user rests on, not every file passed through.
-const PREVIEW_DEBOUNCE_MS = 150;
-// Delay before showing a loading indicator on a new JPEG selection — an
-// already-settled file resolves faster than this, so stepping through old
-// photos never flashes a placeholder; only a fresh, still-writing file waits.
-const PREVIEW_LOADING_DELAY_MS = 150;
-// If a file is still being written when the stat settle-wait times out, wait
-// this long before re-checking rather than swapping in a possibly-partial decode.
-const PREVIEW_RECHECK_MS = 800;
-
-// The live stats panel counts every player in the folder, so it uses the
-// scan scope only — not the player/name_glob filter that narrows the file list.
-// It deliberately keeps the count endpoint's defaults (min_images, exclusions)
-// so the included-player set matches `rakna_spelare.py` and the Räkna spelare
-// page exactly — coaches/audience and below-threshold names land in `excluded`,
-// not in the live count.
-function statsScopeFromQuery(q) {
-  if (!q) return null;
-  return {
-    roots: q.roots,
-    globs: q.globs,
-    extension_preset: q.extension_preset,
-    recursive: q.recursive,
-    date_from: q.date_from,
-    date_to: q.date_to,
-  };
+// Parse a stored number, falling back to `fallback` for a missing/NaN value.
+function parseStoredNumber(raw, fallback) {
+  const v = parseFloat(raw);
+  return Number.isFinite(v) ? v : fallback;
 }
 
 export function CullingModule({ node }) {
@@ -130,17 +95,17 @@ export function CullingModule({ node }) {
   // leftWidthPct is clamped to the drag range on read; statsWidth gets a lower
   // bound here and is additionally clamped against the live window width on
   // mount (a width saved on a wide window must not squash a narrow one).
-  const [statsWidth, setStatsWidth] = useState(() =>
-    Math.max(STATS_WIDTH_MIN, readStoredNumber(STATS_WIDTH_KEY, STATS_WIDTH_DEFAULT))
-  );
-  const [leftWidthPct, setLeftWidthPct] = useState(() =>
-    Math.min(70, Math.max(15, readStoredNumber(LIST_PCT_KEY, LIST_PCT_DEFAULT)))
-  );
+  const [statsWidth, setStatsWidth] = usePersistedValue(STATS_WIDTH_KEY, STATS_WIDTH_DEFAULT, {
+    parse: (raw) => Math.max(STATS_WIDTH_MIN, parseStoredNumber(raw, STATS_WIDTH_DEFAULT)),
+  });
+  const [leftWidthPct, setLeftWidthPct] = usePersistedValue(LIST_PCT_KEY, LIST_PCT_DEFAULT, {
+    parse: (raw) => Math.min(70, Math.max(15, parseStoredNumber(raw, LIST_PCT_DEFAULT))),
+  });
 
   // View mode: 'single' (loupe, default) or 'grid' (thumbnail overview). Persisted.
-  const [viewMode, setViewMode] = useState(() =>
-    readStoredString(VIEW_MODE_KEY, 'single') === 'grid' ? 'grid' : 'single'
-  );
+  const [viewMode, setViewMode] = usePersistedValue(VIEW_MODE_KEY, 'single', {
+    parse: (raw) => (raw === 'grid' ? 'grid' : 'single'),
+  });
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
   // Player whose thumbnails are visually highlighted in the grid (session-only,
@@ -149,16 +114,6 @@ export function CullingModule({ node }) {
   // Grid container + live column count for 2-D keyboard navigation.
   const gridRef = useRef(null);
   const colsRef = useRef(1);
-
-  // Resolved preview for the right pane. JPEGs load directly; RAW goes through
-  // the NEF->JPG pipeline, so resolution is async.
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState(null);
-  // Bumped on every folder-change so the current JPEG preview re-checks the file
-  // on disk — a Lightroom re-export overwrites it in place (same path), so this
-  // is what lets the preview pick up the fresh bytes.
-  const [folderNonce, setFolderNonce] = useState(0);
 
   // Latest filter params for auto-refresh; undo stack of trashed ids.
   const lastQueryRef = useRef(null);
@@ -330,7 +285,7 @@ export function CullingModule({ node }) {
         loadStats(statsScopeFromQuery(lastQueryRef.current));
         // Re-check the current file too — if it was re-exported in place, the
         // preview needs to reload the new bytes (same path, changed content).
-        setFolderNonce((n) => n + 1);
+        bumpPreview();
       }, REFRESH_DEBOUNCE_MS);
     });
     return () => {
@@ -976,16 +931,7 @@ export function CullingModule({ node }) {
     window.addEventListener('mouseup', onUp);
   }, []);
 
-  // Persist column widths so they survive restarts.
-  useEffect(() => {
-    try { localStorage.setItem(STATS_WIDTH_KEY, String(statsWidth)); } catch { /* ignore */ }
-  }, [statsWidth]);
-  useEffect(() => {
-    try { localStorage.setItem(LIST_PCT_KEY, String(leftWidthPct)); } catch { /* ignore */ }
-  }, [leftWidthPct]);
-  useEffect(() => {
-    try { localStorage.setItem(VIEW_MODE_KEY, viewMode); } catch { /* ignore */ }
-  }, [viewMode]);
+  // Column widths and view mode are persisted by usePersistedValue.
 
   // The per-player highlight is a grid-only affordance; drop it when leaving grid.
   useEffect(() => {
@@ -1107,190 +1053,31 @@ export function CullingModule({ node }) {
 
   const currentPath = current?.path;
 
-  // Resolve the preview for a plain JPEG. We wait (in the main process) for the
-  // file to finish being written before reading it, so a Lightroom export that's
-  // still flushing can't decode into a truncated strip; then we cache-bust the
-  // <img> URL by the file's mtime+size so a re-export in place reloads the fresh
-  // bytes instead of the browser's cached (possibly stale) decode. Re-runs on
-  // folderNonce so an in-place re-export of the current file is picked up.
-  const lastPreviewPathRef = useRef(null);
-  useEffect(() => {
-    if (!currentPath) {
-      lastPreviewPathRef.current = null;
-      setPreviewUrl(null); setPreviewError(null); setPreviewLoading(false);
-      return;
-    }
-    if (isRaw(currentPath)) {
-      // RAW is handled by the conversion effect below. Clear the ref so returning
-      // to a JPEG counts as a new path (the current frame is now the RAW preview,
-      // not that JPEG) and doesn't keep showing the wrong photo.
-      lastPreviewPathRef.current = null;
-      return;
-    }
-    // A genuine selection change vs. a same-path folderNonce re-check (in-place
-    // re-export). On a change we must not keep showing the previous photo; on a
-    // re-check we keep the current frame so the update is seamless.
-    const isNewPath = currentPath !== lastPreviewPathRef.current;
-    lastPreviewPathRef.current = currentPath;
-    let cancelled = false;
-    setPreviewError(null);
-    // Clear any loading state inherited from the previous selection (e.g. a RAW
-    // conversion or a still-writing JPEG that left it true) so an already-settled
-    // JPEG doesn't briefly show the placeholder. The delayed timer below re-sets
-    // it only if this file's stat is actually slow.
-    setPreviewLoading(false);
-    // Only blank + show a loading indicator if the stat is slow (a fresh,
-    // still-writing file). Already-settled files resolve first, so stepping
-    // through old photos swaps without a flash.
-    let loadingTimer = null;
-    let recheckTimer = null;
-    if (isNewPath) {
-      loadingTimer = setTimeout(() => {
-        if (!cancelled) { setPreviewUrl(null); setPreviewLoading(true); }
-      }, PREVIEW_LOADING_DELAY_MS);
-    }
-    window.ansiktenAPI.invoke('stat-file-stable', { filePath: currentPath })
-      .then((res) => {
-        if (cancelled) return;
-        if (loadingTimer) clearTimeout(loadingTimer);
-        if (!res?.ok) {
-          setPreviewLoading(false);
-          setPreviewUrl(null);
-          setPreviewError(res?.reason === 'not-found' ? 'Filen hittades inte.' : 'Filen kunde inte läsas.');
-          return;
-        }
-        if (res.settled === false) {
-          // The settle-wait timed out while the file was still being written.
-          // Don't swap in a possibly-truncated decode — keep the loading
-          // indicator and re-check shortly (the ongoing write also bumps
-          // folderNonce via the watcher, so this is a fallback either way).
-          setPreviewLoading(true);
-          recheckTimer = setTimeout(() => { if (!cancelled) setFolderNonce((n) => n + 1); }, PREVIEW_RECHECK_MS);
-          return;
-        }
-        setPreviewLoading(false);
-        setPreviewUrl(bustedFileUrl(currentPath, `${res.mtimeMs}-${res.size}`));
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (loadingTimer) clearTimeout(loadingTimer);
-        console.error('[Culling] preview stat failed:', err);
-        setPreviewLoading(false);
-        setPreviewUrl(null);
-        setPreviewError('Kunde inte läsa in bilden.');
-      });
-    return () => {
-      cancelled = true;
-      if (loadingTimer) clearTimeout(loadingTimer);
-      if (recheckTimer) clearTimeout(recheckTimer);
-    };
-  }, [currentPath, folderNonce]);
-
-  // Resolve the preview for a RAW file via the NEF conversion pipeline. The
-  // cancelled guard prevents a slow conversion from painting over a newer
-  // selection when the user steps quickly.
-  useEffect(() => {
-    if (!currentPath || !isRaw(currentPath)) return;
-    let cancelled = false;
-    setPreviewLoading(true); setPreviewError(null); setPreviewUrl(null);
-    // Debounced: clearing the timer on a fast step cancels the POST before it
-    // fires, so no abandoned conversions pile up behind the one the user lands on.
-    const timer = setTimeout(() => {
-      api.post('/api/v1/preprocessing/nef', { file_path: currentPath })
-        .then((res) => {
-          if (cancelled) return;
-          if (res.status === 'error' || !res.nef_jpg_path) {
-            setPreviewError(res.error || 'Kunde inte konvertera NEF.');
-          } else {
-            setPreviewUrl(toFileUrl(res.nef_jpg_path));
-          }
-        })
-        .catch((err) => { if (!cancelled) setPreviewError(err.message || String(err)); })
-        .finally(() => { if (!cancelled) setPreviewLoading(false); });
-    }, PREVIEW_DEBOUNCE_MS);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [currentPath, api]);
-
-  // Prefetch the next RAW so stepping through is usually a cache hit - also
-  // debounced, so a fast run of keypresses only warms the file after the rest.
-  useEffect(() => {
-    const next = files[currentIndex + 1];
-    if (!next || !isRaw(next.path)) return;
-    const timer = setTimeout(() => {
-      api.post('/api/v1/preprocessing/nef', { file_path: next.path }).catch(() => {});
-    }, PREVIEW_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [currentIndex, files, api]);
+  const { previewUrl, previewLoading, previewError, bumpPreview } =
+    useCullingPreview(api, currentPath, files, currentIndex);
 
   return (
     <div className="module-container culling">
-      <div className="culling-filterbar">
-        <button className="btn-secondary" onClick={addFolders}>+ Mapp</button>
-        <select
-          className="form-select"
-          value={preset}
-          onChange={(e) => {
-            const v = e.target.value;
-            setPreset(v);
-            // Auto-apply once a scope exists (a query has run).
-            if (lastQueryRef.current) runFilter({ extension_preset: v });
-          }}
-          title="Filtyp"
-        >
-          <option value="jpg">jpg / jpeg</option>
-          <option value="nef">nef</option>
-          <option value="raw">raw (alla)</option>
-        </select>
-        <select
-          className="form-select"
-          value={player}
-          onChange={(e) => {
-            const name = e.target.value;
-            selectPlayer(name);
-            // Picking a player applies immediately — no need to press Visa.
-            if (lastQueryRef.current) {
-              const g = name ? `*${name}*` : '';
-              runFilter({ player: name || null, name_glob: g || null });
-            }
-            // Hand focus to the list so the next arrow press navigates files
-            // instead of changing the dropdown selection.
-            e.target.blur();
-            focusList();
-          }}
-          title="Spelare"
-        >
-          <option value="">Alla spelare</option>
-          {players.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-        <input
-          className="form-input culling-glob"
-          type="text"
-          placeholder="Glob, t.ex. *ArvidW*"
-          value={glob}
-          onChange={(e) => { setGlob(e.target.value); setPlayer(''); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') runFilter(); }}
-        />
-        <button className="btn-action" onClick={() => runFilter()} disabled={!canFilter || isLoading}>
-          {isLoading ? '…' : 'Visa'}
-        </button>
-        <button
-          className={viewMode === 'grid' ? 'btn-action' : 'btn-secondary'}
-          aria-pressed={viewMode === 'grid'}
-          onClick={() => setViewMode((m) => (m === 'grid' ? 'single' : 'grid'))}
-          title={viewMode === 'grid' ? 'Visa enkelbild' : 'Visa översikt (rutnät)'}
-        >
-          Rutnät
-        </button>
-        <span className="culling-spacer" />
-        <button
-          className={showTrash ? 'btn-action' : 'btn-secondary'}
-          onClick={() => setShowTrash((v) => !v)}
-        >
-          Papperskorg
-        </button>
-      </div>
+      <CullingFilterBar
+        addFolders={addFolders}
+        preset={preset}
+        setPreset={setPreset}
+        runFilter={runFilter}
+        lastQueryRef={lastQueryRef}
+        player={player}
+        players={players}
+        selectPlayer={selectPlayer}
+        focusList={focusList}
+        glob={glob}
+        setGlob={setGlob}
+        setPlayer={setPlayer}
+        canFilter={canFilter}
+        isLoading={isLoading}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        showTrash={showTrash}
+        setShowTrash={setShowTrash}
+      />
 
       {roots.length > 0 && (
         <div className="culling-roots">
@@ -1449,49 +1236,19 @@ export function CullingModule({ node }) {
         </div>
       )}
 
-      {menu && (
-        <ul
-          className="culling-context-menu"
-          style={{ left: menu.x, top: menu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - 1, 0))); }}>
-            {/* In the grid ↑/↓ move by rows, so the prev/next hint is just ←/→ there. */}
-            <span>Föregående</span><span className="culling-menu-keys"><kbd>←</kbd>{viewMode !== 'grid' && <kbd>↑</kbd>}</span>
-          </li>
-          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + 1, files.length - 1))); }}>
-            <span>Nästa</span><span className="culling-menu-keys"><kbd>→</kbd>{viewMode !== 'grid' && <kbd>↓</kbd>}</span>
-          </li>
-          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - PAGE_STEP, 0))); }}>
-            <span>Hoppa bakåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>←</kbd></span>
-          </li>
-          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + PAGE_STEP, files.length - 1))); }}>
-            <span>Hoppa framåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>→</kbd></span>
-          </li>
-          <li className="culling-menu-sep" role="separator" />
-          <li onClick={() => {
-            setMenu(null);
-            const idx = files.findIndex((f) => f.path === menu.path);
-            if (idx >= 0) beginEdit(idx);
-          }}>
-            <span>Byt namn</span><span className="culling-menu-keys"><kbd>Enter</kbd></span>
-          </li>
-          <li onClick={() => {
-            setMenu(null);
-            const idx = files.findIndex((f) => f.path === menu.path);
-            if (idx >= 0) trashIndex(idx);
-          }}>
-            <span>Gallra</span><span className="culling-menu-keys"><kbd>X</kbd><kbd>⌘</kbd><kbd>⌫</kbd></span>
-          </li>
-          <li onClick={() => { setMenu(null); undoTrash(); }}>
-            <span>Ångra senaste</span><span className="culling-menu-keys"><kbd>⌘</kbd><kbd>Z</kbd></span>
-          </li>
-          <li className="culling-menu-sep" role="separator" />
-          <li onClick={() => { const p = menu.path; setMenu(null); openRawInLightroom(p); }}>
-            <span>Öppna i Lightroom</span><span className="culling-menu-keys"><kbd>L</kbd></span>
-          </li>
-        </ul>
-      )}
+      <CullingContextMenu
+        menu={menu}
+        setMenu={setMenu}
+        guardedNavigate={guardedNavigate}
+        setCurrentIndex={setCurrentIndex}
+        files={files}
+        viewMode={viewMode}
+        pageStep={PAGE_STEP}
+        beginEdit={beginEdit}
+        trashIndex={trashIndex}
+        undoTrash={undoTrash}
+        openRawInLightroom={openRawInLightroom}
+      />
 
       {confirmNav && (
         <div className="culling-confirm-backdrop" onClick={() => setConfirmNav(null)}>
@@ -1521,174 +1278,6 @@ export function CullingModule({ node }) {
               </button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function isRaw(p) {
-  const i = p.lastIndexOf('.');
-  return i !== -1 && RAW_EXTS.includes(p.slice(i).toLowerCase());
-}
-
-function globBaseDir(pattern) {
-  const idx = pattern.search(/[*?[]/);
-  const literal = idx === -1 ? pattern : pattern.slice(0, idx);
-  const slash = literal.lastIndexOf('/');
-  return slash === -1 ? '' : literal.slice(0, slash);
-}
-
-// Separator-agnostic basename so paths with Windows backslashes resolve too
-// (the backend returns native str(Path) values). Without this, the inline-rename
-// no-op guard never matches on Windows and an unchanged rename would advance.
-function basename(p) {
-  const parts = p.replace(/[/\\]+$/, '').split(/[/\\]/);
-  return parts[parts.length - 1] || p;
-}
-
-function stripExt(name) {
-  const i = name.lastIndexOf('.');
-  return i > 0 ? name.slice(0, i) : name;
-}
-
-const EXCLUDED_LABELS = {
-  tranare: 'Tränare',
-  grupp: 'Gruppbilder',
-  publik: 'Publik',
-  below_threshold: 'Under tröskeln',
-};
-
-/** Collapsible groups for names the count excludes (coaches, group photos,
- *  audience, below-threshold) — visible but separated from the live counts,
- *  matching the Räkna spelare page. */
-function CullingExcluded({ excluded }) {
-  if (!excluded) return null;
-  const groups = Object.entries(EXCLUDED_LABELS).filter(
-    ([key]) => excluded[key] && excluded[key].length > 0
-  );
-  if (groups.length === 0) return null;
-  return (
-    <div className="culling-stats-excluded">
-      {groups.map(([key, label]) => (
-        <details key={key} className="culling-stats-group">
-          <summary>{label} ({excluded[key].length})</summary>
-          <ul>
-            {excluded[key].map((e) => (
-              <li key={e.name}>{e.name}: {e.count} ({e.pct}%)</li>
-            ))}
-          </ul>
-        </details>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Live per-player count for the current scope, shown left of the file list.
- * Mirrors the Räkna spelare table (name · count · % · Δ% · distribution bar)
- * so the same numbers are in front of the user while culling. `stats` is the
- * /players/count response (or null); `selected` highlights the active player;
- * `width` is the column's pixel width (resizable via the stats divider).
- *
- * Row clicks are mode-dependent (`mode`): in the loupe a single click filters
- * the list to the player (`onSelect`); in the grid a single click highlights the
- * player's thumbnails (`onSelect`) while a double click filters (`onActivate`).
- * The single click is debounced in grid mode so a double click can cancel it.
- */
-function CullingStats({ stats, selected, onSelect, onActivate, mode, width }) {
-  const players = stats?.players || [];
-  const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
-  const clickTimerRef = useRef(null);
-  useEffect(() => () => clearTimeout(clickTimerRef.current), []);
-  // Cancel a pending single-click when the mode changes, so a debounced grid
-  // highlight can't fire after the user has switched to the loupe.
-  useEffect(() => {
-    clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = null;
-  }, [mode]);
-
-  // Loupe: fire immediately (no double-click role). Grid: debounce so a double
-  // click (filter) can cancel the pending single click (highlight).
-  const handleRowClick = (name) => {
-    if (mode !== 'grid') { onSelect?.(name); return; }
-    clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = setTimeout(() => {
-      clickTimerRef.current = null;
-      onSelect?.(name);
-    }, 200);
-  };
-  const handleRowDouble = (name) => {
-    clearTimeout(clickTimerRef.current);
-    clickTimerRef.current = null;
-    onActivate?.(name);
-  };
-  // Show excluded groups even when no player clears the threshold (small folders,
-  // or after culling everyone below min_images) — otherwise the section this
-  // change is meant to surface would be hidden behind the empty "—".
-  const excluded = stats?.excluded || null;
-  const hasExcluded = !!excluded &&
-    Object.keys(EXCLUDED_LABELS).some((k) => excluded[k] && excluded[k].length > 0);
-  return (
-    <div className="culling-stats" style={{ flex: `0 0 ${width}px` }}>
-      <div className="culling-stats-header">
-        <span>Spelare</span>
-        {stats?.baseline != null && (
-          <span className="culling-stats-baseline" title="Baslinje (median)">
-            ~{Math.round(stats.baseline)}
-          </span>
-        )}
-      </div>
-      {players.length === 0 && !hasExcluded ? (
-        <div className="culling-stats-empty">—</div>
-      ) : (
-        <div className="culling-stats-scroll">
-          {players.length > 0 && (
-          <table className="culling-stats-table">
-            <thead>
-              <tr>
-                <th>Namn</th>
-                <th className="num">Antal</th>
-                <th className="num">%</th>
-                <th className="num">Δ%</th>
-                <th className="bar-col">Fördelning</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((p) => (
-                <tr
-                  key={p.name}
-                  className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active row-selected' : ''}`}
-                  onClick={onSelect ? () => handleRowClick(p.name === selected ? '' : p.name) : undefined}
-                  onDoubleClick={mode === 'grid' && onActivate ? () => handleRowDouble(p.name) : undefined}
-                  title={
-                    !onSelect
-                      ? `${p.name}: ${p.count}`
-                      : mode === 'grid'
-                        ? `Markera ${p.name} · dubbelklicka för att filtrera`
-                        : `Filtrera på ${p.name}`
-                  }
-                >
-                  <td className="culling-stat-name">{p.name}</td>
-                  <td className="num">{p.count}</td>
-                  <td className="num">{p.pct}%</td>
-                  <td className={`num delta delta-${p.level || 'ok'}`}>
-                    {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
-                  </td>
-                  <td className="bar-col">
-                    <div className="culling-bar-track">
-                      <div
-                        className={`culling-bar-fill level-${p.level || 'ok'}`}
-                        style={{ width: `${(p.count / maxCount) * 100}%` }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          )}
-          <CullingExcluded excluded={excluded} />
         </div>
       )}
     </div>
