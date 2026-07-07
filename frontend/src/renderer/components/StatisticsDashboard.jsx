@@ -15,6 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
 import { debug, debugError, getLogBuffer } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
+import { Button, Alert } from './shared';
 import { t } from '../../i18n/index.js';
 import './StatisticsDashboard.css';
 
@@ -131,14 +132,14 @@ export function StatisticsDashboard() {
             <option value="10000">10s</option>
             <option value="30000">30s</option>
           </select>
-          <button className="btn-secondary" onClick={refresh}>
+          <Button variant="secondary" onClick={refresh}>
             {t('statistics.refreshNow')}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="module-body stats-body">
-        {error && <div className="status-message error">{t('statistics.errorPrefix')} {error}</div>}
+        {error && <Alert variant="error">{t('statistics.errorPrefix')} {error}</Alert>}
 
         {/* Attempt Statistics Table */}
         {showAttemptStats && (
@@ -254,11 +255,13 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
     items.push({ name: '', face_count: 0 });
   }
 
-  // Add ignored as 20th item
+  // Add the ignored-faces summary as the 20th cell. Flagged with `isIgnored`
+  // rather than a magic name so the label comes from the catalog, never a
+  // hardcoded string that could leak to the UI.
   const ignoredText = ignoredStats.total > 0
     ? `(${ignoredStats.count}/${ignoredStats.total}, ${(ignoredStats.fraction * 100).toFixed(1)}%)`
     : '(0)';
-  items.push({ name: 'Ignored', face_count: ignoredText, isIgnored: true });
+  items.push({ name: '', face_count: ignoredText, isIgnored: true });
 
   // Column-major order (fill columns top to bottom, left to right)
   const numCols = 4;
@@ -284,14 +287,12 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
           const className = `face-cell ${item.isIgnored ? 'ignored' : ''}`;
           let content = '—';
 
-          if (item.name) {
-            if (item.name === 'Ignored') {
-              content = `${t('statistics.ignored')} ${item.face_count}`;
-            } else {
-              // Show count and percentage (e.g., "Elton (259, 15%)")
-              const pct = item.percentage !== undefined ? `, ${item.percentage}%` : '';
-              content = `${item.name} (${item.face_count}${pct})`;
-            }
+          if (item.isIgnored) {
+            content = `${t('statistics.ignored')} ${item.face_count}`;
+          } else if (item.name) {
+            // Show count and percentage (e.g., "Elton (259, 15%)")
+            const pct = item.percentage !== undefined ? `, ${item.percentage}%` : '';
+            content = `${item.name} (${item.face_count}${pct})`;
           }
 
           return (
