@@ -538,8 +538,11 @@ import { Button, IconButton, Kbd } from '../shared';
 | **ghost** | `transparent` | `--text-secondary` | `--bg-hover` | Low-emphasis / tertiary action (Clear, Remove, close) |
 | **danger** | `--color-error` | `--text-inverse` | brightness filter | Destructive (Delete, Purge) |
 
-`IconButton` supports `ghost` (default) and `danger`. `Button` supports all four
-variants and two sizes (`sm`, `md`). `loading` implies `disabled`, sets
+`IconButton` supports `elevated` (default — a raised chip mirroring legacy
+`.btn-icon` exactly: resting `--bg-elevated`, hover `--btn-icon-hover-bg` +
+`--shadow-sm`), `ghost` (flat/low-profile, opt-in) and `danger`. `Button`
+supports all four variants and two sizes (`sm`, `md`). `loading` implies
+`disabled`, sets
 `aria-busy`, and renders an inline spinner whose animation is a CSS class
 (so the reduced-motion guard can disable it). `IconButton`'s `label` is required
 and becomes both `aria-label` and `title`.
@@ -568,7 +571,7 @@ modules migrate to the primitives incrementally. Map old → new as follows:
 | `.btn-secondary` | `<Button variant="secondary">` **or** `variant="ghost"` | Triage per use: Refresh/Reload → secondary; Clear/Remove/close → ghost |
 | `.btn-action` | `<Button variant="primary">` **or** `variant="secondary">` | Triage per use; enforce **max one primary per view** |
 | `.btn-danger` | `<Button variant="danger">` | |
-| `.btn-icon` | `<IconButton>` | Requires a `label` (aria-label + title) |
+| `.btn-icon` | `<IconButton>` | Default `elevated` variant = visual parity with `.btn-icon`; use `variant="ghost"` for low-profile buttons. Requires a `label` (aria-label + title) |
 
 ---
 
