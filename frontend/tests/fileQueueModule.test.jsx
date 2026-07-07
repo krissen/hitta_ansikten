@@ -38,8 +38,9 @@ import { PreprocessingStatus } from '../src/renderer/services/preprocessing/inde
 // H8. They are pinned as pure units (no React) here. The `export` on each is a
 // behavior-neutral seam added for this fence (noted in the PR body).
 // ---------------------------------------------------------------------------
+import { FileQueueModule } from '../src/renderer/components/FileQueueModule.jsx';
+import { naturalSortCompare } from '../src/renderer/components/fileQueue/queueUtils.js';
 import {
-  FileQueueModule,
   getAutoLoadPreference,
   getRenameConfig,
   getNotificationPreference,
@@ -48,8 +49,7 @@ import {
   getAutoRemoveMissingPreference,
   getToastDurationMultiplier,
   getInsertModePreference,
-  naturalSortCompare,
-} from '../src/renderer/components/FileQueueModule.jsx';
+} from '../src/renderer/components/fileQueue/fileQueuePrefs.js';
 
 // --- mount harness -------------------------------------------------------
 // Controllable stubs for everything FileQueueModule reaches outside its render.
