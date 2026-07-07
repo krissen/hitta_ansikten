@@ -26,8 +26,15 @@
 /**
  * Map Tailwind utility namespaces 1:1 onto the existing theme.css variables.
  * `inline` means the utility emits the var() reference directly (e.g.
- * `bg-bg-primary` -> `background-color: var(--bg-primary)`), so nothing is
- * written to :root here and theme.css stays the only place values live.
+ * `bg-bg-primary` -> `background-color: var(--bg-primary)`).
+ *
+ * Caveat: for the SAME-NAME mappings below (--color-success and friends,
+ * --font-*, --radius-*, --shadow-*) there is nothing to inline, so Tailwind
+ * emits them as circular declarations on `:root, :host` inside @layer theme.
+ * They are neutralised only because theme.css is UNLAYERED and unlayered
+ * declarations always beat layered ones — theme.css's real values win.
+ * Do NOT move theme.css into a cascade layer: that would make these
+ * self-references live and break all status colors, fonts, radii and shadows.
  *
  * Naming is 1:1 and grep-able (`bg-bg-primary`, `text-text-primary`); the only
  * deviation is the accent short-form (`accent` -> --accent-primary).
