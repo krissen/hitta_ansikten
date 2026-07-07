@@ -14,6 +14,8 @@ module.exports = {
   fileQueue: require('./fileQueue'),
   culling: require('./culling'),
   trash: require('./trash'),
+  import: require('./import'),
+  renameNef: require('./renameNef'),
   review: require('./review'),
   imageViewer: require('./imageViewer'),
   originalView: require('./originalView'),
