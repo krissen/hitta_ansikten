@@ -82,27 +82,33 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
       <div className="face-info">
         {/* Match case indicator */}
         {face.is_manual && (
-          <div className="match-case manual">Manuellt tillagd</div>
+          <div className="match-case manual">{t('review.badges.manual')}</div>
         )}
         {face.match_case === 'ign' && !face.is_confirmed && (
-          <div className="match-case probable-ignore">Trolig ignorering</div>
+          <div className="match-case probable-ignore">{t('review.badges.probableIgnore')}</div>
         )}
         {face.match_case === 'uncertain_ign' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            ign ({face.ignore_confidence}%) / {face.person_name || face.match_alternatives?.[0]?.name || 'Okänd'}
+            {t('review.badges.uncertainIgn', {
+              conf: face.ignore_confidence,
+              name: face.person_name || face.match_alternatives?.[0]?.name || t('review.unknown'),
+            })}
           </div>
         )}
         {face.match_case === 'uncertain_name' && !face.is_confirmed && (
           <div className="match-case uncertain">
-            {face.person_name || face.match_alternatives?.[0]?.name || 'Okänd'} / ign ({face.ignore_confidence}%)
+            {t('review.badges.uncertainName', {
+              conf: face.ignore_confidence,
+              name: face.person_name || face.match_alternatives?.[0]?.name || t('review.unknown'),
+            })}
           </div>
         )}
         {face.disambiguated && !face.is_confirmed && (
           <div
             className="match-case twin-disambig"
-            title={`Lika ansikten ${face.disambiguated.between.join(' / ')} — valt via k-NN-röstning över bekräftade foton`}
+            title={t('review.twinDisambig.title', { between: face.disambiguated.between.join(' / ') })}
           >
-            Tvilling-särskiljning → {face.disambiguated.chosen}
+            {t('review.twinDisambig.label', { chosen: face.disambiguated.chosen })}
           </div>
         )}
       </div>

@@ -34,11 +34,13 @@ beforeAll(() => {
 const h = vi.hoisted(() => {
   const emit = vi.fn();
   const showToast = vi.fn();
+  const confirm = vi.fn();
   const registry = new Map(); // eventName -> latest useModuleEvent handler
   const api = { get: vi.fn(), post: vi.fn() };
   return {
     emit,
     showToast,
+    confirm,
     registry,
     api,
     people: [],
@@ -52,6 +54,13 @@ vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
 
 vi.mock('../src/renderer/context/ToastContext.jsx', () => ({
   useToast: () => h.showToast,
+}));
+
+// discardChanges moved from the native window.confirm() to the promise-based
+// useConfirm() (fas B6). Swap the context hook for a controllable stub so the
+// discard-gate test asserts against it instead of the window global.
+vi.mock('../src/renderer/context/ConfirmContext.jsx', () => ({
+  useConfirm: () => h.confirm,
 }));
 
 vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
@@ -137,6 +146,8 @@ beforeEach(() => {
   cleanup();
   h.emit.mockClear();
   h.showToast.mockClear();
+  h.confirm.mockReset();
+  h.confirm.mockResolvedValue(true);
   h.registry.clear();
   h.people = [];
   h.api.get.mockReset();
@@ -311,7 +322,8 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
   });
 
   it('Escape with pending changes prompts a discard confirmation', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    // Declining the discard prompt: the promise-based confirm resolves false.
+    h.confirm.mockResolvedValue(false);
     await mountReview();
     await loadImage([
       face({ match_alternatives: [{ name: 'Cara', confidence: 90 }] }),
@@ -321,13 +333,12 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
     await act(async () => {
       fireEvent.keyDown(document, { key: 'Enter' });
     });
-    confirmSpy.mockClear();
-    // Escape on the module (not an input) → discardChanges → window.confirm.
+    h.confirm.mockClear();
+    // Escape on the module (not an input) → discardChanges → useConfirm().
     await act(async () => {
       fireEvent.keyDown(document.querySelector('.review-module'), { key: 'Escape' });
     });
-    expect(confirmSpy).toHaveBeenCalled();
-    confirmSpy.mockRestore();
+    expect(h.confirm).toHaveBeenCalled();
   });
 });
 

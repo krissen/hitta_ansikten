@@ -8,6 +8,22 @@ module.exports = {
   "addManualName": "Lägg till namn manuellt",
   "undoTitle": "Dubbelklicka för att ångra",
 
+  "badges": {
+    "manual": "Manuellt tillagd",
+    "probableIgnore": "Trolig ignorering",
+    "uncertainIgn": "ign ({conf}%) / {name}",
+    "uncertainName": "{name} / ign ({conf}%)"
+  },
+
+  "twinDisambig": {
+    "label": "Tvilling-särskiljning → {chosen}",
+    "title": "Lika ansikten {between} — valt via k-NN-röstning över bekräftade foton"
+  },
+
+  "queueBar": {
+    "title": "{done} granskade · {preprocessed} redo · {remaining} kvar"
+  },
+
   "status": {
     "waitingForImage": "Väntar på bild...",
     "detecting": "Identifierar ansikten...",
