@@ -11,6 +11,7 @@ import { FlexLayoutWorkspace } from './FlexLayoutWorkspace.jsx';
 import { ModuleAPIProvider } from '../../context/ModuleAPIContext.jsx';
 import { BackendProvider } from '../../context/BackendContext.jsx';
 import { ToastProvider } from '../../context/ToastContext.jsx';
+import { ConfirmProvider } from '../../context/ConfirmContext.jsx';
 import { NotificationListener } from '../../components/NotificationListener.jsx';
 import { ConnectionStatus } from '../../components/ConnectionStatus.jsx';
 import { debug, debugError } from '../../shared/debug.js';
@@ -52,9 +53,11 @@ function initFlexLayoutWorkspace() {
       <ModuleAPIProvider>
         <BackendProvider>
           <ToastProvider>
-            <NotificationListener />
-            <ConnectionStatus />
-            <FlexLayoutWorkspace />
+            <ConfirmProvider>
+              <NotificationListener />
+              <ConnectionStatus />
+              <FlexLayoutWorkspace />
+            </ConfirmProvider>
           </ToastProvider>
         </BackendProvider>
       </ModuleAPIProvider>
