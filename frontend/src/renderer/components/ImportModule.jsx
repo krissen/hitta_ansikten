@@ -10,8 +10,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { useToast } from '../context/ToastContext.jsx';
 import { preferences } from '../workspace/preferences.js';
-import { ProgressBar } from './shared/ProgressBar.jsx';
+import { Button, Alert, ProgressBar } from './shared';
+import { t } from '../../i18n/index.js';
 import './ImportModule.css';
 
 const DEFAULT_DEST = '~/Pictures/nerladdat';
@@ -19,6 +21,7 @@ const isMac = navigator.platform.toLowerCase().includes('mac');
 
 export function ImportModule() {
   const { api } = useBackend();
+  const showToast = useToast();
 
   const [volumes, setVolumes] = useState([]);
   const [selectedMount, setSelectedMount] = useState('');
@@ -59,7 +62,11 @@ export function ImportModule() {
   const onProgress = useCallback((data) => {
     if (!data) return;
     setProgress(data.percent ?? null);
-    setProgressLabel(`${data.current}/${data.total} · ${data.file || ''}`);
+    setProgressLabel(t('import.progressLabel', {
+      current: data.current,
+      total: data.total,
+      file: data.file || '',
+    }));
   }, []);
   useWebSocket('import-progress', onProgress);
 
@@ -111,6 +118,12 @@ export function ImportModule() {
         eject,
       });
       setResult(res);
+      // Transient receipt of the completed transfer; the result panel below
+      // keeps the persistent, inspectable breakdown (skipped/errors/eject).
+      const count = res.transferred?.length ?? 0;
+      showToast(t('import.doneToast', { count }), {
+        type: res.errors?.length ? 'warning' : 'success',
+      });
       loadVolumes(); // card is likely gone after eject; refresh the list
     } catch (err) {
       setError(err.message || String(err));
@@ -118,7 +131,7 @@ export function ImportModule() {
       setRunning(false);
       setProgress(null);
     }
-  }, [api, selectedMount, destination, mode, eject, loadVolumes]);
+  }, [api, selectedMount, destination, mode, eject, loadVolumes, showToast]);
 
   const selected = volumes.find((v) => v.mount === selectedMount);
   const canRun = !running && !!selectedMount && destination.trim() !== '';
@@ -126,21 +139,21 @@ export function ImportModule() {
   return (
     <div className="module-container import">
       <div className="module-header">
-        <h3 className="module-title">Importera</h3>
+        <h3 className="module-title">{t('import.title')}</h3>
         <div className="button-group">
-          <button className="btn-secondary" onClick={loadVolumes} disabled={loadingVolumes || running}>
-            {loadingVolumes ? '…' : 'Uppdatera'}
-          </button>
+          <Button variant="secondary" size="sm" onClick={loadVolumes} disabled={loadingVolumes || running}>
+            {loadingVolumes ? '…' : t('import.refresh')}
+          </Button>
         </div>
       </div>
 
       <div className="module-body import-body">
-        {error && <div className="status-message error">Fel: {error}</div>}
+        {error && <Alert variant="error">{t('import.errorPrefix', { message: error })}</Alert>}
 
         <label className="import-field">
-          <span className="import-label">Minneskort</span>
+          <span className="import-label">{t('import.cardLabel')}</span>
           {volumes.length === 0 ? (
-            <span className="import-empty">{loadingVolumes ? 'Söker…' : 'Inget minneskort hittat'}</span>
+            <span className="import-empty">{loadingVolumes ? t('import.searching') : t('import.noCard')}</span>
           ) : (
             <select
               className="form-select"
@@ -150,7 +163,11 @@ export function ImportModule() {
             >
               {volumes.map((v) => (
                 <option key={v.mount} value={v.mount}>
-                  {v.name} — {v.nef_count} NEF ({formatBytes(v.total_bytes)})
+                  {t('import.volumeOption', {
+                    name: v.name,
+                    count: v.nef_count,
+                    size: formatBytes(v.total_bytes),
+                  })}
                 </option>
               ))}
             </select>
@@ -158,7 +175,7 @@ export function ImportModule() {
         </label>
 
         <label className="import-field">
-          <span className="import-label">Målmapp</span>
+          <span className="import-label">{t('import.destLabel')}</span>
           <span className="import-dest-row">
             <input
               className="form-input import-dest"
@@ -167,35 +184,37 @@ export function ImportModule() {
               onChange={onDestinationChange}
               disabled={running}
             />
-            <button className="btn-secondary" onClick={pickDestination} disabled={running}>Välj…</button>
+            <Button variant="secondary" onClick={pickDestination} disabled={running}>{t('import.pick')}</Button>
           </span>
         </label>
 
         <div className="import-field">
-          <span className="import-label">Överföring</span>
+          <span className="import-label">{t('import.transferLabel')}</span>
           <span className="import-radios">
             <label className="form-checkbox">
               <input type="radio" name="mode" checked={mode === 'move'} onChange={() => setMode('move')} disabled={running} />
-              Flytta
+              {t('import.move')}
             </label>
             <label className="form-checkbox">
               <input type="radio" name="mode" checked={mode === 'copy'} onChange={() => setMode('copy')} disabled={running} />
-              Kopiera
+              {t('import.copy')}
             </label>
           </span>
         </div>
 
         <label className="form-checkbox import-eject">
           <input type="checkbox" checked={eject} onChange={(e) => setEject(e.target.checked)} disabled={running || !isMac} />
-          Mata ut efter överföring{!isMac && ' (endast macOS)'}
+          {isMac ? t('import.eject') : t('import.ejectMacOnly')}
         </label>
 
         <div className="import-actions">
-          <button className="btn-primary" onClick={runImport} disabled={!canRun}>
-            {running ? 'Importerar…' : 'Importera'}
-          </button>
+          <Button variant="primary" onClick={runImport} disabled={!canRun}>
+            {running ? t('import.running') : t('import.run')}
+          </Button>
           {selected && !running && (
-            <span className="import-hint">{selected.nef_count} NEF redo att {mode === 'move' ? 'flyttas' : 'kopieras'}</span>
+            <span className="import-hint">
+              {t(mode === 'move' ? 'import.readyToMove' : 'import.readyToCopy', { count: selected.nef_count })}
+            </span>
           )}
         </div>
 
@@ -208,13 +227,16 @@ export function ImportModule() {
 
         {result && !running && (
           <div className="import-result">
-            <div><strong>{result.transferred.length}</strong> överförda{result.skipped.length > 0 && `, ${result.skipped.length} överhoppade`}</div>
+            <div>
+              <strong>{result.transferred.length}</strong> {t('import.transferred')}
+              {result.skipped.length > 0 && t('import.skippedSuffix', { count: result.skipped.length })}
+            </div>
             {result.ejected
-              ? <div className="import-ok">Kortet utmatat ✓</div>
-              : (eject && <div className="import-warn">Kortet ej utmatat</div>)}
+              ? <div className="import-ok">{t('import.ejected')}</div>
+              : (eject && <div className="import-warn">{t('import.notEjected')}</div>)}
             {result.errors.length > 0 && (
               <details className="import-errors">
-                <summary>{result.errors.length} fel</summary>
+                <summary>{t('import.errorsSummary', { count: result.errors.length })}</summary>
                 <ul>{result.errors.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
               </details>
             )}
