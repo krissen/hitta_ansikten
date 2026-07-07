@@ -175,7 +175,7 @@ describe('ReviewModule — smoke', () => {
   it('waits for an image before any faces are shown', async () => {
     const { container } = await mountReview();
     expect(container.querySelector('.review-status').textContent).toBe(
-      'Väntar på bild...',
+      'Väntar på bild…',
     );
     expect(container.querySelectorAll('.face-card')).toHaveLength(0);
   });

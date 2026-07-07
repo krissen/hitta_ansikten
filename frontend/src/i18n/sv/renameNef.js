@@ -9,20 +9,20 @@ module.exports = {
   "emptyPromptPrefix": "Välj en mapp och tryck ",
   "emptyPromptAction": "Förhandsgranska",
   "emptyPromptSuffix": ".",
-  "summaryCount": "att döpa om",
+  "summaryCount": "att byta namn på",
   "alreadyNamedSuffix": " · {count} redan namngivna",
   "noDateSuffix": " · {count} utan CreateDate",
-  "nothingToRename": "Inget att döpa om.",
+  "nothingToRename": "Inget att byta namn på.",
   "tableOriginal": "Original",
   "tableNewName": "Nytt namn",
-  "noDateSummary": "{count} utan CreateDate (döps ej om)",
-  "renamed": "omdöpta",
+  "noDateSummary": "{count} utan CreateDate (hoppas över)",
+  "renamed": "namnbytta",
   "skippedSuffix": ", {count} överhoppade",
   "skippedDetails": "Överhoppade",
   "errorsSummary": "{count} fel",
   "doneToast": {
-    "one": "{count} fil omdöpt",
-    "other": "{count} filer omdöpta"
+    "one": "Bytte namn på {count} fil",
+    "other": "Bytte namn på {count} filer"
   },
   "errorPrefix": "Fel: {message}"
 };

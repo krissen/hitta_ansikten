@@ -1,9 +1,9 @@
 // Swedish catalog namespace: review
 module.exports = {
-  "placeholder": "Personnamn...",
+  "placeholder": "Personnamn…",
   "ignoredBadge": "Ignorerad",
   "unknown": "Okänd",
-  "noFacesDetected": "Inga ansikten identifierade",
+  "noFacesDetected": "Inga ansikten hittades",
   "noFacesHint": "Bilden kan ändå döpas – lägg till ett namn manuellt.",
   "addManualName": "Lägg till namn manuellt",
   "undoTitle": "Dubbelklicka för att ångra",
@@ -17,7 +17,7 @@ module.exports = {
 
   "twinDisambig": {
     "label": "Tvilling-särskiljning → {chosen}",
-    "title": "Lika ansikten {between} — valt via k-NN-röstning över bekräftade foton"
+    "title": "Lika ansikten {between} — valt via k-NN-röstning över bekräftade bilder"
   },
 
   "queueBar": {
@@ -25,10 +25,10 @@ module.exports = {
   },
 
   "status": {
-    "waitingForImage": "Väntar på bild...",
-    "detecting": "Identifierar ansikten...",
-    "detectionFailed": "Identifiering misslyckades",
-    "detectionCancelled": "Identifiering avbruten",
+    "waitingForImage": "Väntar på bild…",
+    "detecting": "Söker ansikten…",
+    "detectionFailed": "Kunde inte söka efter ansikten",
+    "detectionCancelled": "Sökning avbruten",
     "connectionError": "Anslutningsfel",
     "found": {
       "one": "Hittade {count} ansikte ({ms}ms)",
@@ -37,12 +37,12 @@ module.exports = {
     "accepted": "Godkände {accepted}, ignorerade {ignored}",
     "acceptedSkippedSuffix": ", hoppade över {skipped}",
     "saving": {
-      "one": "Sparar {count} ändring...",
-      "other": "Sparar {count} ändringar..."
+      "one": "Sparar {count} ändring…",
+      "other": "Sparar {count} ändringar…"
     },
     "saved": {
-      "one": "Sparade {count} ändring!",
-      "other": "Sparade {count} ändringar!"
+      "one": "Sparade {count} ändring",
+      "other": "Sparade {count} ändringar"
     },
     "saveError": "Fel vid sparande – granskningen markerades INTE som klar",
     "changesDiscarded": "Ändringar kasserade",
@@ -74,7 +74,7 @@ module.exports = {
     "confirmNameChange": "Bekräfta namnändring",
     "confirmIgnore": "Bekräfta ignorering",
     "bestMatch": "Bästa träff:",
-    "nameMismatch": "Du valde \"{name}\" istället. Är du säker?",
+    "nameMismatch": "Du valde ”{name}” istället. Är du säker?",
     "ignoreConfirm": "Du valde att ignorera det här ansiktet. Är du säker?",
     "hintConfirms": "bekräftar",
     "hintCancels": "avbryter",

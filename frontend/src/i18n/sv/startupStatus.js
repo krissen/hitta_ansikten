@@ -8,10 +8,10 @@ module.exports = {
   },
 
   "status": {
-    "connecting": "Ansluter...",
-    "waiting": "Väntar...",
+    "connecting": "Ansluter…",
+    "waiting": "Väntar…",
     "connected": "Ansluten",
-    "starting": "Startar...",
+    "starting": "Startar…",
     "ready": "Klar",
     "error": "Startfel"
   },

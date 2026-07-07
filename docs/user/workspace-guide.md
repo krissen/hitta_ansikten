@@ -19,9 +19,9 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | **Originalvy** | Jämför med originalfil |
 | **Statistik** | Bearbetningsstatistik |
 | **Importera** | Överför NEF från minneskort till målmapp och matar ut kortet |
-| **Byt namn** | Döper om NEF efter EXIF CreateDate (YYMMDD_HHMMSS) med förhandsvisning |
+| **Byt namn** | Byter namn på NEF efter EXIF CreateDate (YYMMDD_HHMMSS) med förhandsgranskning |
 | **Räkna spelare** | Räknar bilder per spelare (från filnamn) med över-/underrepresentation |
-| **Gallra spelare** | Gallra bilder per spelare med förhandsvisning och papperskorg |
+| **Gallra spelare** | Gallra bilder per spelare med förhandsgranskning och papperskorg |
 | **Papperskorg** | Visa/återställ/töm borttagna filer (Visa → Papperskorg) |
 | **Databashantering** | Databashantering |
 | **Inställningar** | Inställningar |
@@ -98,8 +98,8 @@ Gallra spelare har två vyer: **enkelbild** (loupe, standard) och **översikt**
 | `Alt`+pil | Bläddra sidvis (10 bilder, resp. 3 rader i rutnätet) |
 | `x` / `Delete` / `Cmd+⌫` | Flytta bilden till papperskorgen och gå vidare (`Cmd+⌫` följer Finder) |
 | Dubbelklick / `Enter` | **Rutnät:** öppna miniatyren i enkelbild. **Enkelbild:** byt namn manuellt |
-| `Esc` | **Enkelbild:** tillbaka till översikten (om inget redigeras). Annars: kasta förhandsvisningens avbockade namn |
-| `Cmd+Enter` | Tillämpa avbockade namn från förhandsvisningen (döper om filen) |
+| `Esc` | **Enkelbild:** tillbaka till översikten (om inget redigeras). Annars: kasta förhandsgranskningens avbockade namn |
+| `Cmd+Enter` | Tillämpa avbockade namn från förhandsgranskningen (byter namn på filen) |
 | `Cmd+Z` | Ångra (återställ senast gallrade bild) |
 | `L` | Öppna aktuell bilds original-NEF i Lightroom (även högerklick-menyn) |
 
@@ -206,7 +206,7 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 ### 0b. Byt namn på NEF (valfritt)
 
 1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`).
-2. **Förhandsgranska** visar `DSC… → YYMMDD_HHMMSS.NEF` (dubbletter får `-NN`; filer utan CreateDate döps ej om).
+2. **Förhandsgranska** visar `DSC… → YYMMDD_HHMMSS.NEF` (dubbletter får `-NN`; filer utan CreateDate hoppas över).
 3. **Byt namn** utför; befintliga målnamn skrivs aldrig över.
 
 ### 1. Lägg till filer
@@ -240,7 +240,7 @@ antal.
 
 ### 4. Byt namn (valfritt)
 
-1. När filer är granskade, klicka döp-om-knappen i Filkö
+1. När filer är granskade, klicka Byt namn-knappen i Filkö
 2. Bekräfta namnbytet
 3. Filer får nya namn enligt mönstret `YYMMDD_HHMMSS_Namn1,_Namn2.NEF`
 
@@ -296,15 +296,15 @@ antal.
      bekräftar, `Esc` avbryter. Användbart när en utvecklad jpg har beskurits så
      att en namngiven spelare inte längre är med i bild. `.xmp`-sidecars följer
      med, och befintliga filnamn skrivs aldrig över.
-   - **Snabb bortbockning av namn:** överst i förhandsvisningen visas filens
+   - **Snabb bortbockning av namn:** överst i förhandsgranskningen visas filens
      namn som ikryssade chips. Bocka av ett namn så uppdateras filnamnet **live
      i fillistan till vänster** — den aktuella raden blir orange så länge
-     ändringen inte är sparad. `Cmd+Enter` döper om filen på riktigt; `Esc`
+     ändringen inte är sparad. `Cmd+Enter` byter namn på filen på riktigt; `Esc`
      kastar de avbockade namnen för aktuell fil (raden blir vit igen) utan
      dialog. Snabbare än
-     manuell redigering när bara en spelare ska bort ur ett beskuret foto. Om du
+     manuell redigering när bara en spelare ska bort ur en beskuren bild. Om du
      navigerar vidare med en osparad ändring frågar en dialog: `Cmd+Enter`
-     sparar, `Enter` kastar (förval), `Esc` avbryter — så en påbörjad omdöpning
+     sparar, `Enter` kastar (förval), `Esc` avbryter — så ett påbörjat namnbyte
      inte tappas av misstag.
    - **Auto-advance efter namnbyte:** efter ett namnbyte (både `Enter`-redigering
      och `Cmd+Enter`-bortbockning) hoppar markeringen vidare till nästa fil, så

@@ -421,7 +421,7 @@ describe('FileQueueModule — preprocessing orchestration (characterization)', (
     await fireManager('error', { filePath: '/p/fresh.jpg', error: 'boom' });
     expect(container.querySelector('.preprocess-indicator.error')).toBeTruthy();
     expect(h.showToast).toHaveBeenCalledWith(
-      expect.stringContaining('Förbehandling misslyckades'), 'error', 4000,
+      expect.stringContaining('Kunde inte förbehandla'), 'error', 4000,
     );
   });
 

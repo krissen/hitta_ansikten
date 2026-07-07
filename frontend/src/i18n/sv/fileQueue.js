@@ -24,14 +24,14 @@ module.exports = {
     "rename": "Byt namn ({count})",
     "renameSelectedTitle": "Byt namn på valda filer",
     "renameFilteredTitle": "Byt namn på filtrerade filer",
-    "renameTitle": "Byt namn på filer utifrån identifierade ansikten",
-    "renaming": "Byter namn...",
+    "renameTitle": "Byt namn på filer utifrån hittade ansikten",
+    "renaming": "Byter namn…",
     "skip": "Hoppa över",
     "start": "Starta"
   },
 
   "filter": {
-    "placeholder": "Filtrera...  a|b = eller  a&b = och",
+    "placeholder": "Filtrera…  a|b = eller  a&b = och",
     "clearTitle": "Rensa filter (Esc)"
   },
 
@@ -68,13 +68,13 @@ module.exports = {
     "processed": "Behandlad",
     "queued": "I kö",
     "noPersons": "(inga personer)",
-    "alreadyRenamed": "(redan omdöpt)"
+    "alreadyRenamed": "(redan namnbytt)"
   },
 
   "tooltips": {
     "file": "Fil:",
     "folder": "Mapp:",
-    "detected": "Identifierade:",
+    "detected": "Hittade:",
     "faceCount": {
       "one": "{count} ansikte",
       "other": "{count} ansikten"
@@ -85,10 +85,10 @@ module.exports = {
     "rename": "Byt namn:",
     "fileNotFound": "Filen hittades inte",
     "cached": "Cachad",
-    "preprocessingFailed": "Förbehandling misslyckades",
+    "preprocessingFailed": "Kunde inte förbehandla",
     "preprocessing": "Förbehandlar: {status}",
     "confirmedList": "Bekräftade: {names}",
-    "detectedCount": { "one": "{count} ansikte identifierat", "other": "{count} ansikten identifierade" },
+    "detectedCount": { "one": "{count} ansikte hittat", "other": "{count} ansikten hittade" },
     "notLoaded": "Ej inläst",
     "reprocessFile": "Behandla om den här filen",
     "removeFromQueue": "Ta bort från kön"
@@ -96,7 +96,7 @@ module.exports = {
 
   "toasts": {
     "loadProcessedFailed": "⚠️ Kunde inte läsa in status för behandlade filer",
-    "preprocessingFailed": "Förbehandling misslyckades: {fileName}",
+    "preprocessingFailed": "Kunde inte förbehandla {fileName}",
     "removedMissing": {
       "one": "Tog bort {count} saknad fil ur kön",
       "other": "Tog bort {count} saknade filer ur kön"
@@ -105,9 +105,9 @@ module.exports = {
     "preprocessingResumed": "Förbehandling återupptagen",
     "removedDeletedFile": "Tog bort raderad fil: {fileName}",
     "movedToTrash": "🗑️ Flyttade {fileName} till papperskorgen · ⌘⇧⌫ ångrar",
-    "trashFailed": "Kunde inte flytta {fileName} till papperskorgen",
+    "trashFailed": "Kunde inte flytta {fileName} till papperskorgen. Försök igen.",
     "restoredFromTrash": "↩️ Återställde {fileName} från papperskorgen",
-    "nothingToDelete": "Ingen bild vald att radera",
+    "nothingToDelete": "Ingen bild vald att ta bort",
     "nothingToUndo": "Inget att ångra",
     "preprocessingComplete": { "one": "Förbehandling klar ({count} fil cachad)", "other": "Förbehandling klar ({count} filer cachade)" },
     "backendReconnected": "🟢 Servern återansluten",
@@ -124,16 +124,16 @@ module.exports = {
     "fileAlreadyInQueue": "Filen finns redan i kön",
     "allFilesAlreadyInQueue": "Alla {count} filer finns redan i kön",
     "queueSorted": "Kön sorterad i bokstavsordning",
-    "loadingFileList": "Laddar fillista...",
+    "loadingFileList": "Laddar fillista…",
     "fileAlreadyProcessed": "{fileName} är redan behandlad. Aktivera fixläge eller klicka på 🔄 för att behandla om.",
     "undid": "🔄 Ångrade {fileName}",
     "undoFailed": "Kunde inte ångra {fileName}",
     "reprocessing": "🔄 Behandlar om {fileName}",
     "reprocessFailed": "Kunde inte behandla om {fileName}",
-    "generatingNames": "Skapar namnförslag för {count} filer...",
+    "generatingNames": "Skapar namnförslag för {count} filer…",
     "renaming": {
-      "one": "Byter namn på {count} fil...",
-      "other": "Byter namn på {count} filer..."
+      "one": "Byter namn på {count} fil…",
+      "other": "Byter namn på {count} filer…"
     },
     "renamed": {
       "one": "Bytte namn på {count} fil",
@@ -141,20 +141,20 @@ module.exports = {
     },
     "renamedSkippedSuffix": " · {count} hoppades över",
     "renamedErrorSuffix": " · {count} fel",
-    "renameFailed": "Namnbyte misslyckades: {message}",
+    "renameFailed": "Kunde inte byta namn: {message}",
     "savedReview": {
       "one": "Sparade granskning av {fileName} ({count} ansikte)",
       "other": "Sparade granskning av {fileName} ({count} ansikten)"
     },
     "saveReviewFailed": "Kunde inte spara granskning av {fileName}",
-    "queueComplete": "🎉 Kön klar – alla filer granskade!",
+    "queueComplete": "🎉 Kön klar – alla filer granskade",
     "noSupportedFound": "Inga bildfiler som stöds hittades"
   },
 
   "dialogs": {
     "renameConfirm": {
-      "one": "Byt namn på {count} fil{selection}?\n\nDetta byter namn på filer utifrån identifierade ansikten.\nSe Inställningar för namnformat.",
-      "other": "Byt namn på {count} filer{selection}?\n\nDetta byter namn på filer utifrån identifierade ansikten.\nSe Inställningar för namnformat."
+      "one": "Byt namn på {count} fil{selection}?\n\nDetta byter namn på filer utifrån hittade ansikten.\nSe Inställningar för namnformat.",
+      "other": "Byt namn på {count} filer{selection}?\n\nDetta byter namn på filer utifrån hittade ansikten.\nSe Inställningar för namnformat."
     },
     "renameConfirmSelection": " (valda)"
   }
