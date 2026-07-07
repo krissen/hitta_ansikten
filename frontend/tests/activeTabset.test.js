@@ -63,6 +63,20 @@ describe('isTabsetActive — base cases', () => {
     const node = makeNode({ mine: 'TSR', activeId: 'TSC', activeComponent: 'culling' });
     expect(isTabsetActive(node, REVIEW_COMPANIONS)).toBe(false);
   });
+
+  it('fails OPEN when NO tabset is active (fail-open by design)', () => {
+    // FlexLayout's getActiveTabset() returns undefined until something sets it
+    // (a first tab click). The pure predicate deliberately treats "no active
+    // tabset" as active so a never-clicked single panel keeps its shortcuts;
+    // fail-closed would kill keyboard nav in the common case.
+    //
+    // The residual hazard — two visible modules BOTH failing open at once — is
+    // closed one level up: FlexLayoutWorkspace.ensureActiveTabset() elects a
+    // deterministic active tabset immediately after every Model.fromJson, so a
+    // loaded model never actually reaches the module gates with a null active.
+    const node = makeNode({ mine: 'TSR', activeId: null, activeComponent: null });
+    expect(isTabsetActive(node, REVIEW_COMPANIONS)).toBe(true);
+  });
 });
 
 describe('isTabsetActive — companions', () => {
