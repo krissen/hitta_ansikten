@@ -126,6 +126,8 @@ backend/api/
 │   ├── startup.py         # /api/v1/startup/status
 │   └── status.py          # /api/v1/status
 ├── services/
+│   ├── db_store.py             # FaceDBStore: process-wide DB authority (mutate/read/flush)
+│   ├── matching_index.py       # Version-invalidated per-backend candidate matrices
 │   ├── detection_service.py    # Core detection logic, face matching
 │   ├── management_service.py   # Database operations (rename, merge)
 │   ├── refinement_service.py   # Outlier detection, centroid refinement
@@ -136,8 +138,10 @@ backend/api/
     └── progress.py        # ws://localhost:5001/ws/progress
 ```
 
-Core modules (shared with legacy CLI):
-- `faceid_db.py` - Database layer (encodings.pkl, processed_files.jsonl)
+Core package `backend/core/` (shared by the legacy CLI and the API):
+- `core/db.py` - Database layer (encodings.pkl, processed_files.jsonl, db_meta.json). `faceid_db` is a shim aliased to it.
+- `core/config.py`, `core/matching.py`, `core/image.py` - config / matching / image utils (shims: `cli_config`, `cli_matching`, `cli_image`).
+- `core/attempts.py`, `core/naming.py`, `core/playerstats.py`, `core/files.py` - attempt log, naming, player stats, extension sets.
 - `face_backends.py` - InsightFace abstraction
 
 ### Frontend (Electron + React)
@@ -149,15 +153,17 @@ frontend/
 │   ├── index.js                   # Window management, IPC, file watching
 │   └── backend-service.js         # Auto-starts FastAPI server
 ├── src/renderer/
-│   ├── workspace/flexlayout/
-│   │   └── FlexLayoutWorkspace.jsx  # Main workspace component
-│   ├── components/                # React module components
-│   │   ├── ImageViewer.jsx        # Canvas rendering with zoom/pan
+│   ├── workspace/flexlayout/      # FlexLayoutWorkspace + layouts, moduleRegistry, menuCommands, tabsetUtils
+│   ├── components/                # React module components (*.jsx)
 │   │   ├── ReviewModule.jsx       # Face review UI (keyboard nav, autocomplete)
-│   │   ├── FileQueueModule.jsx    # File queue management
-│   │   ├── RefineFacesModule.jsx  # Outlier detection, centroid refinement
-│   │   ├── DatabaseManagement.jsx # Database admin
-│   │   └── ...
+│   │   ├── review/                #   sub-parts: FaceCard, reviewActions, useReviewKeyboard
+│   │   ├── CullingModule.jsx      # Photo culling / trash
+│   │   ├── culling/               #   sub-parts: FilterBar, StatsPanel, useCullingPreview
+│   │   ├── FileQueueModule.jsx    # File queue, preprocessing, rename
+│   │   ├── fileQueue/             #   sub-parts: queueReducer, prefs, useNefRename, usePreprocessing
+│   │   ├── ImageViewer.jsx        # Canvas rendering with zoom/pan
+│   │   └── ...                    # Statistics, Database, RefineFaces, Import, RenameNef, …
+│   ├── hooks/                     # Shared hooks (useActiveTabset, useWebSocket, useAutoRefresh, …)
 │   ├── shared/
 │   │   └── api-client.js          # HTTP + WebSocket client (singleton)
 │   └── context/

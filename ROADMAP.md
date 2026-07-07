@@ -10,7 +10,7 @@ den här filen är den löpande backlogen/known-issues/teknisk skuld över alla
 horisonter; `performance-plan.md` är en smalare, release-scopad plan (sprintar,
 deliverables, DoD) för en prestandarelease.
 
-**Senast uppdaterad:** 2026-07-03
+**Senast uppdaterad:** 2026-07-07
 
 ---
 
@@ -29,10 +29,11 @@ deliverables, DoD) för en prestandarelease.
 - [ ] **Repo-flytt** — be användaren flytta repot och ange den nya adressen; ändra remote i `.git/`: `git remote set-url origin https://github.com/krissen/ansikten.git`. (Docs-referenser är redan uppdaterade.)
 - [ ] **Lokal mapp-flytt** (manuellt: `hitta_ansikten/` → `ansikten/`).
 - [ ] **Backend distance-optimering** — optimera distansberäkningar för bättre prestanda. Del av den bredare prestanda-planen: [docs/dev/performance-plan.md](docs/dev/performance-plan.md).
+- [ ] **Concurrency-limits för dyra endpoints** — ingen per-endpoint-semafor för `detect`/`thumbnail`/`preprocess` ännu. Kvarvarande post från [performance-plan.md](docs/dev/performance-plan.md) (Sprint 1).
+- [ ] **Auto-pausa bakgrundsrefresh för dolda/inaktiva moduler** — refresh är användarstyrd men pausas inte automatiskt när modulen inte ligger i aktiv tabset; minska även onödig global listener-rebinding. Kvarvarande post från [performance-plan.md](docs/dev/performance-plan.md) (Sprint 3).
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend).
 - [ ] **FileQueueModule: `n`/`p`-genvägarna är fortfarande enbart visibility-gate:ade** — efter aktiv-tabset-svepet (I1) gatar Review och Culling på aktiv tabset via `hooks/useActiveTabset.js`, men FileQueues globala `n`/`p` (nästa/föregående fil) körs så länge panelen är synlig. Ingen aktiv konflikt idag (varken Review eller Culling binder `n`/`p`, och FileQueue saknar delete-genväg), men FileQueue är en *companion-drivare*: den ska förbli aktiv medan Review/bildvisaren är aktiv, så en naiv migrering till "egen tabset aktiv" skulle bryta flödet. Kräver companion-modellering (companions = review/image-viewer) — egen PR. `PlayerCountModule` har ingen global tangentlyssnare (inget att migrera).
 - [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
-- [ ] **Docs-uppdatering (dev-docs)** — användardokumenten och ROADMAP är genomgångna (2026-07-02). Kvar: dev-docs (`docs/dev/architecture.md`, `docs/dev/onboarding.md` m.fl.) kan ha kvar engelska modulnamn/inaktuella referenser efter i18n-svepet och rebranden.
 
 ### Lång sikt
 
@@ -47,10 +48,6 @@ deliverables, DoD) för en prestandarelease.
 ### UI/UX
 
 - [ ] **CLI launch: landing döljs vid sökväg som expanderar till tomt** — renderaren härleder landningssidans suppression från råa arg-antalet (`hasFiles`), men huvudprocessen skickar bara handoff efter sökvägsexpansion (`expandFolderPaths`/`expandFilePaths` → `length>0 || clear`). En syntaktiskt giltig men icke-matchande sökväg (t.ex. `ansikten culling /typo` eller en glob utan träffar) döljer landningen utan att öppna något → användaren hamnar i default-layouten istället. Ren fix: låt huvudprocessen beräkna post-expansion-villkoret och exponera den boolean:en som launch intent istället för att renderaren gissar från råa argument (kräver async-hantering för faces). Pre-existerande edge (user-error), icke-blockerande; flaggad i PR #67-granskningen.
-
-### Dokumentation
-
-- [ ] **Odokumenterade endpoints i api-reference.md** — `POST /api/v1/batch-confirm` (detection.py) och `POST /api/v1/statistics/file-stats` (statistics.py) saknas i docs/dev/api-reference.md. Noterat i granskningen av #123; tas i auditens docs-slutsvep.
 
 ---
 

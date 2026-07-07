@@ -25,12 +25,17 @@ frontend/
 │   ├── main/
 │   │   ├── index.js           # Main process
 │   │   ├── menu.js            # App menu + shortcuts
+│   │   ├── cli-args.js        # CLI arg parsing/routing
 │   │   └── backend-service.js # FastAPI auto-start
 │   └── renderer/
 │       ├── workspace-flex.html
 │       ├── workspace/
-│       │   └── flexlayout/    # FlexLayout workspace
-│       ├── components/        # React module components
+│       │   └── flexlayout/    # Workspace: layouts, moduleRegistry, menuCommands, tabsetUtils
+│       ├── components/        # React module components (*.jsx)
+│       │   ├── review/        #   ReviewModule sub-parts (FaceCard, reviewActions, keyboard)
+│       │   ├── culling/       #   CullingModule sub-parts (FilterBar, StatsPanel, preview hook)
+│       │   └── fileQueue/     #   FileQueueModule sub-parts (reducer, prefs, rename/preprocess hooks)
+│       ├── hooks/             # Shared hooks (useActiveTabset, useWebSocket, …)
 │       ├── context/           # React context providers
 │       └── shared/            # Shared utilities (api-client, etc.)
 └── scripts/

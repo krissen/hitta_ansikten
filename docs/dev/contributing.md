@@ -52,8 +52,8 @@ git push origin feature/my-feature
 
 **Examples:**
 ```
-(faceid_db.py) Add retry logic for database writes
-(auth) Implement OAuth2 flow
+(db) Add retry logic for database writes
+(review) Batch confirm + ignore in one request
 (refactor) Replace print with logging
 (docs) Update installation guide
 ```
@@ -233,10 +233,11 @@ pytest tests/test_api_health.py
 **Test structure:**
 ```
 backend/
-├── pytest.ini          # pytest configuration
+├── pyproject.toml      # pytest config ([tool.pytest.ini_options], testpaths=["tests"])
 └── tests/
     ├── __init__.py
-    └── test_api_health.py  # API endpoint tests
+    ├── conftest.py
+    └── test_*.py       # API, services, db-store, culling, matching-index, …
 ```
 
 ### Frontend (Vitest)
@@ -259,7 +260,7 @@ npm run test:watch
 frontend/
 ├── vitest.config.js    # Vitest configuration
 └── tests/
-    └── nameFormatter.test.js  # Unit tests
+    └── *.test.js(x)    # Unit + component tests (api-client, culling, active-tabset, …)
 ```
 
 ### Manual Testing
@@ -277,7 +278,7 @@ In addition to automated tests:
 **Backend tests** use FastAPI's TestClient:
 ```python
 from fastapi.testclient import TestClient
-from api.main import app
+from api.server import app
 
 def test_health_endpoint():
     client = TestClient(app)
