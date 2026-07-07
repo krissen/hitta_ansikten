@@ -113,12 +113,10 @@
   --shadow-lg: var(--shadow-lg);
 }
 
-/* Minimal base reset replacing preflight's border default so `border` utilities
-   behave (width-only, solid, currentColor) without pulling in full preflight. */
-@layer base {
-  *,
-  ::before,
-  ::after {
-    border: 0 solid;
-  }
-}
+/* No base border reset. Preflight's `border: 0 solid` default would zero the
+   UA-default borders that unmigrated form controls (<select>/<input> in e.g.
+   TrashPanel, LogViewer, StatisticsDashboard, RenameNefModule) still rely on —
+   author CSS beats UA styles even from inside a layer. Until those controls
+   are migrated to shared primitives (phase A/B), border utilities must set an
+   explicit style: `border border-solid border-border-medium`. Revisit a base
+   reset once nothing depends on UA-default borders. */

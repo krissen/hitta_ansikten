@@ -649,15 +649,18 @@ from fighting:
 Tailwind's Preflight (its opinionated reset) is **not** imported. The project
 owns its resets — `theme.css` sets `box-sizing` globally, and component CSS
 assumes browser defaults for margins/typography. Pulling in Preflight would
-silently restyle every existing element (headings, lists, form controls). The
-one thing Preflight provides that the border utilities need — a default
-`border-style` — is replaced by a minimal base rule in `tailwind.css`:
+silently restyle every existing element (headings, lists, form controls).
 
-```css
-@layer base {
-  *, ::before, ::after { border: 0 solid; }
-}
-```
+There is **no base border reset either** (not even Preflight's minimal
+`border: 0 solid`): several unmigrated form controls (`<select>`/`<input>` in
+TrashPanel, LogViewer, StatisticsDashboard, RenameNefModule) have no border
+styling of their own and rely on UA defaults, which any author-level reset —
+layered or not — would zero out. Consequence for utility authors: **border
+utilities must set an explicit border style**, e.g.
+`border border-solid border-border-medium` (a bare `border` only sets the
+width). A base border reset can be reconsidered once the form controls are
+migrated to shared primitives (phase A/B) and nothing depends on UA-default
+borders.
 
 Re-enabling Preflight, if ever, is a deliberate final cleanup PR, not a
 foundation concern.
