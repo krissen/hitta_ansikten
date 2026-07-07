@@ -30,7 +30,7 @@ import {
   moveToNewTabset as geomMoveToNewTabset,
   groupAsTab as geomGroupAsTab,
 } from './layoutGeometry.js';
-import { themeManager } from '../../theme-manager.js';
+import { createMenuCommandHandler } from './menuCommands.js';
 import { StartupLanding } from '../../components/StartupLanding.jsx';
 
 // Re-exported for the characterization tests (tests/flexLayoutWorkspace.test.jsx),
@@ -548,147 +548,16 @@ export function FlexLayoutWorkspace() {
     };
     loadInitialFile();
 
-    // Listen for menu commands
-    const handleMenuCommand = async (command) => {
-      debug('FlexLayout', 'Menu command:', command);
-
-      switch (command) {
-        // File commands
-        case 'open-file': {
-          // Use multi-file dialog (same as Cmd+O and + button)
-          const filePaths = await window.ansiktenAPI?.invoke('open-multi-file-dialog');
-          if (filePaths && filePaths.length > 0) {
-            if (window.fileQueue?.add) {
-              window.fileQueue.add(filePaths);
-              setTimeout(() => window.fileQueue.start?.(), 100);
-            } else {
-              moduleAPI.emit('load-image', { imagePath: filePaths[0] });
-            }
-          }
-          break;
-        }
-
-        // Layout template commands
-        case 'layout-template-review':
-        case 'layout-review':
-          loadLayout('review');
-          break;
-        case 'layout-template-comparison':
-        case 'layout-comparison':
-          loadLayout('comparison');
-          break;
-        case 'layout-template-full-image':
-          loadLayout('review');
-          break;
-        case 'layout-template-stats':
-        case 'layout-database':
-          loadLayout('database');
-          break;
-        case 'layout-review-with-logs':
-          loadLayout('review-with-logs');
-          break;
-        case 'layout-full-review':
-          loadLayout('full-review');
-          break;
-        case 'reset-layout':
-          loadLayout('review');
-          break;
-
-        // Layout manipulation commands
-        case 'layout-add-column':
-          addTabset('column');
-          break;
-        case 'layout-remove-column':
-          removeEmptyTabset();
-          break;
-        case 'layout-add-row':
-          addTabset('row');
-          break;
-        case 'layout-remove-row':
-          removeEmptyTabset();
-          break;
-
-        // Move to new column/row commands (Cmd+Alt+Arrow via menu)
-        case 'layout-move-new-left':
-          moveToNewTabset('left');
-          break;
-        case 'layout-move-new-right':
-          moveToNewTabset('right');
-          break;
-        case 'layout-move-new-above':
-          moveToNewTabset('above');
-          break;
-        case 'layout-move-new-below':
-          moveToNewTabset('below');
-          break;
-
-        // Open module commands
-        case 'open-image-viewer':
-          openModule('image-viewer');
-          break;
-        case 'open-original-view':
-          openModule('original-view');
-          break;
-        case 'open-log-viewer':
-          openModule('log-viewer');
-          break;
-        case 'open-review-module':
-          openModule('review-module');
-          break;
-        case 'open-statistics-dashboard':
-          openModule('statistics-dashboard');
-          break;
-        case 'open-player-count':
-          openModule('player-count');
-          break;
-        case 'open-culling':
-          openModule('culling');
-          break;
-        case 'open-trash':
-          openModule('trash');
-          break;
-        case 'open-import':
-          openModule('import');
-          break;
-        case 'open-rename-nef':
-          openModule('rename-nef');
-          break;
-        case 'open-database-management':
-          openModule('database-management');
-          break;
-        case 'open-refine-faces':
-          openModule('refine-faces');
-          break;
-        case 'open-file-queue':
-          openModule('file-queue');
-          break;
-        case 'open-theme-editor':
-          openModule('theme-editor');
-          break;
-        case 'layout-queue-review':
-          loadLayout('queue-review');
-          break;
-
-        case 'open-preferences':
-          openModule('preferences');
-          break;
-
-        // Theme commands
-        case 'theme-light':
-          themeManager.setPreference('light');
-          break;
-        case 'theme-dark':
-          themeManager.setPreference('dark');
-          break;
-        case 'theme-system':
-          themeManager.setPreference('system');
-          break;
-
-        // View commands - broadcast to modules
-        default:
-          moduleAPI.emit(command, {});
-      }
-    };
+    // Listen for menu commands — the dispatch table and unknown-command
+    // fallback (broadcast to modules via moduleAPI.emit) live in menuCommands.js.
+    const handleMenuCommand = createMenuCommandHandler({
+      loadLayout,
+      addTabset,
+      removeEmptyTabset,
+      moveToNewTabset,
+      openModule,
+      moduleAPI,
+    });
 
     const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
