@@ -79,6 +79,22 @@ import { ReviewModule } from '../src/renderer/components/ReviewModule.jsx';
 const visibleNode = { isVisible: () => true };
 const hiddenNode = { isVisible: () => false };
 
+// A node modelling the FlexLayout tabset Review lives in, plus the model-wide
+// active tabset. Review's keyboard is gated on the active tabset (I1): live when
+// its own tabset is active OR a companion image surface (image-viewer /
+// original-view) is. `activeComponent` sets what the active tabset hosts.
+function tabNode({ mine = 'TSR', activeId = 'TSR', activeComponent = 'review-module', visible = true } = {}) {
+  const activeTabset = {
+    getId: () => activeId,
+    getSelectedNode: () => ({ getComponent: () => activeComponent }),
+  };
+  return {
+    isVisible: () => visible,
+    getModel: () => ({ getActiveTabset: () => activeTabset }),
+    getParent: () => ({ getId: () => mine }),
+  };
+}
+
 // Build a detected face with sensible defaults; override per test.
 function face(overrides = {}) {
   return {
@@ -236,7 +252,9 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
     expect(badge.textContent).toContain('Ignorerad');
   });
 
-  it('shortcuts are gated on node.isVisible() — hidden tab ignores keys', async () => {
+  // Visibility is now a NECESSARY-but-not-sufficient condition: the gate also
+  // checks the active tabset (I1). A hidden tab is still ignored (unchanged).
+  it('shortcuts require visibility — hidden tab ignores keys', async () => {
     await mountReview(hiddenNode);
     await loadImage([face(), face()]);
     h.emit.mockClear();
@@ -244,6 +262,34 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
       fireEvent.keyDown(document, { key: 'ArrowDown' });
     });
     expect(h.emit).not.toHaveBeenCalledWith('active-face-changed', expect.anything());
+  });
+
+  // I1: a visible-but-inactive Review (a foreign, non-companion tabset is
+  // active — e.g. Culling in a split) must NOT handle keys. This is the guard
+  // that stops the double-trash: Cmd+Backspace pressed while Culling is active
+  // no longer also reaches a merely-visible Review.
+  it('is silent when a foreign, non-companion tabset is active (visible but inactive)', async () => {
+    await mountReview(tabNode({ mine: 'TSR', activeId: 'TSC', activeComponent: 'culling' }));
+    await loadImage([face(), face()]);
+    h.emit.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'ArrowDown' });
+    });
+    expect(h.emit).not.toHaveBeenCalledWith('active-face-changed', expect.anything());
+  });
+
+  // I1: the normal flow — the user clicks the image (activating ImageViewer's
+  // tabset) and then presses a key — must keep working. image-viewer is a
+  // declared companion, so Review stays live even though its own tab is only
+  // visible, not active.
+  it('stays live when a companion image surface hosts the active tabset', async () => {
+    await mountReview(tabNode({ mine: 'TSR', activeId: 'TSI', activeComponent: 'image-viewer' }));
+    await loadImage([face(), face()]);
+    h.emit.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'ArrowDown' });
+    });
+    expect(lastEmit('active-face-changed')).toEqual({ index: 1 });
   });
 
   it('typing in a name input does NOT trigger single-key shortcuts (guard)', async () => {
