@@ -7,6 +7,9 @@
  * (there is no prop-types dependency in this project).
  *
  * Replaces the legacy `.btn-icon` toolbar class (kept as an alias until B7).
+ * The default `elevated` variant mirrors `.btn-icon` exactly (raised chip,
+ * hover shadow) so migrations are visually lossless; `ghost` is the opt-in
+ * flat/low-profile variant.
  */
 
 import React from 'react';
@@ -18,7 +21,7 @@ import './shared.css';
  * @param {object} props
  * @param {string} props.icon - Icon name (see Icon.jsx ICON_NAMES).
  * @param {string} props.label - Accessible label; required, becomes aria-label + title.
- * @param {'ghost'|'danger'} [props.variant='ghost'] - Visual/semantic variant.
+ * @param {'elevated'|'ghost'|'danger'} [props.variant='elevated'] - Visual/semantic variant.
  * @param {'sm'|'md'} [props.size='md'] - Control size.
  * @param {boolean} [props.disabled=false] - Disable interaction.
  * @param {string} [props.className] - Extra classes appended to the contract classes.
@@ -28,7 +31,7 @@ import './shared.css';
 export function IconButton({
   icon,
   label,
-  variant = 'ghost',
+  variant = 'elevated',
   size = 'md',
   disabled = false,
   className = '',

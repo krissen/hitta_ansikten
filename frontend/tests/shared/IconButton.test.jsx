@@ -19,15 +19,24 @@ describe('IconButton', () => {
     expect(svg.classList.contains('icon-trash')).toBe(true);
   });
 
-  it('applies the base + default variant/size classes', () => {
+  it('defaults to the elevated variant (legacy .btn-icon parity) and md size', () => {
     const { getByRole } = render(<IconButton icon="close" label="Stäng" />);
     const btn = getByRole('button');
     expect(btn.classList.contains('icon-btn')).toBe(true);
-    expect(btn.classList.contains('icon-btn--ghost')).toBe(true);
+    expect(btn.classList.contains('icon-btn--elevated')).toBe(true);
     expect(btn.classList.contains('icon-btn--md')).toBe(true);
   });
 
-  it('applies the requested variant and size classes', () => {
+  it('applies the explicit ghost variant', () => {
+    const { getByRole } = render(
+      <IconButton icon="close" label="Stäng" variant="ghost" />,
+    );
+    const btn = getByRole('button');
+    expect(btn.classList.contains('icon-btn--ghost')).toBe(true);
+    expect(btn.classList.contains('icon-btn--elevated')).toBe(false);
+  });
+
+  it('applies the explicit danger variant and sm size', () => {
     const { getByRole } = render(
       <IconButton icon="trash" label="Ta bort" variant="danger" size="sm" />,
     );

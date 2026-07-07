@@ -144,6 +144,16 @@
 }
 
 /* IconButton variants */
+/* Elevated (default) — raised chip, mirrors legacy .btn-icon exactly
+   (resting bg-elevated; hover btn-icon-hover-bg + shadow-sm). */
+.icon-btn--elevated {
+  background: var(--bg-elevated);
+}
+.icon-btn--elevated:hover:not(:disabled) {
+  background: var(--btn-icon-hover-bg);
+  box-shadow: var(--shadow-sm);
+}
+
 .icon-btn--ghost:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--text-primary);
