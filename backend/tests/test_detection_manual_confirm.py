@@ -9,15 +9,22 @@ from unittest.mock import MagicMock
 
 from api.services.detection_service import DetectionService
 from faceid_db import get_file_hash
+from tests.conftest import InMemoryDBStore
 
 
 def _service():
     """A DetectionService with the backend mocked, bypassing model loading."""
     svc = DetectionService.__new__(DetectionService)
     svc.known_faces = {}
+    svc.ignored_faces = []
+    svc.hard_negatives = {}
+    svc.processed_files = []
     svc.backend = MagicMock()
     svc.backend.backend_name = "insightface"
     svc.backend.get_model_info.return_value = {"version": "test"}
+    # Confirm/ignore now route through the FaceDBStore; back it with the
+    # service's own live collections so nothing touches disk.
+    svc.store = InMemoryDBStore(svc)
     return svc
 
 

@@ -15,7 +15,6 @@ The InsightFace model is never loaded: the service is built with
 Some assertions document behavior as-is; latent quirks are flagged NOTE.
 """
 
-import asyncio
 import hashlib
 from collections import OrderedDict
 
@@ -24,6 +23,7 @@ import pytest
 
 import api.services.detection_service as det_mod
 from api.services.detection_service import DetectionService
+from tests.conftest import InMemoryDBStore
 
 
 class FakeBackend:
@@ -45,7 +45,11 @@ class FakeBackend:
 
 
 def _service(config=None):
-    """A DetectionService with the backend faked and all caches empty."""
+    """A DetectionService with the backend faked and all caches empty.
+
+    Reads/mutations route through an InMemoryDBStore backed by the service's own
+    live collections (the D3 FaceDBStore migration), so nothing touches disk.
+    """
     svc = DetectionService.__new__(DetectionService)
     svc.config = config or {}
     svc.backend = FakeBackend()
@@ -57,9 +61,8 @@ def _service(config=None):
     svc.encoding_cache = OrderedDict()
     svc.image_cache = OrderedDict()
     svc.image_cache_ttl = 1800
-    svc._save_pending = False
-    svc._save_lock = asyncio.Lock()
-    svc._save_task = None
+    svc.store = InMemoryDBStore(svc)
+    svc._cache_db_version = svc.store.version
     return svc
 
 
@@ -212,29 +215,30 @@ def test_cached_detection_meta_missing_returns_empty(tmp_path, monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# 4. reload_database clears caches
+# 4. reload_database clears caches (RETARGETED to the FaceDBStore)
 # --------------------------------------------------------------------------
+# Previously reload_database called load_database() itself. It now clears the
+# local caches and reads fresh counts through the store (which reloads from disk
+# on external change). The DB reload is the store's job; here we simulate it
+# having reloaded fresh data and assert the endpoint clears caches + reports the
+# store's live counts, re-pinning the match-result cache to the store version.
 
-def test_reload_database_clears_all_caches(monkeypatch):
+def test_reload_database_clears_caches_and_reports_store_counts():
     svc = _service()
     svc.cache["k"] = {"faces": []}
     svc.encoding_cache["face_0"] = (np.array([1.0]), {}, "h")
     svc.image_cache["/img"] = (np.zeros((1, 1, 3)), 0.0)
 
-    monkeypatch.setattr(
-        det_mod, "load_database",
-        lambda: ({"Alice": [_known_entry([1.0, 2.0])]}, [_known_entry([3.0, 4.0])], {}, []),
-    )
+    # Simulate the store having reloaded fresh data from disk.
+    svc.known_faces = {"Alice": [_known_entry([1.0, 2.0])]}
+    svc.ignored_faces = [_known_entry([3.0, 4.0])]
 
     result = svc.reload_database()
 
     assert svc.cache == OrderedDict()
     assert svc.encoding_cache == OrderedDict()
     assert svc.image_cache == OrderedDict()
-    assert list(svc.known_faces) == ["Alice"]
-    np.testing.assert_array_equal(
-        svc.known_faces["Alice"][0]["encoding"], np.array([1.0, 2.0])
-    )
+    assert svc._cache_db_version == svc.store.version
     assert result == {
         "status": "success",
         "people_count": 1,
@@ -298,37 +302,134 @@ def test_confirm_unknown_face_id_raises():
 
 
 # --------------------------------------------------------------------------
-# 6. Debounced save coalescing
+# 6. Debounced save routing (RETARGETED to the FaceDBStore)
 # --------------------------------------------------------------------------
+# DetectionService no longer owns _schedule_save/_flush_save — the debounce and
+# its leading-coalesce live in FaceDBStore (exhaustively tested in
+# test_db_store.py). These tests pin the SERVICE's contract onto the store:
+#  * per-face confirm/ignore mutate the store (scheduling a debounced save) and
+#    must NOT flush (preserving the old debounced write cadence);
+#  * batch_confirm flushes exactly once for the whole batch.
+
+
+class RecordingStore(InMemoryDBStore):
+    """InMemoryDBStore that counts mutate() and flush() calls."""
+
+    def __init__(self, svc):
+        super().__init__(svc)
+        self.mutations = 0
+        self.flushes = 0
+
+    def mutate(self, fn):
+        self.mutations += 1
+        return super().mutate(fn)
+
+    def flush(self):
+        self.flushes += 1
+
 
 @pytest.mark.asyncio
-async def test_schedule_save_coalesces_rapid_calls(monkeypatch):
+async def test_batch_confirm_mutates_per_face_and_flushes_once():
     svc = _service()
-    calls = []
-    monkeypatch.setattr(det_mod, "save_database", lambda *a, **k: calls.append(1))
+    store = RecordingStore(svc)
+    svc.store = store
+    enc = np.array([1.0, 2.0])
+    svc.encoding_cache["face_0"] = (enc, {}, "h0")
+    svc.encoding_cache["face_1"] = (enc, {}, "h1")
 
-    # Two rapid schedules within the 500 ms debounce window -> one save.
-    await svc._schedule_save()
-    await svc._schedule_save()
-    # The second call coalesced into the first task; awaiting it is
-    # deterministic (no wall-clock race with the debounce + executor hop).
-    await svc._save_task
+    result = await svc.batch_confirm(
+        confirmations=[
+            {"face_id": "face_0", "person_name": "Alice", "image_path": "/a.NEF"},
+            {"face_id": "face_1", "person_name": "Bob", "image_path": "/b.NEF"},
+        ],
+        ignores=[],
+    )
 
-    assert len(calls) == 1
-    assert svc._save_pending is False
+    assert result["confirmed_count"] == 2
+    # One mutate per confirmed face; a single durable flush for the batch.
+    assert store.mutations == 2
+    assert store.flushes == 1
 
 
 @pytest.mark.asyncio
-async def test_flush_save_cancels_pending_and_saves_now(monkeypatch):
+async def test_single_confirm_schedules_save_without_flush():
     svc = _service()
-    calls = []
-    monkeypatch.setattr(det_mod, "save_database", lambda *a, **k: calls.append(1))
+    store = RecordingStore(svc)
+    svc.store = store
+    enc = np.array([3.0, 4.0])
+    svc.encoding_cache["face_0"] = (enc, {"x": 0, "y": 0, "width": 1, "height": 1}, "h")
 
-    await svc._schedule_save()   # schedule a debounced save
-    await svc._flush_save()      # force immediate save, cancel the debounce
+    out = await svc.confirm_identity("face_0", "Alice", "/a.NEF")
 
-    # _flush_save awaits the cancelled debounce task before saving, so by now
-    # the task is settled: exactly one save happened (the flush).
-    assert svc._save_task.done()
-    assert len(calls) == 1
-    assert svc._save_pending is False
+    assert out["encodings_count"] == 1
+    # A per-face confirm mutates (scheduling the store's debounced save) but
+    # never flushes — the old debounced cadence is preserved.
+    assert store.mutations == 1
+    assert store.flushes == 0
+
+
+# --------------------------------------------------------------------------
+# 7. Version gate on the detection-cache write
+# --------------------------------------------------------------------------
+# The entry-time version check/clear/repin and the exit-time cache write in
+# detect_faces straddle awaits, and _cache_db_version is process-wide: without
+# a per-call gate, a detect whose compute overlaps a confirm could write its
+# pre-mutation (stale) result under the NEW pin and serve it until the next
+# version move. detect_faces therefore captures store.version right before the
+# matching compute and skips the cache write if the version advanced.
+
+
+def _write_probe_jpg(tmp_path):
+    from PIL import Image
+    img_path = tmp_path / "probe.jpg"
+    Image.new("RGB", (32, 32), color=(128, 128, 128)).save(img_path, "JPEG")
+    return img_path
+
+
+def _detect_backend(svc, mutate_during_compute):
+    """A backend whose detect_faces optionally mutates the store mid-compute.
+
+    The mutation fires inside the detection executor call — after detect_faces
+    captured version_at_compute, before the cache write — reproducing a confirm
+    landing while another detect is computing.
+    """
+    class Backend(FakeBackend):
+        def detect_faces(self, rgb, model=None, upsample=0):
+            if mutate_during_compute:
+                svc.store.mutate(lambda known, ignored, hardneg, processed: None)
+            return [], []
+
+    return Backend()
+
+
+@pytest.mark.asyncio
+async def test_detect_skips_cache_write_when_version_advances_mid_compute(tmp_path, monkeypatch):
+    monkeypatch.setattr(det_mod, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
+    svc = _service()
+    svc.backend = _detect_backend(svc, mutate_during_compute=True)
+    img = _write_probe_jpg(tmp_path)
+
+    result = await svc.detect_faces(str(img))
+
+    # The result is still returned to the caller...
+    assert result["cached"] is False
+    # ...but never cached: the store version advanced during compute, so the
+    # (possibly stale) suggestions must not outlive the mutation.
+    assert svc.cache == OrderedDict()
+
+
+@pytest.mark.asyncio
+async def test_detect_caches_result_when_version_stable(tmp_path, monkeypatch):
+    monkeypatch.setattr(det_mod, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
+    svc = _service()
+    svc.backend = _detect_backend(svc, mutate_during_compute=False)
+    img = _write_probe_jpg(tmp_path)
+
+    result = await svc.detect_faces(str(img))
+
+    # Control: with no mid-compute mutation the result IS cached under the
+    # composite key, and a second call serves it from the cache.
+    assert result["cached"] is False
+    assert len(svc.cache) == 1
+    again = await svc.detect_faces(str(img))
+    assert again["cached"] is True
