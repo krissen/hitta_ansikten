@@ -433,3 +433,106 @@ async def test_detect_caches_result_when_version_stable(tmp_path, monkeypatch):
     assert len(svc.cache) == 1
     again = await svc.detect_faces(str(img))
     assert again["cached"] is True
+
+
+# --------------------------------------------------------------------------
+# 8. Half-size RAW decode: coordinate scaling back to full resolution
+# --------------------------------------------------------------------------
+# On a preprocessing-cache miss, RAW files are decoded with half_size=True for
+# detection (~2.7x faster demosaic). Bounding boxes must nevertheless stay in
+# the FULL-resolution space the frontend displays: _detect_and_match_faces
+# folds the decode's coord_scale into its bounding-box scale factor.
+
+
+class _LocatingBackend(FakeBackend):
+    """Backend reporting one fixed face location in the supplied image."""
+
+    def detect_faces(self, rgb, model=None, upsample=0):
+        # (top, right, bottom, left) in the supplied rgb's pixel space.
+        return [(10, 40, 30, 20)], [np.array([1.0, 2.0])]
+
+
+def test_coord_scale_folds_into_bounding_box():
+    svc = _service()
+    svc.backend = _LocatingBackend()
+    rgb = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    faces_full, meta_full = svc._detect_and_match_faces(rgb, 4500, None, coord_scale=1.0)
+    faces_half, meta_half = svc._detect_and_match_faces(rgb, 4500, None, coord_scale=2.0)
+
+    bb_full = faces_full[0]["bounding_box"]
+    bb_half = faces_half[0]["bounding_box"]
+    # Same detected location, but the half-decode result is mapped back to
+    # full-resolution space: every coordinate doubles.
+    assert bb_full == {"x": 20, "y": 10, "width": 20, "height": 20}
+    assert bb_half == {"x": 40, "y": 20, "width": 40, "height": 40}
+    # Metadata reports the full-resolution original size and the half label.
+    assert meta_full["original_size"] == (100, 100)
+    assert meta_half["original_size"] == (200, 200)
+    assert meta_half["scale_label"] == "half"
+
+
+def test_load_image_for_detection_standard_format_scale_one(tmp_path):
+    from PIL import Image
+    p = tmp_path / "img.jpg"
+    Image.new("RGB", (32, 24), color=(10, 20, 30)).save(p, "JPEG")
+
+    svc = _service()
+    rgb, coord_scale = svc._load_image_for_detection(p)
+
+    assert coord_scale == 1.0
+    assert rgb.shape == (24, 32, 3)
+
+
+def test_load_image_for_detection_portrait_raw_orientation_invariant(tmp_path, monkeypatch):
+    """coord_scale must be orientation-invariant for rotated (portrait) RAWs.
+
+    raw.sizes reports PRE-flip sensor dimensions while postprocess() output is
+    POST-flip: for a 90°-rotated NEF, sizes.height (short sensor side, e.g.
+    5520) pairs with a TALL output (4140 high), so height/height would give
+    ~1.33 instead of the true 2.0. The long-side ratio is flip-proof.
+    """
+    import api.services.detection_service as det_mod
+
+    class FakeSizes:
+        # Landscape sensor 8280x5520, camera held in portrait (flip=6).
+        height = 5520
+        width = 8280
+
+    class FakeRaw:
+        sizes = FakeSizes()
+
+        def postprocess(self, half_size=False):
+            assert half_size is True
+            # Post-flip half-size output: portrait 4140 high x 2760 wide.
+            return np.zeros((4140, 2760, 3), dtype=np.uint8)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    class FakeRawpy:
+        @staticmethod
+        def imread(path):
+            return FakeRaw()
+
+    class FailingCache:
+        # Force the cache-miss branch.
+        def compute_file_hash(self, p):
+            raise RuntimeError("no cache")
+
+    monkeypatch.setattr(det_mod, "rawpy", FakeRawpy)
+    monkeypatch.setattr(det_mod, "get_preprocessing_cache", lambda: FailingCache())
+
+    svc = _service()
+    p = tmp_path / "portrait.nef"
+    p.write_bytes(b"fake")
+
+    rgb, coord_scale = svc._load_image_for_detection(p)
+
+    assert rgb.shape == (4140, 2760, 3)
+    # Long-side ratio: 8280 / 4140 == 2.0 exactly (height/height would be
+    # 5520/4140 ≈ 1.33 — the portrait bug this pins).
+    assert coord_scale == 2.0
