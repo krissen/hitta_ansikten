@@ -569,3 +569,95 @@ Users can customize themes via the ThemeEditor module:
 4. Bind presets to light/dark system modes
 
 Custom presets stored in localStorage.
+
+---
+
+## Tailwind Utility Layer
+
+Tailwind v4 is available as a **utility layer on top of the token system** — it
+does not replace it. `theme.css` remains the single source of truth for every
+design value; Tailwind only exposes utilities that reference those same
+`var(--…)` tokens. Because the utilities point straight at the live variables,
+both themes, the tri-state switch, and the ThemeEditor's runtime overrides
+(`setProperty` on `<html>`) keep working through the utilities with no extra
+wiring.
+
+### Build
+
+- Source: [`src/renderer/tailwind.css`](../../frontend/src/renderer/tailwind.css).
+- Compiled by the Tailwind CLI (spawned from
+  [`scripts/build-workspace.js`](../../frontend/scripts/build-workspace.js),
+  alongside esbuild) to `workspace/dist/tailwind-bundle.css`.
+- Linked in `workspace-flex.html` **after** `workspace-bundle.css`.
+- No npm-script or CSP changes; watch mode runs `--watch=always` in parallel
+  with the esbuild watcher.
+
+### Naming scheme (1:1, grep-able)
+
+Utilities map 1:1 onto the token names via `@theme inline`, so the class name
+tells you the token:
+
+| Utility | Token | Note |
+|---------|-------|------|
+| `bg-bg-primary` | `--bg-primary` | background |
+| `text-text-primary` | `--text-primary` | **color** |
+| `border-border-medium` | `--border-medium` | border color |
+| `text-success` / `bg-success-bg` | `--color-success` / `--color-success-bg` | semantic |
+| `p-md`, `gap-lg`, `m-xs` | `--space-*` | spacing scale |
+| `text-base`, `text-2xl` | `--font-*` | **font size** |
+| `font-sans`, `font-mono` | `--font-sans/-mono` | font family |
+| `rounded-lg`, `shadow-md` | `--radius-*`, `--shadow-*` | |
+
+Two things to keep straight:
+
+- **`text-base` is a font *size*; `text-text-primary` is a *color*.** The
+  `text-` prefix is overloaded by Tailwind — size utilities read a `--text-*`
+  key, color utilities read a `--color-text-*` key.
+- **Accent uses a short-form.** The only naming deviation: `accent`,
+  `accent-hover`, `accent-secondary` map to `--accent-primary`,
+  `--accent-primary-hover`, `--accent-secondary` (so `bg-accent`,
+  `text-accent`, `border-accent`).
+
+Not mapped: `--z-*` (use arbitrary values, e.g. `z-(--z-modal)`) and
+`--transition-*` (keep using the legacy vars directly).
+
+### Coexistence rules
+
+The token layer and the utility layer live side by side. Rules that keep them
+from fighting:
+
+1. **Legacy (unlayered) CSS always wins over Tailwind.** Component CSS and
+   `theme.css` are unlayered; Tailwind's output lives in `@layer theme/base/…/utilities`.
+   Unlayered declarations beat *any* layered declaration regardless of
+   specificity — which is also *why* the token definitions in `theme.css`
+   override Tailwind's self-referential `:root` theme emissions. So dropping a
+   utility onto an element that a legacy rule already styles is inert until the
+   legacy rule is removed.
+2. **No `!` utilities.** `!`-important utilities would break rule 1 and let a
+   utility silently override component CSS. Forbidden.
+3. **Migrate, don't layer.** When a component is migrated to utilities, remove
+   its now-dead legacy CSS rules **in the same PR**. Don't leave both.
+4. **Known name collisions:** `text-success` / `text-warning` / `text-error` /
+   `text-info` exist as *both* legacy classes (in `theme.css`, colored via
+   `--color-*-text`) and Tailwind utilities (colored via `--color-*`). Legacy
+   wins today, so behavior is unchanged; the collision is logged in
+   [ROADMAP.md](../../ROADMAP.md) and is cleaned up when the `.status`/`.text-*`
+   layer is migrated.
+
+### Preflight is off (deliberately)
+
+Tailwind's Preflight (its opinionated reset) is **not** imported. The project
+owns its resets — `theme.css` sets `box-sizing` globally, and component CSS
+assumes browser defaults for margins/typography. Pulling in Preflight would
+silently restyle every existing element (headings, lists, form controls). The
+one thing Preflight provides that the border utilities need — a default
+`border-style` — is replaced by a minimal base rule in `tailwind.css`:
+
+```css
+@layer base {
+  *, ::before, ::after { border: 0 solid; }
+}
+```
+
+Re-enabling Preflight, if ever, is a deliberate final cleanup PR, not a
+foundation concern.
