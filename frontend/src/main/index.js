@@ -14,7 +14,13 @@ const { BackendService } = require("./backend-service");
 const { createApplicationMenu } = require("./menu");
 const { t } = require("../i18n");
 const { parseCliArgs } = require("./cli-args");
-const { deriveRawToken, basenameMatchesToken } = require("./raw-match");
+const { deriveRawToken } = require("./raw-match");
+const { createRawIndexCache } = require("./raw-index");
+
+// Lazily-built, TTL-cached filename index of the RAW root. Reused across the
+// keystroke bursts that drive open-raw-in-lightroom so the recursive scan runs
+// at most once per TTL window instead of once per keystroke.
+const rawIndexCache = createRawIndexCache();
 
 function getVersionInfo() {
   try {
@@ -562,23 +568,12 @@ ipcMain.handle("open-raw-in-lightroom", async (event, { imagePath, rawRoot } = {
 
   let match = null;
   try {
-    const entries = await fs.promises.readdir(root, {
-      recursive: true,
-      withFileTypes: true,
-    });
-    const matches = [];
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      if (basenameMatchesToken(entry.name, token)) {
-        // entry.parentPath (Node 20+) is the directory the file was found in.
-        const dir = entry.parentPath || entry.path || root;
-        matches.push(path.join(dir, entry.name));
-      }
-    }
-    // Deterministic "first" match; Lightroom shows it in-folder so burst
-    // neighbours remain visible.
-    matches.sort();
-    match = matches[0] || null;
+    // Cached lookup: the RAW root is scanned once and reused across keystrokes.
+    // The index keys files by their leading token and keeps each token's paths
+    // sorted, so this returns the same deterministic "first" match the old
+    // per-keystroke scan did; Lightroom shows it in-folder so burst neighbours
+    // remain visible.
+    match = await rawIndexCache.lookup(root, token);
   } catch (err) {
     console.error("[Main] open-raw-in-lightroom scan failed:", err.message);
     return { ok: false, reason: "scan-error", error: err.message };
