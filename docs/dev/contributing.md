@@ -177,6 +177,57 @@ function processImage(path) {
 
 ---
 
+## UI Copy
+
+User-facing strings live in the Swedish catalog `frontend/src/i18n/sv/`
+(one file per namespace). They are written **for the user, not the
+system**. Follow these rules so the same action reads the same way
+through a whole flow.
+
+### Principles
+
+- **Buttons and actions say what they do.** The same action keeps the
+  same verb from trigger to confirmation (button *Byt namn* → toast
+  *Bytte namn på …*), never a different word downstream.
+- **Errors say what happened and the next step**, in the interface's
+  own voice — active, specific, no apologies. Prefer *"Filen hittades
+  inte. Den kan ha flyttats eller tagits bort."* over *"Ett fel
+  uppstod."* Do not invent a cause you cannot know.
+- **Empty states invite the next action** rather than stating a bare
+  fact: *"Öppna en bild för att komma igång"*, *"Välj en bild i
+  listan …"*.
+- **Sentence case.** No gratuitous exclamation marks, no filler
+  (*"Vänligen"*, *"Obs:"*, *"Observera att"*).
+- **Never break interpolations or plural forms** — keep `{count}`,
+  `{name}`, and `{one,other}` structures exactly as they are.
+
+### Terminology (Swedish)
+
+Normalize to the chosen term; do not introduce a synonym for a concept
+that already has one.
+
+| Concept | Use | Not |
+|---------|-----|-----|
+| In-progress ellipsis | `…` (U+2026) | `...` |
+| Quoting a name in a sentence | `”…”` (Swedish) | `'…'`, `"…"` |
+| Finding faces (runtime act/result) | *söka* / *hitta* ("Söker ansikten…", "Hittade N ansikten", "Inga ansikten hittades") | *identifiera* (that means recognition, a different step) |
+| Face detection (settings/statistics feature noun) | *ansiktsdetektering* / *detektering* | *identifiering* |
+| Renaming files | *byt namn* family ("Byt namn", "Bytte namn på …") | *döpa om* / *omdöpt* |
+| Preview (noun) | *förhandsgranskning* | *förhandsvisning* |
+| Preview (verb) | *förhandsgranska* | — |
+| Reversible removal (to trash) | *ta bort* / *flytta till papperskorgen* | *radera* |
+| Permanent removal | *radera* + explicit "kan inte ångras / återställas" | *ta bort* (for user-visible files/persons) |
+| Failure message | *Kunde inte …* (active) | *… misslyckades* (passive) |
+| The API server | *Servern* | *backend* |
+| Photo/image | *bild* | *foto* |
+
+> Encoding-level cleanup in Database/RefineFaces keeps *ta bort
+> kodningar* within its own flow (with a "kan inte ångras" warning),
+> since that is the verb used on the buttons there — the *radera*
+> distinction applies to user-facing files and persons.
+
+---
+
 ## Development Setup
 
 ### Backend
