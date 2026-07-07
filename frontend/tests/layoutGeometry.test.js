@@ -118,6 +118,21 @@ describe('findTabsetInDirection', () => {
     const model = makeModel([a]);
     expect(findTabsetInDirection(model, layoutRef, a, 'right')).toBeNull();
   });
+
+  it('picks the NEAREST of several candidates in the direction (distance sort)', () => {
+    // Third tabset further right than ts-b: A (center x=100), B (center
+    // x=500), C (center x=900). From A going right both B and C qualify; the
+    // distance sort must return B (nearer), not merely "a" tabset to the right.
+    makeTabsetEl('ts-c', { left: 800, top: 0, width: 200, height: 100 });
+    const a = tabsetNode('ts-a');
+    const b = tabsetNode('ts-b');
+    const c = tabsetNode('ts-c');
+    const model = makeModel([a, b, c]);
+
+    expect(findTabsetInDirection(model, layoutRef, a, 'right').getId()).toBe('ts-b');
+    // And from the far end going left, the nearer neighbor is again ts-b.
+    expect(findTabsetInDirection(model, layoutRef, c, 'left').getId()).toBe('ts-b');
+  });
 });
 
 describe('applyModuleBasedRatios', () => {
@@ -155,6 +170,40 @@ describe('applyModuleBasedRatios', () => {
 
     applyModuleBasedRatios(model);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('sets normalized row height weights and per-row width weights (vertical layout)', () => {
+    const spy = vi.spyOn(Actions, 'updateNodeAttributes');
+    // Row 1: review-module + image-viewer (heightRatio 0.70 for the row,
+    // widthRatios 0.15/0.85). Row 2: log-viewer + statistics-dashboard
+    // (heightRatio 0.30, widthRatios 0.50/0.50).
+    const row = (id, tabsets) => ({
+      getType: () => 'row',
+      getId: () => id,
+      getChildren: () => tabsets,
+    });
+    const row1 = row('row-1', [
+      rootTabset('a', 'review-module'),
+      rootTabset('b', 'image-viewer'),
+    ]);
+    const row2 = row('row-2', [
+      rootTabset('c', 'log-viewer'),
+      rootTabset('d', 'statistics-dashboard'),
+    ]);
+    const root = { getChildren: () => [row1, row2] };
+    const model = { getRoot: () => root, doAction: vi.fn() };
+
+    applyModuleBasedRatios(model);
+
+    // Height ratios 0.70 + 0.30 = 1.0 -> row weights 70 and 30.
+    expect(spy).toHaveBeenCalledWith('row-1', { weight: 70 });
+    expect(spy).toHaveBeenCalledWith('row-2', { weight: 30 });
+    // Width ratios within each row: 0.15/0.85 -> 15/85, 0.50/0.50 -> 50/50.
+    expect(spy).toHaveBeenCalledWith('a', { weight: 15 });
+    expect(spy).toHaveBeenCalledWith('b', { weight: 85 });
+    expect(spy).toHaveBeenCalledWith('c', { weight: 50 });
+    expect(spy).toHaveBeenCalledWith('d', { weight: 50 });
+    expect(model.doAction).toHaveBeenCalledTimes(6);
   });
 });
 
