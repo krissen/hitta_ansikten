@@ -1481,7 +1481,7 @@ export function FileQueueModule({ node }) {
   // keyboard-tabbable. Prefer the clicked/focused row, then the active file,
   // else the first row shown — so Tab always lands somewhere sensible and the
   // list is one tab stop instead of ~4 per row.
-  const rovingIndex = focusedIndex >= 0
+  const rovingIndex = focusedIndex >= 0 && focusedIndex < queue.length
     ? focusedIndex
     : currentIndex >= 0
       ? currentIndex
