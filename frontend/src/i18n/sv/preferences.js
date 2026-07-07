@@ -12,8 +12,13 @@ module.exports = {
     "advanced": "Avancerat"
   },
   "dialogs": {
-    "resetConfirm": "Återställ alla inställningar till standard?",
-    "clearCacheConfirm": "Rensa all cachad förbehandlingsdata?"
+    "resetConfirm": "Återställ alla inställningar till standard? Dina osparade ändringar går förlorade. Inget skrivs förrän du klickar på Spara.",
+    "clearCacheConfirm": "Rensa all cachad förbehandlingsdata? Cachen byggs upp igen nästa gång filer förbehandlas.",
+    "clearCacheConfirmLabel": "Rensa cache"
+  },
+  "toasts": {
+    "clearCacheError": "Kunde inte rensa förbehandlingscachen. Kontrollera att servern är igång och försök igen.",
+    "trashRetentionError": "Kunde inte spara papperskorgens tömningsgräns. Kontrollera att servern är igång och försök igen."
   },
   "buttons": {
     "clearCache": "Rensa förbehandlingscache",

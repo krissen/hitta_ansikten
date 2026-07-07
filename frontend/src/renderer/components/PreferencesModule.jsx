@@ -5,40 +5,64 @@
  * Replaces the old modal-based preferences UI.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { preferences } from '../workspace/preferences.js';
 import { themeManager } from '../theme-manager.js';
 import { getCategories, setCategories, resetCategories, debug, debugError } from '../shared/debug.js';
 import { t } from '../../i18n/index.js';
+import { Button } from './shared/index.js';
+import { useConfirm } from '../context/ConfirmContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import './PreferencesModule.css';
 
-// Define preference sections
-const SECTIONS = [
-  { id: 'general', label: t('preferences.sections.general') },
-  { id: 'layout', label: t('preferences.sections.layout') },
-  { id: 'image-viewer', label: t('preferences.sections.image-viewer') },
-  { id: 'review', label: t('preferences.sections.review') },
-  { id: 'files', label: t('preferences.sections.files') },
-  { id: 'preprocessing', label: t('preferences.sections.preprocessing') },
-  { id: 'dashboard', label: t('preferences.sections.dashboard') },
-  { id: 'advanced', label: t('preferences.sections.advanced') }
+// Preference section ids. Labels are resolved with t() at render time (not at
+// module load) so they pick up the active locale even if i18n initialises after
+// this module is imported.
+const SECTION_IDS = [
+  'general',
+  'layout',
+  'image-viewer',
+  'review',
+  'files',
+  'preprocessing',
+  'dashboard',
+  'advanced'
 ];
+
+const sectionLabel = (id) => t(`preferences.sections.${id}`);
+
+/**
+ * Activate a role="button" element on Enter/Space (house a11y pattern for
+ * clickable non-buttons; see docs/dev/accessibility.md §2).
+ */
+function activateOnKey(handler) {
+  return (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handler();
+    }
+  };
+}
 
 /**
  * Slider with synced number input
  */
-function SliderField({ id, label, hint, value, onChange, min, max, step = 1 }) {
+function SliderField({ label, hint, value, onChange, min, max, step = 1 }) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="pref-field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <div className="slider-group">
         <input
+          id={id}
           type="range"
           min={min}
           max={max}
           step={step}
           value={value}
           onChange={(e) => onChange(parseFloat(e.target.value))}
+          aria-describedby={hintId}
         />
         <input
           type="number"
@@ -48,9 +72,11 @@ function SliderField({ id, label, hint, value, onChange, min, max, step = 1 }) {
           value={value}
           onChange={(e) => onChange(parseFloat(e.target.value))}
           className="number-input"
+          aria-label={label}
+          aria-describedby={hintId}
         />
       </div>
-      {hint && <small>{hint}</small>}
+      {hint && <small id={hintId}>{hint}</small>}
     </div>
   );
 }
@@ -58,18 +84,22 @@ function SliderField({ id, label, hint, value, onChange, min, max, step = 1 }) {
 /**
  * Checkbox field
  */
-function CheckboxField({ id, label, hint, checked, onChange }) {
+function CheckboxField({ label, hint, checked, onChange }) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="pref-field">
-      <label className="checkbox-label">
+      <label className="checkbox-label" htmlFor={id}>
         <input
+          id={id}
           type="checkbox"
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
+          aria-describedby={hintId}
         />
         {label}
       </label>
-      {hint && <small>{hint}</small>}
+      {hint && <small id={hintId}>{hint}</small>}
     </div>
   );
 }
@@ -77,16 +107,23 @@ function CheckboxField({ id, label, hint, checked, onChange }) {
 /**
  * Select field
  */
-function SelectField({ id, label, hint, value, onChange, options }) {
+function SelectField({ label, hint, value, onChange, options }) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="pref-field">
-      <label>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <label htmlFor={id}>{label}</label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-describedby={hintId}
+      >
         {options.map(opt => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
-      {hint && <small>{hint}</small>}
+      {hint && <small id={hintId}>{hint}</small>}
     </div>
   );
 }
@@ -94,19 +131,23 @@ function SelectField({ id, label, hint, value, onChange, options }) {
 /**
  * Text input field
  */
-function TextField({ id, label, hint, value, onChange, placeholder, disabled }) {
+function TextField({ label, hint, value, onChange, placeholder, disabled }) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="pref-field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <input
+        id={id}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
         className="text-input"
+        aria-describedby={hintId}
       />
-      {hint && <small>{hint}</small>}
+      {hint && <small id={hintId}>{hint}</small>}
     </div>
   );
 }
@@ -114,11 +155,14 @@ function TextField({ id, label, hint, value, onChange, placeholder, disabled }) 
 /**
  * Number input field (without slider)
  */
-function NumberField({ id, label, hint, value, onChange, min, max, step = 1 }) {
+function NumberField({ label, hint, value, onChange, min, max, step = 1 }) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
     <div className="pref-field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <input
+        id={id}
         type="number"
         min={min}
         max={max}
@@ -126,8 +170,9 @@ function NumberField({ id, label, hint, value, onChange, min, max, step = 1 }) {
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="number-input-standalone"
+        aria-describedby={hintId}
       />
-      {hint && <small>{hint}</small>}
+      {hint && <small id={hintId}>{hint}</small>}
     </div>
   );
 }
@@ -150,6 +195,10 @@ export function PreferencesModule({ api }) {
   const [trashRetention, setTrashRetention] = useState(null); // days; null = not loaded
   // Debug categories need React state to trigger re-render on change
   const [debugCategories, setDebugCategories] = useState(() => getCategories());
+  const confirm = useConfirm();
+  const showToast = useToast();
+  // Guards against a second activation while a confirm dialog is already open.
+  const confirmBusyRef = useRef(false);
 
   // Helper function to apply toast opacity CSS variable
   // Used for immediate live preview when user adjusts slider
@@ -195,13 +244,22 @@ export function PreferencesModule({ api }) {
   }, [prefs, applyToastOpacity]);
 
   // Reset to defaults
-  const handleReset = useCallback(() => {
-    if (confirm(t('preferences.dialogs.resetConfirm'))) {
+  const handleReset = useCallback(async () => {
+    if (confirmBusyRef.current) return;
+    confirmBusyRef.current = true;
+    try {
+      const ok = await confirm({
+        message: t('preferences.dialogs.resetConfirm'),
+        confirmLabel: t('common.reset')
+      });
+      if (!ok) return;
       const defaults = preferences.getDefaults();
       setPrefs(defaults);
       setHasChanges(true);
+    } finally {
+      confirmBusyRef.current = false;
     }
-  }, []);
+  }, [confirm]);
 
   // Load cache status
   useEffect(() => {
@@ -246,12 +304,21 @@ export function PreferencesModule({ api }) {
       setTrashRetention(res.days);
     } catch (err) {
       debugError('Preferences', 'Failed to save trash retention:', err);
+      showToast(t('preferences.toasts.trashRetentionError'), { type: 'error' });
     }
-  }, []);
+  }, [showToast]);
 
   // Clear cache
   const handleClearCache = useCallback(async () => {
-    if (confirm(t('preferences.dialogs.clearCacheConfirm'))) {
+    if (confirmBusyRef.current) return;
+    confirmBusyRef.current = true;
+    try {
+      const ok = await confirm({
+        message: t('preferences.dialogs.clearCacheConfirm'),
+        confirmLabel: t('preferences.dialogs.clearCacheConfirmLabel'),
+        variant: 'danger'
+      });
+      if (!ok) return;
       try {
         const { apiClient } = await import('../shared/api-client.js');
         await apiClient.clearCache();
@@ -259,9 +326,12 @@ export function PreferencesModule({ api }) {
         setCacheStatus(status);
       } catch (err) {
         debugError('Preferences', 'Failed to clear cache:', err);
+        showToast(t('preferences.toasts.clearCacheError'), { type: 'error' });
       }
+    } finally {
+      confirmBusyRef.current = false;
     }
-  }, []);
+  }, [confirm, showToast]);
 
   // Render section content
   const renderSection = () => {
@@ -685,9 +755,9 @@ export function PreferencesModule({ api }) {
           {' '}({cacheStatus.usage_percent}%)
         </div>
       )}
-      <button className="btn-secondary" onClick={handleClearCache}>
+      <Button variant="secondary" onClick={handleClearCache}>
         {t('preferences.buttons.clearCache')}
-      </button>
+      </Button>
 
       <SectionHeader title={t('preferences.preprocessing.rollingHeader')} />
       <p className="section-hint">
@@ -849,15 +919,15 @@ export function PreferencesModule({ api }) {
             </label>
           ))}
         </div>
-        <button
-          className="btn-secondary"
+        <Button
+          variant="secondary"
           onClick={() => {
             resetCategories();
             setDebugCategories(getCategories());
           }}
         >
           {t('preferences.buttons.resetDebugCategories')}
-        </button>
+        </Button>
       </>
     );
   };
@@ -867,33 +937,40 @@ export function PreferencesModule({ api }) {
       <div className="module-sidebar">
         <h3 className="sidebar-title">{t('preferences.sidebarTitle')}</h3>
         <ul className="item-list">
-          {SECTIONS.map(section => (
-            <li
-              key={section.id}
-              className={`list-item-nav ${activeSection === section.id ? 'active' : ''}`}
-              onClick={() => setActiveSection(section.id)}
-            >
-              {section.label}
-            </li>
-          ))}
+          {SECTION_IDS.map(id => {
+            const active = activeSection === id;
+            return (
+              <li
+                key={id}
+                className={`list-item-nav ${active ? 'active' : ''}`}
+                role="button"
+                tabIndex={0}
+                aria-pressed={active}
+                onClick={() => setActiveSection(id)}
+                onKeyDown={activateOnKey(() => setActiveSection(id))}
+              >
+                {sectionLabel(id)}
+              </li>
+            );
+          })}
         </ul>
 
         <div className="sidebar-actions">
-          <button
-            className="btn-action"
+          <Button
+            variant="primary"
             onClick={handleSave}
             disabled={!hasChanges}
           >
             {t('common.save')}
-          </button>
-          <button className="btn-secondary" onClick={handleReset}>
+          </Button>
+          <Button variant="secondary" onClick={handleReset}>
             {t('common.reset')}
-          </button>
+          </Button>
         </div>
       </div>
 
       <div className="module-content">
-        <h2 className="content-title">{SECTIONS.find(s => s.id === activeSection)?.label}</h2>
+        <h2 className="content-title">{sectionLabel(activeSection)}</h2>
         {renderSection()}
       </div>
     </div>
