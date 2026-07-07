@@ -13,6 +13,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useConfirm } from '../context/ConfirmContext.jsx';
+import { Button } from './shared';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { NetworkError } from '../shared/api-client.js';
@@ -49,6 +51,7 @@ export function ReviewModule({ node }) {
   const { api } = useBackend();
   const emit = useEmitEvent();
   const showToast = useToast();
+  const confirm = useConfirm();
 
   // Keyboard gate: Review owns keys when its tab is visible AND either its own
   // tabset is active OR the active tabset hosts a companion the user looks at
@@ -413,18 +416,30 @@ export function ReviewModule({ node }) {
       return true;
     } catch (err) {
       debugError('ReviewModule', 'Failed to save:', err);
+      // Keep the persistent inline status (it must survive as the review is NOT
+      // marked done) AND surface a transient toast, since the auto-save path is
+      // silent otherwise and the user may not be looking at the status line.
       setStatus(t('review.status.saveError'));
+      showToast(t('review.status.saveError'), 'error');
       return false;
     }
-  }, [pendingConfirmations, pendingIgnores, api, loadPeopleNames]);
+  }, [pendingConfirmations, pendingIgnores, api, loadPeopleNames, showToast]);
 
   /**
    * Discard all changes
    */
-  const discardChanges = useCallback(() => {
-    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return;
+  const discardChanges = useCallback(async () => {
+    // Snapshot the pending count up front — confirm() awaits a user gesture, so
+    // read the gate before the await to keep the decision consistent with what
+    // the prompt shows and to no-op cleanly on a double Escape.
+    const pendingCount = pendingConfirmations.length + pendingIgnores.length;
+    if (pendingCount === 0) return;
 
-    if (!confirm(t('review.dialog.discardConfirm', { count: pendingConfirmations.length + pendingIgnores.length }))) return;
+    const ok = await confirm({
+      message: t('review.dialog.discardConfirm', { count: pendingCount }),
+      variant: 'danger',
+    });
+    if (!ok) return;
 
     // Reset face states
     setDetectedFaces(prev => prev.map(face => {
@@ -437,7 +452,7 @@ export function ReviewModule({ node }) {
     setPendingConfirmations([]);
     setPendingIgnores([]);
     setStatus(t('review.status.changesDiscarded'));
-  }, [pendingConfirmations.length, pendingIgnores.length]);
+  }, [pendingConfirmations.length, pendingIgnores.length, confirm]);
 
   /**
    * Skip image - save pending changes and advance to next image
@@ -837,13 +852,13 @@ export function ReviewModule({ node }) {
             <div className="no-faces-detected">
               <p className="no-faces-title">{t('review.noFacesDetected')}</p>
               <p className="no-faces-hint">{t('review.noFacesHint')}</p>
-              <button
-                type="button"
-                className="btn-secondary add-manual-name-btn"
+              <Button
+                variant="secondary"
+                className="add-manual-name-btn"
                 onClick={addManualFace}
               >
                 {t('review.addManualName')}
-              </button>
+              </Button>
             </div>
           ) : (
             // No successful detection yet: before any image, or after an error
@@ -892,7 +907,7 @@ export function ReviewModule({ node }) {
           <div className="module-footer review-footer">
             <div
               className="review-queue-bar"
-              title={`${done} granskade · ${preprocessed} redo · ${remaining} kvar`}
+              title={t('review.queueBar.title', { done, preprocessed, remaining })}
             >
               {done > 0 && (
                 <div className="seg seg-done" style={{ width: `${pct(done)}%` }} />

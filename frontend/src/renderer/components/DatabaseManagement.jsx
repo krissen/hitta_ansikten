@@ -486,7 +486,7 @@ export function DatabaseManagement() {
   const peopleNames = databaseState?.people?.map(p => p.name) || [];
 
   return (
-    <div className="module-container db-management">
+    <div className="module-container db-management" data-keyboard-scope="isolated">
       <div className="module-header">
         <h3 className="module-title">{t('database.title')}</h3>
         <Button variant="secondary" size="sm" onClick={loadDatabaseState}>

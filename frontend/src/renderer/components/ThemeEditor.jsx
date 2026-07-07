@@ -600,7 +600,7 @@ export function ThemeEditor({ api }) {
   };
 
   return (
-    <div className="module-container has-sidebar theme-editor">
+    <div className="module-container has-sidebar theme-editor" data-keyboard-scope="isolated">
       <div className="module-sidebar">
         <h3 className="sidebar-title">{t('themeEditor.sidebar.categories')}</h3>
         <ul className="item-list">

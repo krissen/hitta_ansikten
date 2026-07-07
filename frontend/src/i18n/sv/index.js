@@ -20,6 +20,7 @@ module.exports = {
   imageViewer: require('./imageViewer'),
   originalView: require('./originalView'),
   startupStatus: require('./startupStatus'),
+  startupLanding: require('./startupLanding'),
   playerCount: require('./playerCount'),
   errors: require('./errors'),
   workspace: require('./workspace'),

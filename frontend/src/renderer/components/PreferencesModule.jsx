@@ -933,7 +933,7 @@ export function PreferencesModule({ api }) {
   };
 
   return (
-    <div className="module-container has-sidebar preferences-module">
+    <div className="module-container has-sidebar preferences-module" data-keyboard-scope="isolated">
       <div className="module-sidebar">
         <h3 className="sidebar-title">{t('preferences.sidebarTitle')}</h3>
         <ul className="item-list">

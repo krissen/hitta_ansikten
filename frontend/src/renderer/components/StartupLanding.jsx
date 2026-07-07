@@ -25,7 +25,6 @@ const STEPS = [
     moduleId: 'import',
     icon: 'folder-plus',
     requiresCard: true,
-    disabledHint: 'Sätt i ett minneskort för att importera',
   },
   { moduleId: 'rename-nef', icon: 'file' },
   { moduleId: 'review-module', icon: 'user' },
@@ -73,7 +72,7 @@ export function StartupLanding({ onOpenModule }) {
         type="button"
         className="btn-action startup-landing-step"
         disabled={disabled}
-        title={disabled ? step.disabledHint : undefined}
+        title={disabled ? t('startupLanding.importCardHint') : undefined}
         onClick={() => onOpenModule(step.moduleId)}
       >
         <Icon name={step.icon} size={20} />
@@ -83,13 +82,13 @@ export function StartupLanding({ onOpenModule }) {
   };
 
   return (
-    <div className="startup-landing" role="region" aria-label="Kom igång">
+    <div className="startup-landing" role="region" aria-label={t('startupLanding.title')}>
       <div className="startup-landing-card">
-        <h1 className="startup-landing-title">Kom igång</h1>
-        <p className="startup-landing-subtitle">Välj ett steg i arbetsflödet.</p>
+        <h1 className="startup-landing-title">{t('startupLanding.title')}</h1>
+        <p className="startup-landing-subtitle">{t('startupLanding.subtitle')}</p>
         <div className="startup-landing-steps">{STEPS.map(renderStep)}</div>
 
-        <div className="startup-landing-divider">Verktyg</div>
+        <div className="startup-landing-divider">{t('startupLanding.tools')}</div>
         <div className="startup-landing-steps">{TOOLS.map(renderStep)}</div>
       </div>
     </div>

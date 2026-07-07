@@ -169,7 +169,7 @@ export function LogViewer() {
   });
 
   return (
-    <div className="module-container log-viewer">
+    <div className="module-container log-viewer" data-keyboard-scope="isolated">
       <div className="module-header">
         <h3 className="module-title">{t('logs.title')}</h3>
         <div className="button-group">
