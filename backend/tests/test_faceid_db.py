@@ -344,6 +344,26 @@ def test_corrupt_entry_no_marker_no_save(db_dir):
     assert any(e == "corrupt_string" for e in raw["Alice"] if isinstance(e, str))
 
 
+def test_corrupt_in_one_collection_suppresses_save_of_another(db_dir):
+    # Cross-collection suppression: a corrupt entry in IGNORED must suppress
+    # the save-back of migrated KNOWN entries too (global all-clean gate) —
+    # the on-disk known pickle must keep its legacy form and no marker appears.
+    with open(faceid_db.ENCODING_PATH, "wb") as f:
+        pickle.dump({"Alice": [np.array([1.0, 2.0])]}, f)  # legacy bare array
+    with open(faceid_db.IGNORED_PATH, "wb") as f:
+        pickle.dump([np.array([3.0, 4.0]), "corrupt_string"], f)
+
+    known, _, _, _ = faceid_db.load_database()
+
+    # In-memory: known migrated to dict form as always.
+    assert isinstance(known["Alice"][0], dict)
+    # No marker, and the known pickle was NOT rewritten (still legacy on disk).
+    assert not faceid_db.DB_META_PATH.exists()
+    with open(faceid_db.ENCODING_PATH, "rb") as f:
+        raw = faceid_db.safe_pickle_load(f)
+    assert isinstance(raw["Alice"][0], np.ndarray)
+
+
 def test_marker_present_but_legacy_entry_does_not_crash(db_dir):
     # Marker says schema is current, but an external tool wrote a legacy bare
     # array. load_database trusts the marker and skips normalization; the entry

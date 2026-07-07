@@ -333,6 +333,12 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
     #      would silently drop the corrupt entry from disk, unlike today) and
     #      no marker (so the DB keeps being re-normalized every load, exactly
     #      as today). This preserves the pinned corrupt-entry behavior.
+    # Single-writer assumption: this read-modify-write holds no lock across
+    # R+W, so a writer mutating concurrently with the ONE-TIME first-migration
+    # load could be clobbered by the save-back. This matches save_database's
+    # pre-existing single-writer model (the GUI serializes writes through
+    # FaceDBStore; CLI-vs-server concurrent writes were always last-writer-
+    # wins) and only applies to the single upgrade event per database.
     if total_corrupt == 0:
         if total_migrated > 0:
             only = set()
