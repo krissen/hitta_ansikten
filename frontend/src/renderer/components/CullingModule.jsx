@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { usePersistedValue } from '../hooks/usePersistedValue.js';
 import { namesInBasename, removeNamesFromBasename } from './culling-names.js';
 import { TrashPanel } from './TrashPanel.jsx';
 import { CullingGrid } from './CullingGrid.jsx';
@@ -46,22 +47,10 @@ const VIEW_MODE_KEY = 'ansikten.culling.viewMode';
 const GRID_CELL_MIN = 160;
 const GRID_GAP = 8;
 
-function readStoredNumber(key, fallback) {
-  try {
-    const v = parseFloat(localStorage.getItem(key));
-    return Number.isFinite(v) ? v : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function readStoredString(key, fallback) {
-  try {
-    const v = localStorage.getItem(key);
-    return v == null ? fallback : v;
-  } catch {
-    return fallback;
-  }
+// Parse a stored number, falling back to `fallback` for a missing/NaN value.
+function parseStoredNumber(raw, fallback) {
+  const v = parseFloat(raw);
+  return Number.isFinite(v) ? v : fallback;
 }
 // Delay RAW conversion until the selection settles, so fast keyboard stepping
 // only converts the file the user rests on, not every file passed through.
@@ -114,17 +103,17 @@ export function CullingModule({ node }) {
   // leftWidthPct is clamped to the drag range on read; statsWidth gets a lower
   // bound here and is additionally clamped against the live window width on
   // mount (a width saved on a wide window must not squash a narrow one).
-  const [statsWidth, setStatsWidth] = useState(() =>
-    Math.max(STATS_WIDTH_MIN, readStoredNumber(STATS_WIDTH_KEY, STATS_WIDTH_DEFAULT))
-  );
-  const [leftWidthPct, setLeftWidthPct] = useState(() =>
-    Math.min(70, Math.max(15, readStoredNumber(LIST_PCT_KEY, LIST_PCT_DEFAULT)))
-  );
+  const [statsWidth, setStatsWidth] = usePersistedValue(STATS_WIDTH_KEY, STATS_WIDTH_DEFAULT, {
+    parse: (raw) => Math.max(STATS_WIDTH_MIN, parseStoredNumber(raw, STATS_WIDTH_DEFAULT)),
+  });
+  const [leftWidthPct, setLeftWidthPct] = usePersistedValue(LIST_PCT_KEY, LIST_PCT_DEFAULT, {
+    parse: (raw) => Math.min(70, Math.max(15, parseStoredNumber(raw, LIST_PCT_DEFAULT))),
+  });
 
   // View mode: 'single' (loupe, default) or 'grid' (thumbnail overview). Persisted.
-  const [viewMode, setViewMode] = useState(() =>
-    readStoredString(VIEW_MODE_KEY, 'single') === 'grid' ? 'grid' : 'single'
-  );
+  const [viewMode, setViewMode] = usePersistedValue(VIEW_MODE_KEY, 'single', {
+    parse: (raw) => (raw === 'grid' ? 'grid' : 'single'),
+  });
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
   // Player whose thumbnails are visually highlighted in the grid (session-only,
@@ -960,16 +949,7 @@ export function CullingModule({ node }) {
     window.addEventListener('mouseup', onUp);
   }, []);
 
-  // Persist column widths so they survive restarts.
-  useEffect(() => {
-    try { localStorage.setItem(STATS_WIDTH_KEY, String(statsWidth)); } catch { /* ignore */ }
-  }, [statsWidth]);
-  useEffect(() => {
-    try { localStorage.setItem(LIST_PCT_KEY, String(leftWidthPct)); } catch { /* ignore */ }
-  }, [leftWidthPct]);
-  useEffect(() => {
-    try { localStorage.setItem(VIEW_MODE_KEY, viewMode); } catch { /* ignore */ }
-  }, [viewMode]);
+  // Column widths and view mode are persisted by usePersistedValue.
 
   // The per-player highlight is a grid-only affordance; drop it when leaving grid.
   useEffect(() => {
