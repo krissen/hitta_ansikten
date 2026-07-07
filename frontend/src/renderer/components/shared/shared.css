@@ -178,6 +178,9 @@
   /* Reset UA dialog chrome; content lives in .modal__content so a click on the
      dialog element itself is unambiguously a backdrop click. */
   padding: 0;
+  /* The global `*` reset zeroes margins, which kills the UA stylesheet's
+     `margin: auto` that centers a top-layer dialog — restore it explicitly. */
+  margin: auto;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
