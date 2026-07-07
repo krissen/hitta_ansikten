@@ -9,6 +9,7 @@ import hashlib
 import logging
 import os
 import sys
+import threading
 import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
@@ -1216,8 +1217,8 @@ class DetectionService:
 
         # Invalidate statistics cache so dashboard picks up new data
         try:
-            from .statistics_service import statistics_service
-            statistics_service.invalidate_cache()
+            from .statistics_service import get_statistics_service
+            get_statistics_service().invalidate_cache()
         except Exception:
             pass  # Non-critical
 
@@ -1228,8 +1229,24 @@ class DetectionService:
         }
 
 
-# Singleton instance
-detection_service = DetectionService()
+# Lazy singleton — construction is deferred so importing this module has no
+# side effects (no InsightFace load, no real data-dir access at import time).
+# Double-checked locking: first calls can race in from worker threads (e.g.
+# preprocessing's ThreadPoolExecutor via the module-level helpers below), and
+# an unguarded check-then-set could construct several instances (multiple
+# InsightFace loads, split caches).
+_detection_service = None
+_detection_service_lock = threading.Lock()
+
+
+def get_detection_service() -> DetectionService:
+    """Return the process-wide DetectionService, constructing it on first use."""
+    global _detection_service
+    if _detection_service is None:
+        with _detection_service_lock:
+            if _detection_service is None:
+                _detection_service = DetectionService()
+    return _detection_service
 
 
 # ============================================================================
@@ -1256,7 +1273,7 @@ def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> Optional[str]:
 
     try:
         # Load RAW image
-        rgb = detection_service._load_image(path)
+        rgb = get_detection_service()._load_image(path)
 
         # Convert to PIL Image
         img = Image.fromarray(rgb)
@@ -1294,7 +1311,7 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> D
         raise FileNotFoundError(f"Image not found: {image_path}")
 
     # Load image
-    rgb = detection_service._load_image(path)
+    rgb = get_detection_service()._load_image(path)
     height, width = rgb.shape[:2]
 
     # Resize for detection if needed
@@ -1310,8 +1327,8 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> D
         scale_factor = 1.0
 
     # Detect faces
-    detection_model = detection_service.config.get('detection_model', 'hog')
-    face_locations, face_encodings = detection_service.backend.detect_faces(
+    detection_model = get_detection_service().config.get('detection_model', 'hog')
+    face_locations, face_encodings = get_detection_service().backend.detect_faces(
         rgb_resized,
         model=detection_model,
         upsample=0
@@ -1368,7 +1385,7 @@ def generate_face_thumbnails(image_path: str, faces: List[Dict], size: int = 150
         raise FileNotFoundError(f"Image not found: {image_path}")
 
     # Load image once
-    rgb = detection_service._load_image(path)
+    rgb = get_detection_service()._load_image(path)
     img_height, img_width = rgb.shape[:2]
 
     thumbnails = []

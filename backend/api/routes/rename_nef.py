@@ -10,7 +10,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..services.rename_nef_service import rename_nef_service
+from ..services.rename_nef_service import get_rename_nef_service
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class RenameNefRequest(BaseModel):
 async def preview(request: RenameNefRequest):
     """Dry-run: show the EXIF-derived rename mapping."""
     try:
-        return rename_nef_service.preview(
+        return get_rename_nef_service().preview(
             roots=request.roots, globs=request.globs, recursive=request.recursive,
         )
     except ValueError as e:
@@ -41,7 +41,7 @@ async def preview(request: RenameNefRequest):
 async def execute(request: RenameNefRequest):
     """Rename the NEFs (+ sidecars) from EXIF CreateDate."""
     try:
-        return rename_nef_service.execute(
+        return get_rename_nef_service().execute(
             roots=request.roots, globs=request.globs, recursive=request.recursive,
         )
     except ValueError as e:

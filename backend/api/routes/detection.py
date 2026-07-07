@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 def get_detection_service():
-    """Lazy import to avoid loading ML libs at startup"""
-    from ..services.detection_service import detection_service
-    return detection_service
+    """Lazy import + lazy construction to avoid loading ML libs at startup"""
+    from ..services.detection_service import get_detection_service as _get
+    return _get()
 
 # Request/Response models
 class DetectionRequest(BaseModel):

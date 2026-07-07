@@ -10,7 +10,7 @@ from typing import List, Literal, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..services.player_count_service import player_count_service
+from ..services.player_count_service import get_player_count_service
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +55,14 @@ class ExclusionConfigRequest(BaseModel):
 @router.get("/players/exclusions")
 async def get_exclusions():
     """Return the currently resolved coach/audience/group exclusion lists."""
-    return player_count_service.get_exclusions()
+    return get_player_count_service().get_exclusions()
 
 
 @router.post("/players/exclusions")
 async def save_exclusions(request: ExclusionConfigRequest):
     """Persist coach/audience lists to the config file (make them the default)."""
     try:
-        return player_count_service.save_exclusions(
+        return get_player_count_service().save_exclusions(
             tranare=request.tranare,
             publik=request.publik,
             grupp=request.grupp,
@@ -78,7 +78,7 @@ async def save_exclusions(request: ExclusionConfigRequest):
 async def count_players(request: PlayerCountRequest):
     """Resolve the selection and return per-player image counts + statistics."""
     try:
-        return player_count_service.count(
+        return get_player_count_service().count(
             roots=request.roots,
             globs=request.globs,
             extension_preset=request.extension_preset,

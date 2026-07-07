@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -1038,13 +1039,17 @@ class ManagementService:
         return result
 
 
-# Lazy singleton
+# Lazy singleton (double-checked locking — first calls may race in from
+# worker threads; an unguarded check-then-set could construct two instances)
 _management_service = None
+_management_service_lock = threading.Lock()
 
 def get_management_service():
     global _management_service
     if _management_service is None:
-        _management_service = ManagementService()
+        with _management_service_lock:
+            if _management_service is None:
+                _management_service = ManagementService()
     return _management_service
 
 class _ManagementServiceProxy:

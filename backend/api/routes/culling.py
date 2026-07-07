@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..services.culling_service import culling_service
+from ..services.culling_service import get_culling_service
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class RetentionRequest(BaseModel):
 async def list_files(request: CullingFilesRequest):
     """List image files for the current filter, optionally restricted to a player."""
     try:
-        return culling_service.list_files(
+        return get_culling_service().list_files(
             roots=request.roots,
             globs=request.globs,
             extension_preset=request.extension_preset,
@@ -74,7 +74,7 @@ async def list_files(request: CullingFilesRequest):
 async def trash(request: TrashRequest):
     """Soft-delete files to the app trash."""
     try:
-        return culling_service.trash(request.paths)
+        return get_culling_service().trash(request.paths)
     except Exception as e:
         logger.exception("Culling trash failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -84,7 +84,7 @@ async def trash(request: TrashRequest):
 async def rename(request: RenameRequest):
     """Rename a single file (+ sidecars) to a new basename in the same folder."""
     try:
-        return culling_service.rename(request.path, request.new_basename)
+        return get_culling_service().rename(request.path, request.new_basename)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -101,10 +101,10 @@ async def list_trash():
     """
     try:
         try:
-            culling_service.purge_expired()
+            get_culling_service().purge_expired()
         except Exception:
             logger.exception("Trash retention purge failed (non-fatal)")
-        return culling_service.list_trash()
+        return get_culling_service().list_trash()
     except Exception as e:
         logger.exception("Culling list-trash failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -114,7 +114,7 @@ async def list_trash():
 async def get_retention():
     """Return the trash auto-purge threshold in days (0 = keep forever)."""
     try:
-        return {"days": culling_service.get_retention_days()}
+        return {"days": get_culling_service().get_retention_days()}
     except Exception as e:
         logger.exception("Culling get-retention failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -124,7 +124,7 @@ async def get_retention():
 async def set_retention(request: RetentionRequest):
     """Set the trash auto-purge threshold (days; 0 = keep forever)."""
     try:
-        return culling_service.set_retention_days(request.days)
+        return get_culling_service().set_retention_days(request.days)
     except Exception as e:
         logger.exception("Culling set-retention failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -134,7 +134,7 @@ async def set_retention(request: RetentionRequest):
 async def restore(request: RestoreRequest):
     """Restore trashed items to their original locations."""
     try:
-        return culling_service.restore(request.ids)
+        return get_culling_service().restore(request.ids)
     except Exception as e:
         logger.exception("Culling restore failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -144,7 +144,7 @@ async def restore(request: RestoreRequest):
 async def empty(request: EmptyRequest):
     """Permanently delete trashed items (all, or the given ids)."""
     try:
-        return culling_service.empty(request.ids)
+        return get_culling_service().empty(request.ids)
     except Exception as e:
         logger.exception("Culling empty failed")
         raise HTTPException(status_code=500, detail=str(e))
