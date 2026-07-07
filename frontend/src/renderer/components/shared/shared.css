@@ -384,8 +384,7 @@
 /* --- Keyboard focus (house style: --focus-ring on :focus-visible only) ------ */
 .btn:focus-visible,
 .icon-btn:focus-visible,
-.autocomplete-wrapper input:focus-visible,
-.modal :focus-visible {
+.autocomplete-wrapper input:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
 }

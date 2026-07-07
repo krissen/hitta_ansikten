@@ -112,7 +112,8 @@ const VARIABLE_GROUPS = {
       { name: '--color-info-bg', label: 'themeEditor.vars.semantic.infoBg' },
       { name: '--color-success-text', label: 'themeEditor.vars.semantic.successText' },
       { name: '--color-warning-text', label: 'themeEditor.vars.semantic.warningText' },
-      { name: '--color-error-text', label: 'themeEditor.vars.semantic.errorText' }
+      { name: '--color-error-text',
+      '--color-info-text', label: 'themeEditor.vars.semantic.errorText' }
     ]
   },
   'Overlay Colors': {

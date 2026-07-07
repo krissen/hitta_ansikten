@@ -681,6 +681,17 @@ html, body {
 .text-error { color: var(--color-error-text); }
 .text-info { color: var(--color-info-text); }
 
+/* Keyboard focus ring on form controls — everywhere, not just in modals. The
+   border-color :focus style remains as the pointer-focus affordance. */
+.form-input:focus-visible,
+.form-select:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 /* Muted placeholder text for workspace fallback/loading states */
 .workspace-placeholder-text { color: var(--text-tertiary); }
 
