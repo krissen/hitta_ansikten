@@ -13,6 +13,7 @@ import fnmatch
 import json
 import logging
 import shutil
+import threading
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta
@@ -438,4 +439,17 @@ class CullingService:
         return {"purged": len(expired)}
 
 
-culling_service = CullingService()
+# Lazy singleton — construction is deferred so importing this module has no
+# side effects at import time.
+_culling_service = None
+_culling_service_lock = threading.Lock()
+
+
+def get_culling_service() -> CullingService:
+    """Return the process-wide CullingService, constructing it on first use."""
+    global _culling_service
+    if _culling_service is None:
+        with _culling_service_lock:
+            if _culling_service is None:
+                _culling_service = CullingService()
+    return _culling_service

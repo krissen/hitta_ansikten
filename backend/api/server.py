@@ -46,8 +46,8 @@ async def lifespan(app: FastAPI):
         # Purge trashed files past the retention threshold (0 = keep forever),
         # so the app trash doesn't grow without bound between sessions.
         try:
-            from .services.culling_service import culling_service
-            culling_service.purge_expired()
+            from .services.culling_service import get_culling_service
+            get_culling_service().purge_expired()
         except Exception:
             logger.warning("Trash retention purge on startup failed", exc_info=True)
 
@@ -89,8 +89,8 @@ async def lifespan(app: FastAPI):
         def do_load():
             nonlocal load_error
             try:
-                from .services.detection_service import detection_service
-                _ = detection_service.backend.backend_name
+                from .services.detection_service import get_detection_service
+                _ = get_detection_service().backend.backend_name
             except Exception as e:
                 load_error = e
             finally:
