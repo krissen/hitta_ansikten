@@ -17,7 +17,8 @@ module.exports = {
   },
 
   "copy": "Kopiera",
-  "copied": "Kopierat!",
+  "copied": "Loggar kopierade till urklipp",
+  "copyFailed": "Kunde inte kopiera loggarna",
   "clear": "Rensa",
 
   "empty": {
