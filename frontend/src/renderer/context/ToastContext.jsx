@@ -4,10 +4,17 @@
  * Provides toast notifications that are visible regardless of which tab is active.
  * Toasts stack from bottom-right with smooth animations.
  * StartupStatus is integrated as a sticky toast at the bottom of the stack.
+ *
+ * Variants: 'success' | 'error' | 'info' | 'warning' (styled against the
+ * existing --color-* tokens; see flexlayout-overrides.css). The container is an
+ * aria-live="polite" status region; error toasts announce assertively via
+ * role="alert". See docs/dev/accessibility.md "Status feedback".
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { StartupStatus } from '../components/StartupStatus.jsx';
+import { IconButton } from '../components/shared/IconButton.jsx';
+import { t } from '../../i18n/index.js';
 
 // Create the context
 const ToastContext = createContext(null);
@@ -19,26 +26,52 @@ export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const toastIdRef = useRef(0);
 
-  const showToast = useCallback((message, type = 'success', duration = 5000) => {
+  /**
+   * Show a toast.
+   *
+   * Backwards-compatible signature — both call styles are supported:
+   *   showToast(message, 'error', 4000)                      // legacy positional
+   *   showToast(message, { type: 'error', duration: 4000 })  // options object
+   *
+   * @param {string} message - Toast text (Swedish, supplied by caller).
+   * @param {('success'|'error'|'info'|'warning')|{type?:string, duration?:number}} [typeOrOptions='success']
+   *        Variant string (legacy) or an options object.
+   * @param {number} [durationArg=5000] - Duration in ms (legacy positional only;
+   *        ignored when an options object is passed). Clamped to a 3s minimum.
+   * @returns {number} The toast id (usable with dismissToast).
+   */
+  const showToast = useCallback((message, typeOrOptions = 'success', durationArg) => {
+    let type;
+    let duration;
+    if (typeOrOptions !== null && typeof typeOrOptions === 'object') {
+      type = typeOrOptions.type === undefined ? 'success' : typeOrOptions.type;
+      duration = typeOrOptions.duration === undefined ? 5000 : typeOrOptions.duration;
+    } else {
+      type = typeOrOptions === undefined ? 'success' : typeOrOptions;
+      duration = durationArg === undefined ? 5000 : durationArg;
+    }
+
     const id = ++toastIdRef.current;
     const minDuration = 3000;
     const actualDuration = Math.max(duration, minDuration);
     setToasts(prev => [...prev, { id, message, type, exiting: false }]);
 
     setTimeout(() => {
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
+      setToasts(prev => prev.map(toast => toast.id === id ? { ...toast, exiting: true } : toast));
       setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
+        setToasts(prev => prev.filter(toast => toast.id !== id));
       }, 300);
     }, actualDuration);
+
+    return id;
   }, []);
 
   const dismissToast = useCallback((id) => {
     // Start exit animation
-    setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
+    setToasts(prev => prev.map(toast => toast.id === id ? { ...toast, exiting: true } : toast));
     // Remove after animation completes
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      setToasts(prev => prev.filter(toast => toast.id !== id));
     }, 300);
   }, []);
 
@@ -54,16 +87,30 @@ export function ToastProvider({ children }) {
 
 function ToastContainer({ toasts, onDismiss }) {
   return (
-    <div className="global-toast-container">
+    <div
+      className="global-toast-container"
+      role="status"
+      aria-live="polite"
+      aria-atomic="false"
+    >
       <StartupStatus />
-      {toasts.map((t) => (
+      {toasts.map((toast) => (
         <div
-          key={t.id}
-          className={`global-toast ${t.type} ${t.exiting ? 'exiting' : ''}`}
-          onClick={() => onDismiss(t.id)}
-          title="Click to dismiss"
+          key={toast.id}
+          className={`global-toast ${toast.type} ${toast.exiting ? 'exiting' : ''}`}
+          // Errors announce assertively; other variants inherit the polite
+          // container. A per-item role also overrides the region for that node.
+          role={toast.type === 'error' ? 'alert' : undefined}
         >
-          {t.message}
+          <span className="global-toast__message">{toast.message}</span>
+          <IconButton
+            icon="close"
+            label={t('common.dismiss')}
+            variant="ghost"
+            size="sm"
+            className="global-toast__dismiss"
+            onClick={() => onDismiss(toast.id)}
+          />
         </div>
       ))}
     </div>

@@ -173,6 +173,9 @@
 }
 
 .global-toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-lg);
   font-size: var(--font-base);
@@ -180,10 +183,26 @@
   box-shadow: var(--shadow-lg);
   max-width: 340px;
   pointer-events: auto;
-  cursor: pointer;
   opacity: var(--toast-opacity);
   animation: toast-slide-in var(--transition-slow) forwards;
   transition: transform var(--transition-slow), opacity var(--transition-slow);
+}
+
+.global-toast__message {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Dismiss button inherits the toast's text colour (white on the coloured
+   variant fills) instead of the IconButton default so it blends into the pill. */
+.global-toast__dismiss {
+  flex-shrink: 0;
+  color: inherit;
+  margin: calc(-1 * var(--space-xs)) calc(-1 * var(--space-sm)) calc(-1 * var(--space-xs)) 0;
+}
+.global-toast__dismiss:hover:not(:disabled) {
+  background: var(--overlay-hover, rgba(255, 255, 255, 0.2));
+  color: inherit;
 }
 
 .global-toast.exiting {
