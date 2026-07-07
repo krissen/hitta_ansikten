@@ -68,7 +68,7 @@ module.exports = {
     "processed": "Behandlad",
     "queued": "I kö",
     "noPersons": "(inga personer)",
-    "alreadyRenamed": "(redan omdöpt)"
+    "alreadyRenamed": "(redan namnbytt)"
   },
 
   "tooltips": {
@@ -107,7 +107,7 @@ module.exports = {
     "movedToTrash": "🗑️ Flyttade {fileName} till papperskorgen · ⌘⇧⌫ ångrar",
     "trashFailed": "Kunde inte flytta {fileName} till papperskorgen. Försök igen.",
     "restoredFromTrash": "↩️ Återställde {fileName} från papperskorgen",
-    "nothingToDelete": "Ingen bild vald att radera",
+    "nothingToDelete": "Ingen bild vald att ta bort",
     "nothingToUndo": "Inget att ångra",
     "preprocessingComplete": { "one": "Förbehandling klar ({count} fil cachad)", "other": "Förbehandling klar ({count} filer cachade)" },
     "backendReconnected": "🟢 Servern återansluten",
