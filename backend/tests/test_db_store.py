@@ -71,7 +71,7 @@ def make_store():
             if s._save_timer is not None:
                 s._save_timer.cancel()
                 s._save_timer = None
-            s._dirty = False
+            s._dirty = set()
 
 
 def _entry(vec, backend="insightface"):
@@ -417,7 +417,7 @@ def test_own_save_does_not_trigger_reload(db_dir, monkeypatch, make_store):
 
     store.mutate(lambda k, i, h, p: k.__setitem__("A", [_entry([1.0])]))
     # Wait for the debounced save to complete and record post-save mtimes.
-    assert _wait_for(lambda: store._dirty is False)
+    assert _wait_for(lambda: not store._dirty)
 
     # Now start spying and take a snapshot: our own write must not look external.
     monkeypatch.setattr(db_store_mod.db, "load_database", spy_load)
@@ -548,3 +548,154 @@ def test_get_db_store_is_singleton(db_dir, monkeypatch):
     b = get_db_store()
     assert a is b
     assert isinstance(a, FaceDBStore)
+
+
+# --------------------------------------------------------------------------
+# 12. Per-collection dirty-flag saves (E1)
+# --------------------------------------------------------------------------
+
+def _spy_only_saves(monkeypatch):
+    """Record the ``only`` set passed to each save_database call."""
+    onlys = []
+    real_save = faceid_db.save_database
+
+    def spy(*a, **kw):
+        onlys.append(kw.get("only"))
+        return real_save(*a, **kw)
+
+    monkeypatch.setattr(db_store_mod.db, "save_database", spy)
+    return onlys
+
+
+def test_dirty_union_coalesced_save_writes_only_touched(db_dir, monkeypatch, make_store):
+    """mutate(touches={known}) then mutate(touches={processed}) within one
+    coalesce window -> a single save whose ``only`` is exactly {known, processed}
+    (never ignored/hardneg)."""
+    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 0.3)
+    _seed()
+    store = make_store()
+    onlys = _spy_only_saves(monkeypatch)
+
+    store.mutate(lambda k, i, h, p: k.__setitem__("A", [_entry([1.0])]), touches={"known"})
+    store.mutate(lambda k, i, h, p: p.append({"name": "x.NEF", "hash": "h"}),
+                 touches={"processed"})
+
+    assert _wait_for(lambda: len(onlys) >= 1, timeout=2.0)
+    time.sleep(0.3)  # ensure no second save for the same burst
+    assert len(onlys) == 1, f"expected one coalesced save, got {len(onlys)}"
+    assert onlys[0] == frozenset({"known", "processed"})
+
+
+def test_dirty_flags_cleared_after_save(db_dir, fast_debounce, make_store):
+    _seed()
+    store = make_store()
+    store.mutate(lambda k, i, h, p: k.__setitem__("A", [_entry([1.0])]), touches={"known"})
+    assert store._dirty == {"known"}
+    assert _wait_for(lambda: not store._dirty)
+    assert store._dirty == set()
+
+
+def test_touches_none_marks_all_four_dirty(db_dir, monkeypatch, make_store):
+    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 10.0)
+    _seed()
+    store = make_store()
+    onlys = _spy_only_saves(monkeypatch)
+    store.mutate(lambda k, i, h, p: k.__setitem__("A", [_entry([1.0])]))  # touches=None
+    assert store._dirty == set(faceid_db.DB_COLLECTIONS)
+    store.flush()
+    assert onlys == [frozenset(faceid_db.DB_COLLECTIONS)]
+
+
+def test_unknown_touches_raises(db_dir, make_store):
+    store = make_store()
+    with pytest.raises(ValueError):
+        store.mutate(lambda k, i, h, p: None, touches={"bogus"})
+
+
+def test_partial_save_leaves_untouched_files_untouched(db_dir, monkeypatch, make_store):
+    """A save that only writes {known} must not rewrite ignored/hardneg/processed
+    on disk (mtime stability) — the core write-amplification win."""
+    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 10.0)
+    _seed(
+        known={"Alice": [_entry([1.0])]},
+        ignored=[_entry([0.1])],
+        hardneg={"Carol": [_entry([9.0])]},
+        processed=[{"name": "a.NEF", "hash": "h"}],
+    )
+    store = make_store()
+    store.snapshot()  # prime
+    before = {
+        p.name: p.stat().st_mtime_ns
+        for p in (faceid_db.IGNORED_PATH, faceid_db.HARDNEG_PATH, faceid_db.PROCESSED_PATH)
+    }
+    enc_before = faceid_db.ENCODING_PATH.stat().st_mtime_ns
+
+    store.mutate(lambda k, i, h, p: k.__setitem__("Bob", [_entry([2.0])]), touches={"known"})
+    store.flush()
+
+    # encodings.pkl rewritten; the other three untouched.
+    assert faceid_db.ENCODING_PATH.stat().st_mtime_ns != enc_before
+    for path in (faceid_db.IGNORED_PATH, faceid_db.HARDNEG_PATH, faceid_db.PROCESSED_PATH):
+        assert path.stat().st_mtime_ns == before[path.name], f"{path.name} was rewritten"
+
+
+def test_confirm_like_mutation_does_not_touch_ignored(db_dir, monkeypatch, make_store):
+    """Model the confirm-identity write path: known (+ processed via a second
+    mutation) change, ignored and hardneg stay byte-for-byte on disk. Proves the
+    audit's stated win — a confirm no longer rewrites ignored.pkl."""
+    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 10.0)
+    _seed(
+        known={"Alice": [_entry([1.0])]},
+        ignored=[_entry([0.1])],
+        hardneg={"Carol": [_entry([9.0])]},
+        processed=[{"name": "a.NEF", "hash": "h"}],
+    )
+    store = make_store()
+    store.snapshot()
+    ign_before = faceid_db.IGNORED_PATH.stat().st_mtime_ns
+    hn_before = faceid_db.HARDNEG_PATH.stat().st_mtime_ns
+
+    # confirm (no correction): appends an encoding + records processed.
+    store.mutate(lambda k, i, h, p: k["Alice"].append(_entry([1.1])), touches={"known"})
+    store.mutate(lambda k, i, h, p: p.append({"name": "b.NEF", "hash": "h2"}),
+                 touches={"processed"})
+    store.flush()
+
+    assert faceid_db.IGNORED_PATH.stat().st_mtime_ns == ign_before, "ignored.pkl rewritten by confirm"
+    assert faceid_db.HARDNEG_PATH.stat().st_mtime_ns == hn_before, "hardneg.pkl rewritten by confirm"
+
+
+def test_partial_save_preserves_external_change_detection(db_dir, monkeypatch, make_store):
+    """After a partial save (only {known} recorded), an external write to an
+    UNTOUCHED file (ignored) must still be detected on the next snapshot —
+    partial fingerprint recording must not blind the store to other files."""
+    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 0.05)
+    _seed(known={"Alice": [_entry([1.0])]}, ignored=[_entry([0.1])])
+    store = make_store()
+    store.snapshot()
+
+    store.mutate(lambda k, i, h, p: k.__setitem__("Bob", [_entry([2.0])]), touches={"known"})
+    assert _wait_for(lambda: not store._dirty)
+    v = store.version
+
+    # External process rewrites ONLY ignored.pkl.
+    faceid_db.save_database({}, [_entry([0.1]), _entry([0.2])], {}, [], only={"ignored"})
+    _bump_mtime(faceid_db.IGNORED_PATH)
+
+    snap = store.snapshot()
+    assert snap.version == v + 1, "external ignored.pkl write not detected after partial save"
+    assert len(snap.ignored_faces) == 2
+    # Our own known write survived the reload (still on disk).
+    assert "Bob" in snap.known_faces
+
+
+def test_flush_with_partial_dirty(db_dir, monkeypatch, make_store):
+    monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 10.0)
+    _seed()
+    store = make_store()
+    onlys = _spy_only_saves(monkeypatch)
+    store.mutate(lambda k, i, h, p: h.__setitem__("X", [_entry([1.0])]), touches={"hardneg"})
+    store.flush()
+    assert onlys == [frozenset({"hardneg"})]
+    _, _, hn, _ = faceid_db.load_database()
+    assert "X" in hn

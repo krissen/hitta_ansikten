@@ -113,7 +113,9 @@ class InMemoryDBStore:
     def read(self, fn):
         return fn(*self._collections())
 
-    def mutate(self, fn):
+    def mutate(self, fn, touches=None):
+        # touches accepted for signature parity with FaceDBStore; this in-memory
+        # stand-in persists nothing, so per-collection dirty flags are moot.
         result = fn(*self._collections())
         self._version += 1
         return result
