@@ -366,3 +366,70 @@ async def test_single_confirm_schedules_save_without_flush():
     # never flushes — the old debounced cadence is preserved.
     assert store.mutations == 1
     assert store.flushes == 0
+
+
+# --------------------------------------------------------------------------
+# 7. Version gate on the detection-cache write
+# --------------------------------------------------------------------------
+# The entry-time version check/clear/repin and the exit-time cache write in
+# detect_faces straddle awaits, and _cache_db_version is process-wide: without
+# a per-call gate, a detect whose compute overlaps a confirm could write its
+# pre-mutation (stale) result under the NEW pin and serve it until the next
+# version move. detect_faces therefore captures store.version right before the
+# matching compute and skips the cache write if the version advanced.
+
+
+def _write_probe_jpg(tmp_path):
+    from PIL import Image
+    img_path = tmp_path / "probe.jpg"
+    Image.new("RGB", (32, 32), color=(128, 128, 128)).save(img_path, "JPEG")
+    return img_path
+
+
+def _detect_backend(svc, mutate_during_compute):
+    """A backend whose detect_faces optionally mutates the store mid-compute.
+
+    The mutation fires inside the detection executor call — after detect_faces
+    captured version_at_compute, before the cache write — reproducing a confirm
+    landing while another detect is computing.
+    """
+    class Backend(FakeBackend):
+        def detect_faces(self, rgb, model=None, upsample=0):
+            if mutate_during_compute:
+                svc.store.mutate(lambda known, ignored, hardneg, processed: None)
+            return [], []
+
+    return Backend()
+
+
+@pytest.mark.asyncio
+async def test_detect_skips_cache_write_when_version_advances_mid_compute(tmp_path, monkeypatch):
+    monkeypatch.setattr(det_mod, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
+    svc = _service()
+    svc.backend = _detect_backend(svc, mutate_during_compute=True)
+    img = _write_probe_jpg(tmp_path)
+
+    result = await svc.detect_faces(str(img))
+
+    # The result is still returned to the caller...
+    assert result["cached"] is False
+    # ...but never cached: the store version advanced during compute, so the
+    # (possibly stale) suggestions must not outlive the mutation.
+    assert svc.cache == OrderedDict()
+
+
+@pytest.mark.asyncio
+async def test_detect_caches_result_when_version_stable(tmp_path, monkeypatch):
+    monkeypatch.setattr(det_mod, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
+    svc = _service()
+    svc.backend = _detect_backend(svc, mutate_during_compute=False)
+    img = _write_probe_jpg(tmp_path)
+
+    result = await svc.detect_faces(str(img))
+
+    # Control: with no mid-compute mutation the result IS cached under the
+    # composite key, and a second call serves it from the cache.
+    assert result["cached"] is False
+    assert len(svc.cache) == 1
+    again = await svc.detect_faces(str(img))
+    assert again["cached"] is True

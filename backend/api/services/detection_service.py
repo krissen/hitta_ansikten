@@ -627,6 +627,14 @@ class DetectionService:
         # Load image in thread pool
         rgb = await loop.run_in_executor(_executor, self._load_image, path)
 
+        # Capture the DB version the matching pass computes against. The
+        # entry-time check/clear above and the cache write below straddle
+        # awaits, and _cache_db_version is process-wide — a concurrent detect
+        # interleaving with a confirm could otherwise write a pre-mutation
+        # result under the new pin and serve it stale until the next version
+        # move. Gating the write on this captured value closes that window.
+        version_at_compute = self.store.version
+
         # Detect and match faces in thread pool
         faces, detection_meta = await loop.run_in_executor(
             _executor, self._detect_and_match_faces, rgb, 4500, file_hash
@@ -642,8 +650,16 @@ class DetectionService:
             "detection_meta": detection_meta
         }
 
-        # Cache result with LRU eviction (keyed by file hash + registry version)
-        self._lru_put(self.cache, cache_key, result, MAX_DETECTION_CACHE)
+        # Cache result with LRU eviction (keyed by file hash + registry
+        # version) — but only if the DB did not move under us mid-compute;
+        # a possibly-stale suggestion must not outlive the version bump.
+        if self.store.version == version_at_compute:
+            self._lru_put(self.cache, cache_key, result, MAX_DETECTION_CACHE)
+        else:
+            logger.debug(
+                "[DetectionService] DB version advanced during detection — "
+                "skipping cache write for %s", image_path,
+            )
         logger.info(f"[DetectionService] Detected {len(faces)} faces in {processing_time:.1f}ms")
 
         return result
