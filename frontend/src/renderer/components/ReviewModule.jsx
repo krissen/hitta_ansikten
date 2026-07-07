@@ -23,6 +23,7 @@ import { t } from '../../i18n/index.js';
 import { SuffixDialog } from './review/SuffixDialog.jsx';
 import { ConfirmDialog } from './review/ConfirmDialog.jsx';
 import { FaceCard } from './review/FaceCard.jsx';
+import { useReviewKeyboard } from './review/useReviewKeyboard.js';
 import {
   getTopMatch as getTopMatchPure,
   willAllBeDone,
@@ -637,197 +638,111 @@ export function ReviewModule({ node }) {
   }, [api, showToast]);
 
   /**
-   * Keyboard handler
+   * Undo the last face action and toast the result (Cmd+Z + menu event).
+   */
+  const undoWithToast = useCallback(() => {
+    const undone = undoLastAction();
+    if (undone) {
+      const msg = undone.type === 'confirm'
+        ? t('review.toasts.undo', { label: undone.face.person_name || t('review.toasts.undoConfirmFallback') })
+        : t('review.toasts.undoIgnore');
+      showToast(msg, 'info', 1500);
+    }
+  }, [undoLastAction, showToast]);
+
+  /**
+   * Keyboard handling
    * Shortcuts active when ReviewModule is visible (rendered in DOM)
    * Blocked in input fields and modules that capture keyboard (Preferences, etc.)
+   *
+   * useReviewKeyboard owns the document listener, the isActive gate and the
+   * key routing; the handlers below are the semantic branch bodies (they read
+   * module state: faces, active index, input refs).
    */
-  useEffect(() => {
-    const handleKeyboard = (e) => {
-      // Skip keyboard handling when this tab is hidden in FlexLayout
-      if (node && !node.isVisible()) return;
+  useReviewKeyboard({
+    navigate: navigateToFace,
+    maxAlternatives: () => preferences.get('reviewModule.maxAlternatives', 5),
+    selectAlternative: (idx) => {
+      const currentFace = detectedFaces[currentFaceIndex];
+      const alternatives = currentFace?.match_alternatives || [];
 
-      const activeEl = document.activeElement;
-      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
-      const inBlockingModule =
-        activeEl?.closest('.log-viewer') !== null ||
-        activeEl?.closest('.preferences-module') !== null ||
-        activeEl?.closest('.database-management') !== null ||
-        activeEl?.closest('.theme-editor') !== null;
-
-      if (inBlockingModule) {
-        return;
-      }
-
-      if (e.key === 'ArrowDown' && !isInput) {
-        e.preventDefault();
-        navigateToFace(1);
-        return;
-      }
-
-      if (e.key === 'ArrowUp' && !isInput) {
-        e.preventDefault();
-        navigateToFace(-1);
-        return;
-      }
-
-      // Number keys - select alternative (1-N) for current face
-      const maxAlt = preferences.get('reviewModule.maxAlternatives', 5);
-      const keyNum = parseInt(e.key, 10);
-      if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= maxAlt && !isInput) {
-        e.preventDefault();
-        const currentFace = detectedFaces[currentFaceIndex];
-        const alternatives = currentFace?.match_alternatives || [];
-        const idx = keyNum - 1;
-
-        if (idx < alternatives.length && !currentFace?.is_confirmed) {
-          const alt = alternatives[idx];
-          if (alt.name === 'ign') {
-            ignoreFace(currentFaceIndex);
-          } else {
-            confirmFace(currentFaceIndex, alt.name);
-          }
-        }
-        return;
-      }
-
-      // Alt+Enter - open the manual filename-suffix dialog. Handled before the
-      // plain-Enter branch and works even with focus in a name input, since
-      // Alt+Enter is not a normal text-entry gesture.
-      if (e.key === 'Enter' && e.altKey) {
-        e.preventDefault();
-        openSuffixDialog();
-        return;
-      }
-
-      // Enter to confirm (works both in input and outside)
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const currentFace = detectedFaces[currentFaceIndex];
-        if (currentFace?.is_confirmed) return;
-
-        const inputValue = isInput
-          ? e.target.value?.trim()
-          : inputRefs.current[currentFaceIndex]?.value?.trim();
-
-        if (inputValue) {
-          confirmFace(currentFaceIndex, inputValue);
-        } else if (currentFace?.match_alternatives?.length > 0) {
-          const firstAlt = currentFace.match_alternatives[0];
-          if (firstAlt.is_ignored || firstAlt.name === 'ign') {
-            ignoreFace(currentFaceIndex);
-          } else {
-            confirmFace(currentFaceIndex, firstAlt.name);
-          }
-        }
-        return;
-      }
-
-      // Shift+Cmd+A to accept all suggestions
-      if ((e.key === 'a' || e.key === 'A') && e.shiftKey && e.metaKey) {
-        e.preventDefault();
-        acceptAllSuggestions();
-        return;
-      }
-
-      // A to confirm
-      if ((e.key === 'a' || e.key === 'A') && !isInput) {
-        e.preventDefault();
-        const currentFace = detectedFaces[currentFaceIndex];
-        if (currentFace?.is_confirmed) return;
-
-        const input = inputRefs.current[currentFaceIndex];
-        if (input?.value?.trim()) {
-          confirmFace(currentFaceIndex, input.value);
-        } else if (currentFace?.match_alternatives?.length > 0) {
-          const firstAlt = currentFace.match_alternatives[0];
-          if (firstAlt.is_ignored || firstAlt.name === 'ign') {
-            ignoreFace(currentFaceIndex);
-          } else {
-            confirmFace(currentFaceIndex, firstAlt.name);
-          }
-        }
-        return;
-      }
-
-      // I to ignore
-      if ((e.key === 'i' || e.key === 'I') && !isInput) {
-        e.preventDefault();
-        ignoreFace(currentFaceIndex);
-        return;
-      }
-
-      // R to focus input
-      if ((e.key === 'r' || e.key === 'R') && !isInput) {
-        e.preventDefault();
-        const input = inputRefs.current[currentFaceIndex];
-        if (input && !detectedFaces[currentFaceIndex]?.is_confirmed) {
-          setClearInputTrigger(prev => prev + 1);
-          input.focus();
-        }
-        return;
-      }
-
-      // X to skip image (save pending and advance)
-      if ((e.key === 'x' || e.key === 'X') && !isInput) {
-        e.preventDefault();
-        skipImage();
-        return;
-      }
-
-      // M to add manual face
-      if ((e.key === 'm' || e.key === 'M') && !isInput) {
-        e.preventDefault();
-        addManualFace();
-        return;
-      }
-
-      // Cmd+Z to undo last face action
-      if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInput) {
-        e.preventDefault();
-        const undone = undoLastAction();
-        if (undone) {
-          const msg = undone.type === 'confirm'
-            ? t('review.toasts.undo', { label: undone.face.person_name || t('review.toasts.undoConfirmFallback') })
-            : t('review.toasts.undoIgnore');
-          showToast(msg, 'info', 1500);
-        }
-        return;
-      }
-
-      // Cmd+Backspace - soft-delete the current file to trash (Finder convention).
-      if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInput) {
-        e.preventDefault();
-        requestDeleteCurrentFile();
-        return;
-      }
-
-      // Cmd+Shift+Backspace - undo the last delete-to-trash.
-      if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey) && e.shiftKey && !isInput) {
-        e.preventDefault();
-        emit('file-queue:undo-trash');
-        return;
-      }
-
-      // Escape - cancel detection if running, else blur input or discard changes
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        if (isLoading) {
-          cancelDetection();
-          showToast(t('review.status.detectionCancelled'), 'info', 1500);
-          return;
-        }
-        if (isInput) {
-          e.target.blur();
+      if (idx < alternatives.length && !currentFace?.is_confirmed) {
+        const alt = alternatives[idx];
+        if (alt.name === 'ign') {
+          ignoreFace(currentFaceIndex);
         } else {
-          discardChanges();
+          confirmFace(currentFaceIndex, alt.name);
         }
+      }
+    },
+    openSuffixDialog,
+    confirmEnter: (e, isInput) => {
+      const currentFace = detectedFaces[currentFaceIndex];
+      if (currentFace?.is_confirmed) return;
+
+      const inputValue = isInput
+        ? e.target.value?.trim()
+        : inputRefs.current[currentFaceIndex]?.value?.trim();
+
+      if (inputValue) {
+        confirmFace(currentFaceIndex, inputValue);
+      } else if (currentFace?.match_alternatives?.length > 0) {
+        const firstAlt = currentFace.match_alternatives[0];
+        if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+          ignoreFace(currentFaceIndex);
+        } else {
+          confirmFace(currentFaceIndex, firstAlt.name);
+        }
+      }
+    },
+    acceptAll: acceptAllSuggestions,
+    confirmKey: () => {
+      const currentFace = detectedFaces[currentFaceIndex];
+      if (currentFace?.is_confirmed) return;
+
+      const input = inputRefs.current[currentFaceIndex];
+      if (input?.value?.trim()) {
+        confirmFace(currentFaceIndex, input.value);
+      } else if (currentFace?.match_alternatives?.length > 0) {
+        const firstAlt = currentFace.match_alternatives[0];
+        if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+          ignoreFace(currentFaceIndex);
+        } else {
+          confirmFace(currentFaceIndex, firstAlt.name);
+        }
+      }
+    },
+    ignore: () => ignoreFace(currentFaceIndex),
+    focusInput: () => {
+      const input = inputRefs.current[currentFaceIndex];
+      if (input && !detectedFaces[currentFaceIndex]?.is_confirmed) {
+        setClearInputTrigger(prev => prev + 1);
+        input.focus();
+      }
+    },
+    skipImage,
+    addManualFace,
+    undo: undoWithToast,
+    deleteFile: requestDeleteCurrentFile,
+    undoDelete: () => emit('file-queue:undo-trash'),
+    escape: (e, isInput) => {
+      if (isLoading) {
+        cancelDetection();
+        showToast(t('review.status.detectionCancelled'), 'info', 1500);
         return;
       }
-    };
-
-    document.addEventListener('keydown', handleKeyboard);
-    return () => document.removeEventListener('keydown', handleKeyboard);
-  }, [currentFaceIndex, detectedFaces, navigateToFace, confirmFace, ignoreFace, discardChanges, skipImage, addManualFace, acceptAllSuggestions, undoLastAction, isLoading, cancelDetection, showToast, requestDeleteCurrentFile, openSuffixDialog, emit]);
+      if (isInput) {
+        e.target.blur();
+      } else {
+        discardChanges();
+      }
+    },
+  }, {
+    // Today's gate: the FlexLayout tab must not be hidden. The gate's source
+    // is a parameter so a later change (I1) can swap it for an active-tabset
+    // check without touching the routing.
+    isActive: () => !node || node.isVisible(),
+  });
 
   useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
     if (skipAutoDetect) {
@@ -879,15 +794,7 @@ export function ReviewModule({ node }) {
   useEffect(() => {
     emit('request-queue-status');
   }, [emit]);
-  useModuleEvent('undo-face-action', useCallback(() => {
-    const undone = undoLastAction();
-    if (undone) {
-      const msg = undone.type === 'confirm'
-        ? t('review.toasts.undo', { label: undone.face.person_name || t('review.toasts.undoConfirmFallback') })
-        : t('review.toasts.undoIgnore');
-      showToast(msg, 'info', 1500);
-    }
-  }, [undoLastAction, showToast]));
+  useModuleEvent('undo-face-action', undoWithToast);
 
   /**
    * WebSocket events
