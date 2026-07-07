@@ -100,6 +100,21 @@ module.exports = {
   },
   "presetNamePlaceholder": "Förvalsnamn…",
   "deleteTitle": "Ta bort",
+  "dialogs": {
+    "deletePreset": {
+      "title": "Ta bort förval",
+      "message": "Ta bort förvalet ”{name}”? Det går inte att ångra.",
+      "confirm": "Ta bort"
+    },
+    "reset": {
+      "title": "Återställ tema",
+      "message": "Återställ alla temaändringar till standardvärdena? Dina osparade justeringar av färger och storlekar tas bort. Sparade förval påverkas inte.",
+      "confirm": "Återställ"
+    }
+  },
+  "toasts": {
+    "importError": "Kunde inte importera förval. Kontrollera att filen är en giltig temaexport (JSON)."
+  },
   "buttons": {
     "export": "Exportera",
     "import": "Importera"

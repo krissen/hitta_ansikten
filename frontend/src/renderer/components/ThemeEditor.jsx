@@ -8,12 +8,28 @@
  * - Preset management (save/load/export/import)
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { themeManager } from '../theme-manager.js';
 import { preferences } from '../workspace/preferences.js';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { t } from '../../i18n/index.js';
+import { Button, IconButton } from './shared/index.js';
+import { useConfirm } from '../context/ConfirmContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import './ThemeEditor.css';
+
+/**
+ * Activate a role="button" element on Enter/Space (house a11y pattern for
+ * clickable non-buttons; see docs/dev/accessibility.md §2).
+ */
+function activateOnKey(handler) {
+  return (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handler();
+    }
+  };
+}
 
 // Storage keys
 const PRESET_BINDINGS_KEY = 'theme-preset-bindings';
@@ -193,6 +209,10 @@ function parseNumericValue(value) {
  * ThemeEditor Component
  */
 export function ThemeEditor({ api }) {
+  const confirm = useConfirm();
+  const showToast = useToast();
+  // Guards against a second activation while a confirm dialog is already open.
+  const confirmBusyRef = useRef(false);
   const [activeGroup, setActiveGroup] = useState('Theme Mode');
   const [values, setValues] = useState({});
   const [tabValues, setTabValues] = useState({});
@@ -334,13 +354,30 @@ export function ThemeEditor({ api }) {
     debug('ThemeEditor', 'Loaded preset:', name);
   }, [customPresets, values, loadCurrentValues]);
 
-  const deletePreset = useCallback((name) => {
-    const newPresets = { ...customPresets };
-    delete newPresets[name];
-    setCustomPresets(newPresets);
-    localStorage.setItem('theme-custom-presets', JSON.stringify(newPresets));
-    debug('ThemeEditor', 'Deleted preset:', name);
-  }, [customPresets]);
+  const deletePreset = useCallback(async (name) => {
+    if (confirmBusyRef.current) return;
+    confirmBusyRef.current = true;
+    try {
+      const ok = await confirm({
+        title: t('themeEditor.dialogs.deletePreset.title'),
+        message: t('themeEditor.dialogs.deletePreset.message', { name }),
+        confirmLabel: t('themeEditor.dialogs.deletePreset.confirm'),
+        variant: 'danger'
+      });
+      if (!ok) return;
+      // Read the latest presets at apply time so a stale closure can't resurrect
+      // a preset deleted meanwhile.
+      setCustomPresets(prev => {
+        const newPresets = { ...prev };
+        delete newPresets[name];
+        localStorage.setItem('theme-custom-presets', JSON.stringify(newPresets));
+        return newPresets;
+      });
+      debug('ThemeEditor', 'Deleted preset:', name);
+    } finally {
+      confirmBusyRef.current = false;
+    }
+  }, [confirm]);
 
   const exportPresets = useCallback(() => {
     const data = {
@@ -378,21 +415,35 @@ export function ThemeEditor({ api }) {
           debug('ThemeEditor', 'Imported presets');
         } catch (err) {
           debugError('ThemeEditor', 'Failed to import presets:', err);
+          showToast(t('themeEditor.toasts.importError'), { type: 'error' });
         }
       };
       reader.readAsText(file);
     };
     input.click();
-  }, [customPresets]);
+  }, [customPresets, showToast]);
 
-  const resetToDefault = useCallback(() => {
-    // Remove all custom CSS variable overrides
-    Object.keys(values).forEach(v => {
-      document.documentElement.style.removeProperty(v);
-    });
-    setTimeout(loadCurrentValues, 50);
-    debug('ThemeEditor', 'Reset to defaults');
-  }, [values, loadCurrentValues]);
+  const resetToDefault = useCallback(async () => {
+    if (confirmBusyRef.current) return;
+    confirmBusyRef.current = true;
+    try {
+      const ok = await confirm({
+        title: t('themeEditor.dialogs.reset.title'),
+        message: t('themeEditor.dialogs.reset.message'),
+        confirmLabel: t('themeEditor.dialogs.reset.confirm'),
+        variant: 'danger'
+      });
+      if (!ok) return;
+      // Remove all custom CSS variable overrides
+      Object.keys(values).forEach(v => {
+        document.documentElement.style.removeProperty(v);
+      });
+      setTimeout(loadCurrentValues, 50);
+      debug('ThemeEditor', 'Reset to defaults');
+    } finally {
+      confirmBusyRef.current = false;
+    }
+  }, [confirm, values, loadCurrentValues]);
 
   const allPresetNames = getAllPresetNames(customPresets);
 
@@ -553,28 +604,56 @@ export function ThemeEditor({ api }) {
       <div className="module-sidebar">
         <h3 className="sidebar-title">{t('themeEditor.sidebar.categories')}</h3>
         <ul className="item-list">
-          {Object.keys(VARIABLE_GROUPS).map(name => (
-            <li
-              key={name}
-              className={`list-item-nav ${activeGroup === name ? 'active' : ''}`}
-              onClick={() => setActiveGroup(name)}
-            >
-              {t(VARIABLE_GROUPS[name].titleKey)}
-            </li>
-          ))}
+          {Object.keys(VARIABLE_GROUPS).map(name => {
+            const active = activeGroup === name;
+            return (
+              <li
+                key={name}
+                className={`list-item-nav ${active ? 'active' : ''}`}
+                role="button"
+                tabIndex={0}
+                aria-pressed={active}
+                onClick={() => setActiveGroup(name)}
+                onKeyDown={activateOnKey(() => setActiveGroup(name))}
+              >
+                {t(VARIABLE_GROUPS[name].titleKey)}
+              </li>
+            );
+          })}
         </ul>
 
         <h3 className="sidebar-title">{t('themeEditor.sidebar.presets')}</h3>
         <ul className="item-list preset-list">
           {Object.keys(BUILTIN_PRESETS).map(name => (
-            <li key={name} className="list-item-nav" onClick={() => loadPreset(name)}>
+            <li
+              key={name}
+              className="list-item-nav"
+              role="button"
+              tabIndex={0}
+              onClick={() => loadPreset(name)}
+              onKeyDown={activateOnKey(() => loadPreset(name))}
+            >
               {name}
             </li>
           ))}
           {Object.keys(customPresets).map(name => (
             <li key={name} className="list-item-nav custom-preset">
-              <span onClick={() => loadPreset(name)}>{name}</span>
-              <button onClick={() => deletePreset(name)} title={t('themeEditor.deleteTitle')} aria-label={t('themeEditor.deleteTitle')}>×</button>
+              <span
+                className="custom-preset__name"
+                role="button"
+                tabIndex={0}
+                onClick={() => loadPreset(name)}
+                onKeyDown={activateOnKey(() => loadPreset(name))}
+              >
+                {name}
+              </span>
+              <IconButton
+                icon="close"
+                variant="danger"
+                size="sm"
+                label={t('themeEditor.deleteTitle')}
+                onClick={() => deletePreset(name)}
+              />
             </li>
           ))}
         </ul>
@@ -585,15 +664,16 @@ export function ThemeEditor({ api }) {
               type="text"
               className="form-input"
               placeholder={t('themeEditor.presetNamePlaceholder')}
+              aria-label={t('themeEditor.presetNamePlaceholder')}
               value={presetName}
               onChange={(e) => setPresetName(e.target.value)}
             />
-            <button className="btn-secondary" onClick={savePreset} disabled={!presetName.trim()}>{t('common.save')}</button>
+            <Button variant="primary" onClick={savePreset} disabled={!presetName.trim()}>{t('common.save')}</Button>
           </div>
           <div className="preset-buttons">
-            <button className="btn-secondary" onClick={exportPresets}>{t('themeEditor.buttons.export')}</button>
-            <button className="btn-secondary" onClick={importPresets}>{t('themeEditor.buttons.import')}</button>
-            <button className="btn-secondary" onClick={resetToDefault}>{t('common.reset')}</button>
+            <Button variant="secondary" onClick={exportPresets}>{t('themeEditor.buttons.export')}</Button>
+            <Button variant="secondary" onClick={importPresets}>{t('themeEditor.buttons.import')}</Button>
+            <Button variant="secondary" onClick={resetToDefault}>{t('common.reset')}</Button>
           </div>
         </div>
       </div>
