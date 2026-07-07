@@ -78,6 +78,20 @@ This release focuses on end-to-end performance and efficiency improvements:
   flush synchronously for durability).
 - **[Remaining] Batch review-save endpoint** (confirm + ignore in one request
   per image) and the frontend review flow that submits to it.
+- **[Done] One-time DB normalization with schema marker** — `core.db.load_database`
+  no longer re-runs `normalize_encoding_entry` over every entry on every load.
+  The first load of an un-migrated DB normalizes, saves the result back (via
+  `save_database(only=...)`, only the collections that had migrated entries), and
+  writes a `db_meta.json` sidecar (`{"schema": 2}`) atomically; subsequent loads
+  read the marker and skip the per-entry pass. Safety: the data files are
+  rewritten only when normalization actually changed something; a corrupt entry
+  suppresses both the save-back and the marker (preserving today's drop-in-memory
+  behavior); a missing/malformed marker falls back to a full pass. Trusting the
+  marker is safe because every consume site (`core.matching`, the
+  management/refinement/statistics services) already tolerates bare arrays and
+  backend-less dicts. Measured on a synthetic 5000-entry DB: the already-migrated
+  load dropped ~32% (≈8.0 → ≈5.4 ms), eliminating the per-entry pass — the
+  residual cost is pickle deserialization.
 - **[Done, Phase D, step D4] Statistics caching strategy** — `get_summary` is
   now version-keyed on `store.version` (DB parts invalidate immediately; TTL
   only guards the non-store attempt/app-log parts). Any further incremental

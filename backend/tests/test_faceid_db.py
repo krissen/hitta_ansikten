@@ -34,6 +34,7 @@ def db_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(faceid_db, "ENCODING_PATH", base / "encodings.pkl")
     monkeypatch.setattr(faceid_db, "IGNORED_PATH", base / "ignored.pkl")
     monkeypatch.setattr(faceid_db, "HARDNEG_PATH", base / "hardneg.pkl")
+    monkeypatch.setattr(faceid_db, "DB_META_PATH", base / "db_meta.json")
     monkeypatch.setattr(faceid_db, "PROCESSED_PATH", base / "processed_files.jsonl")
     monkeypatch.setattr(faceid_db, "ATTEMPT_LOG_PATH", base / "attempt_stats.jsonl")
     monkeypatch.setattr(faceid_db, "LOGGING_PATH", base / "ansikten.log")
@@ -206,6 +207,204 @@ def test_processed_legacy_bare_line_fallback(db_dir):
         {"name": "a.NEF", "hash": "h1"},
         {"name": "legacy_bare_filename.NEF", "hash": None},
     ]
+
+
+# --------------------------------------------------------------------------
+# 1b. One-time normalization with schema marker
+# --------------------------------------------------------------------------
+
+def _write_legacy_encodings(base):
+    """Seed encodings.pkl with legacy-format entries needing migration:
+    a bare ndarray, a dict missing 'backend', and a dict missing 'encoding_hash'.
+    """
+    legacy = {
+        "Alice": [
+            np.array([1.0, 2.0, 3.0]),                      # bare array
+            {"encoding": np.array([4.0, 5.0, 6.0])},        # dict missing backend/hash
+        ],
+        "Bob": [
+            {"encoding": np.array([7.0, 8.0]), "backend": "insightface"},  # missing hash/version/created_at
+        ],
+    }
+    with open(base / "encodings.pkl", "wb") as f:
+        pickle.dump(legacy, f)
+
+
+def test_first_load_migrates_and_writes_marker(db_dir):
+    _write_legacy_encodings(db_dir)
+    assert not faceid_db.DB_META_PATH.exists()
+
+    known, _, _, _ = faceid_db.load_database()
+
+    # Entries normalized in the returned data.
+    for name in ("Alice", "Bob"):
+        for entry in known[name]:
+            assert isinstance(entry, dict)
+            assert "backend" in entry
+            assert "backend_version" in entry
+            assert "created_at" in entry
+            assert entry["encoding_hash"] is not None
+
+    # Marker written at the current schema.
+    assert faceid_db.DB_META_PATH.exists()
+    meta = json.loads(faceid_db.DB_META_PATH.read_text(encoding="utf-8"))
+    assert meta == {"schema": faceid_db.DB_SCHEMA_VERSION}
+
+    # Migration was persisted back to disk: reloading the raw pickle shows dicts.
+    with open(faceid_db.ENCODING_PATH, "rb") as f:
+        raw = faceid_db.safe_pickle_load(f)
+    assert all(isinstance(e, dict) and "backend" in e for e in raw["Alice"])
+    assert all(isinstance(e, dict) and "backend" in e for e in raw["Bob"])
+
+
+def test_second_load_skips_normalization(db_dir, monkeypatch):
+    _write_legacy_encodings(db_dir)
+    faceid_db.load_database()  # first load: migrates + writes marker
+
+    calls = []
+    real = faceid_db.normalize_encoding_entry
+
+    def counting(entry, *a, **k):
+        calls.append(entry)
+        return real(entry, *a, **k)
+
+    monkeypatch.setattr(faceid_db, "normalize_encoding_entry", counting)
+
+    faceid_db.load_database()  # second load: marker present -> skip pass
+    assert calls == []  # normalize_encoding_entry never invoked
+
+
+def test_marker_missing_forces_full_pass(db_dir, monkeypatch):
+    _write_legacy_encodings(db_dir)
+    faceid_db.load_database()
+    assert faceid_db.DB_META_PATH.exists()
+    faceid_db.DB_META_PATH.unlink()  # simulate missing marker
+
+    calls = []
+    real = faceid_db.normalize_encoding_entry
+    monkeypatch.setattr(
+        faceid_db, "normalize_encoding_entry",
+        lambda entry, *a, **k: (calls.append(entry), real(entry, *a, **k))[1],
+    )
+    faceid_db.load_database()
+    assert calls  # full pass ran again (compat when marker absent)
+    assert faceid_db.DB_META_PATH.exists()  # marker re-created
+
+
+def test_stale_marker_forces_full_pass(db_dir):
+    _write_legacy_encodings(db_dir)
+    # Marker at an older schema must not short-circuit migration.
+    faceid_db.DB_META_PATH.write_text(json.dumps({"schema": faceid_db.DB_SCHEMA_VERSION - 1}), encoding="utf-8")
+
+    known, _, _, _ = faceid_db.load_database()
+    assert all("backend" in e for e in known["Alice"])  # migrated despite marker
+    meta = json.loads(faceid_db.DB_META_PATH.read_text(encoding="utf-8"))
+    assert meta == {"schema": faceid_db.DB_SCHEMA_VERSION}  # bumped to current
+
+
+def test_clean_load_writes_marker_without_rewriting_data(db_dir):
+    # Already-normalized DB, but no marker yet (e.g. first load after upgrade).
+    faceid_db.save_database({"Alice": [_entry([1.0, 2.0])]}, [], {}, [])
+    faceid_db.DB_META_PATH.unlink(missing_ok=True) if faceid_db.DB_META_PATH.exists() else None
+    # save_database does not write the marker; ensure it is absent.
+    if faceid_db.DB_META_PATH.exists():
+        faceid_db.DB_META_PATH.unlink()
+
+    import os
+    st = faceid_db.ENCODING_PATH.stat()
+    os.utime(faceid_db.ENCODING_PATH, ns=(st.st_atime_ns, st.st_mtime_ns))
+    enc_mtime = faceid_db.ENCODING_PATH.stat().st_mtime_ns
+
+    faceid_db.load_database()
+
+    # Marker written, but the data file was NOT rewritten (no migration needed).
+    assert faceid_db.DB_META_PATH.exists()
+    assert faceid_db.ENCODING_PATH.stat().st_mtime_ns == enc_mtime
+
+
+def test_corrupt_entry_no_marker_no_save(db_dir):
+    # A corrupt (non-array, non-dict) entry must behave exactly as today:
+    # dropped in-memory, NOT persisted, and NO marker written (so it keeps
+    # being handled on every load).
+    with open(faceid_db.ENCODING_PATH, "wb") as f:
+        pickle.dump({"Alice": [np.array([1.0, 2.0]), "corrupt_string"]}, f)
+
+    known, _, _, _ = faceid_db.load_database()
+
+    # Corrupt entry dropped in the returned data; valid one kept + normalized.
+    assert len(known["Alice"]) == 1
+    assert isinstance(known["Alice"][0], dict)
+
+    # No marker (DB not certified clean).
+    assert not faceid_db.DB_META_PATH.exists()
+
+    # On-disk pickle still contains the corrupt entry (not silently dropped).
+    with open(faceid_db.ENCODING_PATH, "rb") as f:
+        raw = faceid_db.safe_pickle_load(f)
+    assert any(e == "corrupt_string" for e in raw["Alice"] if isinstance(e, str))
+
+
+def test_corrupt_in_one_collection_suppresses_save_of_another(db_dir):
+    # Cross-collection suppression: a corrupt entry in IGNORED must suppress
+    # the save-back of migrated KNOWN entries too (global all-clean gate) —
+    # the on-disk known pickle must keep its legacy form and no marker appears.
+    with open(faceid_db.ENCODING_PATH, "wb") as f:
+        pickle.dump({"Alice": [np.array([1.0, 2.0])]}, f)  # legacy bare array
+    with open(faceid_db.IGNORED_PATH, "wb") as f:
+        pickle.dump([np.array([3.0, 4.0]), "corrupt_string"], f)
+
+    known, _, _, _ = faceid_db.load_database()
+
+    # In-memory: known migrated to dict form as always.
+    assert isinstance(known["Alice"][0], dict)
+    # No marker, and the known pickle was NOT rewritten (still legacy on disk).
+    assert not faceid_db.DB_META_PATH.exists()
+    with open(faceid_db.ENCODING_PATH, "rb") as f:
+        raw = faceid_db.safe_pickle_load(f)
+    assert isinstance(raw["Alice"][0], np.ndarray)
+
+
+def test_marker_present_but_legacy_entry_does_not_crash(db_dir):
+    # Marker says schema is current, but an external tool wrote a legacy bare
+    # array. load_database trusts the marker and skips normalization; the entry
+    # comes back raw (no crash), and the defensive consume sites tolerate it.
+    with open(faceid_db.ENCODING_PATH, "wb") as f:
+        pickle.dump({"Alice": [np.array([1.0, 2.0, 3.0])]}, f)
+    faceid_db.DB_META_PATH.write_text(json.dumps({"schema": faceid_db.DB_SCHEMA_VERSION}), encoding="utf-8")
+
+    known, _, _, _ = faceid_db.load_database()
+    # Skipped normalization: the bare array is returned unchanged.
+    assert isinstance(known["Alice"][0], np.ndarray)
+
+
+def test_malformed_marker_falls_back_to_full_pass(db_dir):
+    _write_legacy_encodings(db_dir)
+    faceid_db.DB_META_PATH.write_text("{not valid json", encoding="utf-8")
+
+    known, _, _, _ = faceid_db.load_database()
+    # Unreadable marker -> treated as missing -> full pass migrates.
+    assert all("backend" in e for e in known["Alice"])
+    meta = json.loads(faceid_db.DB_META_PATH.read_text(encoding="utf-8"))
+    assert meta == {"schema": faceid_db.DB_SCHEMA_VERSION}
+
+
+def test_entry_needs_normalization_predicate():
+    assert faceid_db._entry_needs_normalization(np.array([1.0])) is True
+    assert faceid_db._entry_needs_normalization({"encoding": np.array([1.0])}) is True
+    # Missing only encoding_hash (with a real encoding) still needs migration.
+    assert faceid_db._entry_needs_normalization(
+        {"encoding": np.array([1.0]), "backend": "insightface",
+         "backend_version": "x", "created_at": None}
+    ) is True
+    # Manual face (encoding=None) without encoding_hash does NOT need migration.
+    assert faceid_db._entry_needs_normalization(
+        {"encoding": None, "backend": "dlib", "backend_version": "unknown",
+         "created_at": None}
+    ) is False
+    # Fully normalized -> no migration.
+    assert faceid_db._entry_needs_normalization(_entry([1.0, 2.0])) is False
+    # Corrupt -> predicate returns False (handled separately as a drop).
+    assert faceid_db._entry_needs_normalization("junk") is False
 
 
 # --------------------------------------------------------------------------

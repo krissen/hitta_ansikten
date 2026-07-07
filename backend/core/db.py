@@ -68,10 +68,19 @@ ENCODING_PATH = BASE_DIR / "encodings.pkl"
 IGNORED_PATH = BASE_DIR / "ignored.pkl"
 HARDNEG_PATH = BASE_DIR / "hardneg.pkl"
 METADATA_PATH = BASE_DIR / "metadata.json"
+DB_META_PATH = BASE_DIR / "db_meta.json"
 PROCESSED_PATH = BASE_DIR / "processed_files.jsonl"
 SUPPORTED_EXT = [".nef", ".NEF"]
 ATTEMPT_LOG_PATH = BASE_DIR / "attempt_stats.jsonl"
 LOGGING_PATH = BASE_DIR / "ansikten.log"
+
+# Current on-disk encoding schema. A ``db_meta.json`` sidecar recording this
+# version means every entry in the pickle collections is already normalized
+# (dict form with backend metadata), so ``load_database`` may skip the
+# per-entry normalization pass entirely. Bump this if the normalized shape
+# produced by ``normalize_encoding_entry`` ever changes — an older marker
+# (schema < DB_SCHEMA_VERSION) then forces a fresh full pass + re-save.
+DB_SCHEMA_VERSION = 2
 
 # Log rotation settings
 MAX_PROCESSED_ENTRIES = 50000    # Max entries in processed_files.jsonl
@@ -140,6 +149,93 @@ def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend
         return None
 
 
+def _entry_needs_normalization(entry: Any) -> bool:
+    """Return True if ``normalize_encoding_entry`` would change ``entry``.
+
+    Enumerates every migration the normalizer performs so callers can detect a
+    genuine change without relying on the (looser) counting used previously:
+
+    - bare ``np.ndarray`` -> wrapped in a dict;
+    - dict missing ``backend`` / ``backend_version`` / ``created_at`` -> filled in;
+    - dict missing ``encoding_hash`` while ``encoding`` is not None -> hash backfilled.
+
+    A dict with ``encoding=None`` (manual face) never gets ``encoding_hash``, so
+    its absence is not a migration need. Non-array/non-dict entries are corrupt
+    (the normalizer drops them) and are handled separately by the caller — this
+    predicate returns False for them.
+    """
+    if isinstance(entry, np.ndarray):
+        return True
+    if isinstance(entry, dict):
+        if "backend" not in entry or "backend_version" not in entry or "created_at" not in entry:
+            return True
+        if "encoding_hash" not in entry and entry.get("encoding") is not None:
+            return True
+        return False
+    return False
+
+
+def _normalize_collection(entries: list[Any]) -> tuple[list[dict[str, Any]], int, int]:
+    """Normalize a list of encoding entries.
+
+    Returns ``(normalized_entries, migrated_count, corrupt_count)`` where
+    ``migrated_count`` is the number of entries that actually needed a schema
+    migration and ``corrupt_count`` is the number dropped (normalizer returned
+    None). Dropping corrupt entries is in-memory only — the caller decides
+    whether to persist, and never persists when any entry was corrupt.
+    """
+    normalized: list[dict[str, Any]] = []
+    migrated = 0
+    corrupt = 0
+    for entry in entries:
+        if _entry_needs_normalization(entry):
+            migrated += 1
+        norm_entry = normalize_encoding_entry(entry)
+        if norm_entry is None:
+            corrupt += 1
+            continue
+        normalized.append(norm_entry)
+    return normalized, migrated, corrupt
+
+
+def _read_schema_version() -> int | None:
+    """Read the schema version from the ``db_meta.json`` sidecar.
+
+    Returns the integer schema, or None when the marker is absent, unreadable,
+    or malformed — in which case the caller falls back to a full normalization
+    pass (safe default).
+    """
+    try:
+        with open(DB_META_PATH, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+    except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError):
+        return None
+    version = meta.get("schema") if isinstance(meta, dict) else None
+    return version if isinstance(version, int) else None
+
+
+def _write_schema_marker() -> None:
+    """Atomically record that the DB is normalized to the current schema.
+
+    Written via temp-file + rename so a concurrent reader (CLI or server) never
+    sees a half-written marker. Failure is non-fatal: if the marker cannot be
+    written, the next load simply re-normalizes (as today) — no data is at risk.
+    """
+    temp_path = DB_META_PATH.with_suffix(".tmp")
+    try:
+        BASE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump({"schema": DB_SCHEMA_VERSION}, f)
+        temp_path.replace(DB_META_PATH)
+    except OSError as e:
+        logging.warning(f"[DATABASE] Failed to write schema marker: {e}")
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+
+
 def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]], dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
     """
     Load database with file locking to ensure consistency.
@@ -192,51 +288,78 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
                 # fallback legacy
                 processed_files.append({"name": line, "hash": None})
 
-    # Normalize all encodings to include backend metadata
-    migration_stats = {
-        'known_faces_migrated': 0,
-        'ignored_faces_migrated': 0,
-        'hard_negatives_migrated': 0
-    }
+    # One-time migration: if a previous run already normalized the DB to the
+    # current schema (recorded in db_meta.json), skip the per-entry pass
+    # entirely. Every consume site (core.matching.filter_database_by_backend,
+    # the management/refinement/statistics services) tolerates bare arrays and
+    # backend-less dicts by construction (defaulting to the 'dlib' backend), so
+    # a legacy entry that sneaks past the marker via an external tool is
+    # harmlessly ignored during matching rather than crashing it. That
+    # defensiveness is the belt-and-braces that makes trusting the marker safe.
+    if (schema := _read_schema_version()) is not None and schema >= DB_SCHEMA_VERSION:
+        return known_faces, ignored_faces, hard_negatives, processed_files
 
-    # Normalize known_faces
+    # Normalize all encodings to include backend metadata (full pass — first
+    # load, or marker missing/stale).
+    kf_migrated = kf_corrupt = 0
     for name in known_faces:
-        normalized = []
-        for entry in known_faces[name]:
-            if isinstance(entry, np.ndarray) or (isinstance(entry, dict) and "backend" not in entry):
-                migration_stats['known_faces_migrated'] += 1
-            norm_entry = normalize_encoding_entry(entry)
-            if norm_entry is not None:  # Skip corrupted entries
-                normalized.append(norm_entry)
-        known_faces[name] = normalized
+        known_faces[name], m, c = _normalize_collection(known_faces[name])
+        kf_migrated += m
+        kf_corrupt += c
 
-    # Normalize ignored_faces
-    normalized = []
-    for entry in ignored_faces:
-        if isinstance(entry, np.ndarray) or (isinstance(entry, dict) and "backend" not in entry):
-            migration_stats['ignored_faces_migrated'] += 1
-        norm_entry = normalize_encoding_entry(entry)
-        if norm_entry is not None:  # Skip corrupted entries
-            normalized.append(norm_entry)
-    ignored_faces = normalized
+    ignored_faces, if_migrated, if_corrupt = _normalize_collection(ignored_faces)
 
-    # Normalize hard_negatives
+    hn_migrated = hn_corrupt = 0
     for name in hard_negatives:
-        normalized = []
-        for entry in hard_negatives[name]:
-            if isinstance(entry, np.ndarray) or (isinstance(entry, dict) and "backend" not in entry):
-                migration_stats['hard_negatives_migrated'] += 1
-            norm_entry = normalize_encoding_entry(entry)
-            if norm_entry is not None:  # Skip corrupted entries
-                normalized.append(norm_entry)
-        hard_negatives[name] = normalized
+        hard_negatives[name], m, c = _normalize_collection(hard_negatives[name])
+        hn_migrated += m
+        hn_corrupt += c
 
-    total_migrated = sum(migration_stats.values())
+    total_migrated = kf_migrated + if_migrated + hn_migrated
+    total_corrupt = kf_corrupt + if_corrupt + hn_corrupt
+
     if total_migrated > 0:
         logging.info(f"[DATABASE] Migrated {total_migrated} encodings to new format:")
-        logging.info(f"  Known faces: {migration_stats['known_faces_migrated']}")
-        logging.info(f"  Ignored faces: {migration_stats['ignored_faces_migrated']}")
-        logging.info(f"  Hard negatives: {migration_stats['hard_negatives_migrated']}")
+        logging.info(f"  Known faces: {kf_migrated}")
+        logging.info(f"  Ignored faces: {if_migrated}")
+        logging.info(f"  Hard negatives: {hn_migrated}")
+
+    # Persist the migration and record the schema marker so future loads skip
+    # the pass. Two safety rules:
+    #   1. Only write the DATA files when normalization actually changed
+    #      something (total_migrated > 0) — a no-op load never rewrites the
+    #      irreplaceable pickles; it only drops the (tiny) marker.
+    #   2. If ANY entry was corrupt, do nothing: no data save (a save-back
+    #      would silently drop the corrupt entry from disk, unlike today) and
+    #      no marker (so the DB keeps being re-normalized every load, exactly
+    #      as today). This preserves the pinned corrupt-entry behavior.
+    # Single-writer assumption: this read-modify-write holds no lock across
+    # R+W, so a writer mutating concurrently with the ONE-TIME first-migration
+    # load could be clobbered by the save-back. This matches save_database's
+    # pre-existing single-writer model (the GUI serializes writes through
+    # FaceDBStore; CLI-vs-server concurrent writes were always last-writer-
+    # wins) and only applies to the single upgrade event per database.
+    if total_corrupt == 0:
+        if total_migrated > 0:
+            only = set()
+            if kf_migrated:
+                only.add("known")
+            if if_migrated:
+                only.add("ignored")
+            if hn_migrated:
+                only.add("hardneg")
+            try:
+                save_database(known_faces, ignored_faces, hard_negatives, processed_files, only=only)
+            except Exception as e:
+                # Migration save failed — leave the on-disk data as-is and do
+                # NOT mark; the next load retries the migration.
+                logging.warning(f"[DATABASE] Migration save failed, will retry next load: {e}")
+            else:
+                _write_schema_marker()
+        else:
+            # Already-clean DB with no marker (e.g. first load after upgrade):
+            # record the marker so subsequent loads skip the pass. No data write.
+            _write_schema_marker()
 
     return known_faces, ignored_faces, hard_negatives, processed_files
 
