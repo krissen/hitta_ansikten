@@ -38,7 +38,10 @@ import { StartupLanding } from '../../components/StartupLanding.jsx';
 // Storage key for layout persistence
 const STORAGE_KEY = 'ansikten-flexlayout';
 
-const SHORTCUT_SECTIONS = [
+// Exported for characterization tests (data-shape + dispatch fencing ahead of
+// the planned extraction to shortcutSections.js). Behavior-neutral: same value,
+// merely also reachable by name.
+export const SHORTCUT_SECTIONS = [
   {
     id: 'navigation',
     title: t('shortcuts.sections.navigation'),
@@ -293,7 +296,7 @@ const MODULE_LAYOUT = {
  * Maps preferences to FlexLayout's theming system
  * @param {object} overrides - Optional override values (for live preview)
  */
-function applyUIPreferences(overrides = null) {
+export function applyUIPreferences(overrides = null) {
   const layoutEl = document.querySelector('.flexlayout__layout');
   if (!layoutEl) {
     debug('FlexLayout', 'Layout element not found, will retry');
