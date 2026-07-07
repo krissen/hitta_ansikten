@@ -71,7 +71,8 @@ module.exports = {
       "infoBg": "Infobakgrund",
       "successText": "Framgång (text)",
       "warningText": "Varning (text)",
-      "errorText": "Fel (text)"
+      "errorText": "Fel (text)",
+      "infoText": "Info (text)"
     },
     "overlay": {
       "bg": "Överläggsbakgrund",
