@@ -171,6 +171,32 @@ async def test_summary_caches_by_store_version(synthetic):
     assert synthetic["load_attempt_log"] == 3
 
 
+@pytest.mark.asyncio
+async def test_mutation_during_summary_compute_is_not_masked(synthetic, monkeypatch):
+    """A mutate() interleaving between the store read and the cache-set must
+    invalidate the cached summary — the cache is tagged with the version
+    captured AT the read, not the (already-bumped) version at set-time."""
+    svc = StatisticsService()
+
+    # Simulate a DB mutation during get_summary's awaits: load_attempt_log runs
+    # after the store read but before the cache-set — bump the version there.
+    orig_load = stats_mod.load_attempt_log
+
+    def bumping_load(all_files=False):
+        svc.store.version += 1
+        return orig_load(all_files=all_files)
+
+    monkeypatch.setattr(stats_mod, "load_attempt_log", bumping_load)
+
+    await svc.get_summary()
+    assert synthetic["store_reads"] == 1
+
+    # The cache is tagged with the pre-mutation version, so the next call must
+    # recompute (a set-time tag would wrongly serve the stale summary here).
+    await svc.get_summary()
+    assert synthetic["store_reads"] == 2
+
+
 def test_count_faces_per_name_reads_store_when_not_supplied(synthetic):
     svc = StatisticsService()
     counts = svc.count_faces_per_name()

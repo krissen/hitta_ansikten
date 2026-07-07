@@ -63,10 +63,19 @@ class StatisticsService:
             return None
         return self.cache.get(key)
 
-    def _set_cached(self, key: str, value: Any):
-        """Cache a value tagged with the current store version and timestamp."""
+    def _set_cached(self, key: str, value: Any, version: Optional[int] = None):
+        """Cache a value tagged with a store version and timestamp.
+
+        ``version`` must be the store version captured WHEN the data was read
+        (pre-await). Tagging with the version at set-time would mask a
+        ``mutate()`` that interleaved during the awaits between read and
+        cache-set — the stale summary would then be served until the TTL
+        expires instead of being recomputed on the next request.
+        """
+        if version is None:
+            version = self.store.version
         self.cache[key] = value
-        self.cache_meta[key] = (self.store.version, time.time())
+        self.cache_meta[key] = (version, time.time())
 
     def invalidate_cache(self):
         """Invalidate all cached data. Call after review completion."""
@@ -210,7 +219,9 @@ class StatisticsService:
         - ignored_fraction: Fraction of faces ignored (0.0-1.0)
         """
         if face_counts is None:
-            face_counts = self.count_faces_per_name()
+            # store.read is a sync lock-taking call (first use may load the
+            # pickle) — run it in a worker thread to keep the loop free.
+            face_counts = await asyncio.to_thread(self.count_faces_per_name)
 
         if stats is None:
             stats = load_attempt_log(all_files=False)
@@ -390,7 +401,9 @@ class StatisticsService:
                         mapping[name] = file_hash
             return mapping
 
-        name_to_hash = self.store.read(_build_name_to_hash)
+        # store.read is a sync lock-taking call (first use may load the
+        # pickle) — run it in a worker thread to keep the loop free.
+        name_to_hash = await asyncio.to_thread(self.store.read, _build_name_to_hash)
 
         for fpath in filepaths:
             p = Path(fpath)
@@ -443,12 +456,21 @@ class StatisticsService:
             return cached
 
         # DB-derived figures in ONE consistent store read (under the lock);
-        # the per-request full pickle load is gone.
-        face_counts, total_files_processed = self.store.read(
-            lambda known, ignored, hardneg, processed: (
+        # the per-request full pickle load is gone. The store version is
+        # captured INSIDE the read (the store lock is reentrant), atomically
+        # with the data — the cache below is tagged with this value so a
+        # mutate() interleaving during the awaits is not masked. The read
+        # itself runs in a worker thread: store.read is a sync lock-taking
+        # call (first use may load the pickle) and must not block the loop.
+        def _collect(known, ignored, hardneg, processed):
+            return (
                 {name: len(entries) for name, entries in known.items()},
                 len(processed),
+                self.store.version,
             )
+
+        face_counts, total_files_processed, version_at_read = (
+            await asyncio.to_thread(self.store.read, _collect)
         )
         stats = load_attempt_log(all_files=False)
 
@@ -468,8 +490,9 @@ class StatisticsService:
             "total_files_processed": total_files_processed,
         }
 
-        # Cache result
-        self._set_cached("summary", summary)
+        # Cache result, tagged with the version captured at the store read so
+        # a DB mutation during the awaits above invalidates it immediately.
+        self._set_cached("summary", summary, version=version_at_read)
 
         return summary
 
