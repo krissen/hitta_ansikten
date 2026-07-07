@@ -116,6 +116,7 @@ export function CullingModule({ node }) {
   const [highlightPlayer, setHighlightPlayer] = useState('');
   // Grid container + live column count for 2-D keyboard navigation.
   const gridRef = useRef(null);
+  const discardBtnRef = useRef(null); // confirm-nav modal: Enter = discard, focus should match
   const colsRef = useRef(1);
 
   // Latest filter params for auto-refresh; undo stack of trashed ids.
@@ -1294,6 +1295,10 @@ export function CullingModule({ node }) {
         title={t('culling.confirmNav.title')}
         size="sm"
         className="culling-confirm-modal"
+        // Focus the discard button: plain Enter = discard, so the visible focus
+        // ring should match the default action (native autofocus would land on
+        // the Save button, whose shortcut is Cmd+Enter).
+        initialFocusRef={discardBtnRef}
         footer={
           <>
             <Button
@@ -1304,6 +1309,7 @@ export function CullingModule({ node }) {
             </Button>
             <Button
               variant="secondary"
+              ref={discardBtnRef}
               onClick={() => { setRemovedNames(new Set()); const run = confirmNav?.run; setConfirmNav(null); run?.(); }}
             >
               {t('culling.confirmNav.discard')} <span className="culling-menu-keys"><kbd>↵</kbd></span>
