@@ -66,3 +66,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["."]
+markers = [
+    "benchmark: timing comparison, not a strict correctness gate (deselect with -m 'not benchmark')",
+]
