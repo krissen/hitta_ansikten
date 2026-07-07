@@ -13,6 +13,7 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { debug, debugError } from '../shared/debug.js';
+import { toFileUrl } from '../shared/fileUrl.js';
 import { t } from '../../i18n/index.js';
 import './OriginalView.css';
 
@@ -102,8 +103,9 @@ export function OriginalView() {
       await new Promise((resolve, reject) => {
         img.onload = () => resolve();
         img.onerror = (err) => reject(new Error(t('originalView.loadImageFailed')));
-        const imageSrc = jpgPath.startsWith('file://') ? jpgPath : 'file://' + jpgPath;
-        img.src = imageSrc;
+        // Encode path characters (spaces, #, ?, []) so filenames with them load;
+        // the naive 'file://' + path concatenation broke on such names.
+        img.src = toFileUrl(jpgPath);
       });
 
       setImage(img);

@@ -18,6 +18,7 @@ import { computeFitTransform } from '../shared/fitTransform.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { LoadingOverlay } from './shared/ProgressBar.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import { t } from '../../i18n/index.js';
 import './ImageViewer.css';
 
@@ -93,6 +94,7 @@ export function ImageViewer() {
 
   // Get module API
   const emit = useEmitEvent();
+  const showToast = useToast();
 
   // ============================================
   // Image Loading
@@ -778,6 +780,8 @@ export function ImageViewer() {
         return;
       }
       debugError('ImageViewer', 'Failed to load image:', err);
+      // Surface the failure instead of leaving the viewer silently blank.
+      showToast(t('imageViewer.loadFailed', { fileName: path?.split('/').pop() || path }), 'error');
     }
   });
 

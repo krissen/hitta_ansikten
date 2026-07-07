@@ -930,7 +930,7 @@ function OperationForm({ title, onSubmit, children }) {
  * the current input value and commits the picked name back to the caller.
  */
 function NameAutocomplete({ value, onChange, placeholder, names, extraOptions }) {
-  const extrasKey = (extraOptions || []).join(' ');
+  const extrasKey = (extraOptions || []).join('\u0000');
   const options = useMemo(() => {
     const all = [...names, ...(extraOptions || [])];
     if (!value.trim()) return all;

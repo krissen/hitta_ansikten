@@ -12,6 +12,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { getLogBuffer, clearLogBuffer, debug } from '../shared/debug.js';
+import { Button } from './shared';
+import { useToast } from '../context/ToastContext.jsx';
 import { t } from '../../i18n/index.js';
 import './LogViewer.css';
 
@@ -38,7 +40,7 @@ export function LogViewer() {
   const [logs, setLogs] = useState([]);
   const [filterLevel, setFilterLevel] = useState('all');
   const [filterSource, setFilterSource] = useState('all');
-  const [copyFeedback, setCopyFeedback] = useState(false);
+  const showToast = useToast();
   const autoScrollRef = useRef(true);
   const entriesRef = useRef(null);
   const lastBufferLengthRef = useRef(0);
@@ -147,10 +149,10 @@ export function LogViewer() {
     const text = formatLogsForClipboard(filteredLogs);
     try {
       await navigator.clipboard.writeText(text);
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 1500);
+      showToast(t('logs.copied'), 'success');
     } catch (err) {
-      console.error('Failed to copy logs:', err);
+      debug('LogViewer', 'Failed to copy logs:', err);
+      showToast(t('logs.copyFailed'), 'error');
     }
   };
 
@@ -193,12 +195,12 @@ export function LogViewer() {
             <option value="warn">{t('logs.level.warning')}</option>
             <option value="error">{t('logs.level.error')}</option>
           </select>
-          <button type="button" className="btn-secondary" onClick={copyLogs}>
-            {copyFeedback ? t('logs.copied') : t('logs.copy')}
-          </button>
-          <button type="button" className="btn-secondary" onClick={clearLogs}>
+          <Button variant="secondary" onClick={copyLogs}>
+            {t('logs.copy')}
+          </Button>
+          <Button variant="secondary" onClick={clearLogs}>
             {t('logs.clear')}
-          </button>
+          </Button>
         </div>
       </div>
 

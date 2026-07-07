@@ -300,94 +300,12 @@ html, body {
   box-shadow: var(--glow-accent);
 }
 
-/* ===========================
-   STANDARDIZED BUTTON CLASSES
-   =========================== */
-
-/* Base button styles - shared by all button types */
-.btn-action,
-.btn-secondary,
-.btn-danger {
-  padding: var(--space-xs) var(--space-md);
-  font-size: var(--font-sm);
-  font-weight: 500;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-base), transform var(--transition-fast);
-}
-
-.btn-action:active:not(:disabled),
-.btn-secondary:active:not(:disabled),
-.btn-danger:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.btn-action:disabled,
-.btn-secondary:disabled,
-.btn-danger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Primary action button - for main CTAs (Start, Save, Confirm) */
-.btn-action {
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-  border: none;
-}
-
-.btn-action:hover:not(:disabled) {
-  background: var(--accent-primary-hover);
-}
-
-/* Secondary button - for standard actions (Refresh, Clear, Rename, Skip) */
-.btn-secondary {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  border: 1px solid var(--border-medium);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--btn-secondary-hover-bg);
-  border-color: var(--border-strong);
-}
-
-/* Danger button - for destructive actions (Delete permanently) */
-.btn-danger {
-  background: var(--color-error);
-  color: var(--text-inverse);
-  border: none;
-}
-
-.btn-danger:hover:not(:disabled) {
-  filter: brightness(0.85);
-}
-
-/* Icon button - for toolbar icons */
-.btn-icon {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-md);
-  transition: background var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
-}
-
-.btn-icon:hover {
-  background: var(--btn-icon-hover-bg);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-icon:active {
-  transform: scale(0.92);
-}
+/* Button styling lives in the shared Button/IconButton primitives
+   (components/shared/shared.css: .btn / .icon-btn). The legacy
+   .btn-action/.btn-secondary/.btn-danger/.btn-icon alias rules were removed in
+   B7 once every call site had migrated to the primitives. The
+   --btn-secondary-hover-bg / --btn-icon-hover-bg tokens above are still consumed
+   by the primitives. See docs/dev/theming.md "Button Categories". */
 
 /* ===========================
    STANDARDIZED LAYOUT CLASSES
@@ -768,37 +686,6 @@ html, body {
   background: var(--bg-row-active);
   box-shadow: inset 3px 0 0 var(--accent-primary);
   font-weight: 600;
-}
-
-/* Status message box */
-.status-message {
-  padding: var(--space-md);
-  border-radius: var(--radius-md);
-  font-size: var(--font-base);
-}
-
-.status-message.success {
-  background: var(--color-success-bg);
-  color: var(--color-success-text);
-  border: 1px solid var(--color-success);
-}
-
-.status-message.warning {
-  background: var(--color-warning-bg);
-  color: var(--color-warning-text);
-  border: 1px solid var(--color-warning);
-}
-
-.status-message.error {
-  background: var(--color-error-bg);
-  color: var(--color-error-text);
-  border: 1px solid var(--color-error);
-}
-
-.status-message.info {
-  background: var(--color-info-bg);
-  color: var(--color-info);
-  border: 1px solid var(--color-info);
 }
 
 /* ===========================

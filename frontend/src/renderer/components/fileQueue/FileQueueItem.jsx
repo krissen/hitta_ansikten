@@ -13,7 +13,7 @@ import { IconButton } from '../shared';
 import { formatNamesToFit, measureTextWidth } from '../../shared/nameFormatter.js';
 import { t } from '../../../i18n/index.js';
 
-function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
+function FileQueueItem({ item, index, isActive, isFocused, isSelected, isRovingTarget, onRove, onClick, onDoubleClick, onToggleSelect, onRemove, onForceReprocess, fixMode, preprocessingStatus, showPreview, previewInfo }) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [namesDisplay, setNamesDisplay] = useState('');
@@ -203,16 +203,30 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
   const sidecars = previewInfo?.sidecars || [];
   const hasSidecars = sidecars.length > 0;
 
-  // Keyboard activation for the row: Enter/Space loads the file (mouse
-  // equivalent is double-click). Only act when the row itself is focused so key
-  // presses on the nested checkbox/buttons don't also trigger a load. The
-  // module's n/p navigation lives on a document listener and is unaffected —
-  // this handler only claims Enter/Space.
+  // Keyboard for the row (roving tabindex, accessibility.md §2a). Only the
+  // roving-target row is tabbable (tabIndex 0); the rest are -1, so the list is
+  // a single tab stop instead of ~4 per row. Arrow keys move the roving cursor
+  // between rows; Enter/Space loads the file (mouse equivalent is double-click).
+  // Only act when the row itself is focused so key presses on the nested
+  // checkbox/buttons don't also trigger these. The module's n/p navigation
+  // lives on a document listener and is unaffected.
   const handleRowKeyDown = (e) => {
     if (e.target !== e.currentTarget) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onDoubleClick?.();
+      return;
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const sibling = e.key === 'ArrowDown'
+        ? itemRef.current?.nextElementSibling
+        : itemRef.current?.previousElementSibling;
+      if (sibling && sibling.classList.contains('file-item')) {
+        e.preventDefault();
+        const targetIndex = Number(sibling.getAttribute('data-index'));
+        if (!Number.isNaN(targetIndex)) onRove?.(targetIndex);
+        sibling.focus();
+      }
     }
   };
 
@@ -221,7 +235,8 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
       ref={itemRef}
       className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isFocused ? 'focused' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
       role="button"
-      tabIndex={0}
+      tabIndex={isRovingTarget ? 0 : -1}
+      data-index={index}
       aria-label={t('fileQueue.item.ariaLabel', { fileName: item.fileName, status: getStatusText() })}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
@@ -232,6 +247,7 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
       <input
         type="checkbox"
         className="file-select-checkbox"
+        tabIndex={isRovingTarget ? 0 : -1}
         checked={isSelected}
         onChange={(e) => {
           e.stopPropagation();
@@ -292,6 +308,7 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
           size="sm"
           variant="ghost"
           className="reprocess-btn"
+          tabIndex={isRovingTarget ? 0 : -1}
           label={t('fileQueue.tooltips.reprocessFile')}
           onClick={(e) => {
             e.stopPropagation();
@@ -306,6 +323,7 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
         size="sm"
         variant="ghost"
         className="remove-btn"
+        tabIndex={isRovingTarget ? 0 : -1}
         label={t('fileQueue.tooltips.removeFromQueue')}
         onClick={(e) => {
           e.stopPropagation();

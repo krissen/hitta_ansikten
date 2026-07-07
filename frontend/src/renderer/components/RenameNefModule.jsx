@@ -80,7 +80,7 @@ export function RenameNefModule() {
   const canExecute = !busy && preview && preview.to_rename > 0;
 
   return (
-    <div className="module-container rename-nef">
+    <div className="module-container rename-nef" data-keyboard-scope="isolated">
       <div className="rename-nef-bar">
         <Button variant="secondary" onClick={addFolder} disabled={busy}>{t('renameNef.addFolder')}</Button>
         <input

@@ -70,7 +70,7 @@
   width: 100%;
 }
 
-/* Extends the shared .btn-action; only layout tweaks here. */
+/* Extends the shared Button primitive (variant="primary"); layout tweaks only. */
 .startup-landing-step {
   display: flex;
   align-items: center;

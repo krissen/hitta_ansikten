@@ -1477,11 +1477,28 @@ export function FileQueueModule({ node }) {
 
   const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
 
+  // Roving tabindex target (accessibility.md §2a): the single row that is
+  // keyboard-tabbable. Prefer the clicked/focused row, then the active file,
+  // else the first row shown — so Tab always lands somewhere sensible and the
+  // list is one tab stop instead of ~4 per row.
+  const rovingIndex = focusedIndex >= 0 && focusedIndex < queue.length
+    ? focusedIndex
+    : currentIndex >= 0
+      ? currentIndex
+      : (displayOrder[0]?.originalIndex ?? -1);
+
   return (
     <div
       ref={moduleRef}
       className={`module-container file-queue-module ${hasSelection ? 'has-selection' : ''} ${isDragOver ? 'drag-over' : ''}`}
       tabIndex={0}
+      // Companion to Review (often the same tabset): when focus sits inside the
+      // queue — its filter/rename inputs or a focused row — Review's single-key
+      // shortcuts (a/i/arrows/numbers/Enter) must not fire. The queue's own
+      // n/p/filter handler is a document listener gated on tab visibility, so
+      // isolation doesn't disable the companion workflow. See
+      // docs/dev/accessibility.md "Keyboard scope".
+      data-keyboard-scope="isolated"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -1640,6 +1657,8 @@ export function FileQueueModule({ node }) {
               index={originalIndex}
               isActive={originalIndex === currentIndex}
               isFocused={originalIndex === focusedIndex}
+              isRovingTarget={originalIndex === rovingIndex}
+              onRove={setFocusedIndex}
               isSelected={selectedFiles.has(item.id)}
               onClick={(e) => handleItemClick(originalIndex, e)}
               onDoubleClick={() => handleItemDoubleClick(originalIndex)}

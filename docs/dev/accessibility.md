@@ -78,6 +78,37 @@ If an element performs an action on click, it must be operable by keyboard.
 - A bare `<div onClick>` with no role/tabindex/key handler is not acceptable for
   anything the user is expected to activate.
 
+### 2a. Roving tabindex for row lists
+
+A long list of `role="button"` rows that *each* also contain interactive
+controls (checkbox, icon buttons) must **not** leave every row and every nested
+control in the tab order — a 100-row queue would be ~400 tab stops. Use a
+**roving tabindex**: exactly one row is tabbable at a time.
+
+The reference implementation is
+[`FileQueueItem.jsx`](../../frontend/src/renderer/components/fileQueue/FileQueueItem.jsx)
+(the queue list, worst case 100+ rows):
+
+- The parent computes a single **roving target** index (the focused/active row,
+  else the first row shown) and passes `isRovingTarget` to each row.
+- The row and its nested controls carry `tabIndex={isRovingTarget ? 0 : -1}`, so
+  `Tab` enters the list once and `Shift+Tab` leaves it — the list is one tab
+  stop, not N.
+- **Arrow keys move the cursor.** `ArrowUp`/`ArrowDown` on the focused row move
+  focus to the adjacent row (`data-index` carries the row's index back to the
+  parent, which updates the roving target) and `preventDefault()` the scroll.
+  Guard on `e.target === e.currentTarget` so arrows on a nested control don't
+  also navigate rows. `Enter`/`Space` activates the row.
+
+This differs deliberately from §1: §1's `aria-activedescendant` model keeps DOM
+focus on a container and its items are **static** (no interactive children).
+Roving tabindex is the right tool when each row legitimately contains real
+interactive controls (so the items cannot be static options).
+
+> **Scope note.** B7 implemented roving tabindex for the queue list only. The
+> `Preferences` / `ThemeEditor` sidebar navs are a smaller instance of the same
+> problem and are tracked as a follow-up in [ROADMAP.md](../../ROADMAP.md).
+
 ## 3. Icon-only buttons
 
 Any control whose visible content is only an icon **must** carry an
@@ -219,6 +250,38 @@ unchanged from before. Users without the preference see zero visual difference �
 that is the contract for this work.
 
 ---
+
+## 7. Keyboard scope
+
+The Review flow (`useReviewKeyboard`) attaches a **document-level** keydown
+listener for its single-key shortcuts (`a`/`i`/`r`, digits, arrows, `Enter`).
+A module that owns its own keyboard — or is form-heavy and would have those keys
+hijacked while the user types — opts out by marking its root element with
+
+```jsx
+data-keyboard-scope="isolated"
+```
+
+`useReviewKeyboard` bails when `document.activeElement.closest(
+'[data-keyboard-scope="isolated"]')` matches, so **whenever focus is inside an
+isolated module, Review's shortcuts do not fire**. Grep the attribute to find
+every scoped module — it is an explicit, discoverable contract (it replaced a
+hardcoded `.log-viewer, .preferences-module, …` selector list that had already
+gone stale).
+
+Isolation only governs *Review's* handler; a module's own document-level
+shortcuts are unaffected and keep their own gating (tab visibility / active
+tabset).
+
+**Per-module decisions:**
+
+| Module | Isolated? | Rationale |
+|--------|-----------|-----------|
+| LogViewer, Preferences, ThemeEditor, DatabaseManagement | **Yes** | Own keyboard / form-heavy; established before B7. |
+| **FileQueueModule** | **Yes** | Review companion (often same tabset). Has filter/rename inputs and focusable rows; when focus is inside it, Review's `a`/`i`/arrows/digits/`Enter` must not fire. Its own `n`/`p`/filter handler is a document listener gated on tab visibility, so isolation does not disable the companion "advance the queue" workflow. |
+| **PlayerCountModule** | **Yes** | Form-heavy (glob, number inputs, exclusion chip fields) with no own single-key shortcuts; isolation stops `Enter` and letter keys leaking to a visible Review pane. |
+| **RenameNefModule** | **Yes** | Form module (folder/glob inputs, preview/execute); its input `Enter` must not also reach Review's `confirmEnter`. |
+| **CullingModule** | **No** | Culling already claims `Enter`/`Esc`/nav in the **capture** phase, gated on being the *active tabset* (`isTabsetActive`), and explicitly `stopImmediatePropagation()`s so a key can't also reach Review. It is designed to *own* keys when active and *yield* when inactive — an isolation attribute would be redundant and would not change that contract. |
 
 ## Related docs
 
