@@ -40,7 +40,7 @@ module.exports = {
   "names": {
     "restore": "Lägg tillbaka {name}",
     "remove": "Ta bort {name}",
-    "hintRename": "döp om",
+    "hintRename": "byt namn",
     "hintUndo": "ångra"
   },
   "confirmNav": {

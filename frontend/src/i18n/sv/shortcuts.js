@@ -48,7 +48,7 @@ module.exports = {
       undo: "Ångra senaste ansiktsåtgärd",
       deleteToTrash: "Flytta aktuell fil till papperskorgen",
       undoDelete: "Ångra radering",
-      cancel: "Avbryt detektering / kasta ändringar"
+      cancel: "Avbryt ansiktssökning / kasta ändringar"
     },
     queue: {
       openFiles: "Öppna filer",
@@ -63,7 +63,7 @@ module.exports = {
       page: "Sidhoppa (10 steg)",
       cull: "Gallra till papperskorgen",
       rename: "Byt namn på fil (dubbelklick)",
-      applyRemovals: "Tillämpa namnborttagningar från förhandsvisning",
+      applyRemovals: "Tillämpa namnborttagningar från förhandsgranskningen",
       undo: "Ångra senaste gallring",
       openLightroom: "Öppna original-NEF i Lightroom"
     },

@@ -3,7 +3,7 @@ module.exports = {
   "placeholder": "Personnamn…",
   "ignoredBadge": "Ignorerad",
   "unknown": "Okänd",
-  "noFacesDetected": "Inga ansikten identifierade",
+  "noFacesDetected": "Inga ansikten hittades",
   "noFacesHint": "Bilden kan ändå döpas – lägg till ett namn manuellt.",
   "addManualName": "Lägg till namn manuellt",
   "undoTitle": "Dubbelklicka för att ångra",
@@ -17,7 +17,7 @@ module.exports = {
 
   "twinDisambig": {
     "label": "Tvilling-särskiljning → {chosen}",
-    "title": "Lika ansikten {between} — valt via k-NN-röstning över bekräftade foton"
+    "title": "Lika ansikten {between} — valt via k-NN-röstning över bekräftade bilder"
   },
 
   "queueBar": {
@@ -26,9 +26,9 @@ module.exports = {
 
   "status": {
     "waitingForImage": "Väntar på bild…",
-    "detecting": "Identifierar ansikten...",
+    "detecting": "Söker ansikten…",
     "detectionFailed": "Identifiering misslyckades",
-    "detectionCancelled": "Identifiering avbruten",
+    "detectionCancelled": "Sökning avbruten",
     "connectionError": "Anslutningsfel",
     "found": {
       "one": "Hittade {count} ansikte ({ms}ms)",

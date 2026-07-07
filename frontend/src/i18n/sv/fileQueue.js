@@ -24,7 +24,7 @@ module.exports = {
     "rename": "Byt namn ({count})",
     "renameSelectedTitle": "Byt namn på valda filer",
     "renameFilteredTitle": "Byt namn på filtrerade filer",
-    "renameTitle": "Byt namn på filer utifrån identifierade ansikten",
+    "renameTitle": "Byt namn på filer utifrån hittade ansikten",
     "renaming": "Byter namn…",
     "skip": "Hoppa över",
     "start": "Starta"
@@ -74,7 +74,7 @@ module.exports = {
   "tooltips": {
     "file": "Fil:",
     "folder": "Mapp:",
-    "detected": "Identifierade:",
+    "detected": "Hittade:",
     "faceCount": {
       "one": "{count} ansikte",
       "other": "{count} ansikten"
@@ -88,7 +88,7 @@ module.exports = {
     "preprocessingFailed": "Förbehandling misslyckades",
     "preprocessing": "Förbehandlar: {status}",
     "confirmedList": "Bekräftade: {names}",
-    "detectedCount": { "one": "{count} ansikte identifierat", "other": "{count} ansikten identifierade" },
+    "detectedCount": { "one": "{count} ansikte hittat", "other": "{count} ansikten hittade" },
     "notLoaded": "Ej inläst",
     "reprocessFile": "Behandla om den här filen",
     "removeFromQueue": "Ta bort från kön"
@@ -153,8 +153,8 @@ module.exports = {
 
   "dialogs": {
     "renameConfirm": {
-      "one": "Byt namn på {count} fil{selection}?\n\nDetta byter namn på filer utifrån identifierade ansikten.\nSe Inställningar för namnformat.",
-      "other": "Byt namn på {count} filer{selection}?\n\nDetta byter namn på filer utifrån identifierade ansikten.\nSe Inställningar för namnformat."
+      "one": "Byt namn på {count} fil{selection}?\n\nDetta byter namn på filer utifrån hittade ansikten.\nSe Inställningar för namnformat.",
+      "other": "Byt namn på {count} filer{selection}?\n\nDetta byter namn på filer utifrån hittade ansikten.\nSe Inställningar för namnformat."
     },
     "renameConfirmSelection": " (valda)"
   }
