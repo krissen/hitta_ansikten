@@ -310,8 +310,9 @@ antal.
 4. Papperskorgen (knappen **Papperskorg**) listar gallrade bilder och återställer
    dem till ursprungsplatsen, eller tömmer permanent. En filtypsmeny (Alla / jpg /
    nef-raw) låter dig granska och återställa JPEG och råfiler separat; **Töm**
-   tömmer då bara det filtrerade urvalet (allt när menyn står på Alla). Gallrade
-   filer rensas
+   tömmer då bara det filtrerade urvalet (allt när menyn står på Alla). **Töm**
+   kräver en bekräftelse (antal filer anges) eftersom tömningen är permanent och
+   inte kan ångras. Gallrade filer rensas
    automatiskt efter en konfigurerbar tid (standard 30 dagar; `0` = behåll för
    alltid), ställbart i **Preferences → Files → Trash (Gallra)**. Rensningen körs
    när backend startar och när papperskorgen öppnas.

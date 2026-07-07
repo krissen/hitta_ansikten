@@ -39,6 +39,10 @@ module.exports = {
     "scrollHint": "klicka för att rulla"
   },
 
+  "item": {
+    "ariaLabel": "{fileName}, {status}"
+  },
+
   "emptyStates": {
     "noFiles": "Inga filer i kön",
     "addHint": "Klicka på + för att lägga till filer"

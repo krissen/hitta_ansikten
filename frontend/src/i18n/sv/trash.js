@@ -5,6 +5,12 @@ module.exports = {
   "countFiltered": "{filtered} av {total} i papperskorgen",
   "empty": "Töm",
   "emptyN": "Töm {count}",
+  "emptyConfirmTitle": "Töm papperskorgen",
+  "emptyConfirm": {
+    "one": "Radera {count} fil permanent? Filen kan inte återställas efteråt.",
+    "other": "Radera {count} filer permanent? Filerna kan inte återställas efteråt."
+  },
+  "emptyConfirmAction": "Radera permanent",
   "filterAll": "Alla",
   "filterJpg": "jpg / jpeg",
   "filterNef": "nef / raw",

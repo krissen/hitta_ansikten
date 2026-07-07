@@ -9,6 +9,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { PreprocessingStatus } from '../../services/preprocessing/index.js';
 import { Icon } from '../Icon.jsx';
+import { IconButton } from '../shared';
 import { formatNamesToFit, measureTextWidth } from '../../shared/nameFormatter.js';
 import { t } from '../../../i18n/index.js';
 
@@ -202,12 +203,29 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
   const sidecars = previewInfo?.sidecars || [];
   const hasSidecars = sidecars.length > 0;
 
+  // Keyboard activation for the row: Enter/Space loads the file (mouse
+  // equivalent is double-click). Only act when the row itself is focused so key
+  // presses on the nested checkbox/buttons don't also trigger a load. The
+  // module's n/p navigation lives on a document listener and is unaffected —
+  // this handler only claims Enter/Space.
+  const handleRowKeyDown = (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onDoubleClick?.();
+    }
+  };
+
   return (
     <div
       ref={itemRef}
       className={`file-item ${item.status} ${isActive ? 'active' : ''} ${isFocused ? 'focused' : ''} ${isSelected ? 'selected' : ''} ${item.isAlreadyProcessed ? 'already-processed' : ''} ${shouldShowPreview ? 'with-preview' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-label={t('fileQueue.item.ariaLabel', { fileName: item.fileName, status: getStatusText() })}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onKeyDown={handleRowKeyDown}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -269,29 +287,31 @@ function FileQueueItem({ item, index, isActive, isFocused, isSelected, onClick, 
       </span>
       <span className="file-status">{getStatusText()}</span>
       {!fixMode && item.isAlreadyProcessed ? (
-        <button
+        <IconButton
+          icon="refresh"
+          size="sm"
+          variant="ghost"
           className="reprocess-btn"
+          label={t('fileQueue.tooltips.reprocessFile')}
           onClick={(e) => {
             e.stopPropagation();
             onForceReprocess();
           }}
-          title={t('fileQueue.tooltips.reprocessFile')}
-        >
-          <Icon name="refresh" size={12} />
-        </button>
+        />
       ) : (
         <span className="reprocess-btn-placeholder" />
       )}
-      <button
+      <IconButton
+        icon="close"
+        size="sm"
+        variant="ghost"
         className="remove-btn"
+        label={t('fileQueue.tooltips.removeFromQueue')}
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
         }}
-        title={t('fileQueue.tooltips.removeFromQueue')}
-      >
-        ×
-      </button>
+      />
 
       {/* Unified tooltip */}
       {showTooltip && (
