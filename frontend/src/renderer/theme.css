@@ -243,6 +243,13 @@
   --transition-base: 0.15s ease;
   --transition-slow: 0.3s ease;
 
+  /* Motion duration tokens (raw durations, no easing) — for JS-friendly or
+     composed animations. Kept in sync with the transition tokens above. The
+     global prefers-reduced-motion block at the end of this file neutralises
+     these for users who request reduced motion. */
+  --motion-duration-fast: 0.1s;
+  --motion-duration-base: 0.15s;
+
   /* Z-index Scale */
   --z-base: 1;
   --z-dropdown: 100;
@@ -856,4 +863,21 @@ html, body {
   font-size: var(--font-xs);
   font-weight: 600;
   font-family: var(--font-mono);
+}
+
+/* ===========================
+   REDUCED MOTION
+   Honour the OS "reduce motion" accessibility preference. Neutralises all
+   animations, transitions and CSS smooth-scroll. JS-driven smooth scrolling
+   is gated separately via shared/motion.js. See docs/dev/accessibility.md.
+   =========================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

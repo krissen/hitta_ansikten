@@ -18,6 +18,7 @@ import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { NetworkError } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { normalizeSuffix } from '../shared/manualSuffix.js';
+import { scrollBehavior } from '../shared/motion.js';
 import { t } from '../../i18n/index.js';
 import { SuffixDialog } from './review/SuffixDialog.jsx';
 import { ConfirmDialog } from './review/ConfirmDialog.jsx';
@@ -598,7 +599,7 @@ export function ReviewModule({ node }) {
   useEffect(() => {
     const cardEl = cardRefs.current[currentFaceIndex];
     if (cardEl) {
-      cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      cardEl.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
     }
     // Note: We don't auto-focus the input anymore - user must press 'r' to type
   }, [currentFaceIndex]);

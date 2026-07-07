@@ -15,6 +15,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
+import { scrollBehavior } from '../shared/motion.js';
 import { PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex, isRenameEligible } from './fileQueueEligibility.js';
@@ -1340,7 +1341,7 @@ export function FileQueueModule({ node }) {
     if (currentIndex >= 0 && listRef.current) {
       const activeEl = listRef.current.querySelector('.file-item.active');
       if (activeEl) {
-        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        activeEl.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
       }
     }
   }, [currentIndex]);
@@ -1612,7 +1613,7 @@ export function FileQueueModule({ node }) {
       {activeFile && (
         <div className="current-file-bar" onClick={() => {
           const activeEl = listRef.current?.querySelector('.file-item.active');
-          activeEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          activeEl?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
         }}>
           <Icon name="play" size={12} />
           <span className="current-file-name">{activeFile.fileName}</span>
