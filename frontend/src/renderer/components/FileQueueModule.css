@@ -104,7 +104,7 @@
 
 .file-item.active {
   background: var(--color-info-bg);
-  border-color: var(--color-info);
+  border-color: var(--color-info-text);
 }
 
 .file-item.completed {
@@ -285,12 +285,12 @@
 
 .file-item .remove-btn:hover:not(:disabled) {
   background: var(--color-error-bg);
-  color: var(--color-error);
+  color: var(--color-error-text);
 }
 
 .file-item .reprocess-btn:hover:not(:disabled) {
   background: var(--color-info-bg);
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 
 .reprocess-btn-placeholder {
@@ -399,11 +399,11 @@
 
 .preprocess-indicator.completed,
 .preprocess-indicator.loading {
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .preprocess-indicator.error {
-  color: var(--color-error);
+  color: var(--color-error-text);
   font-weight: bold;
   font-size: var(--font-sm);
   line-height: 1;
@@ -537,7 +537,7 @@
 }
 
 .inline-preview.error .preview-error {
-  color: var(--color-error);
+  color: var(--color-error-text);
   font-size: var(--font-sm);
   font-style: italic;
 }
@@ -574,12 +574,12 @@
 
 .file-item.completed .face-count {
   background: var(--color-success-bg);
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .file-item.already-processed:not(.completed) .face-count {
   background: var(--color-success-bg);
-  color: var(--color-success);
+  color: var(--color-success-text);
   opacity: 0.8;
 }
 
@@ -648,7 +648,7 @@
 }
 
 .tooltip-row.tooltip-error .tooltip-value {
-  color: var(--color-error);
+  color: var(--color-error-text);
 }
 
 .tooltip-row.tooltip-sidecars {

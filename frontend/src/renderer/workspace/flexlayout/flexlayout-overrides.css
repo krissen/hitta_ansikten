@@ -156,7 +156,7 @@
 
 /* Use focus-visible for keyboard nav only (accessibility) */
 .flexlayout__tab_button:focus-visible {
-  outline: 2px solid var(--accent-primary);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
