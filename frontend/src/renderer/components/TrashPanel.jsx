@@ -15,6 +15,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
+import { useConfirm } from '../context/ConfirmContext.jsx';
+import { Button, Alert, EmptyState } from './shared';
 import { t } from '../../i18n/index.js';
 import { trashGroup } from './trashGroup.js';
 import './TrashPanel.css';
@@ -27,6 +29,7 @@ import './TrashPanel.css';
  */
 export function TrashPanel({ onAfterChange }) {
   const { api } = useBackend();
+  const confirm = useConfirm();
 
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('all'); // 'all' | 'jpg' | 'nef'
@@ -69,9 +72,19 @@ export function TrashPanel({ onAfterChange }) {
   );
 
   // Empty the trash. With no ids, clears everything; with ids, deletes just
-  // those (used to empty only the currently filtered subset).
+  // those (used to empty only the currently filtered subset). Emptying is
+  // permanent and irreversible, so it is gated behind a danger confirmation.
   const empty = useCallback(
     async (ids = null) => {
+      const count = ids ? ids.length : items.length;
+      if (count === 0) return;
+      const confirmed = await confirm({
+        title: t('trash.emptyConfirmTitle'),
+        message: t('trash.emptyConfirm', { count }),
+        confirmLabel: t('trash.emptyConfirmAction'),
+        variant: 'danger',
+      });
+      if (!confirmed) return;
       setError(null);
       try {
         await api.post('/api/v1/culling/empty', ids ? { ids } : {});
@@ -86,7 +99,7 @@ export function TrashPanel({ onAfterChange }) {
         setError(err.message || String(err));
       }
     },
-    [api, onAfterChange]
+    [api, confirm, items.length, onAfterChange]
   );
 
   const filtered =
@@ -112,23 +125,28 @@ export function TrashPanel({ onAfterChange }) {
               <option value="jpg">{t('trash.filterJpg')}</option>
               <option value="nef">{t('trash.filterNef')}</option>
             </select>
-            <button
-              className="btn-secondary"
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => empty(filter === 'all' ? null : filtered.map((it) => it.id))}
               disabled={filtered.length === 0}
             >
               {filter === 'all' ? t('trash.empty') : t('trash.emptyN', { count: filtered.length })}
-            </button>
+            </Button>
           </>
         )}
       </div>
 
-      {error && <div className="status-message error">Fel: {error}</div>}
+      {error && (
+        <Alert variant="error" onDismiss={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       {items.length === 0 ? (
-        <div className="empty-state">{t('trash.isEmpty')}</div>
+        <EmptyState title={t('trash.isEmpty')} />
       ) : filtered.length === 0 ? (
-        <div className="empty-state">{t('trash.noneOfType')}</div>
+        <EmptyState title={t('trash.noneOfType')} />
       ) : (
         <ul className="trash-list">
           {filtered.map((it) => (
@@ -136,9 +154,9 @@ export function TrashPanel({ onAfterChange }) {
               <span className="trash-name" title={it.original_path}>
                 {it.basename}
               </span>
-              <button className="btn-secondary" onClick={() => restore(it.id)}>
+              <Button variant="secondary" size="sm" onClick={() => restore(it.id)}>
                 {t('trash.restore')}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
