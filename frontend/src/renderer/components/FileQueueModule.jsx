@@ -15,22 +15,21 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
-import { getPreprocessingManager, PreprocessingStatus } from '../services/preprocessing/index.js';
+import { PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex, isRenameEligible } from './fileQueueEligibility.js';
 import { compileFilter } from './filterExpression.js';
 import { t } from '../../i18n/index.js';
 import {
   getAutoLoadPreference,
-  getRenameConfig,
   getNotificationPreference,
-  getPreprocessingConfig,
-  getRequireRenameConfirmation,
-  getAutoRemoveMissingPreference,
   getToastDurationMultiplier,
   getInsertModePreference,
 } from './fileQueue/fileQueuePrefs.js';
-import { naturalSortCompare, generateId, SUPPORTED_EXTENSIONS } from './fileQueue/queueUtils.js';
+import { generateId, SUPPORTED_EXTENSIONS } from './fileQueue/queueUtils.js';
+import { usePreprocessing } from './fileQueue/usePreprocessing.js';
+import { useNefRename } from './fileQueue/useNefRename.js';
+import { useFileQueue } from './fileQueue/useFileQueue.js';
 import FileQueueItem from './fileQueue/FileQueueItem.jsx';
 import './FileQueueModule.css';
 
@@ -43,18 +42,14 @@ export function FileQueueModule({ node }) {
   const { hasListeners, waitForListeners } = useModuleAPI();
   const globalShowToast = useToast();
 
-  // Queue state
-  const [queue, setQueue] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(-1);
+  // Queue state (queue + currentIndex) lives in a reducer-backed hook; every
+  // mutation goes through queueActions.* so the transitions stay pure/testable.
+  const { queue, currentIndex, queueRef, actions: queueActions } = useFileQueue();
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [fixMode, setFixMode] = useState(false);
   const [processedFiles, setProcessedFiles] = useState(new Set());
   const [processedHashes, setProcessedHashes] = useState(new Set());
-  const processedHashesRef = useRef(processedHashes);
-  processedHashesRef.current = processedHashes;
   const [processedFilesLoaded, setProcessedFilesLoaded] = useState(false);
-  const [preprocessingStatus, setPreprocessingStatus] = useState({});
-  const [preprocessingPaused, setPreprocessingPaused] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState(new Set()); // Checkbox-selected file IDs
   const [focusedIndex, setFocusedIndex] = useState(-1); // Clicked-on item (visual highlight only)
 
@@ -64,9 +59,6 @@ export function FileQueueModule({ node }) {
   const filterInputRef = useRef(null);
 
   // Rename state
-  const [showPreviewNames, setShowPreviewNames] = useState(false);
-  const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
-  const [renameInProgress, setRenameInProgress] = useState(false);
   // Paths whose review has unsaved changes; held out of rename until persisted.
   const [dirtyPaths, setDirtyPaths] = useState(new Set());
   const dirtyPathsRef = useRef(dirtyPaths);
@@ -75,8 +67,6 @@ export function FileQueueModule({ node }) {
   // Drag-and-drop state
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0); // Track nested drag enter/leave events
-  const renameInProgressRef = useRef(false);
-  renameInProgressRef.current = renameInProgress;
 
   // Toast wrapper that applies duration preference
   // Base durations are longer now: success=4s, info=4s, warning=5s, error=6s
@@ -89,10 +79,6 @@ export function FileQueueModule({ node }) {
   // Alias for backwards compatibility
   const queueToast = showToast;
 
-  // Track missing files for batched removal
-  const missingFilesRef = useRef([]);
-  const missingFilesTimeoutRef = useRef(null);
-
   // Refs for processed files state (for use in callbacks without stale closure)
   const processedFilesLoadedRef = useRef(false);
   processedFilesLoadedRef.current = processedFilesLoaded;
@@ -102,19 +88,29 @@ export function FileQueueModule({ node }) {
   // Queued manual load: stores index to load once processedFiles are ready
   const pendingManualLoadRef = useRef(-1);
 
-  // Get preprocessing manager (singleton)
-  const preprocessingManager = useRef(null);
-  if (!preprocessingManager.current) {
-    const config = getPreprocessingConfig();
-    preprocessingManager.current = getPreprocessingManager(config);
-  }
+  // Preprocessing orchestration: the getPreprocessingManager singleton, its event
+  // subscriptions, pause/resume toasts, missing-file batching, hash checker,
+  // cache-priority push and the "all done" completion toast all live in this hook.
+  const {
+    preprocessingManager,
+    preprocessingStatus,
+    setPreprocessingStatus,
+    preprocessingStatusRef,
+    preprocessingPaused,
+    countPreprocessed,
+  } = usePreprocessing(queue, {
+    processedHashes,
+    processedFilesLoaded,
+    showToast,
+    markProcessed: queueActions.markProcessed,
+    removePaths: queueActions.removePaths,
+    markMissing: queueActions.markMissing,
+  });
 
   // Refs
   const moduleRef = useRef(null);
   const listRef = useRef(null);
   const currentFileRef = useRef(null);
-  const queueRef = useRef(queue); // Keep current queue in ref for callbacks
-  queueRef.current = queue; // Sync on every render (not just in useEffect)
   const visibleIdsRef = useRef(null); // Current filter-visible IDs for action scoping
   const fixModeRef = useRef(fixMode);
   fixModeRef.current = fixMode;
@@ -124,6 +120,36 @@ export function FileQueueModule({ node }) {
   // Undo stack for delete-to-trash. Each entry: { id, item, index } — the trash
   // id (for restore), the removed queue item, and its original index.
   const deleteUndoStackRef = useRef([]);
+
+  // Face-name NEF rename flow: preview toggle, preview lookup, in-progress flag
+  // and the fetch/toggle/rename handlers (path-update propagation onto the queue
+  // and the preprocessing caches). Pure path/name computation is in renameLogic.
+  const {
+    showPreviewNames,
+    setShowPreviewNames,
+    previewData,
+    setPreviewData,
+    renameInProgress,
+    renameInProgressRef,
+    fetchRenamePreview,
+    handlePreviewToggle,
+    handleRename,
+  } = useNefRename({
+    queue,
+    queueRef,
+    applyRename: queueActions.applyRename,
+    api,
+    showToast,
+    isConnected,
+    fixMode,
+    fixModeRef,
+    dirtyPathsRef,
+    selectedFiles,
+    visibleIdsRef,
+    preprocessingStatus,
+    preprocessingManager,
+    setPreprocessingStatus,
+  });
 
   const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
   const savedIndexRef = useRef(-1);
@@ -185,12 +211,6 @@ export function FileQueueModule({ node }) {
     loadProcessedFiles();
   }, [loadProcessedFiles]);
 
-  useEffect(() => {
-    if (preprocessingManager.current) {
-      preprocessingManager.current.setHashChecker((hash) => processedHashesRef.current.has(hash));
-    }
-  }, [processedFilesLoaded]);
-
   // Execute queued manual load once processed files are ready
   useEffect(() => {
     if (processedFilesLoaded && pendingManualLoadRef.current >= 0) {
@@ -205,19 +225,8 @@ export function FileQueueModule({ node }) {
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0) return;
     
-    setQueue(prev => {
-      let hasChanges = false;
-      const updated = prev.map(item => {
-        const shouldBeProcessed = processedFiles.has(item.fileName);
-        if (shouldBeProcessed && !item.isAlreadyProcessed) {
-          hasChanges = true;
-          return { ...item, isAlreadyProcessed: true };
-        }
-        return item;
-      });
-      return hasChanges ? updated : prev;
-    });
-  }, [processedFilesLoaded, processedFiles]);
+    queueActions.markProcessedByNames(processedFiles);
+  }, [processedFilesLoaded, processedFiles, queueActions]);
 
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0 || !api) return;
@@ -255,172 +264,8 @@ export function FileQueueModule({ node }) {
       });
   }, [processedFilesLoaded, processedFiles, api, queue]);
 
-  // Subscribe to preprocessing manager events
-  useEffect(() => {
-    const manager = preprocessingManager.current;
-    if (!manager) return;
-
-    const handleStatusChange = ({ filePath, status }) => {
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { ...(prev[filePath] || {}), status }
-      }));
-    };
-
-    const handleCompleted = ({ filePath, hash, faceCount }) => {
-      setPreprocessingStatus(prev => {
-        const existing = prev[filePath];
-        // Preserve existing faceCount if it's valid (faces-detected may have set it)
-        const actualFaceCount = (existing?.faceCount > 0) ? existing.faceCount : faceCount;
-        return {
-          ...prev,
-          [filePath]: { status: PreprocessingStatus.COMPLETED, faceCount: actualFaceCount, hash }
-        };
-      });
-
-      // Check if file hash matches a processed file (handles renamed files)
-      if (hash && processedHashes.has(hash)) {
-        setQueue(prev => prev.map(item =>
-          item.filePath === filePath && !item.isAlreadyProcessed
-            ? { ...item, isAlreadyProcessed: true }
-            : item
-        ));
-        debug('FileQueue', 'File recognized by hash as already processed:', filePath);
-      }
-
-      debug('FileQueue', 'Preprocessing completed:', filePath, `(${faceCount ?? 0} faces)`);
-    };
-
-    const handleError = ({ filePath, error }) => {
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { status: PreprocessingStatus.ERROR }
-      }));
-      debugWarn('FileQueue', 'Preprocessing error:', filePath, error);
-      // Show error toast for preprocessing failure
-      const fileName = filePath.split('/').pop();
-      showToast(t('fileQueue.toasts.preprocessingFailed', { fileName }), 'error', 4000);
-    };
-
-    const handleFileNotFound = ({ filePath }) => {
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { status: PreprocessingStatus.FILE_NOT_FOUND }
-      }));
-
-      const hash = preprocessingManager.current?.removeFile(filePath);
-      if (hash) {
-        apiClient.batchDeleteCache([hash]).catch(() => {});
-      }
-
-      const autoRemove = getAutoRemoveMissingPreference();
-
-      if (autoRemove) {
-        missingFilesRef.current.push(filePath);
-
-        if (missingFilesTimeoutRef.current) {
-          clearTimeout(missingFilesTimeoutRef.current);
-        }
-
-        missingFilesTimeoutRef.current = setTimeout(() => {
-          const count = missingFilesRef.current.length;
-          if (count > 0) {
-            const pathsToRemove = new Set(missingFilesRef.current);
-            setQueue(prev => prev.filter(item => !pathsToRemove.has(item.filePath)));
-            showToast(t('fileQueue.toasts.removedMissing', { count }), 'info', 3000);
-            debug('FileQueue', `Auto-removed ${count} missing files`);
-            missingFilesRef.current = [];
-          }
-        }, 500);
-      } else {
-        setQueue(prev => prev.map(item =>
-          item.filePath === filePath
-            ? { ...item, status: 'missing', error: 'File not found' }
-            : item
-        ));
-      }
-      debug('FileQueue', 'File not found:', filePath);
-    };
-
-    const handlePaused = ({ readyCount, queueLength }) => {
-      debug('FileQueue', `Preprocessing paused: ${readyCount} ready, ${queueLength} in queue`);
-      setPreprocessingPaused(true);
-      const showPauseToast = getNotificationPreference('showToastOnPause');
-      if (showPauseToast) {
-        showToast(t('fileQueue.toasts.preprocessingPaused', { count: readyCount }), 'info', 3000);
-      }
-    };
-
-    const handleResumed = () => {
-      debug('FileQueue', 'Preprocessing resumed');
-      setPreprocessingPaused(false);
-      const showResumeToast = getNotificationPreference('showToastOnResume');
-      if (showResumeToast) {
-        showToast(t('fileQueue.toasts.preprocessingResumed'), 'info', 2000);
-      }
-    };
-
-    const handleCacheCleared = async ({ count, hashes }) => {
-      debug('FileQueue', `Preprocessing cache cleared: ${count} items`);
-      if (hashes && hashes.length > 0) {
-        try {
-          await apiClient.batchDeleteCache(hashes);
-          debug('FileQueue', `Cleared ${hashes.length} items from backend cache`);
-        } catch (err) {
-          debugWarn('FileQueue', 'Failed to clear backend cache:', err.message);
-        }
-      }
-    };
-
-    const handleAlreadyProcessed = ({ filePath, hash }) => {
-      debug('FileQueue', 'File skipped (hash already processed):', filePath);
-      setQueue(prev => prev.map(item =>
-        item.filePath === filePath
-          ? { ...item, isAlreadyProcessed: true }
-          : item
-      ));
-      setPreprocessingStatus(prev => ({
-        ...prev,
-        [filePath]: { status: PreprocessingStatus.COMPLETED, skipped: true }
-      }));
-    };
-
-    manager.on('status-change', handleStatusChange);
-    manager.on('completed', handleCompleted);
-    manager.on('error', handleError);
-    manager.on('file-not-found', handleFileNotFound);
-    manager.on('paused', handlePaused);
-    manager.on('resumed', handleResumed);
-    manager.on('cache-cleared', handleCacheCleared);
-    manager.on('already-processed', handleAlreadyProcessed);
-
-    return () => {
-      manager.off('status-change', handleStatusChange);
-      manager.off('completed', handleCompleted);
-      manager.off('error', handleError);
-      manager.off('file-not-found', handleFileNotFound);
-      manager.off('paused', handlePaused);
-      manager.off('resumed', handleResumed);
-      manager.off('cache-cleared', handleCacheCleared);
-      manager.off('already-processed', handleAlreadyProcessed);
-    };
-  }, [showToast, processedHashes]);
-
   // Handle file-deleted events from file watcher
   // Use refs to avoid re-subscribing on every preprocessingStatus change
-  const preprocessingStatusRef = useRef(preprocessingStatus);
-  preprocessingStatusRef.current = preprocessingStatus;
-
-  // Count files that are preprocessed (in the cache, ready to open) but not yet
-  // reviewed this session. Used for the queue overview bar in ReviewModule.
-  const countPreprocessed = useCallback((queueArr) => {
-    const pp = preprocessingStatusRef.current;
-    return queueArr.filter(
-      item => item.status !== 'completed' &&
-              pp[item.filePath]?.status === PreprocessingStatus.COMPLETED
-    ).length;
-  }, []);
-
   useEffect(() => {
     const handleFileDeleted = (filePath) => {
       debug('FileQueue', 'File deleted from disk:', filePath);
@@ -449,13 +294,13 @@ export function FileQueueModule({ node }) {
       });
 
       const fileName = filePath.split('/').pop();
-      setQueue(prev => prev.filter(item => item.filePath !== filePath));
+      queueActions.removePaths(new Set([filePath]));
       showToast(t('fileQueue.toasts.removedDeletedFile', { fileName }), 'info', 3000);
     };
 
     const unsubscribe = window.ansiktenAPI?.onFileDeleted(handleFileDeleted);
     return () => unsubscribe?.();
-  }, [showToast]);
+  }, [showToast, queueActions]);
 
   useEffect(() => {
     const handleWatcherError = (dir, affectedFiles) => {
@@ -488,7 +333,7 @@ export function FileQueueModule({ node }) {
             ...item,
             status: item.status === 'active' ? 'pending' : item.status
           }));
-          setQueue(restoredQueue);
+          queueActions.restore(restoredQueue);
           setAutoAdvance(parsed.autoAdvance ?? true);
           setFixMode(parsed.fixMode ?? false);
           setShowPreviewNames(parsed.showPreviewNames ?? false);
@@ -553,59 +398,6 @@ export function FileQueueModule({ node }) {
       watchedFilesRef.current.clear();
     };
   }, []);
-
-  // Update backend cache priority (queue files evicted last)
-  const priorityHashesTimerRef = useRef(null);
-  useEffect(() => {
-    if (priorityHashesTimerRef.current) {
-      clearTimeout(priorityHashesTimerRef.current);
-    }
-
-    priorityHashesTimerRef.current = setTimeout(() => {
-      const queueHashes = queue
-        .map(item => preprocessingStatus[item.filePath]?.hash)
-        .filter(Boolean);
-
-      // Always send, even empty list to clear old priorities
-      apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
-    }, 500);
-
-    return () => {
-      if (priorityHashesTimerRef.current) {
-        clearTimeout(priorityHashesTimerRef.current);
-      }
-    };
-  }, [queue, preprocessingStatus]);
-
-  // Track preprocessing completion for toast notification
-  const prevPreprocessingCountRef = useRef({ pending: 0, total: 0 });
-  useEffect(() => {
-    if (queue.length === 0) return;
-
-    // Count files still preprocessing
-    const pendingPreprocessing = queue.filter(item => {
-      const status = preprocessingStatus[item.filePath];
-      // Still preprocessing if no status yet or in progress
-      return !status ||
-             (status !== PreprocessingStatus.COMPLETED &&
-              status !== PreprocessingStatus.ERROR &&
-              status !== PreprocessingStatus.FILE_NOT_FOUND);
-    }).length;
-
-    const prev = prevPreprocessingCountRef.current;
-
-    // Show toast when preprocessing completes (was pending, now all done)
-    if (prev.pending > 0 && pendingPreprocessing === 0 && queue.length > 0) {
-      const completedCount = queue.filter(item =>
-        preprocessingStatus[item.filePath] === PreprocessingStatus.COMPLETED
-      ).length;
-      if (completedCount > 0) {
-        showToast(t('fileQueue.toasts.preprocessingComplete', { count: completedCount }), 'success', 3000);
-      }
-    }
-
-    prevPreprocessingCountRef.current = { pending: pendingPreprocessing, total: queue.length };
-  }, [queue, preprocessingStatus, showToast]);
 
   // Backend connection status - only show toast on RECONNECTION (not initial connect)
   const connectionStateRef = useRef({ prev: null, hasEverConnected: false });
@@ -780,33 +572,28 @@ export function FileQueueModule({ node }) {
       };
     });
 
-    let addedCount = 0;
-    let alreadyProcessedFiles = [];
-    setQueue(prev => {
-      const existingPaths = new Set(prev.map(item => item.filePath));
-      const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
-      addedCount = uniqueNew.length;
+    // Dedup against the current queue before running side effects, then dispatch
+    // the insert (the reducer re-dedups defensively). Preprocessing enqueue and
+    // the already-processed stats fetch are side effects that stay out of the
+    // pure reducer.
+    const existingPaths = new Set(queueRef.current.map(item => item.filePath));
+    const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
+    const addedCount = uniqueNew.length;
+    const alreadyProcessedFiles = [];
 
-      const currentFixMode = fixModeRef.current;
-      uniqueNew.forEach(item => {
-        if (!currentFixMode && item.isAlreadyProcessed) {
-          debug('FileQueue', 'Skipping preprocessing (already processed, fix-mode OFF):', item.fileName);
-          alreadyProcessedFiles.push(item);
-          return;
-        }
-        if (preprocessingManager.current) {
-          preprocessingManager.current.addToQueue(item.filePath);
-        }
-      });
-
-      if (effectivePosition === 'start') {
-        return [...uniqueNew, ...prev];
-      } else if (effectivePosition === 'sorted' || effectivePosition === 'alphabetical') {
-        const combined = [...prev, ...uniqueNew];
-        return combined.sort(naturalSortCompare);
+    const currentFixMode = fixModeRef.current;
+    uniqueNew.forEach(item => {
+      if (!currentFixMode && item.isAlreadyProcessed) {
+        debug('FileQueue', 'Skipping preprocessing (already processed, fix-mode OFF):', item.fileName);
+        alreadyProcessedFiles.push(item);
+        return;
       }
-      return [...prev, ...uniqueNew];
+      if (preprocessingManager.current) {
+        preprocessingManager.current.addToQueue(item.filePath);
+      }
     });
+
+    queueActions.add(uniqueNew, effectivePosition);
 
     if (newItems.length > 0) {
       const dupeCount = newItems.length - addedCount;
@@ -851,13 +638,13 @@ export function FileQueueModule({ node }) {
           debugWarn('FileQueue', 'Failed to fetch file stats:', err);
         });
     }
-  }, [showToast, api]);
+  }, [showToast, api, queueActions]);
 
   // Sort existing queue alphabetically
   const sortQueue = useCallback(() => {
-    setQueue(prev => [...prev].sort(naturalSortCompare));
+    queueActions.sort();
     showToast(t('fileQueue.toasts.queueSorted'), 'info', 2000);
-  }, [showToast]);
+  }, [showToast, queueActions]);
 
   // Remove file from queue
   const removeFile = useCallback((id) => {
@@ -874,15 +661,8 @@ export function FileQueueModule({ node }) {
       }
     }
 
-    setQueue(prev => prev.filter(item => item.id !== id));
-    // Adjust currentIndex if needed
-    setCurrentIndex(prev => {
-      const removedIndex = queue.findIndex(item => item.id === id);
-      if (removedIndex < prev) return prev - 1;
-      if (removedIndex === prev) return -1;
-      return prev;
-    });
-  }, [queue, emit]);
+    queueActions.removeById(id);
+  }, [queue, emit, queueActions]);
 
   // Clear all files
   const clearQueue = useCallback(() => {
@@ -895,9 +675,8 @@ export function FileQueueModule({ node }) {
       emit('clear-image');
       currentFileRef.current = null;
     }
-    setQueue([]);
-    setCurrentIndex(-1);
-  }, [emit]);
+    queueActions.clear();
+  }, [emit, queueActions]);
 
   // Clear completed files
   // When fix-mode is OFF, also clear already-processed files (they're considered done)
@@ -923,15 +702,9 @@ export function FileQueueModule({ node }) {
       currentFileRef.current = null;
     }
 
-    setQueue(prev => prev.filter(item => {
-      if (!isDone(item)) return true;
-      // When filter is active, only clear visible completed items
-      if (currentVisibleIds && !currentVisibleIds.has(item.id)) return true;
-      return false;
-    }));
-    setCurrentIndex(-1);
+    queueActions.clearDone(currentFixMode, currentVisibleIds);
     setSelectedFiles(new Set());
-  }, [emit]);
+  }, [emit, queueActions]);
 
   // Clear selected files
   const clearSelected = useCallback(() => {
@@ -944,10 +717,9 @@ export function FileQueueModule({ node }) {
       currentFileRef.current = null;
     }
 
-    setQueue(prev => prev.filter(item => !selectedFiles.has(item.id)));
-    setCurrentIndex(-1);
+    queueActions.clearSelected(selectedFiles);
     setSelectedFiles(new Set());
-  }, [selectedFiles, emit]);
+  }, [selectedFiles, emit, queueActions]);
 
   // Select all files
   const selectAll = useCallback(() => {
@@ -1054,18 +826,13 @@ export function FileQueueModule({ node }) {
       }
     }
 
-    setQueue(prev => prev.map((q, i) => ({
-      ...q,
-      status: i === index ? 'active' : (q.status === 'active' ? 'pending' : q.status)
-    })));
-
-    setCurrentIndex(index);
+    queueActions.setActive(index);
     currentFileRef.current = item.filePath;
 
     debug('FileQueue', 'Emitting load-image for:', item.filePath, { skipAutoDetect });
     emit('load-image', { imagePath: item.filePath, skipAutoDetect });
     emitQueueStatus(index);
-  }, [api, loadProcessedFiles, emit, hasListeners, waitForListeners, showToast, emitQueueStatus]);
+  }, [api, loadProcessedFiles, emit, hasListeners, waitForListeners, showToast, emitQueueStatus, queueActions]);
 
   loadFileRef.current = loadFile;
 
@@ -1094,9 +861,7 @@ export function FileQueueModule({ node }) {
       await loadProcessedFiles();
 
       // 4. Update queue item to not be marked as already processed
-      setQueue(prev => prev.map((q, i) => 
-        i === index ? { ...q, isAlreadyProcessed: false } : q
-      ));
+      queueActions.clearProcessedFlag(index);
 
       // 5. Add to preprocessing queue with priority
       if (preprocessingManager.current) {
@@ -1111,7 +876,7 @@ export function FileQueueModule({ node }) {
       debugError('FileQueue', 'Failed to force reprocess:', err);
       showToast(t('fileQueue.toasts.reprocessFailed', { fileName: item.fileName }), 'error', 3000);
     }
-  }, [api, loadProcessedFiles, loadFile, showToast]);
+  }, [api, loadProcessedFiles, loadFile, showToast, queueActions]);
 
   // Handle file item click with modifier key support
   // Single click = select, Double click = load
@@ -1184,219 +949,14 @@ export function FileQueueModule({ node }) {
       loadFile(nextIndex);
     } else {
       debug('FileQueue', 'No more eligible files');
-      setCurrentIndex(-1);
+      queueActions.setIndex(-1);
     }
-  }, [currentIndex, loadFile, isFileEligible]);
+  }, [currentIndex, loadFile, isFileEligible, queueActions]);
 
   // Skip current file
   const skipCurrent = useCallback(() => {
     advanceToNext();
   }, [advanceToNext]);
-
-  // Fetch rename preview from backend
-  // Uses queueRef to always get current queue (avoids stale closure issues)
-  const fetchRenamePreview = useCallback(async () => {
-    // Include files eligible for rename:
-    // - completed: reviewed this session
-    // - isAlreadyProcessed (when fix-mode OFF): already in database, includes active files being re-viewed
-    const currentQueue = queueRef.current;
-    const currentFixMode = fixModeRef.current;
-    const dirty = dirtyPathsRef.current;
-    const eligiblePaths = currentQueue
-      .filter(q => isRenameEligible(q, currentFixMode, dirty))
-      .map(q => q.filePath);
-
-    if (eligiblePaths.length === 0) {
-      setPreviewData({});
-      return;
-    }
-
-    // Show loading indicator for large batches
-    if (eligiblePaths.length > 5) {
-      showToast(t('fileQueue.toasts.generatingNames', { count: eligiblePaths.length }), 'info', 2000);
-    }
-
-    // Get rename config from preferences
-    const renameConfig = getRenameConfig();
-
-    try {
-      const result = await api.post('/api/v1/files/rename-preview', {
-        file_paths: eligiblePaths,
-        config: renameConfig
-      });
-
-      // Build lookup: path -> { newName, status, persons, sidecars }
-      const lookup = {};
-      for (const item of result.items) {
-        lookup[item.original_path] = {
-          newName: item.new_name,
-          status: item.status,
-          persons: item.persons || [],
-          sidecars: item.sidecars || []
-        };
-      }
-      setPreviewData(lookup);
-      debug('FileQueue', 'Fetched rename preview for', eligiblePaths.length, 'files');
-    } catch (err) {
-      debugError('FileQueue', 'Failed to fetch rename preview:', err);
-      setPreviewData({});
-    }
-  }, [api, showToast]);
-
-  // Ref to prevent double fetch on initial toggle
-  const initialPreviewFetchedRef = useRef(false);
-
-  // Handle preview toggle
-  const handlePreviewToggle = useCallback(async (e) => {
-    const show = e.target.checked;
-    setShowPreviewNames(show);
-
-    // Always fetch fresh preview when toggling on to avoid stale data
-    if (show) {
-      // Mark as fetched to prevent useEffect from also triggering fetch
-      initialPreviewFetchedRef.current = true;
-      await fetchRenamePreview();
-    }
-  }, [fetchRenamePreview]);
-
-  // Fetch preview on startup if showPreviewNames was restored as true
-  // Wait for preprocessing to complete so backend has the data
-  useEffect(() => {
-    // Only run once, when showPreviewNames is on and we have eligible files
-    if (initialPreviewFetchedRef.current) return;
-    if (!showPreviewNames) return;
-    if (!isConnected) return;
-
-    // Check if we have eligible files (completed or already-processed)
-    const hasEligibleFiles = queue.some(q =>
-      q.status === 'completed' || (!fixMode && q.isAlreadyProcessed)
-    );
-    if (!hasEligibleFiles) return;
-
-    // Check if preprocessing is done for at least some files
-    const hasPreprocessedFiles = queue.some(q =>
-      preprocessingStatus[q.filePath]?.status === PreprocessingStatus.COMPLETED
-    );
-    if (!hasPreprocessedFiles && queue.length > 0) return; // Wait for preprocessing
-
-    initialPreviewFetchedRef.current = true;
-    debug('FileQueue', 'Fetching preview on startup (showPreviewNames was saved as true)');
-    fetchRenamePreview();
-  }, [showPreviewNames, isConnected, queue, fixMode, preprocessingStatus, fetchRenamePreview]);
-
-  // Handle rename action
-  const handleRename = useCallback(async () => {
-    const currentFixMode = fixModeRef.current;
-    const hasSelection = selectedFiles.size > 0;
-
-    const currentVisibleIds = visibleIdsRef.current;
-    const eligiblePaths = queue
-      .filter(q => {
-        const isEligible = isRenameEligible(q, currentFixMode, dirtyPathsRef.current);
-        if (hasSelection) return isEligible && selectedFiles.has(q.id);
-        if (currentVisibleIds) return isEligible && currentVisibleIds.has(q.id);
-        return isEligible;
-      })
-      .map(q => q.filePath);
-
-    if (eligiblePaths.length === 0) return;
-
-    const requireConfirmation = getRequireRenameConfirmation();
-
-    if (requireConfirmation) {
-      const selectionNote = hasSelection ? t('fileQueue.dialogs.renameConfirmSelection') : '';
-      const confirmed = window.confirm(
-        t('fileQueue.dialogs.renameConfirm', {
-          count: eligiblePaths.length,
-          selection: selectionNote
-        })
-      );
-      if (!confirmed) return;
-    }
-
-    setRenameInProgress(true);
-
-    // Show progress toast
-    showToast(t('fileQueue.toasts.renaming', { count: eligiblePaths.length }), 'info', null);
-
-    // Get rename config from preferences
-    const renameConfig = getRenameConfig();
-
-    try {
-      const result = await api.post('/api/v1/files/rename', {
-        file_paths: eligiblePaths,
-        config: renameConfig
-      });
-
-      debug('FileQueue', 'Rename result:', result);
-
-      const renamedCount = result.renamed?.length || 0;
-      const skippedCount = result.skipped?.length || 0;
-      const errorCount = result.errors?.length || 0;
-
-      // Update queue with new filenames
-      if (renamedCount > 0) {
-        const renamedMap = {};
-        for (const r of result.renamed) {
-          renamedMap[r.original] = r.new;
-        }
-
-        setQueue(prev => prev.map(item => {
-          if (renamedMap[item.filePath]) {
-            const newPath = renamedMap[item.filePath];
-            return {
-              ...item,
-              filePath: newPath,
-              fileName: newPath.split('/').pop()
-            };
-          }
-          return item;
-        }));
-
-        // Update preprocessingManager state for renamed files
-        if (preprocessingManager.current) {
-          for (const [oldPath, newPath] of Object.entries(renamedMap)) {
-            const cachedData = preprocessingManager.current.getCachedData(oldPath);
-            if (cachedData) {
-              preprocessingManager.current.removeFile(oldPath);
-              preprocessingManager.current.completed.set(newPath, cachedData);
-            }
-          }
-        }
-
-        // Update React preprocessingStatus state
-        setPreprocessingStatus(prev => {
-          const updated = { ...prev };
-          for (const [oldPath, newPath] of Object.entries(renamedMap)) {
-            if (updated[oldPath]) {
-              updated[newPath] = updated[oldPath];
-              delete updated[oldPath];
-            }
-          }
-          return updated;
-        });
-      }
-
-      // Refresh preview data to get updated info for renamed files
-      setPreviewData(null);
-      if (showPreviewNames) {
-        // Re-fetch after delay to allow queue state to update
-        setTimeout(() => fetchRenamePreview(), 300);
-      }
-
-      // Show toast notification
-      let message = t('fileQueue.toasts.renamed', { count: renamedCount });
-      if (skippedCount > 0) message += t('fileQueue.toasts.renamedSkippedSuffix', { count: skippedCount });
-      if (errorCount > 0) message += t('fileQueue.toasts.renamedErrorSuffix', { count: errorCount });
-      showToast(message, errorCount > 0 ? 'warning' : 'success');
-
-    } catch (err) {
-      debugError('FileQueue', 'Rename failed:', err);
-      showToast(t('fileQueue.toasts.renameFailed', { message: err.message }), 'error');
-    } finally {
-      setRenameInProgress(false);
-    }
-  }, [queue, api, showPreviewNames, fetchRenamePreview, showToast, selectedFiles]);
 
   // Listen for review-complete event
   useModuleEvent('review-complete', useCallback(({ imagePath, success, reviewedFaces }) => {
@@ -1426,16 +986,7 @@ export function FileQueueModule({ node }) {
 
       debug('FileQueue', 'Current index:', currentIdx, 'Next index:', nextIdx, 'Queue length:', currentQueue.length);
 
-      setQueue(prev => prev.map(item => {
-        if (item.filePath === imagePath) {
-          return {
-            ...item,
-            status: success ? 'completed' : 'error',
-            reviewedFaces: reviewedFaces || []
-          };
-        }
-        return item;
-      }));
+      queueActions.setReviewed(imagePath, success ? 'completed' : 'error', reviewedFaces || []);
 
       const prevDone = currentQueue.filter(q => q.status === 'completed').length;
       const newDone = success ? prevDone + 1 : prevDone;
@@ -1478,12 +1029,12 @@ export function FileQueueModule({ node }) {
         setTimeout(() => loadFile(nextIdx), 300);
       } else if (nextIdx < 0) {
         debug('FileQueue', 'No more pending files (or all skipped due to fix-mode OFF)');
-        setCurrentIndex(-1);
+        queueActions.setIndex(-1);
         // Show queue complete toast
         showToast(t('fileQueue.toasts.queueComplete'), 'success', 4000);
       }
     }
-  }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit, isFileEligible]));
+  }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit, isFileEligible, queueActions]));
 
   // Soft-delete a file to the app trash, then advance to the next eligible file.
   // The path is supplied by the caller (the visible review surface via
@@ -1509,7 +1060,7 @@ export function FileQueueModule({ node }) {
 
     // Optimistic removal so the UI reacts immediately.
     const wasCurrent = currentFileRef.current === path;
-    setQueue((prev) => prev.filter((item) => item.filePath !== path));
+    queueActions.removePaths(new Set([path]));
     if (wasCurrent) currentFileRef.current = null;
 
     let trashedId = null;
@@ -1526,12 +1077,7 @@ export function FileQueueModule({ node }) {
 
     if (!trashedId) {
       // Roll back the optimistic removal.
-      setQueue((prev) => {
-        if (prev.some((item) => item.filePath === path)) return prev;
-        const copy = [...prev];
-        copy.splice(Math.min(idx, copy.length), 0, victim);
-        return copy;
-      });
+      queueActions.insertAt(victim, idx);
       if (wasCurrent) currentFileRef.current = path;
       return;
     }
@@ -1556,9 +1102,9 @@ export function FileQueueModule({ node }) {
         if (nextIdx >= 0) loadFileRef.current?.(nextIdx);
       }, 250);
     } else {
-      setCurrentIndex(-1);
+      queueActions.setIndex(-1);
     }
-  }, [api, autoAdvance, isFileEligible, showToast]);
+  }, [api, autoAdvance, isFileEligible, showToast, queueActions]);
 
   // Undo the most recent delete-to-trash: restore the file and re-insert it into
   // the queue at its original position. Bound to Cmd+Shift+Backspace (a dedicated
@@ -1574,12 +1120,7 @@ export function FileQueueModule({ node }) {
       try {
         const res = await api.post('/api/v1/culling/restore', { ids: [entry.id] });
         if (res?.restored?.length > 0) {
-          setQueue((prev) => {
-            if (prev.some((item) => item.filePath === entry.item.filePath)) return prev;
-            const copy = [...prev];
-            copy.splice(Math.min(entry.index, copy.length), 0, entry.item);
-            return copy;
-          });
+          queueActions.insertAt(entry.item, entry.index);
           const fileName = entry.item.filePath.split('/').pop();
           showToast(t('fileQueue.toasts.restoredFromTrash', { fileName }), 'success', 3000);
           setTimeout(() => {
@@ -1596,7 +1137,7 @@ export function FileQueueModule({ node }) {
     }
     // Stack drained without a successful restore (e.g. trash emptied).
     showToast(t('fileQueue.toasts.nothingToUndo'), 'info', 2500);
-  }, [api, showToast]);
+  }, [api, showToast, queueActions]);
 
   // Trash/undo requests come from the visible review surface (ReviewModule),
   // which passes the exact file path — see deleteFile's comment for why this
