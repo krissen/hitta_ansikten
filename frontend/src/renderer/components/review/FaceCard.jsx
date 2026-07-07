@@ -10,6 +10,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useThumbnail } from '../../shared/thumbnail-cache.js';
 import { useDropdownPosition } from '../../hooks/useDropdownPosition.js';
+import { rank } from './nameAutocomplete.js';
 import { Icon } from '../Icon.jsx';
 import { t } from '../../../i18n/index.js';
 
@@ -49,15 +50,10 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
     }
   }, [clearInputTrigger]);
 
-  const filteredPeople = React.useMemo(() => {
-    if (!typedValue?.trim()) return [];
-    const typed = typedValue.toLowerCase();
-    const startsWithMatch = people.filter(p => p.toLowerCase().startsWith(typed));
-    const containsMatch = people.filter(p =>
-      !p.toLowerCase().startsWith(typed) && p.toLowerCase().includes(typed)
-    );
-    return [...startsWithMatch, ...containsMatch].slice(0, 8);
-  }, [typedValue, people]);
+  const filteredPeople = React.useMemo(
+    () => rank(typedValue, people),
+    [typedValue, people]
+  );
 
   const dropdownStyle = useDropdownPosition(
     showSuggestions && filteredPeople.length > 0,
