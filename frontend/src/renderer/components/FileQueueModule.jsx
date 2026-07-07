@@ -26,9 +26,10 @@ import {
   getToastDurationMultiplier,
   getInsertModePreference,
 } from './fileQueue/fileQueuePrefs.js';
-import { naturalSortCompare, generateId, SUPPORTED_EXTENSIONS } from './fileQueue/queueUtils.js';
+import { generateId, SUPPORTED_EXTENSIONS } from './fileQueue/queueUtils.js';
 import { usePreprocessing } from './fileQueue/usePreprocessing.js';
 import { useNefRename } from './fileQueue/useNefRename.js';
+import { useFileQueue } from './fileQueue/useFileQueue.js';
 import FileQueueItem from './fileQueue/FileQueueItem.jsx';
 import './FileQueueModule.css';
 
@@ -41,9 +42,9 @@ export function FileQueueModule({ node }) {
   const { hasListeners, waitForListeners } = useModuleAPI();
   const globalShowToast = useToast();
 
-  // Queue state
-  const [queue, setQueue] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(-1);
+  // Queue state (queue + currentIndex) lives in a reducer-backed hook; every
+  // mutation goes through queueActions.* so the transitions stay pure/testable.
+  const { queue, currentIndex, queueRef, actions: queueActions } = useFileQueue();
   const [autoAdvance, setAutoAdvance] = useState(true);
   const [fixMode, setFixMode] = useState(false);
   const [processedFiles, setProcessedFiles] = useState(new Set());
@@ -101,15 +102,15 @@ export function FileQueueModule({ node }) {
     processedHashes,
     processedFilesLoaded,
     showToast,
-    setQueue,
+    markProcessed: queueActions.markProcessed,
+    removePaths: queueActions.removePaths,
+    markMissing: queueActions.markMissing,
   });
 
   // Refs
   const moduleRef = useRef(null);
   const listRef = useRef(null);
   const currentFileRef = useRef(null);
-  const queueRef = useRef(queue); // Keep current queue in ref for callbacks
-  queueRef.current = queue; // Sync on every render (not just in useEffect)
   const visibleIdsRef = useRef(null); // Current filter-visible IDs for action scoping
   const fixModeRef = useRef(fixMode);
   fixModeRef.current = fixMode;
@@ -136,7 +137,7 @@ export function FileQueueModule({ node }) {
   } = useNefRename({
     queue,
     queueRef,
-    setQueue,
+    applyRename: queueActions.applyRename,
     api,
     showToast,
     isConnected,
@@ -224,19 +225,8 @@ export function FileQueueModule({ node }) {
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0) return;
     
-    setQueue(prev => {
-      let hasChanges = false;
-      const updated = prev.map(item => {
-        const shouldBeProcessed = processedFiles.has(item.fileName);
-        if (shouldBeProcessed && !item.isAlreadyProcessed) {
-          hasChanges = true;
-          return { ...item, isAlreadyProcessed: true };
-        }
-        return item;
-      });
-      return hasChanges ? updated : prev;
-    });
-  }, [processedFilesLoaded, processedFiles]);
+    queueActions.markProcessedByNames(processedFiles);
+  }, [processedFilesLoaded, processedFiles, queueActions]);
 
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0 || !api) return;
@@ -304,13 +294,13 @@ export function FileQueueModule({ node }) {
       });
 
       const fileName = filePath.split('/').pop();
-      setQueue(prev => prev.filter(item => item.filePath !== filePath));
+      queueActions.removePaths(new Set([filePath]));
       showToast(t('fileQueue.toasts.removedDeletedFile', { fileName }), 'info', 3000);
     };
 
     const unsubscribe = window.ansiktenAPI?.onFileDeleted(handleFileDeleted);
     return () => unsubscribe?.();
-  }, [showToast]);
+  }, [showToast, queueActions]);
 
   useEffect(() => {
     const handleWatcherError = (dir, affectedFiles) => {
@@ -343,7 +333,7 @@ export function FileQueueModule({ node }) {
             ...item,
             status: item.status === 'active' ? 'pending' : item.status
           }));
-          setQueue(restoredQueue);
+          queueActions.restore(restoredQueue);
           setAutoAdvance(parsed.autoAdvance ?? true);
           setFixMode(parsed.fixMode ?? false);
           setShowPreviewNames(parsed.showPreviewNames ?? false);
@@ -582,33 +572,28 @@ export function FileQueueModule({ node }) {
       };
     });
 
-    let addedCount = 0;
-    let alreadyProcessedFiles = [];
-    setQueue(prev => {
-      const existingPaths = new Set(prev.map(item => item.filePath));
-      const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
-      addedCount = uniqueNew.length;
+    // Dedup against the current queue before running side effects, then dispatch
+    // the insert (the reducer re-dedups defensively). Preprocessing enqueue and
+    // the already-processed stats fetch are side effects that stay out of the
+    // pure reducer.
+    const existingPaths = new Set(queueRef.current.map(item => item.filePath));
+    const uniqueNew = newItems.filter(item => !existingPaths.has(item.filePath));
+    const addedCount = uniqueNew.length;
+    const alreadyProcessedFiles = [];
 
-      const currentFixMode = fixModeRef.current;
-      uniqueNew.forEach(item => {
-        if (!currentFixMode && item.isAlreadyProcessed) {
-          debug('FileQueue', 'Skipping preprocessing (already processed, fix-mode OFF):', item.fileName);
-          alreadyProcessedFiles.push(item);
-          return;
-        }
-        if (preprocessingManager.current) {
-          preprocessingManager.current.addToQueue(item.filePath);
-        }
-      });
-
-      if (effectivePosition === 'start') {
-        return [...uniqueNew, ...prev];
-      } else if (effectivePosition === 'sorted' || effectivePosition === 'alphabetical') {
-        const combined = [...prev, ...uniqueNew];
-        return combined.sort(naturalSortCompare);
+    const currentFixMode = fixModeRef.current;
+    uniqueNew.forEach(item => {
+      if (!currentFixMode && item.isAlreadyProcessed) {
+        debug('FileQueue', 'Skipping preprocessing (already processed, fix-mode OFF):', item.fileName);
+        alreadyProcessedFiles.push(item);
+        return;
       }
-      return [...prev, ...uniqueNew];
+      if (preprocessingManager.current) {
+        preprocessingManager.current.addToQueue(item.filePath);
+      }
     });
+
+    queueActions.add(uniqueNew, effectivePosition);
 
     if (newItems.length > 0) {
       const dupeCount = newItems.length - addedCount;
@@ -653,13 +638,13 @@ export function FileQueueModule({ node }) {
           debugWarn('FileQueue', 'Failed to fetch file stats:', err);
         });
     }
-  }, [showToast, api]);
+  }, [showToast, api, queueActions]);
 
   // Sort existing queue alphabetically
   const sortQueue = useCallback(() => {
-    setQueue(prev => [...prev].sort(naturalSortCompare));
+    queueActions.sort();
     showToast(t('fileQueue.toasts.queueSorted'), 'info', 2000);
-  }, [showToast]);
+  }, [showToast, queueActions]);
 
   // Remove file from queue
   const removeFile = useCallback((id) => {
@@ -676,15 +661,8 @@ export function FileQueueModule({ node }) {
       }
     }
 
-    setQueue(prev => prev.filter(item => item.id !== id));
-    // Adjust currentIndex if needed
-    setCurrentIndex(prev => {
-      const removedIndex = queue.findIndex(item => item.id === id);
-      if (removedIndex < prev) return prev - 1;
-      if (removedIndex === prev) return -1;
-      return prev;
-    });
-  }, [queue, emit]);
+    queueActions.removeById(id);
+  }, [queue, emit, queueActions]);
 
   // Clear all files
   const clearQueue = useCallback(() => {
@@ -697,9 +675,8 @@ export function FileQueueModule({ node }) {
       emit('clear-image');
       currentFileRef.current = null;
     }
-    setQueue([]);
-    setCurrentIndex(-1);
-  }, [emit]);
+    queueActions.clear();
+  }, [emit, queueActions]);
 
   // Clear completed files
   // When fix-mode is OFF, also clear already-processed files (they're considered done)
@@ -725,15 +702,9 @@ export function FileQueueModule({ node }) {
       currentFileRef.current = null;
     }
 
-    setQueue(prev => prev.filter(item => {
-      if (!isDone(item)) return true;
-      // When filter is active, only clear visible completed items
-      if (currentVisibleIds && !currentVisibleIds.has(item.id)) return true;
-      return false;
-    }));
-    setCurrentIndex(-1);
+    queueActions.clearDone(currentFixMode, currentVisibleIds);
     setSelectedFiles(new Set());
-  }, [emit]);
+  }, [emit, queueActions]);
 
   // Clear selected files
   const clearSelected = useCallback(() => {
@@ -746,10 +717,9 @@ export function FileQueueModule({ node }) {
       currentFileRef.current = null;
     }
 
-    setQueue(prev => prev.filter(item => !selectedFiles.has(item.id)));
-    setCurrentIndex(-1);
+    queueActions.clearSelected(selectedFiles);
     setSelectedFiles(new Set());
-  }, [selectedFiles, emit]);
+  }, [selectedFiles, emit, queueActions]);
 
   // Select all files
   const selectAll = useCallback(() => {
@@ -856,18 +826,13 @@ export function FileQueueModule({ node }) {
       }
     }
 
-    setQueue(prev => prev.map((q, i) => ({
-      ...q,
-      status: i === index ? 'active' : (q.status === 'active' ? 'pending' : q.status)
-    })));
-
-    setCurrentIndex(index);
+    queueActions.setActive(index);
     currentFileRef.current = item.filePath;
 
     debug('FileQueue', 'Emitting load-image for:', item.filePath, { skipAutoDetect });
     emit('load-image', { imagePath: item.filePath, skipAutoDetect });
     emitQueueStatus(index);
-  }, [api, loadProcessedFiles, emit, hasListeners, waitForListeners, showToast, emitQueueStatus]);
+  }, [api, loadProcessedFiles, emit, hasListeners, waitForListeners, showToast, emitQueueStatus, queueActions]);
 
   loadFileRef.current = loadFile;
 
@@ -896,9 +861,7 @@ export function FileQueueModule({ node }) {
       await loadProcessedFiles();
 
       // 4. Update queue item to not be marked as already processed
-      setQueue(prev => prev.map((q, i) => 
-        i === index ? { ...q, isAlreadyProcessed: false } : q
-      ));
+      queueActions.clearProcessedFlag(index);
 
       // 5. Add to preprocessing queue with priority
       if (preprocessingManager.current) {
@@ -913,7 +876,7 @@ export function FileQueueModule({ node }) {
       debugError('FileQueue', 'Failed to force reprocess:', err);
       showToast(t('fileQueue.toasts.reprocessFailed', { fileName: item.fileName }), 'error', 3000);
     }
-  }, [api, loadProcessedFiles, loadFile, showToast]);
+  }, [api, loadProcessedFiles, loadFile, showToast, queueActions]);
 
   // Handle file item click with modifier key support
   // Single click = select, Double click = load
@@ -986,9 +949,9 @@ export function FileQueueModule({ node }) {
       loadFile(nextIndex);
     } else {
       debug('FileQueue', 'No more eligible files');
-      setCurrentIndex(-1);
+      queueActions.setIndex(-1);
     }
-  }, [currentIndex, loadFile, isFileEligible]);
+  }, [currentIndex, loadFile, isFileEligible, queueActions]);
 
   // Skip current file
   const skipCurrent = useCallback(() => {
@@ -1023,16 +986,7 @@ export function FileQueueModule({ node }) {
 
       debug('FileQueue', 'Current index:', currentIdx, 'Next index:', nextIdx, 'Queue length:', currentQueue.length);
 
-      setQueue(prev => prev.map(item => {
-        if (item.filePath === imagePath) {
-          return {
-            ...item,
-            status: success ? 'completed' : 'error',
-            reviewedFaces: reviewedFaces || []
-          };
-        }
-        return item;
-      }));
+      queueActions.setReviewed(imagePath, success ? 'completed' : 'error', reviewedFaces || []);
 
       const prevDone = currentQueue.filter(q => q.status === 'completed').length;
       const newDone = success ? prevDone + 1 : prevDone;
@@ -1075,12 +1029,12 @@ export function FileQueueModule({ node }) {
         setTimeout(() => loadFile(nextIdx), 300);
       } else if (nextIdx < 0) {
         debug('FileQueue', 'No more pending files (or all skipped due to fix-mode OFF)');
-        setCurrentIndex(-1);
+        queueActions.setIndex(-1);
         // Show queue complete toast
         showToast(t('fileQueue.toasts.queueComplete'), 'success', 4000);
       }
     }
-  }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit, isFileEligible]));
+  }, [autoAdvance, loadFile, loadProcessedFiles, showToast, emit, isFileEligible, queueActions]));
 
   // Soft-delete a file to the app trash, then advance to the next eligible file.
   // The path is supplied by the caller (the visible review surface via
@@ -1106,7 +1060,7 @@ export function FileQueueModule({ node }) {
 
     // Optimistic removal so the UI reacts immediately.
     const wasCurrent = currentFileRef.current === path;
-    setQueue((prev) => prev.filter((item) => item.filePath !== path));
+    queueActions.removePaths(new Set([path]));
     if (wasCurrent) currentFileRef.current = null;
 
     let trashedId = null;
@@ -1123,12 +1077,7 @@ export function FileQueueModule({ node }) {
 
     if (!trashedId) {
       // Roll back the optimistic removal.
-      setQueue((prev) => {
-        if (prev.some((item) => item.filePath === path)) return prev;
-        const copy = [...prev];
-        copy.splice(Math.min(idx, copy.length), 0, victim);
-        return copy;
-      });
+      queueActions.insertAt(victim, idx);
       if (wasCurrent) currentFileRef.current = path;
       return;
     }
@@ -1153,9 +1102,9 @@ export function FileQueueModule({ node }) {
         if (nextIdx >= 0) loadFileRef.current?.(nextIdx);
       }, 250);
     } else {
-      setCurrentIndex(-1);
+      queueActions.setIndex(-1);
     }
-  }, [api, autoAdvance, isFileEligible, showToast]);
+  }, [api, autoAdvance, isFileEligible, showToast, queueActions]);
 
   // Undo the most recent delete-to-trash: restore the file and re-insert it into
   // the queue at its original position. Bound to Cmd+Shift+Backspace (a dedicated
@@ -1171,12 +1120,7 @@ export function FileQueueModule({ node }) {
       try {
         const res = await api.post('/api/v1/culling/restore', { ids: [entry.id] });
         if (res?.restored?.length > 0) {
-          setQueue((prev) => {
-            if (prev.some((item) => item.filePath === entry.item.filePath)) return prev;
-            const copy = [...prev];
-            copy.splice(Math.min(entry.index, copy.length), 0, entry.item);
-            return copy;
-          });
+          queueActions.insertAt(entry.item, entry.index);
           const fileName = entry.item.filePath.split('/').pop();
           showToast(t('fileQueue.toasts.restoredFromTrash', { fileName }), 'success', 3000);
           setTimeout(() => {
@@ -1193,7 +1137,7 @@ export function FileQueueModule({ node }) {
     }
     // Stack drained without a successful restore (e.g. trash emptied).
     showToast(t('fileQueue.toasts.nothingToUndo'), 'info', 2500);
-  }, [api, showToast]);
+  }, [api, showToast, queueActions]);
 
   // Trash/undo requests come from the visible review surface (ReviewModule),
   // which passes the exact file path — see deleteFile's comment for why this

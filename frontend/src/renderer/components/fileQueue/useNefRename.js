@@ -21,7 +21,6 @@ import {
   selectRenamePaths,
   buildPreviewLookup,
   buildRenamedMap,
-  applyRenameToQueue,
   remapPathKeys,
   renameSummaryCounts,
 } from './renameLogic.js';
@@ -30,7 +29,7 @@ import {
  * @param {object} deps
  * @param {Array} deps.queue - queue state (drives the initial-preview effect)
  * @param {React.MutableRefObject} deps.queueRef - always-current queue ref
- * @param {Function} deps.setQueue - queue updater (path propagation)
+ * @param {Function} deps.applyRename - propagate a renamed map onto the queue
  * @param {object} deps.api - backend client
  * @param {Function} deps.showToast
  * @param {boolean} deps.isConnected
@@ -46,7 +45,7 @@ import {
 export function useNefRename({
   queue,
   queueRef,
-  setQueue,
+  applyRename,
   api,
   showToast,
   isConnected,
@@ -193,7 +192,7 @@ export function useNefRename({
       if (renamedCount > 0) {
         const renamedMap = buildRenamedMap(result.renamed);
 
-        setQueue(prev => applyRenameToQueue(prev, renamedMap));
+        applyRename(renamedMap);
 
         // Update preprocessingManager state for renamed files
         if (preprocessingManager.current) {
@@ -231,7 +230,7 @@ export function useNefRename({
     }
   }, [
     queue, api, showPreviewNames, fetchRenamePreview, showToast, selectedFiles,
-    fixModeRef, dirtyPathsRef, visibleIdsRef, preprocessingManager, setQueue,
+    fixModeRef, dirtyPathsRef, visibleIdsRef, preprocessingManager, applyRename,
     setPreprocessingStatus,
   ]);
 

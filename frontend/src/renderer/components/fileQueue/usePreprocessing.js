@@ -32,7 +32,9 @@ import {
  * @param {Set<string>} deps.processedHashes - hashes already in the database
  * @param {boolean} deps.processedFilesLoaded - gate for wiring the hash checker
  * @param {Function} deps.showToast - toast emitter
- * @param {Function} deps.setQueue - queue state updater (for manager-driven mutations)
+ * @param {Function} deps.markProcessed - mark a queued file (by path) already-processed
+ * @param {Function} deps.removePaths - drop queued files whose path is in a Set
+ * @param {Function} deps.markMissing - mark a queued file (by path) missing
  * @returns {{
  *   preprocessingManager: React.MutableRefObject,
  *   preprocessingStatus: object,
@@ -42,7 +44,14 @@ import {
  *   countPreprocessed: Function,
  * }}
  */
-export function usePreprocessing(queue, { processedHashes, processedFilesLoaded, showToast, setQueue }) {
+export function usePreprocessing(queue, {
+  processedHashes,
+  processedFilesLoaded,
+  showToast,
+  markProcessed,
+  removePaths,
+  markMissing,
+}) {
   const [preprocessingStatus, setPreprocessingStatus] = useState({});
   const [preprocessingPaused, setPreprocessingPaused] = useState(false);
 
@@ -102,11 +111,7 @@ export function usePreprocessing(queue, { processedHashes, processedFilesLoaded,
 
       // Check if file hash matches a processed file (handles renamed files)
       if (hash && processedHashes.has(hash)) {
-        setQueue(prev => prev.map(item =>
-          item.filePath === filePath && !item.isAlreadyProcessed
-            ? { ...item, isAlreadyProcessed: true }
-            : item
-        ));
+        markProcessed(filePath);
         debug('FileQueue', 'File recognized by hash as already processed:', filePath);
       }
 
@@ -148,18 +153,14 @@ export function usePreprocessing(queue, { processedHashes, processedFilesLoaded,
           const count = missingFilesRef.current.length;
           if (count > 0) {
             const pathsToRemove = new Set(missingFilesRef.current);
-            setQueue(prev => prev.filter(item => !pathsToRemove.has(item.filePath)));
+            removePaths(pathsToRemove);
             showToast(t('fileQueue.toasts.removedMissing', { count }), 'info', 3000);
             debug('FileQueue', `Auto-removed ${count} missing files`);
             missingFilesRef.current = [];
           }
         }, 500);
       } else {
-        setQueue(prev => prev.map(item =>
-          item.filePath === filePath
-            ? { ...item, status: 'missing', error: 'File not found' }
-            : item
-        ));
+        markMissing(filePath);
       }
       debug('FileQueue', 'File not found:', filePath);
     };
@@ -196,11 +197,7 @@ export function usePreprocessing(queue, { processedHashes, processedFilesLoaded,
 
     const handleAlreadyProcessed = ({ filePath, hash }) => {
       debug('FileQueue', 'File skipped (hash already processed):', filePath);
-      setQueue(prev => prev.map(item =>
-        item.filePath === filePath
-          ? { ...item, isAlreadyProcessed: true }
-          : item
-      ));
+      markProcessed(filePath);
       setPreprocessingStatus(prev => ({
         ...prev,
         [filePath]: { status: PreprocessingStatus.COMPLETED, skipped: true }
@@ -226,7 +223,7 @@ export function usePreprocessing(queue, { processedHashes, processedFilesLoaded,
       manager.off('cache-cleared', handleCacheCleared);
       manager.off('already-processed', handleAlreadyProcessed);
     };
-  }, [showToast, processedHashes, setQueue]);
+  }, [showToast, processedHashes, markProcessed, removePaths, markMissing]);
 
   // Update backend cache priority (queue files evicted last)
   const priorityHashesTimerRef = useRef(null);
