@@ -6,10 +6,9 @@
  * confirmed/ignored status badge.
  */
 
-import React, { useState, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import { useThumbnail } from '../../shared/thumbnail-cache.js';
-import { useDropdownPosition } from '../../hooks/useDropdownPosition.js';
+import { Autocomplete } from '../shared/Autocomplete.jsx';
 import { rank } from './nameAutocomplete.js';
 import { Icon } from '../Icon.jsx';
 import { t } from '../../../i18n/index.js';
@@ -25,17 +24,6 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
     imagePath,
     face.bounding_box
   );
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
-  const localInputRef = useRef(null);
-
-  const setInputRef = useCallback((el) => {
-    localInputRef.current = el;
-    if (inputRef) {
-      if (typeof inputRef === 'function') inputRef(el);
-      else inputRef.current = el;
-    }
-  }, [inputRef]);
 
   React.useEffect(() => {
     const newValue = isProbableIgnoreCase ? '' : (face.person_name || '');
@@ -53,12 +41,6 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
   const filteredPeople = React.useMemo(
     () => rank(typedValue, people),
     [typedValue, people]
-  );
-
-  const dropdownStyle = useDropdownPosition(
-    showSuggestions && filteredPeople.length > 0,
-    localInputRef.current,
-    { maxHeight: 200, gap: 4 }
   );
 
   // Determine if this is a probable-ignore case
@@ -147,76 +129,27 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
 
       <div className="face-actions">
         {!face.is_confirmed ? (
-          <div className="autocomplete-wrapper">
-            <input
-              ref={setInputRef}
-              type="text"
-              className={people.includes(inputValue) ? 'name-match' : ''}
-              placeholder={t('review.placeholder')}
-              value={inputValue}
-              onChange={(e) => {
-                const val = e.target.value;
-                setInputValue(val);
-                setTypedValue(val);
-                setSelectedSuggestion(-1);
-                setShowSuggestions(true);
-              }}
-              onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setShowSuggestions(false);
-                  setInputValue(typedValue);
-                  setSelectedSuggestion(-1);
-                  e.target.blur();
-                  e.stopPropagation();
-                  return;
-                }
-                // Arrow Down / Tab - select next suggestion (wraps)
-                if ((e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) &&
-                    showSuggestions && filteredPeople.length > 0) {
-                  e.preventDefault();
-                  const newIdx = selectedSuggestion >= filteredPeople.length - 1
-                    ? 0
-                    : selectedSuggestion + 1;
-                  setSelectedSuggestion(newIdx);
-                  setInputValue(filteredPeople[newIdx]);
-                  return;
-                }
-                // Arrow Up / Shift+Tab - select previous suggestion (wraps)
-                if ((e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) &&
-                    showSuggestions && filteredPeople.length > 0) {
-                  e.preventDefault();
-                  const newIdx = selectedSuggestion <= 0
-                    ? filteredPeople.length - 1
-                    : selectedSuggestion - 1;
-                  setSelectedSuggestion(newIdx);
-                  setInputValue(filteredPeople[newIdx]);
-                  return;
-                }
-              }}
-              onClick={(e) => e.stopPropagation()}
-            />
-            {showSuggestions && filteredPeople.length > 0 && createPortal(
-              <div className="autocomplete-dropdown" style={dropdownStyle}>
-                {filteredPeople.map((name, idx) => (
-                  <div
-                    key={name}
-                    className={`autocomplete-item ${idx === selectedSuggestion ? 'selected' : ''}`}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setInputValue(name);
-                      setTypedValue(name);
-                      setShowSuggestions(false);
-                    }}
-                  >
-                    {name}
-                  </div>
-                ))}
-              </div>,
-              document.body
-            )}
-          </div>
+          <Autocomplete
+            value={inputValue}
+            options={filteredPeople}
+            inputRef={inputRef}
+            inputClassName={people.includes(inputValue) ? 'name-match' : ''}
+            placeholder={t('review.placeholder')}
+            ariaLabel={t('review.placeholder')}
+            openOnFocus
+            navigateWithTab
+            selectOnEnter={false}
+            onInputChange={(val) => {
+              setInputValue(val);
+              setTypedValue(val);
+            }}
+            onHighlight={(name) => setInputValue(name)}
+            onSelect={(name) => {
+              setInputValue(name);
+              setTypedValue(name);
+            }}
+            onEscape={() => setInputValue(typedValue)}
+          />
         ) : (
           <div
             className={`status-text ${face.is_rejected ? 'rejected' : 'confirmed'}`}

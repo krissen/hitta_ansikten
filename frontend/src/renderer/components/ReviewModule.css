@@ -292,43 +292,9 @@
   color: var(--text-secondary);
 }
 
-.autocomplete-wrapper {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-}
-
-.autocomplete-wrapper input {
-  width: 100%;
-}
-
-.autocomplete-dropdown {
-  position: fixed;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  overflow-y: auto;
-}
-
-.autocomplete-item {
-  padding: var(--space-sm) var(--space-md);
-  cursor: pointer;
-  font-size: var(--font-sm);
-  color: var(--text-primary);
-  border-left: 3px solid transparent;
-}
-
-.autocomplete-item:hover {
-  background: var(--bg-hover);
-}
-
-.autocomplete-item.selected {
-  background: var(--dropdown-selected-bg);
-  border-left-color: var(--color-info);
-  color: var(--color-info);
-  font-weight: 500;
-}
+/* The `.autocomplete-*` dropdown styling now lives in shared.css alongside the
+   Autocomplete primitive; only review-specific input states remain here (see
+   `.face-actions input.name-match` above). */
 
 /* Review dialog content on the shared Modal base (native <dialog>). The Modal
    surface, title, footer and hint are styled in shared.css; these rules cover
