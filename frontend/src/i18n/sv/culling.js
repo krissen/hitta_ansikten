@@ -30,8 +30,8 @@ module.exports = {
   },
   "empty": {
     "pickFolder": "Välj mapp + spelare/glob och tryck",
-    "noImages": "Inga bilder.",
-    "noImageSelected": "Ingen bild vald."
+    "noImages": "Inga bilder matchade. Ändra urval och tryck Visa igen.",
+    "noImageSelected": "Välj en bild i listan för att visa den här."
   },
   "preview": {
     "converting": "Konverterar…",
