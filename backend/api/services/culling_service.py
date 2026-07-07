@@ -438,4 +438,14 @@ class CullingService:
         return {"purged": len(expired)}
 
 
-culling_service = CullingService()
+# Lazy singleton — construction is deferred so importing this module has no
+# side effects at import time.
+_culling_service = None
+
+
+def get_culling_service() -> CullingService:
+    """Return the process-wide CullingService, constructing it on first use."""
+    global _culling_service
+    if _culling_service is None:
+        _culling_service = CullingService()
+    return _culling_service

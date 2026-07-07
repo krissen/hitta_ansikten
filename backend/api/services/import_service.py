@@ -230,4 +230,14 @@ class ImportService:
             return False
 
 
-import_service = ImportService()
+# Lazy singleton — construction is deferred so importing this module has no
+# side effects at import time.
+_import_service = None
+
+
+def get_import_service() -> ImportService:
+    """Return the process-wide ImportService, constructing it on first use."""
+    global _import_service
+    if _import_service is None:
+        _import_service = ImportService()
+    return _import_service

@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..services.statistics_service import statistics_service
+from ..services.statistics_service import get_statistics_service
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ async def get_statistics_summary():
     Results are cached for 2 seconds for performance.
     """
     try:
-        summary = await statistics_service.get_summary()
+        summary = await get_statistics_service().get_summary()
         return StatisticsSummary(**summary)
 
     except FileNotFoundError as e:
@@ -110,7 +110,7 @@ async def get_attempt_stats():
     """
     try:
         logger.info("[Statistics] Getting attempt stats")
-        stats = await statistics_service.get_attempt_stats()
+        stats = await get_statistics_service().get_attempt_stats()
         return [AttemptStat(**stat) for stat in stats]
 
     except Exception as e:
@@ -129,7 +129,7 @@ async def get_top_faces():
     """
     try:
         logger.info("[Statistics] Getting top faces")
-        result = await statistics_service.get_top_faces()
+        result = await get_statistics_service().get_top_faces()
         return result
 
     except Exception as e:
@@ -149,7 +149,7 @@ async def get_recent_images(n: int = 3):
     """
     try:
         logger.info(f"[Statistics] Getting {n} recent images")
-        images = await statistics_service.get_recent_images(n=n)
+        images = await get_statistics_service().get_recent_images(n=n)
         return [RecentImage(**img) for img in images]
 
     except Exception as e:
@@ -169,7 +169,7 @@ async def get_recent_logs(n: int = 3):
     """
     try:
         logger.info(f"[Statistics] Getting {n} recent log lines")
-        logs = await statistics_service.get_recent_logs(n=n)
+        logs = await get_statistics_service().get_recent_logs(n=n)
         return [LogLine(**log) for log in logs]
 
     except Exception as e:
@@ -191,7 +191,7 @@ async def get_processed_files(n: int = 200, source: Optional[str] = None):
     try:
         n = min(n, 1000)  # Cap at 1000
         logger.info(f"[Statistics] Getting {n} processed files (source: {source or 'all'})")
-        images = await statistics_service.get_recent_images(n=n)
+        images = await get_statistics_service().get_recent_images(n=n)
 
         # Filter by source if specified
         if source:
@@ -232,7 +232,7 @@ async def get_file_stats(request: FileStatsRequest):
         filenames = request.filenames or []
         total = len(filepaths) + len(filenames)
         logger.info(f"[Statistics] Getting stats for {total} files")
-        result = await statistics_service.get_file_stats(filenames, filepaths)
+        result = await get_statistics_service().get_file_stats(filenames, filepaths)
         return result
 
     except Exception as e:

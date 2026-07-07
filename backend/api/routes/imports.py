@@ -10,7 +10,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..services.import_service import import_service
+from ..services.import_service import get_import_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class ImportRunRequest(BaseModel):
 async def list_volumes():
     """List ejectable/external card volumes with NEF counts."""
     try:
-        return {"volumes": import_service.list_volumes()}
+        return {"volumes": get_import_service().list_volumes()}
     except Exception as e:
         logger.exception("Import volume listing failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -38,7 +38,7 @@ async def list_volumes():
 async def run_import(request: ImportRunRequest):
     """Transfer NEFs from the volume to the destination, then eject."""
     try:
-        return await import_service.run_import(
+        return await get_import_service().run_import(
             volume_mount=request.volume_mount,
             destination=request.destination,
             mode=request.mode,

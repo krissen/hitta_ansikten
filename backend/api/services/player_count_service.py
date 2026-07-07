@@ -150,4 +150,14 @@ class PlayerCountService:
         return stats
 
 
-player_count_service = PlayerCountService()
+# Lazy singleton — construction is deferred so importing this module has no
+# side effects at import time.
+_player_count_service = None
+
+
+def get_player_count_service() -> PlayerCountService:
+    """Return the process-wide PlayerCountService, constructing it on first use."""
+    global _player_count_service
+    if _player_count_service is None:
+        _player_count_service = PlayerCountService()
+    return _player_count_service

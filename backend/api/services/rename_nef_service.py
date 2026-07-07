@@ -145,4 +145,14 @@ class RenameNefService:
             return False
 
 
-rename_nef_service = RenameNefService()
+# Lazy singleton — construction is deferred so importing this module has no
+# side effects at import time.
+_rename_nef_service = None
+
+
+def get_rename_nef_service() -> RenameNefService:
+    """Return the process-wide RenameNefService, constructing it on first use."""
+    global _rename_nef_service
+    if _rename_nef_service is None:
+        _rename_nef_service = RenameNefService()
+    return _rename_nef_service
