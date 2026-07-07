@@ -23,6 +23,7 @@ import { SuffixDialog } from './review/SuffixDialog.jsx';
 import { ConfirmDialog } from './review/ConfirmDialog.jsx';
 import { FaceCard } from './review/FaceCard.jsx';
 import { useReviewKeyboard } from './review/useReviewKeyboard.js';
+import { useActiveTabset } from '../hooks/useActiveTabset.js';
 import {
   getTopMatch as getTopMatchPure,
   willAllBeDone,
@@ -47,6 +48,18 @@ export function ReviewModule({ node }) {
   const { api } = useBackend();
   const emit = useEmitEvent();
   const showToast = useToast();
+
+  // Keyboard gate: Review owns keys when its tab is visible AND either its own
+  // tabset is active OR the active tabset hosts a companion the user looks at
+  // while reviewing (the image). Without the companions, clicking the image
+  // (activating ImageViewer's tabset) would silence Review's shortcuts; with a
+  // bare visibility gate, a visible-but-inactive Review would instead steal keys
+  // from another active panel (the double-trash bug: Review + Culling both
+  // binding Cmd+Backspace). image-viewer / original-view have no keyboard of
+  // their own, so widening to them can't reintroduce cross-talk.
+  const isReviewActive = useActiveTabset(node, {
+    companions: ['image-viewer', 'original-view'],
+  });
 
   // State
   const [currentImagePath, setCurrentImagePath] = useState(null);
@@ -737,10 +750,11 @@ export function ReviewModule({ node }) {
       }
     },
   }, {
-    // Today's gate: the FlexLayout tab must not be hidden. The gate's source
-    // is a parameter so a later change (I1) can swap it for an active-tabset
-    // check without touching the routing.
-    isActive: () => !node || node.isVisible(),
+    // Active-tabset-aware gate (I1): visible AND (my tabset active OR a
+    // companion — the image — hosts the active tabset). Replaces the old
+    // isVisible-only gate that let a visible-but-inactive Review steal keys
+    // from another active panel.
+    isActive: isReviewActive,
   });
 
   useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
