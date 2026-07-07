@@ -356,7 +356,11 @@ Välj tema i Allmänt-inställningar eller via Temaredigeraren (`Cmd+Shift+T`):
 - **Dark** (CRT Phosphor) - Mörkt CRT-tema
 - **System** - Följer systemets inställning
 
-Temaredigeraren ger full kontroll över färger och presets.
+Temaredigeraren ger full kontroll över färger och presets. Destruktiva åtgärder
+kräver bekräftelse: **Ta bort förval** (namnger förvalet som tas bort) och
+**Återställ tema** (nollställer dina osparade färg-/storleksjusteringar; sparade
+förval påverkas inte). Motsvarande gäller i Inställningar för **Återställ
+inställningar** och **Rensa cache**.
 
 ---
 
