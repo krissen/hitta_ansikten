@@ -25,10 +25,11 @@ from PIL import Image, ImageOps
 
 from core.attempts import log_attempt_stats
 from core.config import load_config
-from core.db import BASE_DIR, get_file_hash, load_database, save_database
+from core.db import BASE_DIR, get_file_hash
 from core.files import RAW_EXTENSIONS
 from face_backends import create_backend
 
+from .db_store import get_db_store
 from .management_service import DISTINCT_PAIRS_PATH, _load_distinct_pairs
 from .preprocessing_cache import get_cache as get_preprocessing_cache
 
@@ -54,13 +55,21 @@ class DetectionService:
         self.backend = create_backend(self.config)
         logger.info(f"[DetectionService] Initialized backend: {self.backend.backend_name}")
 
-        # Load face database
-        self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
-        logger.info(f"[DetectionService] Loaded database: {len(self.known_faces)} people, {len(self.ignored_faces)} ignored faces")
+        # All reads/mutations of the face DB go through the process-wide
+        # FaceDBStore — the single in-memory authority (freshness by file
+        # fingerprint, leading-coalesce debounced saves). No per-service copies
+        # of the collections and no own save machinery.
+        self.store = get_db_store()
 
         # LRU caches using OrderedDict (move_to_end on access, popitem(last=False) to evict)
-        # Detection results cache (keyed by file hash)
+        # Detection results cache (keyed by file hash + registry version)
         self.cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+
+        # Store version the detection (match-result) cache was populated at. The
+        # cache holds match SUGGESTIONS that depend on DB contents; when the
+        # store version moves (a confirm/ignore here or an external reload), the
+        # cache is invalidated on the next detect so stale suggestions can't leak.
+        self._cache_db_version = self.store.version
 
         # Face encoding cache (keyed by face_id) — stores (encoding, bbox, file_hash)
         self.encoding_cache: OrderedDict[str, Tuple[np.ndarray, Dict[str, int], Optional[str]]] = OrderedDict()
@@ -68,11 +77,6 @@ class DetectionService:
         # Image cache (keyed by image path) — stores (rgb_array, timestamp)
         self.image_cache: OrderedDict[str, Tuple[np.ndarray, float]] = OrderedDict()
         self.image_cache_ttl = 1800  # 30 minutes
-
-        # Debounced save state
-        self._save_pending = False
-        self._save_lock = asyncio.Lock()
-        self._save_task: Optional[asyncio.Task] = None
 
     @staticmethod
     def _lru_put(cache: OrderedDict, key, value, max_size: int):
@@ -83,66 +87,21 @@ class DetectionService:
         while len(cache) > max_size:
             cache.popitem(last=False)
 
-    async def _schedule_save(self):
-        """Debounce database saves — coalesces rapid confirm/ignore calls."""
-        async with self._save_lock:
-            if self._save_pending:
-                return  # Already scheduled
-            self._save_pending = True
-
-        async def _do_save():
-            await asyncio.sleep(0.5)  # 500 ms debounce
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                _executor,
-                save_database,
-                self.known_faces,
-                self.ignored_faces,
-                self.hard_negatives,
-                self.processed_files,
-            )
-            async with self._save_lock:
-                self._save_pending = False
-            logger.debug("[DetectionService] Debounced save completed")
-
-        self._save_task = asyncio.create_task(_do_save())
-
-    async def _flush_save(self):
-        """Force immediate save (used for final operations like mark_review_complete)."""
-        # Cancel pending debounced save if any
-        if self._save_task and not self._save_task.done():
-            self._save_task.cancel()
-            try:
-                await self._save_task
-            except asyncio.CancelledError:
-                pass
-        async with self._save_lock:
-            self._save_pending = False
-
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            _executor,
-            save_database,
-            self.known_faces,
-            self.ignored_faces,
-            self.hard_negatives,
-            self.processed_files,
-        )
-
     def reload_database(self) -> Dict[str, Any]:
         """
-        Reload face database from disk
+        Reload face database from disk (via the store) and clear local caches.
 
-        Useful when database has been modified externally (e.g., by scripts/archive/hantera_ansikten.py).
-        Clears detection cache to ensure fresh results with new data.
+        The FaceDBStore reloads its collections from disk on the next read/mutate
+        whenever a backing file's fingerprint changed (e.g. an external edit by
+        scripts/archive/hantera_ansikten.py), so this endpoint no longer loads
+        the DB itself. It clears the detection/encoding/image caches — which hold
+        match SUGGESTIONS computed from the old DB — and re-pins the cache to the
+        current store version. ``store.read`` triggers the freshness check.
 
         Returns:
             Status info with counts
         """
-        logger.info("[DetectionService] Reloading database from disk...")
-
-        # Reload database
-        self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
+        logger.info("[DetectionService] Reloading database (clearing caches)...")
 
         # Clear caches to ensure fresh results
         old_cache_size = len(self.cache)
@@ -150,13 +109,21 @@ class DetectionService:
         self.encoding_cache.clear()
         self.image_cache.clear()
 
-        logger.info(f"[DetectionService] Database reloaded: {len(self.known_faces)} people, {len(self.ignored_faces)} ignored faces")
+        # read() runs the store's freshness check (reloading on external change)
+        # and reports the live counts under the lock.
+        people_count, ignored_count = self.store.read(
+            lambda known, ignored, hardneg, processed: (len(known), len(ignored))
+        )
+        # Re-pin the match-result cache to the (possibly bumped) store version.
+        self._cache_db_version = self.store.version
+
+        logger.info(f"[DetectionService] Database reloaded: {people_count} people, {ignored_count} ignored faces")
         logger.info(f"[DetectionService] Cleared {old_cache_size} cached detection results")
 
         return {
             "status": "success",
-            "people_count": len(self.known_faces),
-            "ignored_count": len(self.ignored_faces),
+            "people_count": people_count,
+            "ignored_count": ignored_count,
             "cache_cleared": old_cache_size
         }
 
@@ -319,13 +286,15 @@ class DetectionService:
 
         return results, detection_meta
 
-    def _match_encoding(self, encoding: np.ndarray) -> Tuple[Optional[str], Optional[float]]:
-        """Match encoding against known faces database"""
-        best_name = None
-        best_distance = None
+    def _known_candidates(self, known: Dict[str, Any]) -> List[Tuple[str, np.ndarray]]:
+        """Build per-person encoding matrices for the active backend.
 
-        for name, entries in self.known_faces.items():
-            # Extract encodings for this person (filter by backend)
+        Called under the store lock (inside ``read``): it snapshots the usable
+        encodings into fresh ``np.array`` matrices so the caller can run the
+        (heavier) distance computation OUTSIDE the lock.
+        """
+        candidates: List[Tuple[str, np.ndarray]] = []
+        for name, entries in known.items():
             person_encodings = []
             for entry in entries:
                 if isinstance(entry, dict):
@@ -338,13 +307,23 @@ class DetectionService:
                 if entry_enc is not None and entry_backend == self.backend.backend_name:
                     person_encodings.append(entry_enc)
 
-            if not person_encodings:
-                continue
+            if person_encodings:
+                candidates.append((name, np.array(person_encodings)))
+        return candidates
 
-            # Compute distances
-            distances = self.backend.compute_distances(np.array(person_encodings), encoding)
+    def _match_encoding(self, encoding: np.ndarray) -> Tuple[Optional[str], Optional[float]]:
+        """Match encoding against known faces database"""
+        # Snapshot candidate matrices under the lock; compute distances outside
+        # it (never hold the store lock across the numpy matching pass).
+        candidates = self.store.read(
+            lambda known, ignored, hardneg, processed: self._known_candidates(known)
+        )
+
+        best_name = None
+        best_distance = None
+        for name, matrix in candidates:
+            distances = self.backend.compute_distances(matrix, encoding)
             min_distance = float(np.min(distances))
-
             if best_distance is None or min_distance < best_distance:
                 best_distance = min_distance
                 best_name = name
@@ -373,17 +352,20 @@ class DetectionService:
 
     def _person_match_encodings(self, name: str) -> List[np.ndarray]:
         """Usable encodings for `name` for the active backend (mirrors _match_encoding)."""
-        out: List[np.ndarray] = []
-        for entry in self.known_faces.get(name, []):
-            if isinstance(entry, dict):
-                enc = entry.get("encoding")
-                be = entry.get("backend", "dlib")
-            else:
-                enc = entry
-                be = "dlib"
-            if enc is not None and be == self.backend.backend_name:
-                out.append(enc)
-        return out
+        def collect(known, ignored, hardneg, processed):
+            out: List[np.ndarray] = []
+            for entry in known.get(name, []):
+                if isinstance(entry, dict):
+                    enc = entry.get("encoding")
+                    be = entry.get("backend", "dlib")
+                else:
+                    enc = entry
+                    be = "dlib"
+                if enc is not None and be == self.backend.backend_name:
+                    out.append(enc)
+            return out
+
+        return self.store.read(collect)
 
     def _maybe_disambiguate_twins(
         self,
@@ -464,14 +446,10 @@ class DetectionService:
             return None
         return name_a if a_votes > b_votes else name_b
 
-    def _match_ignored(self, encoding: np.ndarray) -> Tuple[Optional[int], Optional[float]]:
-        """Match encoding against ignored faces database"""
-        best_idx = None
-        best_distance = None
-
-        # Collect encodings from ignored_faces that match our backend
+    def _ignored_matrix(self, ignored: List[Any]) -> List[np.ndarray]:
+        """Snapshot ignored encodings for the active backend (called under lock)."""
         ignored_encodings = []
-        for entry in self.ignored_faces:
+        for entry in ignored:
             if isinstance(entry, dict):
                 enc = entry.get("encoding")
                 backend = entry.get("backend", "dlib")
@@ -484,6 +462,18 @@ class DetectionService:
                 enc_array = np.asarray(enc)
                 if enc_array.ndim == 1:  # Valid 1D encoding
                     ignored_encodings.append(enc_array)
+        return ignored_encodings
+
+    def _match_ignored(self, encoding: np.ndarray) -> Tuple[Optional[int], Optional[float]]:
+        """Match encoding against ignored faces database"""
+        best_idx = None
+        best_distance = None
+
+        # Snapshot the ignored encodings under the store lock; the distance
+        # computation runs outside it.
+        ignored_encodings = self.store.read(
+            lambda known, ignored, hardneg, processed: self._ignored_matrix(ignored)
+        )
 
         if ignored_encodings:
             # Stack into 2D array for batch distance computation
@@ -541,23 +531,29 @@ class DetectionService:
         """
         all_matches = []
 
+        # Snapshot known candidate matrices under the store lock; the distance
+        # computations below run outside it. Alternatives filter strictly on an
+        # explicit backend key (no dlib default), so build the matrices here
+        # rather than reusing _known_candidates.
+        def collect(known, ignored, hardneg, processed):
+            out = []
+            for name, entries in known.items():
+                person_encodings = []
+                for e in entries:
+                    if isinstance(e, dict) and e.get("backend") == self.backend.backend_name:
+                        enc = e.get("encoding")
+                        if enc is not None:
+                            enc_array = np.asarray(enc)
+                            if enc_array.ndim == 1:
+                                person_encodings.append(enc_array)
+                if person_encodings:
+                    out.append((name, np.vstack(person_encodings)))
+            return out
+
+        candidates = self.store.read(collect)
+
         # Match against known faces
-        for name, entries in self.known_faces.items():
-            # Filter by backend and ensure proper numpy arrays
-            person_encodings = []
-            for e in entries:
-                if isinstance(e, dict) and e.get("backend") == self.backend.backend_name:
-                    enc = e.get("encoding")
-                    if enc is not None:
-                        enc_array = np.asarray(enc)
-                        if enc_array.ndim == 1:
-                            person_encodings.append(enc_array)
-
-            if not person_encodings:
-                continue
-
-            # Stack into 2D array for batch distance computation
-            encodings_matrix = np.vstack(person_encodings)
+        for name, encodings_matrix in candidates:
             distances = self.backend.compute_distances(encodings_matrix, encoding)
             min_distance = float(np.min(distances))
 
@@ -603,6 +599,16 @@ class DetectionService:
         path = Path(image_path)
         if not path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
+
+        # Match SUGGESTIONS in the detection cache depend on the DB contents, so
+        # invalidate them when the store version moved since the cache was last
+        # pinned (a confirm/ignore here, or an external reload picked up by the
+        # store's freshness check). The registry version is folded into the key
+        # for twin-pair edits; this covers plain known_faces/ignored changes.
+        db_version = self.store.version
+        if db_version != self._cache_db_version:
+            self.cache.clear()
+            self._cache_db_version = db_version
 
         # Check cache (hash computed in thread pool to avoid blocking event loop)
         loop = asyncio.get_event_loop()
@@ -763,17 +769,21 @@ class DetectionService:
                 "is_manual": True
             }
 
-            if person_name not in self.known_faces:
-                self.known_faces[person_name] = []
-            self.known_faces[person_name].append(entry)
+            def add_manual(known, ignored, hardneg, processed):
+                if person_name not in known:
+                    known[person_name] = []
+                known[person_name].append(entry)
+                return len(known[person_name])
 
-            await self._schedule_save()
-            logger.info(f"[DetectionService] Saved manual face for {person_name} (total: {len(self.known_faces[person_name])})")
+            # store.mutate schedules the debounced save (leading-coalesce),
+            # matching the old per-face _schedule_save cadence — no flush.
+            count = self.store.mutate(add_manual)
+            logger.info(f"[DetectionService] Saved manual face for {person_name} (total: {count})")
 
             return {
                 "status": "success",
                 "person_name": person_name,
-                "encodings_count": len(self.known_faces[person_name])
+                "encodings_count": count
             }
 
         # Get encoding + cached file_hash from cache
@@ -809,15 +819,8 @@ class DetectionService:
             "bounding_box": bbox
         }
 
-        # Add to known_faces
-        if person_name not in self.known_faces:
-            self.known_faces[person_name] = []
-
-        self.known_faces[person_name].append(entry)
-
+        hard_neg_entry = None
         if suggested_name and suggested_name != person_name:
-            if suggested_name not in self.hard_negatives:
-                self.hard_negatives[suggested_name] = []
             hard_neg_entry = {
                 "encoding": encoding,
                 "file": str(image_path),
@@ -827,17 +830,29 @@ class DetectionService:
                 "created_at": datetime.now().isoformat(),
                 "encoding_hash": encoding_hash
             }
-            self.hard_negatives[suggested_name].append(hard_neg_entry)
+
+        def add_known(known, ignored, hardneg, processed):
+            if person_name not in known:
+                known[person_name] = []
+            known[person_name].append(entry)
+            if hard_neg_entry is not None:
+                if suggested_name not in hardneg:
+                    hardneg[suggested_name] = []
+                hardneg[suggested_name].append(hard_neg_entry)
+            return len(known[person_name])
+
+        # store.mutate schedules the debounced save (leading-coalesce) — the old
+        # per-face _schedule_save cadence; no synchronous flush here.
+        count = self.store.mutate(add_known)
+        if hard_neg_entry is not None:
             logger.info(f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})")
 
-        await self._schedule_save()
-
-        logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {len(self.known_faces[person_name])})")
+        logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {count})")
 
         return {
             "status": "success",
             "person_name": person_name,
-            "encodings_count": len(self.known_faces[person_name])
+            "encodings_count": count
         }
 
     async def ignore_face(self, face_id: str, image_path: str) -> Dict[str, Any]:
@@ -856,9 +871,12 @@ class DetectionService:
         # Handle manual faces (no encoding to add to ignored list)
         if face_id.startswith("manual_"):
             logger.info("[DetectionService] Manual face ignored (no encoding to save)")
+            ignored_count = self.store.read(
+                lambda known, ignored, hardneg, processed: len(ignored)
+            )
             return {
                 "status": "success",
-                "ignored_count": len(self.ignored_faces)
+                "ignored_count": ignored_count
             }
 
         # Get encoding + cached file_hash from cache
@@ -894,17 +912,18 @@ class DetectionService:
             "bounding_box": bbox
         }
 
-        # Add to ignored_faces
-        self.ignored_faces.append(entry)
+        def add_ignored(known, ignored, hardneg, processed):
+            ignored.append(entry)
+            return len(ignored)
 
-        # Debounced save
-        await self._schedule_save()
+        # store.mutate schedules the debounced save (leading-coalesce).
+        ignored_count = self.store.mutate(add_ignored)
 
-        logger.info(f"[DetectionService] Added face to ignored list (total: {len(self.ignored_faces)})")
+        logger.info(f"[DetectionService] Added face to ignored list (total: {ignored_count})")
 
         return {
             "status": "success",
-            "ignored_count": len(self.ignored_faces)
+            "ignored_count": ignored_count
         }
 
     def _confirm_identity_nosave(
@@ -914,7 +933,12 @@ class DetectionService:
         image_path: str,
         suggested_name: Optional[str] = None
     ) -> Dict[str, Any]:
-        """In-memory confirm without saving to disk. Returns result dict."""
+        """Confirm one face through the store (no explicit flush). Returns result dict.
+
+        Mutations go through ``store.mutate`` (which schedules the debounced
+        save); ``batch_confirm`` calls ``store.flush`` once at the end for
+        immediate batch durability.
+        """
         if face_id.startswith("manual_"):
             backend_info = self.backend.get_model_info()
             # Anchor manual faces by content hash (like detected faces) so the rename
@@ -933,11 +957,15 @@ class DetectionService:
                 "bounding_box": None,
                 "is_manual": True
             }
-            if person_name not in self.known_faces:
-                self.known_faces[person_name] = []
-            self.known_faces[person_name].append(entry)
+            def add_manual(known, ignored, hardneg, processed):
+                if person_name not in known:
+                    known[person_name] = []
+                known[person_name].append(entry)
+                return len(known[person_name])
+
+            count = self.store.mutate(add_manual)
             return {"status": "success", "person_name": person_name,
-                    "encodings_count": len(self.known_faces[person_name])}
+                    "encodings_count": count}
 
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -959,13 +987,8 @@ class DetectionService:
             "bounding_box": bbox
         }
 
-        if person_name not in self.known_faces:
-            self.known_faces[person_name] = []
-        self.known_faces[person_name].append(entry)
-
+        hard_neg_entry = None
         if suggested_name and suggested_name != person_name:
-            if suggested_name not in self.hard_negatives:
-                self.hard_negatives[suggested_name] = []
             hard_neg_entry = {
                 "encoding": encoding,
                 "file": str(image_path),
@@ -975,15 +998,28 @@ class DetectionService:
                 "created_at": datetime.now().isoformat(),
                 "encoding_hash": encoding_hash
             }
-            self.hard_negatives[suggested_name].append(hard_neg_entry)
 
+        def add_known(known, ignored, hardneg, processed):
+            if person_name not in known:
+                known[person_name] = []
+            known[person_name].append(entry)
+            if hard_neg_entry is not None:
+                if suggested_name not in hardneg:
+                    hardneg[suggested_name] = []
+                hardneg[suggested_name].append(hard_neg_entry)
+            return len(known[person_name])
+
+        count = self.store.mutate(add_known)
         return {"status": "success", "person_name": person_name,
-                "encodings_count": len(self.known_faces[person_name])}
+                "encodings_count": count}
 
     def _ignore_face_nosave(self, face_id: str, image_path: str) -> Dict[str, Any]:
-        """In-memory ignore without saving to disk. Returns result dict."""
+        """In-memory ignore, scheduling the store's debounced save. Returns result dict."""
         if face_id.startswith("manual_"):
-            return {"status": "success", "ignored_count": len(self.ignored_faces)}
+            ignored_count = self.store.read(
+                lambda known, ignored, hardneg, processed: len(ignored)
+            )
+            return {"status": "success", "ignored_count": ignored_count}
 
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -1004,8 +1040,13 @@ class DetectionService:
             "encoding_hash": encoding_hash,
             "bounding_box": bbox
         }
-        self.ignored_faces.append(entry)
-        return {"status": "success", "ignored_count": len(self.ignored_faces)}
+
+        def add_ignored(known, ignored, hardneg, processed):
+            ignored.append(entry)
+            return len(ignored)
+
+        ignored_count = self.store.mutate(add_ignored)
+        return {"status": "success", "ignored_count": ignored_count}
 
     async def batch_confirm(
         self,
@@ -1043,8 +1084,9 @@ class DetectionService:
             except Exception as e:
                 errors.append({"face_id": ig["face_id"], "error": str(e)})
 
-        # Single save for entire batch
-        await self._flush_save()
+        # Single durable save for the entire batch (equivalent to the old
+        # _flush_save): cancel the pending debounce and write now.
+        await asyncio.get_event_loop().run_in_executor(_executor, self.store.flush)
 
         logger.info(f"[DetectionService] Batch: confirmed={confirmed}, ignored={ignored}, errors={len(errors)}")
 
@@ -1140,9 +1182,20 @@ class DetectionService:
         # Add to processed_files so file won't be re-processed (even if renamed)
         file_name = Path(image_path).name
         entry = {"name": file_name, "hash": file_hash}
-        if entry not in self.processed_files:
-            self.processed_files.append(entry)
-            await self._flush_save()  # Immediate save — review is finalized
+
+        def add_processed(known, ignored, hardneg, processed):
+            # Re-check under the lock, then append in place (never rebind).
+            if entry not in processed:
+                processed.append(entry)
+                return True
+            return False
+
+        added = self.store.mutate(add_processed) if self.store.read(
+            lambda known, ignored, hardneg, processed: entry not in processed
+        ) else False
+        if added:
+            # Immediate durable save — the review is finalized.
+            await asyncio.get_event_loop().run_in_executor(_executor, self.store.flush)
             logger.info(f"[DetectionService] Added {file_name} to processed_files")
 
         # Invalidate statistics cache so dashboard picks up new data

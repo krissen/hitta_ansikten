@@ -5,16 +5,23 @@ from unittest.mock import MagicMock
 import numpy as np
 
 from api.services.detection_service import DetectionService
+from tests.conftest import InMemoryDBStore
 
 
 def _service():
     svc = DetectionService.__new__(DetectionService)
     svc.known_faces = {}
+    svc.ignored_faces = []
+    svc.hard_negatives = {}
+    svc.processed_files = []
     be = MagicMock()
     be.backend_name = "insightface"
     # Cosine distance over unit vectors (matches InsightFaceBackend).
     be.compute_distances = lambda encs, t: 1.0 - (np.asarray(encs) @ np.asarray(t))
     svc.backend = be
+    # _person_match_encodings / matching now route through the FaceDBStore;
+    # back it with the service's own live collections (no disk access).
+    svc.store = InMemoryDBStore(svc)
     return svc
 
 

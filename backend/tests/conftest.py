@@ -12,11 +12,14 @@ class InMemoryDBStore:
     between calls and the next read/mutate sees the new object. Production code
     mutates the collections in place (``d[k] = ...``, ``lst[:] = ...``,
     ``del d[k]``), so those edits reflect back onto the service's attributes.
-    ``flush`` is a no-op (nothing is persisted).
+    ``flush`` is a no-op (nothing is persisted). ``version`` is a monotonic int
+    bumped by every ``mutate`` — DetectionService reads it to invalidate its
+    match-result cache when the DB changes (mirrors the real store's version).
     """
 
     def __init__(self, svc):
         self._svc = svc
+        self._version = 0
 
     def _collections(self):
         return (
@@ -30,7 +33,13 @@ class InMemoryDBStore:
         return fn(*self._collections())
 
     def mutate(self, fn):
-        return fn(*self._collections())
+        result = fn(*self._collections())
+        self._version += 1
+        return result
 
     def flush(self):
         pass
+
+    @property
+    def version(self):
+        return self._version
