@@ -284,6 +284,19 @@ describe('CullingModule — cull / undo sequencing (characterization)', () => {
     expect(lastPost('/culling/trash')).toEqual({ paths: [FILES[0].path] });
   });
 
+  it('x is ignored when another tabset is active (visible but inactive — double-trash guard)', async () => {
+    const { container } = await mountCulling(makeNode({ active: false }));
+    await loadFiles();
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'x' });
+      await Promise.resolve();
+    });
+    // No trash call, list unchanged — a visible-but-inactive Culling panel must
+    // not cull; the key belongs to whichever module owns the active tabset.
+    expect(countPost('/culling/trash')).toBe(0);
+    expect(container.querySelectorAll('.culling-files li')).toHaveLength(3);
+  });
+
   it('Cmd+Z restores the most recently trashed id', async () => {
     await mountCulling();
     await loadFiles();

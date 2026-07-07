@@ -21,6 +21,7 @@ import { gridThumbnailCache } from '../shared/grid-thumbnail-cache.js';
 import { gridNavTarget } from './culling-grid-nav.js';
 import { preferences } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
+import { isTabsetActive } from '../hooks/useActiveTabset.js';
 import { extOf } from '../shared/fileExts.js';
 import { statsScopeFromQuery, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
 import { CullingStats } from './culling/StatsPanel.jsx';
@@ -638,7 +639,13 @@ export function CullingModule({ node }) {
   // ----- keyboard ----------------------------------------------------
   useEffect(() => {
     const handler = (e) => {
-      if (node && !node.isVisible?.()) return;
+      // Active-tabset gate (not just visibility): in a split layout a
+      // visible-but-inactive Culling panel must not also fire its cull/delete
+      // shortcuts. Without this, Culling and a visible Review both bound
+      // Cmd+Backspace and one keypress could soft-delete two files. Culling is a
+      // self-contained workspace (list + preview in one panel), so it has no
+      // companion modules — it owns keys only when it is the active tabset.
+      if (!isTabsetActive(node)) return;
       if (showTrash) return;
       if (confirmNavRef.current) return; // the confirm dialog owns the keyboard
       const target = e.target;
@@ -781,7 +788,9 @@ export function CullingModule({ node }) {
   useEffect(() => {
     const onKeyCapture = (e) => {
       if (e.key !== 'Enter' && e.key !== 'Escape') return;
-      if (node && !node.isVisible?.()) return;
+      // Only when culling is the active tabset (and visible) — see isTabsetActive.
+      // An inactive culling panel never steals Enter/Esc from another module.
+      if (!isTabsetActive(node)) return;
       if (confirmNavRef.current) return; // the confirm dialog owns Enter/⌘↵/Esc
       const tag = e.target?.tagName;
       // Text fields (rename input, glob, dropdown) handle these keys themselves
@@ -792,9 +801,6 @@ export function CullingModule({ node }) {
       // must work with an empty selection (e.g. after culling the last file). The
       // one action that needs a current file (beginEdit) is guarded at its call.
       if (showTrash) return;
-      const activeTabsetId = node?.getModel?.().getActiveTabset?.()?.getId?.();
-      const myTabsetId = node?.getParent?.()?.getId?.();
-      if (activeTabsetId && myTabsetId && activeTabsetId !== myTabsetId) return;
 
       if (e.key === 'Escape') {
         // The context menu owns Esc while open — bail (without swallowing) so
