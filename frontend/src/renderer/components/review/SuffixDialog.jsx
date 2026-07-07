@@ -3,10 +3,18 @@
  *
  * Small dialog to attach a free-text filename suffix to the current image.
  * Shows a live, client-normalized preview mirroring the backend. Enter saves,
- * Esc cancels. Reuses the confirm-overlay/confirm-dialog styling.
+ * Esc cancels.
+ *
+ * Rendered on the shared {@link ../shared/Modal.jsx Modal} base (native
+ * `<dialog>`). The Modal shields the review module's global keyboard layer from
+ * keys typed in the field, so the old ad-hoc `stopPropagation` is gone; Esc
+ * cancels via the Modal's `cancel` event. The public props are unchanged.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Modal } from '../shared/Modal.jsx';
+import { Button } from '../shared/Button.jsx';
+import { Kbd } from '../shared/Kbd.jsx';
 import { normalizeSuffix } from '../../shared/manualSuffix.js';
 import { t } from '../../../i18n/index.js';
 
@@ -15,23 +23,15 @@ export function SuffixDialog({ initialValue, originalName, onSave, onCancel }) {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    // Focus and select the field on open so re-editing is quick.
-    const el = inputRef.current;
-    if (el) {
-      el.focus();
-      el.select();
-    }
+    // Select the field on open so re-editing is quick. The Modal focuses it via
+    // initialFocusRef; this additionally selects the existing text.
+    inputRef.current?.select();
   }, []);
 
   const handleKeyDown = (e) => {
-    // Keep the dialog's own keys from reaching the module keyboard handler.
-    e.stopPropagation();
     if (e.key === 'Enter') {
       e.preventDefault();
       onSave(value);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
     }
   };
 
@@ -42,39 +42,43 @@ export function SuffixDialog({ initialValue, originalName, onSave, onCancel }) {
   const ext = dotIdx > 0 ? originalName.slice(dotIdx) : '';
   const previewName = normalized ? `${stem}_${normalized}${ext}` : `${stem}${ext}`;
 
+  const footer = (
+    <>
+      <Button variant="secondary" onClick={onCancel}>
+        {t('common.cancel')}
+      </Button>
+      <Button variant="primary" onClick={() => onSave(value)}>
+        {t('common.save')}
+      </Button>
+    </>
+  );
+
   return (
-    <div className="confirm-overlay" onClick={onCancel}>
-      <div
-        className="confirm-dialog"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3>{t('review.manualSuffix.title')}</h3>
-        <input
-          ref={inputRef}
-          type="text"
-          className="suffix-input"
-          value={value}
-          placeholder={t('review.manualSuffix.placeholder')}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <div className="match-info">
-          {t('review.manualSuffix.previewLabel')} <strong>{previewName}</strong>
-        </div>
-        <div className="confirm-buttons">
-          <button className="btn-cancel" onClick={onCancel}>
-            {t('common.cancel')}
-          </button>
-          <button className="btn-confirm" onClick={() => onSave(value)}>
-            {t('common.save')}
-          </button>
-        </div>
-        <div className="confirm-hint">
-          {t('review.manualSuffix.hint')} · <kbd>Enter</kbd> {t('review.dialog.hintConfirms')} · <kbd>Esc</kbd> {t('review.dialog.hintCancels')}
-        </div>
+    <Modal
+      open
+      onClose={onCancel}
+      onKeyDown={handleKeyDown}
+      title={t('review.manualSuffix.title')}
+      footer={footer}
+      size="sm"
+      initialFocusRef={inputRef}
+      className="suffix"
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        className="suffix-input"
+        value={value}
+        placeholder={t('review.manualSuffix.placeholder')}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <div className="match-info">
+        {t('review.manualSuffix.previewLabel')} <strong>{previewName}</strong>
       </div>
-    </div>
+      <div className="modal__hint">
+        {t('review.manualSuffix.hint')} · <Kbd>Enter</Kbd> {t('review.dialog.hintConfirms')} · <Kbd>Esc</Kbd> {t('review.dialog.hintCancels')}
+      </div>
+    </Modal>
   );
 }
 

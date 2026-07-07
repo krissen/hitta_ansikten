@@ -5,61 +5,62 @@
  * differs from the high-confidence top match ('name-mismatch'), and ignoring a
  * face that has a high-confidence match ('ignore-high-confidence'). Enter
  * confirms, Esc cancels.
+ *
+ * Rendered on the shared {@link ../shared/Modal.jsx Modal} base (native
+ * `<dialog>`), which shields the review module's global keyboard layer from keys
+ * typed here and provides Esc-to-cancel via its `cancel` event. The public props
+ * are unchanged.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
+import { Modal } from '../shared/Modal.jsx';
+import { Button } from '../shared/Button.jsx';
+import { Kbd } from '../shared/Kbd.jsx';
 import { t } from '../../../i18n/index.js';
 
 export function ConfirmDialog({ type, topMatch, chosenName, onConfirm, onCancel }) {
-  const dialogRef = useRef(null);
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        onConfirm();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    dialogRef.current?.focus();
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onConfirm, onCancel]);
-
   const isNameMismatch = type === 'name-mismatch';
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onConfirm();
+    }
+  };
+
+  const footer = (
+    <>
+      <Button variant="secondary" onClick={onCancel}>
+        {t('common.cancel')}
+      </Button>
+      <Button variant="primary" onClick={onConfirm}>
+        {t('common.confirm')}
+      </Button>
+    </>
+  );
+
   return (
-    <div className="confirm-overlay" onClick={onCancel}>
-      <div
-        ref={dialogRef}
-        className="confirm-dialog"
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3>{isNameMismatch ? t('review.dialog.confirmNameChange') : t('review.dialog.confirmIgnore')}</h3>
-        <div className="match-info">
-          {t('review.dialog.bestMatch')} <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
-        </div>
-        <p>
-          {isNameMismatch
-            ? t('review.dialog.nameMismatch', { name: chosenName })
-            : t('review.dialog.ignoreConfirm')}
-        </p>
-        <div className="confirm-buttons">
-          <button className="btn-cancel" onClick={onCancel}>
-            {t('common.cancel')}
-          </button>
-          <button className="btn-confirm" onClick={onConfirm}>
-            {t('common.confirm')}
-          </button>
-        </div>
-        <div className="confirm-hint">
-          <kbd>Enter</kbd> {t('review.dialog.hintConfirms')} · <kbd>Esc</kbd> {t('review.dialog.hintCancels')}
-        </div>
+    <Modal
+      open
+      onClose={onCancel}
+      onKeyDown={handleKeyDown}
+      title={isNameMismatch ? t('review.dialog.confirmNameChange') : t('review.dialog.confirmIgnore')}
+      footer={footer}
+      size="sm"
+      className="confirm"
+    >
+      <div className="match-info">
+        {t('review.dialog.bestMatch')} <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
       </div>
-    </div>
+      <p className="modal__message">
+        {isNameMismatch
+          ? t('review.dialog.nameMismatch', { name: chosenName })
+          : t('review.dialog.ignoreConfirm')}
+      </p>
+      <div className="modal__hint">
+        <Kbd>Enter</Kbd> {t('review.dialog.hintConfirms')} · <Kbd>Esc</Kbd> {t('review.dialog.hintCancels')}
+      </div>
+    </Modal>
   );
 }
 

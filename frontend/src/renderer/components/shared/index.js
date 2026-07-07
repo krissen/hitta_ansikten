@@ -8,3 +8,5 @@
 export { Button } from './Button.jsx';
 export { IconButton } from './IconButton.jsx';
 export { Kbd } from './Kbd.jsx';
+export { Modal } from './Modal.jsx';
+export { ConfirmDialog } from './ConfirmDialog.jsx';
