@@ -31,6 +31,8 @@
  * @param {string} [props.className] - Extra classes appended to the dialog element.
  * @param {(e: React.KeyboardEvent) => void} [props.onKeyDown] - Extra keydown handler
  *   (runs after the propagation shield; use for Enter-to-confirm etc.).
+ * @param {string} [props.ariaLabel] - Accessible name used when no `title` is
+ *   rendered (otherwise the dialog is announced unnamed).
  * @param {React.ReactNode} props.children - Dialog body content.
  * @returns {JSX.Element}
  */
@@ -48,6 +50,7 @@ export function Modal({
   closeOnBackdrop = true,
   className = '',
   onKeyDown,
+  ariaLabel,
   children,
 }) {
   const dialogRef = useRef(null);
@@ -100,6 +103,7 @@ export function Modal({
       ref={dialogRef}
       className={classes}
       aria-labelledby={title ? titleId : undefined}
+      aria-label={!title ? ariaLabel : undefined}
       onCancel={handleCancel}
       onKeyDown={handleKeyDown}
       onClick={handleClick}

@@ -68,6 +68,7 @@ export function ConfirmDialog({
       title={title}
       footer={footer}
       size="sm"
+      ariaLabel={!title && typeof message === 'string' ? message : undefined}
       initialFocusRef={confirmRef}
       onKeyDown={handleKeyDown}
       className="confirm"
