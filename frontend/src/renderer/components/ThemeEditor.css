@@ -18,22 +18,12 @@
   align-items: center;
 }
 
-.preset-list .custom-preset span {
+.preset-list .custom-preset .custom-preset__name {
   flex: 1;
-}
-
-.preset-list .custom-preset button {
-  background: none;
-  border: none;
-  color: var(--text-tertiary);
   cursor: pointer;
-  padding: 2px 6px;
-  font-size: var(--font-sm);
 }
-
-.preset-list .custom-preset button:hover {
-  color: var(--color-error);
-}
+/* The delete affordance is the shared IconButton (variant="danger"); its red
+   glyph + hover fill are styled in shared.css. */
 
 /* Save preset row */
 .save-preset {
@@ -52,7 +42,7 @@
   gap: var(--space-xs);
 }
 
-.preset-buttons .btn-secondary {
+.preset-buttons .btn {
   flex: 1;
 }
 
