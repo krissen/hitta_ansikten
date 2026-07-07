@@ -22,14 +22,13 @@ import { compileFilter } from './filterExpression.js';
 import { t } from '../../i18n/index.js';
 import {
   getAutoLoadPreference,
-  getRenameConfig,
   getNotificationPreference,
-  getRequireRenameConfirmation,
   getToastDurationMultiplier,
   getInsertModePreference,
 } from './fileQueue/fileQueuePrefs.js';
 import { naturalSortCompare, generateId, SUPPORTED_EXTENSIONS } from './fileQueue/queueUtils.js';
 import { usePreprocessing } from './fileQueue/usePreprocessing.js';
+import { useNefRename } from './fileQueue/useNefRename.js';
 import FileQueueItem from './fileQueue/FileQueueItem.jsx';
 import './FileQueueModule.css';
 
@@ -59,9 +58,6 @@ export function FileQueueModule({ node }) {
   const filterInputRef = useRef(null);
 
   // Rename state
-  const [showPreviewNames, setShowPreviewNames] = useState(false);
-  const [previewData, setPreviewData] = useState(null); // { path: { newName, status, persons } }
-  const [renameInProgress, setRenameInProgress] = useState(false);
   // Paths whose review has unsaved changes; held out of rename until persisted.
   const [dirtyPaths, setDirtyPaths] = useState(new Set());
   const dirtyPathsRef = useRef(dirtyPaths);
@@ -70,8 +66,6 @@ export function FileQueueModule({ node }) {
   // Drag-and-drop state
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0); // Track nested drag enter/leave events
-  const renameInProgressRef = useRef(false);
-  renameInProgressRef.current = renameInProgress;
 
   // Toast wrapper that applies duration preference
   // Base durations are longer now: success=4s, info=4s, warning=5s, error=6s
@@ -125,6 +119,36 @@ export function FileQueueModule({ node }) {
   // Undo stack for delete-to-trash. Each entry: { id, item, index } — the trash
   // id (for restore), the removed queue item, and its original index.
   const deleteUndoStackRef = useRef([]);
+
+  // Face-name NEF rename flow: preview toggle, preview lookup, in-progress flag
+  // and the fetch/toggle/rename handlers (path-update propagation onto the queue
+  // and the preprocessing caches). Pure path/name computation is in renameLogic.
+  const {
+    showPreviewNames,
+    setShowPreviewNames,
+    previewData,
+    setPreviewData,
+    renameInProgress,
+    renameInProgressRef,
+    fetchRenamePreview,
+    handlePreviewToggle,
+    handleRename,
+  } = useNefRename({
+    queue,
+    queueRef,
+    setQueue,
+    api,
+    showToast,
+    isConnected,
+    fixMode,
+    fixModeRef,
+    dirtyPathsRef,
+    selectedFiles,
+    visibleIdsRef,
+    preprocessingStatus,
+    preprocessingManager,
+    setPreprocessingStatus,
+  });
 
   const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
   const savedIndexRef = useRef(-1);
@@ -970,211 +994,6 @@ export function FileQueueModule({ node }) {
   const skipCurrent = useCallback(() => {
     advanceToNext();
   }, [advanceToNext]);
-
-  // Fetch rename preview from backend
-  // Uses queueRef to always get current queue (avoids stale closure issues)
-  const fetchRenamePreview = useCallback(async () => {
-    // Include files eligible for rename:
-    // - completed: reviewed this session
-    // - isAlreadyProcessed (when fix-mode OFF): already in database, includes active files being re-viewed
-    const currentQueue = queueRef.current;
-    const currentFixMode = fixModeRef.current;
-    const dirty = dirtyPathsRef.current;
-    const eligiblePaths = currentQueue
-      .filter(q => isRenameEligible(q, currentFixMode, dirty))
-      .map(q => q.filePath);
-
-    if (eligiblePaths.length === 0) {
-      setPreviewData({});
-      return;
-    }
-
-    // Show loading indicator for large batches
-    if (eligiblePaths.length > 5) {
-      showToast(t('fileQueue.toasts.generatingNames', { count: eligiblePaths.length }), 'info', 2000);
-    }
-
-    // Get rename config from preferences
-    const renameConfig = getRenameConfig();
-
-    try {
-      const result = await api.post('/api/v1/files/rename-preview', {
-        file_paths: eligiblePaths,
-        config: renameConfig
-      });
-
-      // Build lookup: path -> { newName, status, persons, sidecars }
-      const lookup = {};
-      for (const item of result.items) {
-        lookup[item.original_path] = {
-          newName: item.new_name,
-          status: item.status,
-          persons: item.persons || [],
-          sidecars: item.sidecars || []
-        };
-      }
-      setPreviewData(lookup);
-      debug('FileQueue', 'Fetched rename preview for', eligiblePaths.length, 'files');
-    } catch (err) {
-      debugError('FileQueue', 'Failed to fetch rename preview:', err);
-      setPreviewData({});
-    }
-  }, [api, showToast]);
-
-  // Ref to prevent double fetch on initial toggle
-  const initialPreviewFetchedRef = useRef(false);
-
-  // Handle preview toggle
-  const handlePreviewToggle = useCallback(async (e) => {
-    const show = e.target.checked;
-    setShowPreviewNames(show);
-
-    // Always fetch fresh preview when toggling on to avoid stale data
-    if (show) {
-      // Mark as fetched to prevent useEffect from also triggering fetch
-      initialPreviewFetchedRef.current = true;
-      await fetchRenamePreview();
-    }
-  }, [fetchRenamePreview]);
-
-  // Fetch preview on startup if showPreviewNames was restored as true
-  // Wait for preprocessing to complete so backend has the data
-  useEffect(() => {
-    // Only run once, when showPreviewNames is on and we have eligible files
-    if (initialPreviewFetchedRef.current) return;
-    if (!showPreviewNames) return;
-    if (!isConnected) return;
-
-    // Check if we have eligible files (completed or already-processed)
-    const hasEligibleFiles = queue.some(q =>
-      q.status === 'completed' || (!fixMode && q.isAlreadyProcessed)
-    );
-    if (!hasEligibleFiles) return;
-
-    // Check if preprocessing is done for at least some files
-    const hasPreprocessedFiles = queue.some(q =>
-      preprocessingStatus[q.filePath]?.status === PreprocessingStatus.COMPLETED
-    );
-    if (!hasPreprocessedFiles && queue.length > 0) return; // Wait for preprocessing
-
-    initialPreviewFetchedRef.current = true;
-    debug('FileQueue', 'Fetching preview on startup (showPreviewNames was saved as true)');
-    fetchRenamePreview();
-  }, [showPreviewNames, isConnected, queue, fixMode, preprocessingStatus, fetchRenamePreview]);
-
-  // Handle rename action
-  const handleRename = useCallback(async () => {
-    const currentFixMode = fixModeRef.current;
-    const hasSelection = selectedFiles.size > 0;
-
-    const currentVisibleIds = visibleIdsRef.current;
-    const eligiblePaths = queue
-      .filter(q => {
-        const isEligible = isRenameEligible(q, currentFixMode, dirtyPathsRef.current);
-        if (hasSelection) return isEligible && selectedFiles.has(q.id);
-        if (currentVisibleIds) return isEligible && currentVisibleIds.has(q.id);
-        return isEligible;
-      })
-      .map(q => q.filePath);
-
-    if (eligiblePaths.length === 0) return;
-
-    const requireConfirmation = getRequireRenameConfirmation();
-
-    if (requireConfirmation) {
-      const selectionNote = hasSelection ? t('fileQueue.dialogs.renameConfirmSelection') : '';
-      const confirmed = window.confirm(
-        t('fileQueue.dialogs.renameConfirm', {
-          count: eligiblePaths.length,
-          selection: selectionNote
-        })
-      );
-      if (!confirmed) return;
-    }
-
-    setRenameInProgress(true);
-
-    // Show progress toast
-    showToast(t('fileQueue.toasts.renaming', { count: eligiblePaths.length }), 'info', null);
-
-    // Get rename config from preferences
-    const renameConfig = getRenameConfig();
-
-    try {
-      const result = await api.post('/api/v1/files/rename', {
-        file_paths: eligiblePaths,
-        config: renameConfig
-      });
-
-      debug('FileQueue', 'Rename result:', result);
-
-      const renamedCount = result.renamed?.length || 0;
-      const skippedCount = result.skipped?.length || 0;
-      const errorCount = result.errors?.length || 0;
-
-      // Update queue with new filenames
-      if (renamedCount > 0) {
-        const renamedMap = {};
-        for (const r of result.renamed) {
-          renamedMap[r.original] = r.new;
-        }
-
-        setQueue(prev => prev.map(item => {
-          if (renamedMap[item.filePath]) {
-            const newPath = renamedMap[item.filePath];
-            return {
-              ...item,
-              filePath: newPath,
-              fileName: newPath.split('/').pop()
-            };
-          }
-          return item;
-        }));
-
-        // Update preprocessingManager state for renamed files
-        if (preprocessingManager.current) {
-          for (const [oldPath, newPath] of Object.entries(renamedMap)) {
-            const cachedData = preprocessingManager.current.getCachedData(oldPath);
-            if (cachedData) {
-              preprocessingManager.current.removeFile(oldPath);
-              preprocessingManager.current.completed.set(newPath, cachedData);
-            }
-          }
-        }
-
-        // Update React preprocessingStatus state
-        setPreprocessingStatus(prev => {
-          const updated = { ...prev };
-          for (const [oldPath, newPath] of Object.entries(renamedMap)) {
-            if (updated[oldPath]) {
-              updated[newPath] = updated[oldPath];
-              delete updated[oldPath];
-            }
-          }
-          return updated;
-        });
-      }
-
-      // Refresh preview data to get updated info for renamed files
-      setPreviewData(null);
-      if (showPreviewNames) {
-        // Re-fetch after delay to allow queue state to update
-        setTimeout(() => fetchRenamePreview(), 300);
-      }
-
-      // Show toast notification
-      let message = t('fileQueue.toasts.renamed', { count: renamedCount });
-      if (skippedCount > 0) message += t('fileQueue.toasts.renamedSkippedSuffix', { count: skippedCount });
-      if (errorCount > 0) message += t('fileQueue.toasts.renamedErrorSuffix', { count: errorCount });
-      showToast(message, errorCount > 0 ? 'warning' : 'success');
-
-    } catch (err) {
-      debugError('FileQueue', 'Rename failed:', err);
-      showToast(t('fileQueue.toasts.renameFailed', { message: err.message }), 'error');
-    } finally {
-      setRenameInProgress(false);
-    }
-  }, [queue, api, showPreviewNames, fetchRenamePreview, showToast, selectedFiles]);
 
   // Listen for review-complete event
   useModuleEvent('review-complete', useCallback(({ imagePath, success, reviewedFaces }) => {
