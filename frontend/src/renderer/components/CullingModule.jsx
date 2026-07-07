@@ -11,6 +11,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { t } from '../../i18n/index.js';
+import { Alert, Button, IconButton, EmptyState, Modal } from './shared/index.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { usePersistedValue } from '../hooks/usePersistedValue.js';
@@ -114,6 +116,7 @@ export function CullingModule({ node }) {
   const [highlightPlayer, setHighlightPlayer] = useState('');
   // Grid container + live column count for 2-D keyboard navigation.
   const gridRef = useRef(null);
+  const discardBtnRef = useRef(null); // confirm-nav modal: Enter = discard, focus should match
   const colsRef = useRef(1);
 
   // Latest filter params for auto-refresh; undo stack of trashed ids.
@@ -519,7 +522,7 @@ export function CullingModule({ node }) {
       } else {
         // 200 with errors[] (permission/lock/race): the file is still on disk, so
         // roll the optimistic removal back by reloading and surface the reason.
-        setError(res.errors?.[0]?.error || 'Kunde inte flytta filen till papperskorgen.');
+        setError(res.errors?.[0]?.error || t('culling.errors.trashFailed'));
         if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
       }
     } catch (err) {
@@ -797,6 +800,11 @@ export function CullingModule({ node }) {
       // and already stop their own propagation; don't intercept them. A checkbox
       // in the name overlay is fine to intercept.
       if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      // A focused clickable stats row (role="button", accessibility.md §2) owns
+      // Enter/Space itself — yield so a keyed Enter there filters to the player
+      // instead of starting a rename. Guarded for non-elements (document/body)
+      // which lack getAttribute.
+      if (e.target?.getAttribute?.('role') === 'button') return;
       // Note: no `currentIndex < 0` bail here — Esc-to-grid and grid Enter-to-loupe
       // must work with an empty selection (e.g. after culling the last file). The
       // one action that needs a current file (beginEdit) is guarded at its call.
@@ -1036,15 +1044,15 @@ export function CullingModule({ node }) {
       if (res?.ok) return;
       const reason = res?.reason;
       if (reason === 'not-found') {
-        setError(`Ingen NEF hittad för ${res.token} i ${rawRoot}`);
+        setError(t('culling.errors.nefNotFound', { token: res.token, rawRoot }));
       } else if (reason === 'no-timestamp') {
-        setError('Kunde inte härleda tidsstämpel ur filnamnet');
+        setError(t('culling.errors.noTimestamp'));
       } else if (reason === 'scan-error') {
-        setError(`Kunde inte söka i RAW-mappen ${rawRoot}${res?.error ? `: ${res.error}` : ''}`);
+        setError(t('culling.errors.scanError', { rawRoot, detail: res?.error ? `: ${res.error}` : '' }));
       } else if (reason === 'unsupported-platform') {
-        setError('Öppna i Lightroom stöds bara på macOS');
+        setError(t('culling.errors.unsupportedPlatform'));
       } else {
-        setError(`Kunde inte öppna i Lightroom${res?.error ? `: ${res.error}` : ''}`);
+        setError(t('culling.errors.lightroomFailed', { detail: res?.error ? `: ${res.error}` : '' }));
       }
     } catch (err) {
       setError(err.message || String(err));
@@ -1090,13 +1098,24 @@ export function CullingModule({ node }) {
           {roots.map((r) => (
             <span className="culling-chip" key={r} title={r}>
               {basename(r)}
-              <button className="culling-chip-x" onClick={() => setRoots((rs) => rs.filter((x) => x !== r))}>×</button>
+              <IconButton
+                icon="close"
+                label={t('culling.roots.removeFolder', { name: basename(r) })}
+                variant="ghost"
+                size="sm"
+                className="culling-chip-x"
+                onClick={() => setRoots((rs) => rs.filter((x) => x !== r))}
+              />
             </span>
           ))}
         </div>
       )}
 
-      {error && <div className="status-message error">Fel: {error}</div>}
+      {error && (
+        <Alert variant="error" onDismiss={() => setError(null)} className="culling-error">
+          {error}
+        </Alert>
+      )}
 
       {showTrash ? (
         <TrashPanel onAfterChange={handleTrashChange} />
@@ -1129,18 +1148,28 @@ export function CullingModule({ node }) {
           <div className="culling-main" ref={mainRef}>
           <div className="culling-list" style={{ width: `${leftWidthPct}%` }}>
             <div className="culling-list-header">
-              {files.length} bilder{player ? ` · ${player}` : ''}
+              {t('culling.list.count', { count: files.length })}{player ? t('culling.list.playerSuffix', { player }) : ''}
             </div>
             {!hasRun && !isLoading && (
-              <div className="empty-state">Välj mapp + spelare/glob och tryck <strong>Visa</strong>.</div>
+              <EmptyState title={<>{t('culling.empty.pickFolder')} <strong>{t('culling.filterBar.show')}</strong>.</>} />
             )}
             {hasRun && files.length === 0 && !isLoading && (
-              <div className="empty-state">Inga bilder.</div>
+              <EmptyState title={t('culling.empty.noImages')} />
             )}
-            <ul className="culling-files" ref={listRef} tabIndex={-1}>
+            <ul
+              className="culling-files"
+              ref={listRef}
+              tabIndex={-1}
+              role="listbox"
+              aria-label={t('culling.list.label')}
+              aria-activedescendant={currentIndex >= 0 ? `culling-file-row-${currentIndex}` : undefined}
+            >
               {files.map((f, i) => (
                 <li
                   key={f.path}
+                  id={`culling-file-row-${i}`}
+                  role="option"
+                  aria-selected={i === currentIndex}
                   className={`${i === currentIndex ? 'active row-selected' : ''}${i === currentIndex && namePreviewPending ? ' pending' : ''}`}
                   onClick={() => guardedNavigate(() => setCurrentIndex(i))}
                   onDoubleClick={() => beginEdit(i)}
@@ -1193,7 +1222,7 @@ export function CullingModule({ node }) {
                       <label
                         key={name}
                         className={`culling-name-chip${removed ? ' removed' : ''}`}
-                        title={removed ? `Lägg tillbaka ${name}` : `Ta bort ${name}`}
+                        title={removed ? t('culling.names.restore', { name }) : t('culling.names.remove', { name })}
                       >
                         <input
                           type="checkbox"
@@ -1207,17 +1236,17 @@ export function CullingModule({ node }) {
                 </div>
                 {namePreviewPending && (
                   <div className="culling-name-hint">
-                    <kbd>⌘</kbd><kbd>↵</kbd> döp om · <kbd>↵</kbd> ångra
+                    <kbd>⌘</kbd><kbd>↵</kbd> {t('culling.names.hintRename')} · <kbd>↵</kbd> {t('culling.names.hintUndo')}
                   </div>
                 )}
               </div>
             )}
             {!current ? (
-              <div className="empty-state">Ingen bild vald.</div>
+              <EmptyState title={t('culling.empty.noImageSelected')} />
             ) : previewError ? (
-              <div className="status-message error">Fel: {previewError}</div>
+              <Alert variant="error" className="culling-preview-error">{previewError}</Alert>
             ) : previewLoading ? (
-              <div className="empty-state">{isRaw(currentPath) ? 'Konverterar…' : 'Läser in…'}</div>
+              <EmptyState title={isRaw(currentPath) ? t('culling.preview.converting') : t('culling.preview.loading')} />
             ) : previewUrl ? (
               <img className="culling-image" src={previewUrl} alt={current.basename} />
             ) : null}
@@ -1256,36 +1285,43 @@ export function CullingModule({ node }) {
         openRawInLightroom={openRawInLightroom}
       />
 
-      {confirmNav && (
-        <div className="culling-confirm-backdrop" onClick={() => setConfirmNav(null)}>
-          <div
-            className="culling-confirm"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="culling-confirm-title">Osparade namnändringar</div>
-            <div className="culling-confirm-preview">{previewBasename}</div>
-            <div className="culling-confirm-actions">
-              <button
-                className="btn-action"
-                onClick={() => { commitNameToggleRef.current?.(); setConfirmNav(null); }}
-              >
-                Spara <span className="culling-menu-keys"><kbd>⌘</kbd><kbd>↵</kbd></span>
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => { setRemovedNames(new Set()); const run = confirmNav.run; setConfirmNav(null); run?.(); }}
-              >
-                Kasta <span className="culling-menu-keys"><kbd>↵</kbd></span>
-              </button>
-              <button className="btn-secondary" onClick={() => setConfirmNav(null)}>
-                Avbryt <span className="culling-menu-keys"><kbd>Esc</kbd></span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Unsaved name-change confirm dialog. Built on the shared Modal base for
+          top-layer rendering + backdrop; its bespoke keyboard semantics (⌘↵ save,
+          ↵ discard, Esc cancel) stay owned by the capture-phase effect above,
+          which claims those keys before they reach Modal or other modules. */}
+      <Modal
+        open={!!confirmNav}
+        onClose={() => setConfirmNav(null)}
+        title={t('culling.confirmNav.title')}
+        size="sm"
+        className="culling-confirm-modal"
+        // Focus the discard button: plain Enter = discard, so the visible focus
+        // ring should match the default action (native autofocus would land on
+        // the Save button, whose shortcut is Cmd+Enter).
+        initialFocusRef={discardBtnRef}
+        footer={
+          <>
+            <Button
+              variant="primary"
+              onClick={() => { commitNameToggleRef.current?.(); setConfirmNav(null); }}
+            >
+              {t('culling.confirmNav.save')} <span className="culling-menu-keys"><kbd>⌘</kbd><kbd>↵</kbd></span>
+            </Button>
+            <Button
+              variant="secondary"
+              ref={discardBtnRef}
+              onClick={() => { setRemovedNames(new Set()); const run = confirmNav?.run; setConfirmNav(null); run?.(); }}
+            >
+              {t('culling.confirmNav.discard')} <span className="culling-menu-keys"><kbd>↵</kbd></span>
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirmNav(null)}>
+              {t('culling.confirmNav.cancel')} <span className="culling-menu-keys"><kbd>Esc</kbd></span>
+            </Button>
+          </>
+        }
+      >
+        <div className="culling-confirm-preview">{previewBasename}</div>
+      </Modal>
     </div>
   );
 }

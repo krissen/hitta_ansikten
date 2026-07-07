@@ -12,6 +12,7 @@ module.exports = {
   logs: require('./logs'),
   connection: require('./connection'),
   fileQueue: require('./fileQueue'),
+  culling: require('./culling'),
   trash: require('./trash'),
   review: require('./review'),
   imageViewer: require('./imageViewer'),

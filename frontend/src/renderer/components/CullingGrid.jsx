@@ -12,6 +12,7 @@
  */
 
 import React, { useEffect } from 'react';
+import { t } from '../../i18n/index.js';
 import { useGridThumbnail } from '../shared/grid-thumbnail-cache.js';
 import { namesInBasename } from './culling-names.js';
 
@@ -85,7 +86,7 @@ export function CullingGrid({
       ref={gridRef}
       tabIndex={0}
       role="listbox"
-      aria-label="Miniatyröversikt"
+      aria-label={t('culling.grid.overviewLabel')}
       aria-activedescendant={currentIndex >= 0 ? `culling-grid-cell-${currentIndex}` : undefined}
     >
       {files.map((f, i) => {

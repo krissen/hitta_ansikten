@@ -6,9 +6,15 @@
  * and forwards every interaction to callbacks/state the shell owns. `lastQueryRef`
  * is read at event time (not render) so auto-apply matches the previous inline
  * behavior exactly.
+ *
+ * Button triage (see theming.md "Button Categories"): Visa is the bar's single
+ * primary action; the Rutnät and Papperskorg toggles are secondary buttons that
+ * signal their on-state via `aria-pressed` (styled in CullingModule.css).
  */
 
 import React from 'react';
+import { t } from '../../../i18n/index.js';
+import { Button } from '../shared/index.js';
 
 export function CullingFilterBar({
   addFolders,
@@ -32,7 +38,7 @@ export function CullingFilterBar({
 }) {
   return (
     <div className="culling-filterbar">
-      <button className="btn-secondary" onClick={addFolders}>+ Mapp</button>
+      <Button variant="secondary" onClick={addFolders}>{t('culling.filterBar.addFolder')}</Button>
       <select
         className="form-select"
         value={preset}
@@ -42,11 +48,11 @@ export function CullingFilterBar({
           // Auto-apply once a scope exists (a query has run).
           if (lastQueryRef.current) runFilter({ extension_preset: v });
         }}
-        title="Filtyp"
+        title={t('culling.filterBar.fileType')}
       >
-        <option value="jpg">jpg / jpeg</option>
-        <option value="nef">nef</option>
-        <option value="raw">raw (alla)</option>
+        <option value="jpg">{t('culling.filterBar.presets.jpg')}</option>
+        <option value="nef">{t('culling.filterBar.presets.nef')}</option>
+        <option value="raw">{t('culling.filterBar.presets.raw')}</option>
       </select>
       <select
         className="form-select"
@@ -64,9 +70,9 @@ export function CullingFilterBar({
           e.target.blur();
           focusList();
         }}
-        title="Spelare"
+        title={t('culling.filterBar.player')}
       >
-        <option value="">Alla spelare</option>
+        <option value="">{t('culling.filterBar.allPlayers')}</option>
         {players.map((p) => (
           <option key={p} value={p}>{p}</option>
         ))}
@@ -74,29 +80,30 @@ export function CullingFilterBar({
       <input
         className="form-input culling-glob"
         type="text"
-        placeholder="Glob, t.ex. *ArvidW*"
+        placeholder={t('culling.filterBar.globPlaceholder')}
         value={glob}
         onChange={(e) => { setGlob(e.target.value); setPlayer(''); }}
         onKeyDown={(e) => { if (e.key === 'Enter') runFilter(); }}
       />
-      <button className="btn-action" onClick={() => runFilter()} disabled={!canFilter || isLoading}>
-        {isLoading ? '…' : 'Visa'}
-      </button>
-      <button
-        className={viewMode === 'grid' ? 'btn-action' : 'btn-secondary'}
+      <Button variant="primary" onClick={() => runFilter()} disabled={!canFilter || isLoading}>
+        {isLoading ? t('culling.filterBar.loading') : t('culling.filterBar.show')}
+      </Button>
+      <Button
+        variant="secondary"
         aria-pressed={viewMode === 'grid'}
         onClick={() => setViewMode((m) => (m === 'grid' ? 'single' : 'grid'))}
-        title={viewMode === 'grid' ? 'Visa enkelbild' : 'Visa översikt (rutnät)'}
+        title={viewMode === 'grid' ? t('culling.filterBar.gridToggleTitle.toSingle') : t('culling.filterBar.gridToggleTitle.toGrid')}
       >
-        Rutnät
-      </button>
+        {t('culling.filterBar.grid')}
+      </Button>
       <span className="culling-spacer" />
-      <button
-        className={showTrash ? 'btn-action' : 'btn-secondary'}
+      <Button
+        variant="secondary"
+        aria-pressed={showTrash}
         onClick={() => setShowTrash((v) => !v)}
       >
-        Papperskorg
-      </button>
+        {t('culling.filterBar.trash')}
+      </Button>
     </div>
   );
 }

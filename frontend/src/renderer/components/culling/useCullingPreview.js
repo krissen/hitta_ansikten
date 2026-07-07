@@ -17,6 +17,7 @@
  *             previewError: string|null, bumpPreview: () => void }}
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { t } from '../../../i18n/index.js';
 import { toFileUrl, bustedFileUrl } from '../../shared/fileUrl.js';
 import { isRaw } from './cullingQueryUtils.js';
 
@@ -92,7 +93,7 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
         if (!res?.ok) {
           setPreviewLoading(false);
           setPreviewUrl(null);
-          setPreviewError(res?.reason === 'not-found' ? 'Filen hittades inte.' : 'Filen kunde inte läsas.');
+          setPreviewError(res?.reason === 'not-found' ? t('culling.errors.fileNotFound') : t('culling.errors.fileUnreadable'));
           return;
         }
         if (res.settled === false) {
@@ -113,7 +114,7 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
         console.error('[Culling] preview stat failed:', err);
         setPreviewLoading(false);
         setPreviewUrl(null);
-        setPreviewError('Kunde inte läsa in bilden.');
+        setPreviewError(t('culling.errors.imageLoadFailed'));
       });
     return () => {
       cancelled = true;
@@ -136,7 +137,7 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
         .then((res) => {
           if (cancelled) return;
           if (res.status === 'error' || !res.nef_jpg_path) {
-            setPreviewError(res.error || 'Kunde inte konvertera NEF.');
+            setPreviewError(res.error || t('culling.errors.nefConvertFailed'));
           } else {
             setPreviewUrl(toFileUrl(res.nef_jpg_path));
           }
