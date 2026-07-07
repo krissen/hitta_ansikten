@@ -7,31 +7,27 @@
  */
 
 import React, { useEffect, useRef } from 'react';
+import { t } from '../../../i18n/index.js';
 
-const EXCLUDED_LABELS = {
-  tranare: 'Tränare',
-  grupp: 'Gruppbilder',
-  publik: 'Publik',
-  below_threshold: 'Under tröskeln',
-};
+const EXCLUDED_KEYS = ['tranare', 'grupp', 'publik', 'below_threshold'];
 
 /** Collapsible groups for names the count excludes (coaches, group photos,
  *  audience, below-threshold) — visible but separated from the live counts,
  *  matching the Räkna spelare page. */
 function CullingExcluded({ excluded }) {
   if (!excluded) return null;
-  const groups = Object.entries(EXCLUDED_LABELS).filter(
-    ([key]) => excluded[key] && excluded[key].length > 0
+  const groups = EXCLUDED_KEYS.filter(
+    (key) => excluded[key] && excluded[key].length > 0
   );
   if (groups.length === 0) return null;
   return (
     <div className="culling-stats-excluded">
-      {groups.map(([key, label]) => (
+      {groups.map((key) => (
         <details key={key} className="culling-stats-group">
-          <summary>{label} ({excluded[key].length})</summary>
+          <summary>{t('culling.stats.groupSummary', { label: t(`culling.stats.excludedLabels.${key}`), count: excluded[key].length })}</summary>
           <ul>
             {excluded[key].map((e) => (
-              <li key={e.name}>{e.name}: {e.count} ({e.pct}%)</li>
+              <li key={e.name}>{t('culling.stats.excludedItem', { name: e.name, count: e.count, pct: e.pct })}</li>
             ))}
           </ul>
         </details>
@@ -51,6 +47,11 @@ function CullingExcluded({ excluded }) {
  * the list to the player (`onSelect`); in the grid a single click highlights the
  * player's thumbnails (`onSelect`) while a double click filters (`onActivate`).
  * The single click is debounced in grid mode so a double click can cancel it.
+ *
+ * Rows are keyboard-operable (role="button" + tabIndex + Enter/Space) per the
+ * house clickable-non-button pattern (accessibility.md §2). CullingModule's
+ * capture-phase Enter/Esc handler yields to a focused role="button" so a keyed
+ * Enter here filters instead of starting a rename.
  */
 export function CullingStats({ stats, selected, onSelect, onActivate, mode, width }) {
   const players = stats?.players || [];
@@ -84,46 +85,59 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
   // change is meant to surface would be hidden behind the empty "—".
   const excluded = stats?.excluded || null;
   const hasExcluded = !!excluded &&
-    Object.keys(EXCLUDED_LABELS).some((k) => excluded[k] && excluded[k].length > 0);
+    EXCLUDED_KEYS.some((k) => excluded[k] && excluded[k].length > 0);
   return (
     <div className="culling-stats" style={{ flex: `0 0 ${width}px` }}>
       <div className="culling-stats-header">
-        <span>Spelare</span>
+        <span>{t('culling.stats.header')}</span>
         {stats?.baseline != null && (
-          <span className="culling-stats-baseline" title="Baslinje (median)">
+          <span className="culling-stats-baseline" title={t('culling.stats.baselineTitle')}>
             ~{Math.round(stats.baseline)}
           </span>
         )}
       </div>
       {players.length === 0 && !hasExcluded ? (
-        <div className="culling-stats-empty">—</div>
+        <div className="culling-stats-empty">{t('culling.stats.empty')}</div>
       ) : (
         <div className="culling-stats-scroll">
           {players.length > 0 && (
           <table className="culling-stats-table">
             <thead>
               <tr>
-                <th>Namn</th>
-                <th className="num">Antal</th>
-                <th className="num">%</th>
-                <th className="num">Δ%</th>
-                <th className="bar-col">Fördelning</th>
+                <th>{t('culling.stats.columns.name')}</th>
+                <th className="num">{t('culling.stats.columns.count')}</th>
+                <th className="num">{t('culling.stats.columns.pct')}</th>
+                <th className="num">{t('culling.stats.columns.delta')}</th>
+                <th className="bar-col">{t('culling.stats.columns.distribution')}</th>
               </tr>
             </thead>
             <tbody>
-              {players.map((p) => (
+              {players.map((p) => {
+                const title = !onSelect
+                  ? t('culling.stats.rowTitle.count', { name: p.name, count: p.count })
+                  : mode === 'grid'
+                    ? t('culling.stats.rowTitle.gridSelect', { name: p.name })
+                    : t('culling.stats.rowTitle.loupeFilter', { name: p.name });
+                const activate = onSelect
+                  ? () => handleRowClick(p.name === selected ? '' : p.name)
+                  : undefined;
+                return (
                 <tr
                   key={p.name}
                   className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active row-selected' : ''}`}
-                  onClick={onSelect ? () => handleRowClick(p.name === selected ? '' : p.name) : undefined}
+                  onClick={activate}
                   onDoubleClick={mode === 'grid' && onActivate ? () => handleRowDouble(p.name) : undefined}
-                  title={
-                    !onSelect
-                      ? `${p.name}: ${p.count}`
-                      : mode === 'grid'
-                        ? `Markera ${p.name} · dubbelklicka för att filtrera`
-                        : `Filtrera på ${p.name}`
-                  }
+                  role={onSelect ? 'button' : undefined}
+                  tabIndex={onSelect ? 0 : undefined}
+                  aria-label={onSelect ? title : undefined}
+                  onKeyDown={onSelect ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      activate?.();
+                    }
+                  } : undefined}
+                  title={title}
                 >
                   <td className="culling-stat-name">{p.name}</td>
                   <td className="num">{p.count}</td>
@@ -140,7 +154,8 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           )}

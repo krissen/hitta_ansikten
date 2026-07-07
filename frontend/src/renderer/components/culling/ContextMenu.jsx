@@ -8,6 +8,7 @@
  */
 
 import React from 'react';
+import { t } from '../../../i18n/index.js';
 
 export function CullingContextMenu({
   menu,
@@ -31,16 +32,16 @@ export function CullingContextMenu({
     >
       <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - 1, 0))); }}>
         {/* In the grid ↑/↓ move by rows, so the prev/next hint is just ←/→ there. */}
-        <span>Föregående</span><span className="culling-menu-keys"><kbd>←</kbd>{viewMode !== 'grid' && <kbd>↑</kbd>}</span>
+        <span>{t('culling.contextMenu.previous')}</span><span className="culling-menu-keys"><kbd>←</kbd>{viewMode !== 'grid' && <kbd>↑</kbd>}</span>
       </li>
       <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + 1, files.length - 1))); }}>
-        <span>Nästa</span><span className="culling-menu-keys"><kbd>→</kbd>{viewMode !== 'grid' && <kbd>↓</kbd>}</span>
+        <span>{t('culling.contextMenu.next')}</span><span className="culling-menu-keys"><kbd>→</kbd>{viewMode !== 'grid' && <kbd>↓</kbd>}</span>
       </li>
       <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - pageStep, 0))); }}>
-        <span>Hoppa bakåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>←</kbd></span>
+        <span>{t('culling.contextMenu.jumpBack')}</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>←</kbd></span>
       </li>
       <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + pageStep, files.length - 1))); }}>
-        <span>Hoppa framåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>→</kbd></span>
+        <span>{t('culling.contextMenu.jumpForward')}</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>→</kbd></span>
       </li>
       <li className="culling-menu-sep" role="separator" />
       <li onClick={() => {
@@ -48,21 +49,21 @@ export function CullingContextMenu({
         const idx = files.findIndex((f) => f.path === menu.path);
         if (idx >= 0) beginEdit(idx);
       }}>
-        <span>Byt namn</span><span className="culling-menu-keys"><kbd>Enter</kbd></span>
+        <span>{t('culling.contextMenu.rename')}</span><span className="culling-menu-keys"><kbd>Enter</kbd></span>
       </li>
       <li onClick={() => {
         setMenu(null);
         const idx = files.findIndex((f) => f.path === menu.path);
         if (idx >= 0) trashIndex(idx);
       }}>
-        <span>Gallra</span><span className="culling-menu-keys"><kbd>X</kbd><kbd>⌘</kbd><kbd>⌫</kbd></span>
+        <span>{t('culling.contextMenu.cull')}</span><span className="culling-menu-keys"><kbd>X</kbd><kbd>⌘</kbd><kbd>⌫</kbd></span>
       </li>
       <li onClick={() => { setMenu(null); undoTrash(); }}>
-        <span>Ångra senaste</span><span className="culling-menu-keys"><kbd>⌘</kbd><kbd>Z</kbd></span>
+        <span>{t('culling.contextMenu.undoLast')}</span><span className="culling-menu-keys"><kbd>⌘</kbd><kbd>Z</kbd></span>
       </li>
       <li className="culling-menu-sep" role="separator" />
       <li onClick={() => { const p = menu.path; setMenu(null); openRawInLightroom(p); }}>
-        <span>Öppna i Lightroom</span><span className="culling-menu-keys"><kbd>L</kbd></span>
+        <span>{t('culling.contextMenu.openInLightroom')}</span><span className="culling-menu-keys"><kbd>L</kbd></span>
       </li>
     </ul>
   );
