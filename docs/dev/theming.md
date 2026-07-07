@@ -568,6 +568,15 @@ supports all four variants and two sizes (`sm`, `md`). `loading` implies
 (so the reduced-motion guard can disable it). `IconButton`'s `label` is required
 and becomes both `aria-label` and `title`.
 
+The shared [`Autocomplete`](../../frontend/src/renderer/components/shared/Autocomplete.jsx)
+combobox primitive uses the `.autocomplete-wrapper` / `.autocomplete-dropdown` /
+`.autocomplete-item` classes, styled in `components/shared/shared.css` against
+the theme tokens (`--bg-elevated`, `--border-medium`, `--shadow-lg`,
+`--dropdown-selected-bg`, `--color-info`). The dropdown is portalled to `<body>`
+and positioned with `useDropdownPosition`, so those rules are global; consumers
+should not re-declare them. See [accessibility.md §1a](accessibility.md) for the
+ARIA/keyboard contract.
+
 ### Semantics
 
 - **Max ONE primary per view/panel.** Primary marks the single most important

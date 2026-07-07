@@ -39,6 +39,30 @@ its shape for any list/grid the user arrows through.
 - When the active item changes, scroll it into view with `scrollIntoView`
   gated on reduced motion (see §6).
 
+### 1a. Autocomplete / combobox inputs
+
+A text field with a filtered suggestion list is a **combobox**, and it follows
+the same virtual-cursor model as §1 — DOM focus stays in the `<input>` and the
+active suggestion is tracked with `aria-activedescendant`, never roving focus.
+Use the shared
+[`Autocomplete`](../../frontend/src/renderer/components/shared/Autocomplete.jsx)
+primitive rather than hand-rolling one; it wires the full ARIA contract:
+
+- **Input** carries `role="combobox"`, `aria-autocomplete="list"`,
+  `aria-expanded` (true only while the list is visible), `aria-controls`
+  pointing at the listbox `id`, and `aria-activedescendant` pointing at the
+  highlighted option's `id`. Give it an `aria-label` (Swedish, user-facing).
+- **List** is `role="listbox"` with the `id` referenced above.
+- **Options** are `role="option"` + `aria-selected`, each with a stable `id`
+  matching `aria-activedescendant` — the same shape as CullingGrid's cells.
+- **Keyboard:** ArrowUp/ArrowDown move the highlight (wrapping); Enter selects
+  the highlight (`selectOnEnter`, opt-out when a document-level handler owns
+  Enter — the review flow does); Escape closes the list, blurs, and
+  `stopPropagation()`s so it does not leak to app-level Escape handlers.
+- The primitive is presentation-only: the consumer computes and ranks the
+  `options` from its own query state and owns the displayed `value`. Highlight
+  and open/close state live in the primitive.
+
 ## 2. Clickable non-buttons
 
 If an element performs an action on click, it must be operable by keyboard.
