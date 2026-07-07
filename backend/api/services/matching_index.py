@@ -10,8 +10,13 @@ construction dominated the match cost.
 ``MatchingIndex`` builds those matrices ONCE per store version and reuses them
 across every face of an image (and across images) until the DB actually
 changes. Invalidation is tied to ``FaceDBStore.version``: the store bumps the
-version on every mutation and on every external reload, so a stale index can
-never outlive a confirm/ignore or a background reload.
+version on every in-app mutation, so a stale index can never outlive a
+confirm/ignore. Note the accepted staleness window: the matching path reads the
+version *property* (no freshness stat), so an EXTERNAL rewrite of the DB files
+(e.g. the legacy CLI while the GUI is open) is not picked up until something
+else calls ``store.read()``/``snapshot()`` or an in-app mutation bumps the
+version. Acceptable for a single-process desktop app; documented deliberately
+(Nagelfar review of PR #150, issue-001).
 
 The index holds three structures for the service's active backend, each a
 faithful precomputation of what one helper used to build inline:
