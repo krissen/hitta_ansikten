@@ -108,6 +108,54 @@ describe('Toast (ToastProvider)', () => {
     }
   });
 
+  it('dismisses on a click anywhere on the toast itself (legacy behaviour)', () => {
+    vi.useFakeTimers();
+    try {
+      const { container, showToast } = renderWithToast();
+      act(() => { showToast('klicka mig', 'info'); });
+      const toast = container.querySelector('.global-toast');
+      act(() => { fireEvent.click(toast); });
+      act(() => { vi.advanceTimersByTime(300); });
+      expect(container.querySelector('.global-toast')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not bubble the dismiss-button click to the pill (no double dismiss)', () => {
+    // React delegates events, so we assert at the React level: a synthetic
+    // click on the dismiss button must not reach ancestor React handlers
+    // (which is exactly the path a second onDismiss call would take via the
+    // pill's own onClick), while a click on the pill itself does bubble.
+    vi.useFakeTimers();
+    try {
+      let showToast;
+      const ancestorClick = vi.fn();
+      const { container } = render(
+        <div onClick={ancestorClick}>
+          <ToastProvider>
+            <Harness onReady={(fn) => { showToast = fn; }} />
+          </ToastProvider>
+        </div>,
+      );
+      act(() => { showToast('en gång', 'info'); });
+
+      act(() => { fireEvent.click(container.querySelector('.global-toast__dismiss')); });
+      // stopPropagation on the button halts the synthetic bubble before the
+      // pill's (and any ancestor's) React onClick.
+      expect(ancestorClick).not.toHaveBeenCalled();
+      act(() => { vi.advanceTimersByTime(300); });
+      expect(container.querySelector('.global-toast')).toBeNull();
+
+      // Sanity: a click on the pill itself does bubble (no stopPropagation).
+      act(() => { showToast('två', 'info'); });
+      act(() => { fireEvent.click(container.querySelector('.global-toast')); });
+      expect(ancestorClick).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('auto-dismisses after the (clamped) duration elapses', () => {
     vi.useFakeTimers();
     try {

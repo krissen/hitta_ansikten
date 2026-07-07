@@ -101,6 +101,10 @@ function ToastContainer({ toasts, onDismiss }) {
           // Errors announce assertively; other variants inherit the polite
           // container. A per-item role also overrides the region for that node.
           role={toast.type === 'error' ? 'alert' : undefined}
+          // Click anywhere on the pill dismisses (legacy behaviour); the
+          // IconButton is the keyboard/AT-accessible path for the same action.
+          onClick={() => onDismiss(toast.id)}
+          title={t('common.dismiss')}
         >
           <span className="global-toast__message">{toast.message}</span>
           <IconButton
@@ -109,7 +113,12 @@ function ToastContainer({ toasts, onDismiss }) {
             variant="ghost"
             size="sm"
             className="global-toast__dismiss"
-            onClick={() => onDismiss(toast.id)}
+            onClick={(e) => {
+              // The pill's own onClick already dismisses; stop the bubble so
+              // dismiss isn't invoked twice for one click.
+              e.stopPropagation();
+              onDismiss(toast.id);
+            }}
           />
         </div>
       ))}

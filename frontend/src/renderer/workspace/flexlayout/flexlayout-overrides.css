@@ -183,6 +183,7 @@
   box-shadow: var(--shadow-lg);
   max-width: 340px;
   pointer-events: auto;
+  cursor: pointer;
   opacity: var(--toast-opacity);
   animation: toast-slide-in var(--transition-slow) forwards;
   transition: transform var(--transition-slow), opacity var(--transition-slow);
