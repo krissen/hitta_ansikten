@@ -85,9 +85,48 @@ regions.
 ## 5. Modals
 
 Modal dialogs use the **`Modal`** base built on the native `<dialog>` element
-**(planned — PR A2)**. Native `<dialog>` gives focus trapping, `Esc`-to-close
-and the backdrop for free. Do not build ad-hoc modal overlays; use the base once
-it lands.
+([`components/shared/Modal.jsx`](../../frontend/src/renderer/components/shared/Modal.jsx)).
+Native `<dialog>` (opened via `showModal()`) gives the platform's **top-layer**
+rendering — always above the FlexLayout tabsets, no z-index wars — plus focus
+trapping, the `::backdrop` pseudo-element and `Esc`-to-close (the native `cancel`
+event) for free. Do not build ad-hoc fixed-overlay divs; use `Modal`.
+
+```jsx
+<Modal open={open} onClose={close} title="Titel" footer={buttons} size="sm">
+  {body}
+</Modal>
+```
+
+- `open` drives `showModal()` / `close()`; `onClose` fires on `Esc` and on a
+  backdrop click (opt out with `closeOnBackdrop={false}`). `title` is wired to
+  `aria-labelledby`. `initialFocusRef` focuses a specific element on open,
+  otherwise the platform autofocuses the first focusable child.
+- **Keyboard shielding.** The app's global shortcut layers (e.g.
+  `useReviewKeyboard`) attach *native* `document` keydown listeners, and a native
+  `<dialog>` does not stop keydown from bubbling to `document`. `Modal` therefore
+  calls `stopPropagation()` in a single `onKeyDown` on the dialog element — a
+  React synthetic `stopPropagation()` also stops the underlying native event, so
+  the bubble halts before reaching the `document` listeners. This is the one
+  robust shield for every consumer (it replaces the per-component
+  `stopPropagation` the old review dialogs each carried). `Esc` is unaffected —
+  the browser delivers it as the separate `cancel` event.
+
+**Confirmations.** Use promise-based
+[`useConfirm()`](../../frontend/src/renderer/context/ConfirmContext.jsx) instead
+of `window.confirm()`:
+
+```js
+const confirm = useConfirm();
+if (await confirm({ message: 'Radera personen?', variant: 'danger' })) { … }
+```
+
+`ConfirmProvider` (mounted beside `ToastProvider`) renders a single shared
+`ConfirmDialog` on the `Modal` base — `Enter` confirms, `Esc` cancels, and the
+`danger` variant renders the confirm button as `Button variant="danger"`.
+
+**jsdom note.** jsdom does not implement `showModal`/`close`; the Vitest setup
+([`frontend/tests/setup.js`](../../frontend/tests/setup.js)) polyfills them so
+`Modal`-based component tests can run.
 
 ## 6. Reduced motion
 

@@ -575,6 +575,32 @@ modules migrate to the primitives incrementally. Map old → new as follows:
 
 ---
 
+## Modals
+
+Modal dialogs use the shared `<Modal>` primitive
+(`components/shared/Modal.jsx`), a native `<dialog showModal()>` styled in
+`shared.css` against the theme tokens: a retro-sharp surface (low `--radius-sm`,
+strong `1px` `--border-strong` border, `--bg-secondary`, `--shadow-lg`) with a
+dimmed `::backdrop` (`--overlay-opacity`). The open animation uses
+`--motion-duration-base` and is disabled under `prefers-reduced-motion`. Class
+contract:
+
+| Class | Role |
+|-------|------|
+| `.modal` / `.modal--{sm,md,lg}` | The `<dialog>` surface + width preset |
+| `.modal__content` | Padded inner wrapper (clicks here are *not* backdrop clicks) |
+| `.modal__title` | Heading (wired to `aria-labelledby`) |
+| `.modal__body` | Body content slot |
+| `.modal__footer` | Right-aligned action row (use `<Button>` primitives) |
+| `.modal__message` / `.modal__hint` | Prompt text / `<Kbd>` keyboard-hint row |
+
+Prefer `<Modal>` over ad-hoc fixed-overlay divs. For confirm/cancel prompts use
+the promise-based `useConfirm()` (see
+[accessibility.md](accessibility.md#5-modals) for the full pattern, keyboard
+shielding, and top-layer rationale).
+
+---
+
 ## Theme Editor
 
 Users can customize themes via the ThemeEditor module:
