@@ -5,9 +5,11 @@ canonical reference for keyboard navigation, ARIA roles, status feedback and
 reduced-motion handling. When you build a new interactive surface, match the
 patterns below rather than inventing new ones.
 
-Items marked **(planned)** describe primitives that land in later foundation
-PRs (A1–A3). Until those merge, follow the inline guidance directly; migrate to
-the primitive once it exists.
+The shared feedback and control primitives referenced below (`IconButton`,
+`Modal`/`useConfirm`, the toast system, `Alert`, `ProgressBar`) are implemented
+and live in [`components/shared/`](../../frontend/src/renderer/components/shared/)
+and [`context/`](../../frontend/src/renderer/context/). Build on them rather than
+hand-rolling equivalents. Module-level migration onto them happens in phase B.
 
 ---
 
@@ -57,10 +59,10 @@ If an element performs an action on click, it must be operable by keyboard.
 Any control whose visible content is only an icon **must** carry an
 `aria-label` (Swedish, user-facing) so its purpose is announced.
 
-- Use the shared **`IconButton`** primitive **(planned — PR A1)**, which
-  requires an accessible label by construction.
-- Until `IconButton` lands, set `aria-label` explicitly on the `<button>`
-  wrapping the icon.
+- Use the shared
+  [`IconButton`](../../frontend/src/renderer/components/shared/IconButton.jsx)
+  primitive, which requires an accessible `label` by construction (it becomes
+  both `aria-label` and `title`).
 
 ## 4. Status feedback
 
@@ -76,11 +78,25 @@ regions.
   [`ConnectionStatus.jsx`](../../frontend/src/renderer/components/ConnectionStatus.jsx),
   which is `alert`/`assertive` when the backend is unreachable and downgrades to
   `status`/`polite` for the benign "connecting" state.
-- **Toasts**: the toast system carries the live-region wiring centrally
-  **(planned — PR A3)**; emit toasts through it rather than hand-rolling a live
-  region per module.
-- **Inline field errors**: render through the shared **`Alert`** primitive
-  **(planned — PR A3)** so error styling and semantics stay consistent.
+- **Toasts**: the toast system
+  ([`context/ToastContext.jsx`](../../frontend/src/renderer/context/ToastContext.jsx))
+  carries the live-region wiring centrally — the container is
+  `role="status"` + `aria-live="polite"` and `error` toasts announce
+  assertively via `role="alert"`. Emit toasts through `useToast()` rather than
+  hand-rolling a live region per module. Signature:
+  `showToast(message, 'error')` or `showToast(message, { type, duration })`
+  (variants: `success`/`error`/`info`/`warning`); each toast carries an
+  `IconButton` dismiss control.
+- **Persistent inline status**: render through the shared
+  [`Alert`](../../frontend/src/renderer/components/shared/Alert.jsx) primitive
+  (`variant="error|warning|info|success"`, optional `onDismiss`) so styling and
+  semantics stay consistent — `error` is `role="alert"`, the rest `role="status"`.
+  It replaces the ad-hoc `.status-message` banners (migrated in phase B).
+- **Progress**: use the shared
+  [`ProgressBar`](../../frontend/src/renderer/components/shared/ProgressBar.jsx)
+  (`role="progressbar"` with `aria-valuenow/-valuemin/-valuemax`; indeterminate
+  mode omits `aria-valuenow`). `LoadingOverlay` from the same module is a polite
+  status region.
 
 ## 5. Modals
 

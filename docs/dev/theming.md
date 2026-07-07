@@ -337,6 +337,27 @@ still back any un-migrated call site. They share a base rule.
 }
 ```
 
+### Feedback surfaces
+
+Shared feedback primitives live in
+[`components/shared/`](../../frontend/src/renderer/components/shared/) and are
+styled in `shared.css` against the semantic tokens — reuse them instead of
+hand-rolling banners.
+
+- **`Alert`** (`.alert` + `.alert--{success|warning|info|error}`) — persistent
+  inline status. Uses the `--color-*-bg` / `--color-*-text` / `--color-*` token
+  trio, matching the legacy `.status-message` banners so phase-B swaps are
+  visually lossless.
+- **Toasts** (`.global-toast` + variant class, in `flexlayout-overrides.css`) —
+  transient global feedback on the solid `--color-{success|info|warning|error}`
+  fills with `--text-inverse`; each carries an `IconButton` dismiss
+  (`.global-toast__dismiss`, inherits the pill text colour).
+- **`ProgressBar` / `LoadingOverlay`** (`ProgressBar.css`) — driven by the
+  `--progress-*` tokens (see [Progress](#progress) below).
+- **`EmptyState`** (`.empty-state` + `.empty-state__{icon,title,description,action}`)
+  — builds on the base `.empty-state` layout; mirrors the legacy ImageViewer
+  placeholder (48px icon, `--text-tertiary`, `.hint` secondary line).
+
 ---
 
 ## Dark Mode CRT Effects
