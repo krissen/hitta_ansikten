@@ -12,13 +12,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from api.services.db_store import get_db_store
 from core.files import SUPPORTED_EXTENSIONS
 from core.naming import normalize_name
 from faceid_db import (
     get_file_hash,
     load_attempt_log,
-    load_database,
-    save_database,
 )
 
 logger = logging.getLogger(__name__)
@@ -768,8 +767,12 @@ class RenameService:
                     "conflict_with": error
                 })
 
-        # Load database
-        known_faces, _, _, processed_files = load_database()
+        # Read known_faces + processed_files from the shared store (single
+        # authority; no per-request pickle load). collect_persons_for_files
+        # only reads these collections, so a snapshot is sufficient.
+        known_faces, processed_files = get_db_store().read(
+            lambda known, ignored, hardneg, processed: (known, processed)
+        )
 
         # Collect persons for validated files only
         persons_map = collect_persons_for_files(
@@ -1007,38 +1010,48 @@ class RenameService:
             new_name = Path(item["new"]).name
             name_map[old_name] = new_name
 
-        # Load current database
-        known_faces, ignored_faces, hard_negatives, processed_files = load_database()
+        def compute(known_faces, processed_files, apply_changes):
+            updated_count = 0
 
-        updated_count = 0
+            # Update known_faces entries (edited in place only when applying)
+            for person_name, entries in known_faces.items():
+                for entry in entries:
+                    if isinstance(entry, dict) and entry.get("file"):
+                        old_file = Path(entry["file"]).name
+                        if old_file in name_map:
+                            updated_count += 1
+                            if apply_changes:
+                                old_path = Path(entry["file"])
+                                new_path = old_path.parent / name_map[old_file]
+                                entry["file"] = str(new_path)
+                                logger.debug(f"[RenameService] Updated encoding entry: {old_file} -> {name_map[old_file]}")
 
-        # Update known_faces entries
-        for person_name, entries in known_faces.items():
-            for entry in entries:
-                if isinstance(entry, dict) and entry.get("file"):
-                    old_file = Path(entry["file"]).name
-                    if old_file in name_map:
-                        # Update the file path
-                        old_path = Path(entry["file"])
-                        new_path = old_path.parent / name_map[old_file]
-                        entry["file"] = str(new_path)
+            # Update processed_files entries
+            for pf in processed_files:
+                if isinstance(pf, dict) and pf.get("name"):
+                    old_name = Path(pf["name"]).name
+                    if old_name in name_map:
                         updated_count += 1
-                        logger.debug(f"[RenameService] Updated encoding entry: {old_file} -> {name_map[old_file]}")
+                        if apply_changes:
+                            old_path = Path(pf["name"])
+                            new_path = old_path.parent / name_map[old_name]
+                            pf["name"] = str(new_path)
+                            logger.debug(f"[RenameService] Updated processed entry: {old_name} -> {name_map[old_name]}")
 
-        # Update processed_files entries
-        for pf in processed_files:
-            if isinstance(pf, dict) and pf.get("name"):
-                old_name = Path(pf["name"]).name
-                if old_name in name_map:
-                    old_path = Path(pf["name"])
-                    new_path = old_path.parent / name_map[old_name]
-                    pf["name"] = str(new_path)
-                    updated_count += 1
-                    logger.debug(f"[RenameService] Updated processed entry: {old_name} -> {name_map[old_name]}")
+            return updated_count
 
-        # Save updated database
+        store = get_db_store()
+        # Plan under read() first so a no-op schedules no save; going through the
+        # store's write path keeps its in-memory state authoritative (a direct
+        # save_database would clobber it).
+        updated_count = store.read(
+            lambda known, ignored, hardneg, processed: compute(known, processed, False)
+        )
         if updated_count > 0:
-            save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+            updated_count = store.mutate(
+                lambda known, ignored, hardneg, processed: compute(known, processed, True)
+            )
+            store.flush()  # user-confirmed rename → persist synchronously
             logger.info(f"[RenameService] Updated {updated_count} database entries after rename")
 
         return updated_count

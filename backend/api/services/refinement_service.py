@@ -7,8 +7,6 @@ Only InsightFace encodings are supported - dlib encodings are deprecated and wil
 
 import logging
 import sys
-import threading
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -17,7 +15,7 @@ import numpy as np
 # Add parent directory to path to import CLI modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from faceid_db import load_database, save_database
+from api.services.db_store import get_db_store
 
 logger = logging.getLogger(__name__)
 
@@ -211,30 +209,11 @@ class RefinementService:
     """Service for encoding refinement operations."""
 
     def __init__(self):
-        self.known_faces = {}
-        self.ignored_faces = []
-        self.hard_negatives = {}
-        self.processed_files = []
-        self._last_reload = 0
-        self._cache_ttl = 2.0
-        self._reload_lock = threading.Lock()
-        self._reload_from_disk()
-
-    def _reload_from_disk(self):
-        logger.debug("[RefinementService] Loading database from disk")
-        self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
-        self._last_reload = time.time()
-
-    def reload_database(self):
-        if time.time() - self._last_reload > self._cache_ttl:
-            with self._reload_lock:
-                if time.time() - self._last_reload > self._cache_ttl:
-                    self._reload_from_disk()
-
-    def save(self):
-        """Save database to disk (atomic write with file locking)."""
-        logger.info("[RefinementService] Saving database to disk")
-        save_database(self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files)
+        # All reads/mutations go through the process-wide FaceDBStore — the
+        # single authority for the in-memory face DB. A direct save_database
+        # here would clobber the store's state, so refinement never touches the
+        # data layer directly anymore. No per-service copies, lock or TTL.
+        self.store = get_db_store()
 
     def _get_insightface_encodings(self, entries: List) -> List[Tuple[int, np.ndarray]]:
         """
@@ -266,28 +245,31 @@ class RefinementService:
         Returns:
             Results with counts per person
         """
-        self._reload_from_disk()
+        def compute(known, apply_changes):
+            removed_by_person = {}
+            total_removed = 0
+            for name, entries in list(known.items()):
+                if not entries:
+                    continue
+                # Keep only InsightFace encodings
+                insightface_entries = [e for e in entries if _is_insightface_entry(e)]
+                removed_count = len(entries) - len(insightface_entries)
+                if removed_count > 0:
+                    removed_by_person[name] = removed_count
+                    total_removed += removed_count
+                    if apply_changes:
+                        known[name] = insightface_entries
+            return removed_by_person, total_removed
 
-        removed_by_person = {}
-        total_removed = 0
-
-        for name, entries in list(self.known_faces.items()):
-            if not entries:
-                continue
-
-            # Keep only InsightFace encodings
-            insightface_entries = [e for e in entries if _is_insightface_entry(e)]
-            removed_count = len(entries) - len(insightface_entries)
-
-            if removed_count > 0:
-                removed_by_person[name] = removed_count
-                total_removed += removed_count
-
-                if not dry_run:
-                    self.known_faces[name] = insightface_entries
-
+        # Plan under read() first so a no-op (or dry-run) schedules no save.
+        removed_by_person, total_removed = self.store.read(
+            lambda known, ignored, hardneg, processed: compute(known, False)
+        )
         if not dry_run and total_removed > 0:
-            self.save()
+            removed_by_person, total_removed = self.store.mutate(
+                lambda known, ignored, hardneg, processed: compute(known, True)
+            )
+            self.store.flush()  # admin action → persist synchronously
 
         return {
             "status": "success",
@@ -324,95 +306,98 @@ class RefinementService:
         Returns:
             Preview results with per-person breakdown and statistics
         """
-        self.reload_database()
+        # Read-only scan under the store lock (consistent with any concurrent
+        # mutation), mirroring ManagementService.find_duplicate_people.
+        def scan(known, ignored, hardneg, processed):
+            preview_results = []
+            total_remove = 0
+            affected_people = 0
 
-        preview_results = []
-        total_remove = 0
-        affected_people = 0
+            # Determine which people to process
+            if person and person != "*":
+                people_to_check = {person: known.get(person, [])}
+            else:
+                people_to_check = known
 
-        # Determine which people to process
-        if person and person != "*":
-            people_to_check = {person: self.known_faces.get(person, [])}
-        else:
-            people_to_check = self.known_faces
-
-        for name, entries in people_to_check.items():
-            if not entries:
-                continue
-
-            # Get only InsightFace encodings
-            indexed_encodings = self._get_insightface_encodings(entries)
-
-            if not indexed_encodings:
-                continue
-
-            # For shape mode, don't apply min_encodings filter to match repair_shapes behavior
-            if mode != "shape" and len(indexed_encodings) < min_encodings:
-                continue
-
-            indices = [ie[0] for ie in indexed_encodings]
-            encodings = [ie[1] for ie in indexed_encodings]
-
-            if mode == "shape":
-                # Shape repair: find encodings with non-majority shape
-                shapes = [enc.shape for enc in encodings]
-                shape_counts = {}
-                for s in shapes:
-                    shape_counts[s] = shape_counts.get(s, 0) + 1
-                if not shape_counts:
+            for name, entries in people_to_check.items():
+                if not entries:
                     continue
-                common_shape = max(shape_counts, key=shape_counts.get)
-                mask = np.array([enc.shape == common_shape for enc in encodings])
-                distances = np.zeros(len(encodings))  # No distances for shape mode
-                reason = "shape_mismatch"
-            elif mode == "cluster":
-                mask, distances = _cluster_filter(encodings, cluster_dist, cluster_min)
-                reason = "cluster_outlier"
-            elif mode == "mahalanobis":
-                mask, distances, fell_back = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
-                reason = "std_outlier" if fell_back else "mahalanobis_outlier"
-            else:  # std
-                mask, distances = _std_outlier_filter(encodings, std_threshold)
-                reason = "std_outlier"
-                fell_back = False
 
-            remove_count = np.count_nonzero(~mask)
-            if remove_count > 0:
-                affected_people += 1
-                remove_indices = [indices[i] for i in range(len(mask)) if not mask[i]]
-                result_entry = {
-                    "person": name,
-                    "total": len(encodings),
-                    "keep": int(np.count_nonzero(mask)),
-                    "remove": remove_count,
-                    "remove_indices": remove_indices,
-                    "reason": reason,
-                    "stats": _compute_stats(distances) if len(distances) > 0 and distances.any() else None
-                }
-                if mode == "mahalanobis" and fell_back:
-                    result_entry["fallback"] = True
-                preview_results.append(result_entry)
-                total_remove += remove_count
+                # Get only InsightFace encodings
+                indexed_encodings = self._get_insightface_encodings(entries)
 
-        # Build warnings list
-        warnings = []
-        if mode == "mahalanobis":
-            fallback_count = sum(1 for r in preview_results if r.get("fallback"))
-            if fallback_count > 0:
-                warnings.append(
-                    f"Mahalanobis kräver >512 encodings per person. "
-                    f"{fallback_count} person(er) använder std-filter istället."
-                )
+                if not indexed_encodings:
+                    continue
 
-        return {
-            "preview": preview_results,
-            "summary": {
-                "total_people": len(people_to_check),
-                "affected_people": affected_people,
-                "total_remove": total_remove
-            },
-            "warnings": warnings
-        }
+                # For shape mode, don't apply min_encodings filter to match repair_shapes behavior
+                if mode != "shape" and len(indexed_encodings) < min_encodings:
+                    continue
+
+                indices = [ie[0] for ie in indexed_encodings]
+                encodings = [ie[1] for ie in indexed_encodings]
+
+                if mode == "shape":
+                    # Shape repair: find encodings with non-majority shape
+                    shapes = [enc.shape for enc in encodings]
+                    shape_counts = {}
+                    for s in shapes:
+                        shape_counts[s] = shape_counts.get(s, 0) + 1
+                    if not shape_counts:
+                        continue
+                    common_shape = max(shape_counts, key=shape_counts.get)
+                    mask = np.array([enc.shape == common_shape for enc in encodings])
+                    distances = np.zeros(len(encodings))  # No distances for shape mode
+                    reason = "shape_mismatch"
+                elif mode == "cluster":
+                    mask, distances = _cluster_filter(encodings, cluster_dist, cluster_min)
+                    reason = "cluster_outlier"
+                elif mode == "mahalanobis":
+                    mask, distances, fell_back = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
+                    reason = "std_outlier" if fell_back else "mahalanobis_outlier"
+                else:  # std
+                    mask, distances = _std_outlier_filter(encodings, std_threshold)
+                    reason = "std_outlier"
+                    fell_back = False
+
+                remove_count = np.count_nonzero(~mask)
+                if remove_count > 0:
+                    affected_people += 1
+                    remove_indices = [indices[i] for i in range(len(mask)) if not mask[i]]
+                    result_entry = {
+                        "person": name,
+                        "total": len(encodings),
+                        "keep": int(np.count_nonzero(mask)),
+                        "remove": remove_count,
+                        "remove_indices": remove_indices,
+                        "reason": reason,
+                        "stats": _compute_stats(distances) if len(distances) > 0 and distances.any() else None
+                    }
+                    if mode == "mahalanobis" and fell_back:
+                        result_entry["fallback"] = True
+                    preview_results.append(result_entry)
+                    total_remove += remove_count
+
+            # Build warnings list
+            warnings = []
+            if mode == "mahalanobis":
+                fallback_count = sum(1 for r in preview_results if r.get("fallback"))
+                if fallback_count > 0:
+                    warnings.append(
+                        f"Mahalanobis kräver >512 encodings per person. "
+                        f"{fallback_count} person(er) använder std-filter istället."
+                    )
+
+            return {
+                "preview": preview_results,
+                "summary": {
+                    "total_people": len(people_to_check),
+                    "affected_people": affected_people,
+                    "total_remove": total_remove
+                },
+                "warnings": warnings
+            }
+
+        return self.store.read(scan)
 
     async def apply(
         self,
@@ -443,56 +428,63 @@ class RefinementService:
         Returns:
             Results with counts of removed encodings
         """
-        self._reload_from_disk()
+        def compute(known, apply_changes):
+            removed_by_person = {}
+            total_removed = 0
 
-        removed_by_person = {}
-        total_removed = 0
+            # Determine which people to process
+            if persons:
+                people_to_process = {name: known.get(name, []) for name in persons}
+            else:
+                people_to_process = dict(known)
 
-        # Determine which people to process
-        if persons:
-            people_to_process = {name: self.known_faces.get(name, []) for name in persons}
-        else:
-            people_to_process = dict(self.known_faces)
+            for name, entries in people_to_process.items():
+                if not entries:
+                    continue
 
-        for name, entries in people_to_process.items():
-            if not entries:
-                continue
+                # Get only InsightFace encodings
+                indexed_encodings = self._get_insightface_encodings(entries)
 
-            # Get only InsightFace encodings
-            indexed_encodings = self._get_insightface_encodings(entries)
+                if len(indexed_encodings) < min_encodings:
+                    continue
 
-            if len(indexed_encodings) < min_encodings:
-                continue
+                indices = [ie[0] for ie in indexed_encodings]
+                encodings = [ie[1] for ie in indexed_encodings]
 
-            indices = [ie[0] for ie in indexed_encodings]
-            encodings = [ie[1] for ie in indexed_encodings]
+                if mode == "cluster":
+                    mask, _ = _cluster_filter(encodings, cluster_dist, cluster_min)
+                elif mode == "mahalanobis":
+                    mask, _, _ = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
+                else:  # std
+                    mask, _ = _std_outlier_filter(encodings, std_threshold)
 
-            if mode == "cluster":
-                mask, _ = _cluster_filter(encodings, cluster_dist, cluster_min)
-            elif mode == "mahalanobis":
-                mask, _, _ = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
-            else:  # std
-                mask, _ = _std_outlier_filter(encodings, std_threshold)
+                # Track which indices to remove
+                indices_to_remove = set()
+                for i, keep in enumerate(mask):
+                    if not keep:
+                        indices_to_remove.add(indices[i])
 
-            # Track which indices to remove
-            indices_to_remove = set()
-            for i, keep in enumerate(mask):
-                if not keep:
-                    indices_to_remove.add(indices[i])
+                if indices_to_remove:
+                    removed_count = len(indices_to_remove)
+                    removed_by_person[name] = removed_count
+                    total_removed += removed_count
 
-            if indices_to_remove:
-                removed_count = len(indices_to_remove)
-                removed_by_person[name] = removed_count
-                total_removed += removed_count
+                    if apply_changes:
+                        # Keep only non-removed entries
+                        known[name] = [
+                            e for i, e in enumerate(entries) if i not in indices_to_remove
+                        ]
+            return removed_by_person, total_removed
 
-                if not dry_run:
-                    # Keep only non-removed entries
-                    self.known_faces[name] = [
-                        e for i, e in enumerate(entries) if i not in indices_to_remove
-                    ]
-
+        # Plan under read() first so a no-op (or dry-run) schedules no save.
+        removed_by_person, total_removed = self.store.read(
+            lambda known, ignored, hardneg, processed: compute(known, False)
+        )
         if not dry_run and total_removed > 0:
-            self.save()
+            removed_by_person, total_removed = self.store.mutate(
+                lambda known, ignored, hardneg, processed: compute(known, True)
+            )
+            self.store.flush()  # admin action → persist synchronously
 
         return {
             "status": "success",
@@ -519,58 +511,65 @@ class RefinementService:
         Returns:
             Results with details of what was repaired
         """
-        self._reload_from_disk()
+        def compute(known, apply_changes):
+            repaired = []
+            total_removed = 0
 
-        repaired = []
-        total_removed = 0
+            # Determine which people to process
+            if persons:
+                people_to_process = {name: known.get(name, []) for name in persons}
+            else:
+                people_to_process = dict(known)
 
-        # Determine which people to process
-        if persons:
-            people_to_process = {name: self.known_faces.get(name, []) for name in persons}
-        else:
-            people_to_process = dict(self.known_faces)
+            for name, entries in people_to_process.items():
+                if not entries:
+                    continue
 
-        for name, entries in people_to_process.items():
-            if not entries:
-                continue
+                # Get InsightFace encodings only
+                indexed_encodings = self._get_insightface_encodings(entries)
 
-            # Get InsightFace encodings only
-            indexed_encodings = self._get_insightface_encodings(entries)
+                if not indexed_encodings:
+                    continue
 
-            if not indexed_encodings:
-                continue
+                # Extract shapes for all valid encodings
+                shapes_with_index = [(i, enc.shape) for i, enc in indexed_encodings]
 
-            # Extract shapes for all valid encodings
-            shapes_with_index = [(i, enc.shape) for i, enc in indexed_encodings]
+                # Find most common shape
+                shape_counts = {}
+                for _, shape in shapes_with_index:
+                    shape_counts[shape] = shape_counts.get(shape, 0) + 1
 
-            # Find most common shape
-            shape_counts = {}
-            for _, shape in shapes_with_index:
-                shape_counts[shape] = shape_counts.get(shape, 0) + 1
+                common_shape = max(shape_counts, key=shape_counts.get)
 
-            common_shape = max(shape_counts, key=shape_counts.get)
+                # Find indices with non-common shape
+                bad_indices = {i for i, shape in shapes_with_index if shape != common_shape}
 
-            # Find indices with non-common shape
-            bad_indices = {i for i, shape in shapes_with_index if shape != common_shape}
+                if bad_indices:
+                    removed_shapes = list({shape for i, shape in shapes_with_index if i in bad_indices})
+                    repaired.append({
+                        "person": name,
+                        "removed": len(bad_indices),
+                        "total": len(entries),
+                        "kept_shape": list(common_shape),
+                        "removed_shapes": [list(s) for s in removed_shapes]
+                    })
+                    total_removed += len(bad_indices)
 
-            if bad_indices:
-                removed_shapes = list({shape for i, shape in shapes_with_index if i in bad_indices})
-                repaired.append({
-                    "person": name,
-                    "removed": len(bad_indices),
-                    "total": len(entries),
-                    "kept_shape": list(common_shape),
-                    "removed_shapes": [list(s) for s in removed_shapes]
-                })
-                total_removed += len(bad_indices)
+                    if apply_changes:
+                        known[name] = [
+                            e for i, e in enumerate(entries) if i not in bad_indices
+                        ]
+            return repaired, total_removed
 
-                if not dry_run:
-                    self.known_faces[name] = [
-                        e for i, e in enumerate(entries) if i not in bad_indices
-                    ]
-
+        # Plan under read() first so a no-op (or dry-run) schedules no save.
+        repaired, total_removed = self.store.read(
+            lambda known, ignored, hardneg, processed: compute(known, False)
+        )
         if not dry_run and total_removed > 0:
-            self.save()
+            repaired, total_removed = self.store.mutate(
+                lambda known, ignored, hardneg, processed: compute(known, True)
+            )
+            self.store.flush()  # admin action → persist synchronously
 
         return {
             "status": "success",

@@ -4,6 +4,7 @@ File Routes
 Endpoints for file operations including rename functionality.
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -237,7 +238,8 @@ async def get_manual_suffix_endpoint(image_path: str):
     if not is_valid:
         raise HTTPException(status_code=400, detail=error)
 
-    file_hash = get_file_hash(image_path)
+    # Hashing a (possibly large) NEF is blocking I/O — keep it off the loop.
+    file_hash = await asyncio.to_thread(get_file_hash, image_path)
     raw = (get_manual_suffix(file_hash) or "") if file_hash else ""
     return ManualSuffixResponse(hash=file_hash, suffix=normalize_suffix(raw), raw=raw)
 
@@ -255,7 +257,8 @@ async def set_manual_suffix_endpoint(request: ManualSuffixRequest):
     if not is_valid:
         raise HTTPException(status_code=400, detail=error)
 
-    file_hash = get_file_hash(request.image_path)
+    # Hashing a (possibly large) NEF is blocking I/O — keep it off the loop.
+    file_hash = await asyncio.to_thread(get_file_hash, request.image_path)
     if not file_hash:
         raise HTTPException(status_code=500, detail="Could not hash file")
 

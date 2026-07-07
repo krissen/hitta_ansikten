@@ -5,6 +5,7 @@ Provides statistics and analytics data for the workspace dashboard.
 Ports functionality from scripts/archive/analysera_ansikten.py to API-friendly format.
 """
 
+import asyncio
 import logging
 import sys
 import time
@@ -15,53 +16,85 @@ from typing import Any, Dict, List, Optional
 # Add parent directory to path to import CLI modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from api.services.db_store import get_db_store
 from faceid_db import (
     LOGGING_PATH,
     extract_face_labels,
     get_file_hash,
     load_attempt_log,
-    load_database,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class StatisticsService:
-    """Service for generating statistics and analytics"""
+    """Service for generating statistics and analytics.
+
+    DB-derived figures (per-name face counts, processed-file totals) are read
+    through the shared :class:`FaceDBStore` — the single in-memory authority —
+    instead of re-loading the pickle per request.
+    """
 
     def __init__(self):
-        # Cache for expensive calculations
+        # DB reads go through the process-wide FaceDBStore (freshness by file
+        # fingerprint, no per-service pickle load).
+        self.store = get_db_store()
+        # Computed-summary cache keyed by the store's version AND bounded by a
+        # TTL. The store version invalidates the cache the instant the DB
+        # mutates; the TTL is a safety net for the parts of the summary that
+        # come from data sources NOT in the store — the attempt log
+        # (attempt_stats.jsonl) and the app log (ansikten.log) — which change
+        # on disk without bumping the store version.
         self.cache: Dict[str, Any] = {}
-        self.cache_timestamps: Dict[str, float] = {}
-        self.cache_ttl = 30.0  # 30 second cache TTL
-
-    def _is_cache_valid(self, key: str) -> bool:
-        """Check if cache entry is still valid"""
-        if key not in self.cache_timestamps:
-            return False
-        return (time.time() - self.cache_timestamps[key]) < self.cache_ttl
+        self.cache_meta: Dict[str, tuple[int, float]] = {}  # key -> (version, ts)
+        self.cache_ttl = 30.0  # TTL safety net for non-store (attempt-log) data
 
     def _get_cached(self, key: str) -> Optional[Any]:
-        """Get cached value if valid"""
-        if self._is_cache_valid(key):
-            return self.cache.get(key)
-        return None
+        """Return the cached value if the store is unchanged and within TTL."""
+        meta = self.cache_meta.get(key)
+        if meta is None:
+            return None
+        version, ts = meta
+        # DB mutated since we cached → instant invalidation.
+        if version != self.store.version:
+            return None
+        # Bound staleness of attempt-log/app-log-derived fields (not in store).
+        if (time.time() - ts) >= self.cache_ttl:
+            return None
+        return self.cache.get(key)
 
-    def _set_cached(self, key: str, value: Any):
-        """Set cached value with timestamp"""
+    def _set_cached(self, key: str, value: Any, version: Optional[int] = None):
+        """Cache a value tagged with a store version and timestamp.
+
+        ``version`` must be the store version captured WHEN the data was read
+        (pre-await). Tagging with the version at set-time would mask a
+        ``mutate()`` that interleaved during the awaits between read and
+        cache-set — the stale summary would then be served until the TTL
+        expires instead of being recomputed on the next request.
+        """
+        if version is None:
+            version = self.store.version
         self.cache[key] = value
-        self.cache_timestamps[key] = time.time()
+        self.cache_meta[key] = (version, time.time())
 
     def invalidate_cache(self):
         """Invalidate all cached data. Call after review completion."""
         self.cache.clear()
-        self.cache_timestamps.clear()
+        self.cache_meta.clear()
         logger.info("[StatisticsService] Cache invalidated")
 
     def count_faces_per_name(self, known_faces: Dict = None) -> Dict[str, int]:
-        """Count number of face encodings per person"""
+        """Count number of face encodings per person.
+
+        When ``known_faces`` is not supplied, the counts are computed under the
+        store lock so the aggregation can't race a concurrent mutation.
+        """
         if known_faces is None:
-            known_faces, _, _, _ = load_database()
+            return self.store.read(
+                lambda known, ignored, hardneg, processed: {
+                    name: len(entries) for name, entries in known.items()
+                }
+            )
         return {name: len(entries) for name, entries in known_faces.items()}
 
     def calc_ignored_fraction(self, stats: List[Dict]) -> tuple[int, int, float]:
@@ -170,9 +203,13 @@ class StatisticsService:
 
         return result
 
-    async def get_top_faces(self, stats: List[Dict] = None, known_faces: Dict = None) -> Dict[str, Any]:
+    async def get_top_faces(self, stats: List[Dict] = None, face_counts: Dict[str, int] = None) -> Dict[str, Any]:
         """
         Get top 19 faces plus ignored count
+
+        ``face_counts`` (name -> encoding count) may be supplied by the caller
+        (e.g. ``get_summary`` computes it in a single store read); when omitted
+        it is read from the store here.
 
         Returns:
         - faces: List of {name, face_count, percentage} sorted by count (top 19)
@@ -181,7 +218,10 @@ class StatisticsService:
         - ignored_total: Total faces that were ignored in processing
         - ignored_fraction: Fraction of faces ignored (0.0-1.0)
         """
-        face_counts = self.count_faces_per_name(known_faces)
+        if face_counts is None:
+            # store.read is a sync lock-taking call (first use may load the
+            # pickle) — run it in a worker thread to keep the loop free.
+            face_counts = await asyncio.to_thread(self.count_faces_per_name)
 
         if stats is None:
             stats = load_attempt_log(all_files=False)
@@ -349,21 +389,29 @@ class StatisticsService:
 
             return {"face_count": face_count, "persons": persons}
 
-        # Build name_to_hash mapping first (needed for fallback)
-        _, _, _, processed_files = load_database()
-        name_to_hash = {}
-        for pf in processed_files:
-            if isinstance(pf, dict):
-                name = pf.get("name", "")
-                file_hash = pf.get("hash")
-                if name and file_hash:
-                    name_to_hash[name] = file_hash
+        # Build name_to_hash mapping first (needed for fallback). Computed under
+        # the store lock so it's consistent with any concurrent mutation.
+        def _build_name_to_hash(known, ignored, hardneg, processed):
+            mapping = {}
+            for pf in processed:
+                if isinstance(pf, dict):
+                    name = pf.get("name", "")
+                    file_hash = pf.get("hash")
+                    if name and file_hash:
+                        mapping[name] = file_hash
+            return mapping
+
+        # store.read is a sync lock-taking call (first use may load the
+        # pickle) — run it in a worker thread to keep the loop free.
+        name_to_hash = await asyncio.to_thread(self.store.read, _build_name_to_hash)
 
         for fpath in filepaths:
             p = Path(fpath)
             fname = p.name
             if p.exists():
-                file_hash = get_file_hash(str(p))
+                # Hashing a (possibly large) NEF is blocking I/O — keep it off
+                # the event loop.
+                file_hash = await asyncio.to_thread(get_file_hash, str(p))
                 if file_hash and file_hash in hash_to_entry:
                     result[fname] = extract_stats(hash_to_entry[file_hash])
                     logger.debug(f"[get_file_stats] {fname}: hash match")
@@ -397,18 +445,37 @@ class StatisticsService:
         """
         Get complete statistics summary
 
-        Combines all statistics into one response.
-        Results are cached for 2 seconds to handle multiple concurrent requests.
+        Combines all statistics into one response. The result is cached keyed by
+        the FaceDBStore version (instant invalidation on any DB mutation) and
+        bounded by ``cache_ttl`` as a safety net for the attempt-log/app-log
+        parts, which live outside the store. So a second request while nothing
+        has changed is served straight from the version-keyed cache.
         """
         cached = self._get_cached("summary")
-        if cached:
+        if cached is not None:
             return cached
 
-        known_faces, _, _, processed_files = load_database()
+        # DB-derived figures in ONE consistent store read (under the lock);
+        # the per-request full pickle load is gone. The store version is
+        # captured INSIDE the read (the store lock is reentrant), atomically
+        # with the data — the cache below is tagged with this value so a
+        # mutate() interleaving during the awaits is not masked. The read
+        # itself runs in a worker thread: store.read is a sync lock-taking
+        # call (first use may load the pickle) and must not block the loop.
+        def _collect(known, ignored, hardneg, processed):
+            return (
+                {name: len(entries) for name, entries in known.items()},
+                len(processed),
+                self.store.version,
+            )
+
+        face_counts, total_files_processed, version_at_read = (
+            await asyncio.to_thread(self.store.read, _collect)
+        )
         stats = load_attempt_log(all_files=False)
 
         attempt_stats = await self.get_attempt_stats(stats)
-        top_faces = await self.get_top_faces(stats, known_faces)
+        top_faces = await self.get_top_faces(stats, face_counts)
         recent_images = await self.get_recent_images(n=3, stats=stats)
         recent_logs = await self.get_recent_logs(n=3)
 
@@ -420,11 +487,12 @@ class StatisticsService:
             "ignored_fraction": top_faces["ignored_fraction"],
             "recent_images": recent_images,
             "recent_logs": recent_logs,
-            "total_files_processed": len(processed_files),
+            "total_files_processed": total_files_processed,
         }
 
-        # Cache result
-        self._set_cached("summary", summary)
+        # Cache result, tagged with the version captured at the store read so
+        # a DB mutation during the awaits above invalidates it immediately.
+        self._set_cached("summary", summary, version=version_at_read)
 
         return summary
 
