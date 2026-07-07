@@ -26,6 +26,8 @@ import { extOf } from '../shared/fileExts.js';
 import { statsScopeFromQuery, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
 import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
+import { CullingContextMenu } from './culling/ContextMenu.jsx';
+import { CullingFilterBar } from './culling/FilterBar.jsx';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -1057,73 +1059,26 @@ export function CullingModule({ node }) {
 
   return (
     <div className="module-container culling">
-      <div className="culling-filterbar">
-        <button className="btn-secondary" onClick={addFolders}>+ Mapp</button>
-        <select
-          className="form-select"
-          value={preset}
-          onChange={(e) => {
-            const v = e.target.value;
-            setPreset(v);
-            // Auto-apply once a scope exists (a query has run).
-            if (lastQueryRef.current) runFilter({ extension_preset: v });
-          }}
-          title="Filtyp"
-        >
-          <option value="jpg">jpg / jpeg</option>
-          <option value="nef">nef</option>
-          <option value="raw">raw (alla)</option>
-        </select>
-        <select
-          className="form-select"
-          value={player}
-          onChange={(e) => {
-            const name = e.target.value;
-            selectPlayer(name);
-            // Picking a player applies immediately — no need to press Visa.
-            if (lastQueryRef.current) {
-              const g = name ? `*${name}*` : '';
-              runFilter({ player: name || null, name_glob: g || null });
-            }
-            // Hand focus to the list so the next arrow press navigates files
-            // instead of changing the dropdown selection.
-            e.target.blur();
-            focusList();
-          }}
-          title="Spelare"
-        >
-          <option value="">Alla spelare</option>
-          {players.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-        <input
-          className="form-input culling-glob"
-          type="text"
-          placeholder="Glob, t.ex. *ArvidW*"
-          value={glob}
-          onChange={(e) => { setGlob(e.target.value); setPlayer(''); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') runFilter(); }}
-        />
-        <button className="btn-action" onClick={() => runFilter()} disabled={!canFilter || isLoading}>
-          {isLoading ? '…' : 'Visa'}
-        </button>
-        <button
-          className={viewMode === 'grid' ? 'btn-action' : 'btn-secondary'}
-          aria-pressed={viewMode === 'grid'}
-          onClick={() => setViewMode((m) => (m === 'grid' ? 'single' : 'grid'))}
-          title={viewMode === 'grid' ? 'Visa enkelbild' : 'Visa översikt (rutnät)'}
-        >
-          Rutnät
-        </button>
-        <span className="culling-spacer" />
-        <button
-          className={showTrash ? 'btn-action' : 'btn-secondary'}
-          onClick={() => setShowTrash((v) => !v)}
-        >
-          Papperskorg
-        </button>
-      </div>
+      <CullingFilterBar
+        addFolders={addFolders}
+        preset={preset}
+        setPreset={setPreset}
+        runFilter={runFilter}
+        lastQueryRef={lastQueryRef}
+        player={player}
+        players={players}
+        selectPlayer={selectPlayer}
+        focusList={focusList}
+        glob={glob}
+        setGlob={setGlob}
+        setPlayer={setPlayer}
+        canFilter={canFilter}
+        isLoading={isLoading}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        showTrash={showTrash}
+        setShowTrash={setShowTrash}
+      />
 
       {roots.length > 0 && (
         <div className="culling-roots">
@@ -1282,49 +1237,19 @@ export function CullingModule({ node }) {
         </div>
       )}
 
-      {menu && (
-        <ul
-          className="culling-context-menu"
-          style={{ left: menu.x, top: menu.y }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - 1, 0))); }}>
-            {/* In the grid ↑/↓ move by rows, so the prev/next hint is just ←/→ there. */}
-            <span>Föregående</span><span className="culling-menu-keys"><kbd>←</kbd>{viewMode !== 'grid' && <kbd>↑</kbd>}</span>
-          </li>
-          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + 1, files.length - 1))); }}>
-            <span>Nästa</span><span className="culling-menu-keys"><kbd>→</kbd>{viewMode !== 'grid' && <kbd>↓</kbd>}</span>
-          </li>
-          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.max(i - PAGE_STEP, 0))); }}>
-            <span>Hoppa bakåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>←</kbd></span>
-          </li>
-          <li onClick={() => { setMenu(null); guardedNavigate(() => setCurrentIndex((i) => Math.min(i + PAGE_STEP, files.length - 1))); }}>
-            <span>Hoppa framåt</span><span className="culling-menu-keys"><kbd>⌥</kbd><kbd>→</kbd></span>
-          </li>
-          <li className="culling-menu-sep" role="separator" />
-          <li onClick={() => {
-            setMenu(null);
-            const idx = files.findIndex((f) => f.path === menu.path);
-            if (idx >= 0) beginEdit(idx);
-          }}>
-            <span>Byt namn</span><span className="culling-menu-keys"><kbd>Enter</kbd></span>
-          </li>
-          <li onClick={() => {
-            setMenu(null);
-            const idx = files.findIndex((f) => f.path === menu.path);
-            if (idx >= 0) trashIndex(idx);
-          }}>
-            <span>Gallra</span><span className="culling-menu-keys"><kbd>X</kbd><kbd>⌘</kbd><kbd>⌫</kbd></span>
-          </li>
-          <li onClick={() => { setMenu(null); undoTrash(); }}>
-            <span>Ångra senaste</span><span className="culling-menu-keys"><kbd>⌘</kbd><kbd>Z</kbd></span>
-          </li>
-          <li className="culling-menu-sep" role="separator" />
-          <li onClick={() => { const p = menu.path; setMenu(null); openRawInLightroom(p); }}>
-            <span>Öppna i Lightroom</span><span className="culling-menu-keys"><kbd>L</kbd></span>
-          </li>
-        </ul>
-      )}
+      <CullingContextMenu
+        menu={menu}
+        setMenu={setMenu}
+        guardedNavigate={guardedNavigate}
+        setCurrentIndex={setCurrentIndex}
+        files={files}
+        viewMode={viewMode}
+        pageStep={PAGE_STEP}
+        beginEdit={beginEdit}
+        trashIndex={trashIndex}
+        undoTrash={undoTrash}
+        openRawInLightroom={openRawInLightroom}
+      />
 
       {confirmNav && (
         <div className="culling-confirm-backdrop" onClick={() => setConfirmNav(null)}>
