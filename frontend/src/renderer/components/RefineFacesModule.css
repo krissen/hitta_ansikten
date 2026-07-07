@@ -200,21 +200,28 @@
 
 /* Preview warnings */
 .preview-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
   margin-bottom: var(--space-sm);
 }
 
-.warning-message {
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--color-warning-bg);
-  border: 1px solid var(--color-warning);
-  border-radius: var(--radius-sm);
-  color: var(--color-warning-text);
+/* Shape-repair dry-run modal */
+.repair-modal-summary {
+  margin: 0 0 var(--space-sm) 0;
+  color: var(--text-primary);
   font-size: var(--font-sm);
-  margin-bottom: var(--space-xs);
 }
 
-.warning-message:last-child {
-  margin-bottom: 0;
+.repair-modal-list {
+  margin: 0;
+  padding-left: var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
 /* Info box */

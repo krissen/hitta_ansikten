@@ -81,7 +81,7 @@ module.exports = {
     "applyFailed": "Tillämpning misslyckades: {error}",
     "noInconsistentShapes": "Inga inkonsekventa former hittades.",
     "repairDetail": "{person}: {removed} av {total} (behåller {shape})",
-    "repairAlert": { "one": "Formreparation skulle ta bort {count} kodning:\n\n{details}", "other": "Formreparation skulle ta bort {count} kodningar:\n\n{details}" },
+    "repairModalTitle": "Formreparation – förhandsgranskning",
     "dryRunWrongShape": { "one": "Simulering: {count} kodning med fel form", "other": "Simulering: {count} kodningar med fel form" },
     "inconsistentShapeRemoved": { "one": "{count} kodning med inkonsekvent form borttagen", "other": "{count} kodningar med inkonsekvent form borttagna" },
     "repairFailed": "Formreparation misslyckades: {error}"
