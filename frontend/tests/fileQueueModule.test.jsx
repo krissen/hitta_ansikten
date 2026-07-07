@@ -40,6 +40,9 @@ import { PreprocessingStatus } from '../src/renderer/services/preprocessing/inde
 // ---------------------------------------------------------------------------
 import {
   FileQueueModule,
+  naturalSortCompare,
+} from '../src/renderer/components/FileQueueModule.jsx';
+import {
   getAutoLoadPreference,
   getRenameConfig,
   getNotificationPreference,
@@ -48,8 +51,7 @@ import {
   getAutoRemoveMissingPreference,
   getToastDurationMultiplier,
   getInsertModePreference,
-  naturalSortCompare,
-} from '../src/renderer/components/FileQueueModule.jsx';
+} from '../src/renderer/components/fileQueue/fileQueuePrefs.js';
 
 // --- mount harness -------------------------------------------------------
 // Controllable stubs for everything FileQueueModule reaches outside its render.
