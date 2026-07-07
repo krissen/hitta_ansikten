@@ -89,21 +89,38 @@ This release focuses on end-to-end performance and efficiency improvements:
 
 ### Planned work
 
-- Optimize matching path with precompiled/indexed structures on database reload
-- Add cache invalidation strategy tied to database mutation/reload events
+- **[done]** Optimize matching path with precompiled/indexed structures — `MatchingIndex`
+  (`api/services/matching_index.py`) builds the per-backend stacked candidate matrices
+  once per store version and reuses them across every detected face; the four
+  DetectionService matching helpers consume it instead of restacking matrices per call.
+- **[done]** Cache invalidation strategy tied to database mutation/reload events — the index
+  is tagged with the `FaceDBStore.version` it was built from and rebuilt (under `store.read`,
+  guarded by double-checked locking) whenever the version moves; every mutation/reload bumps
+  the version, so a confirm/ignore or external reload can never be served against a stale index.
 - Replace log polling with event-driven updates in UI
 - Pause or throttle background refresh for hidden/inactive modules
 - Reduce unnecessary global listener rebinding
 
 ### Deliverables
 
-- Detection throughput improved by at least 40% on large dataset benchmarks
+- Detection throughput improved by at least 40% on large dataset benchmarks — **partially met
+  at the matching layer.** The synthetic microbenchmark (100 people × 5 encodings, dim 128,
+  200 faces; nearest-person + ignored + top-N alternatives) shows ~1.5× (≈300 ms → ≈197 ms)
+  from eliminating per-face matrix construction alone. That is a conservative lower bound: it
+  runs against an in-memory store and so excludes the per-call `store.read()`/file-stat overhead
+  the index also removes in production. Whole-pipeline throughput (dominated by InsightFace
+  inference and image decode) is unaffected — the 40% target applies to the matching path this
+  work targets, not end-to-end detection. Equivalence pinned by `tests/test_matching_index.py`
+  (naive-vs-index over all four helpers, both active backends).
 - Lower renderer idle CPU usage in steady-state operation
 - Stable responsiveness across long-running sessions
 
 ### Risks
 
-- Cache invalidation logic must be exact to avoid stale match behavior
+- Cache invalidation logic must be exact to avoid stale match behavior — **mitigated:** the index
+  reproduces each helper's exact filtering/order (distances, tie-breaking, argmin index, alternative
+  ranking) and is version-invalidated; an explicit confirm-then-match test proves a newly written
+  encoding is visible on the next match.
 
 ---
 

@@ -32,6 +32,7 @@ from face_backends import create_backend
 
 from .db_store import get_db_store
 from .management_service import DISTINCT_PAIRS_PATH, _load_distinct_pairs
+from .matching_index import MatchingIndex
 from .preprocessing_cache import get_cache as get_preprocessing_cache
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,11 @@ class DetectionService:
         # fingerprint, leading-coalesce debounced saves). No per-service copies
         # of the collections and no own save machinery.
         self.store = get_db_store()
+
+        # Version-invalidated matching index: precompiled per-backend candidate
+        # matrices, rebuilt only when the store version moves. The matching
+        # helpers consume it instead of restacking matrices per detected face.
+        self._matching_index = MatchingIndex(self.store, self.backend.backend_name)
 
         # LRU caches using OrderedDict (move_to_end on access, popitem(last=False) to evict)
         # Detection results cache (keyed by file hash + registry version)
@@ -287,42 +293,26 @@ class DetectionService:
 
         return results, detection_meta
 
-    def _known_candidates(self, known: Dict[str, Any]) -> List[Tuple[str, np.ndarray]]:
-        """Build per-person encoding matrices for the active backend.
+    def _get_matching_index(self) -> MatchingIndex:
+        """Return the matching index, building it lazily.
 
-        Called under the store lock (inside ``read``): it snapshots the usable
-        encodings into fresh ``np.array`` matrices so the caller can run the
-        (heavier) distance computation OUTSIDE the lock.
+        Constructed in ``__init__`` for the production service, but tests
+        instantiate via ``__new__`` (no ``__init__``) and set ``store``/
+        ``backend`` by hand — build on first use so those paths work too.
         """
-        candidates: List[Tuple[str, np.ndarray]] = []
-        for name, entries in known.items():
-            person_encodings = []
-            for entry in entries:
-                if isinstance(entry, dict):
-                    entry_enc = entry.get("encoding")
-                    entry_backend = entry.get("backend", "dlib")
-                else:
-                    entry_enc = entry
-                    entry_backend = "dlib"
-
-                if entry_enc is not None and entry_backend == self.backend.backend_name:
-                    person_encodings.append(entry_enc)
-
-            if person_encodings:
-                candidates.append((name, np.array(person_encodings)))
-        return candidates
+        idx = getattr(self, "_matching_index", None)
+        if idx is None:
+            idx = MatchingIndex(self.store, self.backend.backend_name)
+            self._matching_index = idx
+        return idx
 
     def _match_encoding(self, encoding: np.ndarray) -> Tuple[Optional[str], Optional[float]]:
         """Match encoding against known faces database"""
-        # Snapshot candidate matrices under the lock; compute distances outside
-        # it (never hold the store lock across the numpy matching pass).
-        candidates = self.store.read(
-            lambda known, ignored, hardneg, processed: self._known_candidates(known)
-        )
-
+        # Precompiled per-person matrices from the version-invalidated index
+        # (rebuilt only when the DB changes); distance computation runs here.
         best_name = None
         best_distance = None
-        for name, matrix in candidates:
+        for name, matrix in self._get_matching_index().known_lenient_items():
             distances = self.backend.compute_distances(matrix, encoding)
             min_distance = float(np.min(distances))
             if best_distance is None or min_distance < best_distance:
@@ -353,20 +343,7 @@ class DetectionService:
 
     def _person_match_encodings(self, name: str) -> List[np.ndarray]:
         """Usable encodings for `name` for the active backend (mirrors _match_encoding)."""
-        def collect(known, ignored, hardneg, processed):
-            out: List[np.ndarray] = []
-            for entry in known.get(name, []):
-                if isinstance(entry, dict):
-                    enc = entry.get("encoding")
-                    be = entry.get("backend", "dlib")
-                else:
-                    enc = entry
-                    be = "dlib"
-                if enc is not None and be == self.backend.backend_name:
-                    out.append(enc)
-            return out
-
-        return self.store.read(collect)
+        return self._get_matching_index().person_lenient_rows(name)
 
     def _maybe_disambiguate_twins(
         self,
@@ -447,44 +424,17 @@ class DetectionService:
             return None
         return name_a if a_votes > b_votes else name_b
 
-    def _ignored_matrix(self, ignored: List[Any]) -> List[np.ndarray]:
-        """Snapshot ignored encodings for the active backend (called under lock)."""
-        ignored_encodings = []
-        for entry in ignored:
-            if isinstance(entry, dict):
-                enc = entry.get("encoding")
-                backend = entry.get("backend", "dlib")
-            else:
-                enc = entry
-                backend = "dlib"
-
-            if enc is not None and backend == self.backend.backend_name:
-                # Ensure encoding is a proper numpy array
-                enc_array = np.asarray(enc)
-                if enc_array.ndim == 1:  # Valid 1D encoding
-                    ignored_encodings.append(enc_array)
-        return ignored_encodings
-
     def _match_ignored(self, encoding: np.ndarray) -> Tuple[Optional[int], Optional[float]]:
         """Match encoding against ignored faces database"""
-        best_idx = None
-        best_distance = None
+        # Precompiled stacked matrix from the index (preserves the original
+        # filtered order, so the returned argmin index is unchanged).
+        encodings_matrix = self._get_matching_index().ignored_matrix()
+        if encodings_matrix is None:
+            return None, None
 
-        # Snapshot the ignored encodings under the store lock; the distance
-        # computation runs outside it.
-        ignored_encodings = self.store.read(
-            lambda known, ignored, hardneg, processed: self._ignored_matrix(ignored)
-        )
-
-        if ignored_encodings:
-            # Stack into 2D array for batch distance computation
-            encodings_matrix = np.vstack(ignored_encodings)
-            distances = self.backend.compute_distances(encodings_matrix, encoding)
-            min_distance = float(np.min(distances))
-            best_distance = min_distance
-            best_idx = int(np.argmin(distances))
-
-        return best_idx, best_distance
+        distances = self.backend.compute_distances(encodings_matrix, encoding)
+        min_distance = float(np.min(distances))
+        return int(np.argmin(distances)), min_distance
 
     def _determine_match_case(
         self,
@@ -532,26 +482,10 @@ class DetectionService:
         """
         all_matches = []
 
-        # Snapshot known candidate matrices under the store lock; the distance
-        # computations below run outside it. Alternatives filter strictly on an
-        # explicit backend key (no dlib default), so build the matrices here
-        # rather than reusing _known_candidates.
-        def collect(known, ignored, hardneg, processed):
-            out = []
-            for name, entries in known.items():
-                person_encodings = []
-                for e in entries:
-                    if isinstance(e, dict) and e.get("backend") == self.backend.backend_name:
-                        enc = e.get("encoding")
-                        if enc is not None:
-                            enc_array = np.asarray(enc)
-                            if enc_array.ndim == 1:
-                                person_encodings.append(enc_array)
-                if person_encodings:
-                    out.append((name, np.vstack(person_encodings)))
-            return out
-
-        candidates = self.store.read(collect)
+        # Precompiled per-person matrices from the index. Alternatives filter
+        # strictly on an explicit backend key (no dlib default) and 1-D
+        # encodings — the index's "strict" set mirrors exactly that.
+        candidates = self._get_matching_index().known_strict_items()
 
         # Match against known faces
         for name, encodings_matrix in candidates:
