@@ -40,8 +40,6 @@ async def lifespan(app: FastAPI):
         """Sync function for thread pool - loads database and rotates logs"""
         from faceid_db import rotate_logs
 
-        from .services.management_service import get_management_service
-
         # Rotate logs on startup to prevent unbounded growth
         rotate_logs()
 
@@ -53,8 +51,10 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.warning("Trash retention purge on startup failed", exc_info=True)
 
-        svc = get_management_service()
-        return len(svc.known_faces)
+        from .services.db_store import get_db_store
+
+        # Warm the shared store (loads the DB) and report the people count.
+        return get_db_store().read(lambda known, ignored, hardneg, processed: len(known))
 
     async def preload_database():
         t0 = time.perf_counter()
