@@ -81,8 +81,9 @@ beforeAll(() => {
 });
 
 // --- node stubs modelling the FlexLayout tab the module lives in ---------
-// null → treated as active+visible (simplest). active flag drives the
-// capture-phase Enter/Esc active-tabset gate.
+// null → treated as active+visible (simplest). The active flag drives every
+// isTabsetActive gate the module installs: both the capture-phase Enter/Esc
+// gate and (since I1) the main keydown handler.
 function makeNode({ visible = true, active = true } = {}) {
   const model = { getActiveTabset: () => ({ getId: () => (active ? 'TS1' : 'OTHER') }) };
   return {

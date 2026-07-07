@@ -15,7 +15,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
-import { resolveTargetTabset } from './tabsetUtils.js';
+import { resolveTargetTabset, ensureActiveTabset } from './tabsetUtils.js';
 import { retranslateTabNames } from './tabNames.js';
 import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
@@ -109,13 +109,18 @@ export function FlexLayoutWorkspace() {
     // Create model from config
     try {
       const newModel = Model.fromJson(layoutConfig);
+      // Guarantee an active tabset so keyboard gates elect exactly one owner
+      // from the first keypress (double-trash guard — see ensureActiveTabset).
+      ensureActiveTabset(newModel);
       setModel(newModel);
       setReady(true);
       debug('FlexLayout', 'Model created');
     } catch (err) {
       debugError('FlexLayout', 'Failed to create model:', err);
       // Fall back to default
-      setModel(Model.fromJson(reviewLayout));
+      const fallbackModel = Model.fromJson(reviewLayout);
+      ensureActiveTabset(fallbackModel);
+      setModel(fallbackModel);
       setReady(true);
     }
   }, []);
@@ -354,6 +359,7 @@ export function FlexLayoutWorkspace() {
     const layoutConfig = getLayoutByName(layoutName);
     try {
       const newModel = Model.fromJson(layoutConfig);
+      ensureActiveTabset(newModel);
       setModel(newModel);
     } catch (err) {
       debugError('FlexLayout', 'Failed to load layout:', err);
@@ -366,7 +372,11 @@ export function FlexLayoutWorkspace() {
   const openModuleSolo = useCallback((moduleId) => {
     setShowLanding(false);
     try {
-      setModel(Model.fromJson(singleModuleLayout(moduleId, MODULE_TITLES[moduleId])));
+      const newModel = Model.fromJson(singleModuleLayout(moduleId, MODULE_TITLES[moduleId]));
+      // A solo layout has a single tabset, but set it active too so the module's
+      // keyboard is live immediately without a click (and for consistency).
+      ensureActiveTabset(newModel);
+      setModel(newModel);
     } catch (err) {
       debugError('FlexLayout', 'Failed to open module solo:', err);
     }
