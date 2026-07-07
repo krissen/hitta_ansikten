@@ -306,7 +306,7 @@
 }
 .alert--info {
   background: var(--color-info-bg);
-  color: var(--color-info);
+  color: var(--color-info-text);
   border-color: var(--color-info);
 }
 
@@ -377,6 +377,15 @@
 .autocomplete-item.selected {
   background: var(--dropdown-selected-bg);
   border-left-color: var(--color-info);
-  color: var(--color-info);
+  color: var(--color-info-text);
   font-weight: 500;
+}
+
+/* --- Keyboard focus (house style: --focus-ring on :focus-visible only) ------ */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.autocomplete-wrapper input:focus-visible,
+.modal :focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }

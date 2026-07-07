@@ -57,7 +57,7 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 |----------|-------|------|-------|
 | `--text-primary` | #1a1008 | #d4d2c0 | Main text |
 | `--text-secondary` | #2d1810 | #a8a698 | Secondary text |
-| `--text-tertiary` | #483020 | #7a7870 | Muted text |
+| `--text-tertiary` | #483020 | #7f7d75 | Muted text |
 | `--text-inverse` | #f8f0e0 | #0f0f0f | Text on accent bg |
 | `--text-on-accent` | #0a0a0a | #0a0a0a | Text on accent buttons |
 
@@ -85,20 +85,27 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 |----------|-------|------|-------|
 | `--color-success` | #38a818 | #9acd32 | Success state |
 | `--color-success-bg` | #d8dcc8 | #1a2a1a | Success background |
-| `--color-success-text` | #1f6b0a | #9acd32 | Success text (theme-legible) |
+| `--color-success-text` | #174f07 | #9acd32 | Success text (WCAG AA on primary bg) |
 | `--color-warning` | #f87820 | #ffa500 | Warning state |
 | `--color-warning-bg` | #e8d8c8 | #2a2015 | Warning background |
-| `--color-warning-text` | #b34a00 | #ffa500 | Warning text (theme-legible) |
+| `--color-warning-text` | #733000 | #ffa500 | Warning text (WCAG AA on primary bg) |
 | `--color-error` | #e83020 | #ff6347 | Error state |
 | `--color-error-bg` | #e8c8c8 | #2a1515 | Error background |
-| `--color-error-text` | #b81e10 | #ff6347 | Error text (theme-legible) |
+| `--color-error-text` | #88160c | #ff6347 | Error text (WCAG AA on primary bg) |
+| `--color-info-text` | #0c466f | #87ceeb | Info text (WCAG AA on primary bg) |
 | `--color-info` | #1888d8 | #87ceeb | Info state |
 | `--color-info-bg` | #c8dce8 | #15202a | Info background |
 
+### Keyboard focus
+
+`--focus-ring` (`2px solid var(--accent-primary)`) + `--focus-ring-offset` are the
+house focus indicator. Shared primitives apply it on `:focus-visible` only (mouse
+clicks show no ring); new components should do the same instead of hand-rolling
+outlines.
+
 > `--color-*-text` variants are the theme-legible text colors (dark on beige in
 > light, bright on near-black in dark). Use them for status *text*; pair with the
-> matching `--color-*-bg` for the fill. There is no `--color-info-text` — use
-> `--color-info` for info text.
+> matching `--color-*-bg` for the fill.
 
 ### Row / Selection Highlights
 
@@ -128,7 +135,7 @@ equal across themes because they sit on image pixels, not the UI chrome.
 
 | Variable | Light | Dark | Usage |
 |----------|-------|------|-------|
-| `--overlay-bg` | #987840 | #0a0a0a | Overlay/scrim background |
+| `--overlay-bg` | #846837 | #0a0a0a | Overlay/scrim background (AA under overlay text) |
 | `--overlay-text` | #f8f0e0 | #d4d2c0 | Text on overlay |
 
 ### Progress

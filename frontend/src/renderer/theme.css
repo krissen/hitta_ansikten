@@ -53,9 +53,10 @@
   /* Semantic status TEXT - darker than the hue so status shown as text (Δ
      numbers, .text-*, .status-message text) reads on the beige backgrounds. The
      hue --color-* stays bright for backgrounds/fills/icons. */
-  --color-success-text: #1f6b0a;  /* Dark green */
-  --color-warning-text: #b34a00;  /* Dark orange */
-  --color-error-text: #b81e10;    /* Dark red */
+  --color-success-text: #174f07;  /* Dark green (AA 4.6:1 on --bg-primary) */
+  --color-warning-text: #733000;  /* Dark orange (AA 4.7:1 on --bg-primary) */
+  --color-error-text: #88160c;    /* Dark red (AA 4.6:1 on --bg-primary) */
+  --color-info-text: #0c466f;     /* Dark blue (AA 4.7:1 on --bg-primary) */
 
   /* Shared row-hover for data tables/lists (lightens in light mode so dark
      status text stays legible; see also the broader --bg-hover follow-up). */
@@ -83,7 +84,7 @@
   --face-confidence-none-bg: rgba(244, 67, 54, 0.9);
 
   /* Overlay Colors */
-  --overlay-bg: #987840;        /* Bronze/copper (semi-dark for light theme) */
+  --overlay-bg: #846837;        /* Bronze/copper, darkened for AA 4.6:1 under --overlay-text */
   --overlay-text: #f8f0e0;      /* Light text on overlay */
 
   /* Shadows */
@@ -122,7 +123,7 @@
   /* Foreground text - Amber/Green CRT */
   --text-primary: #d4d2c0;      /* Light beige/amber */
   --text-secondary: #a8a698;    /* Muted amber */
-  --text-tertiary: #7a7870;     /* Very muted */
+  --text-tertiary: #7f7d75;     /* Very muted (AA 4.7:1 on --bg-primary) */
   --text-inverse: #0f0f0f;      /* Text on light backgrounds */
   --text-on-accent: #0a0a0a;    /* Very dark text on bright accents */
 
@@ -153,6 +154,7 @@
   --color-success-text: #9acd32;  /* Yellow-green */
   --color-warning-text: #ffa500;  /* Orange */
   --color-error-text: #ff6347;    /* Tomato red */
+  --color-info-text: #87ceeb;     /* Sky blue (mirrors the hue; ample contrast on near-black) */
 
   /* Shared row-hover for data tables/lists (lighter than the row background). */
   --bg-row-hover: #252525;
@@ -247,6 +249,11 @@
      composed animations. Kept in sync with the transition tokens above. The
      global prefers-reduced-motion block at the end of this file neutralises
      these for users who request reduced motion. */
+  /* Keyboard focus ring — one token so every control's :focus-visible looks
+     the same. References the per-theme accent, so it flips with the theme. */
+  --focus-ring: 2px solid var(--accent-primary);
+  --focus-ring-offset: 1px;
+
   --motion-duration-fast: 0.1s;
   --motion-duration-base: 0.15s;
 
@@ -672,7 +679,7 @@ html, body {
 .text-success { color: var(--color-success-text); }
 .text-warning { color: var(--color-warning-text); }
 .text-error { color: var(--color-error-text); }
-.text-info { color: var(--color-info); }
+.text-info { color: var(--color-info-text); }
 
 /* Muted placeholder text for workspace fallback/loading states */
 .workspace-placeholder-text { color: var(--text-tertiary); }
