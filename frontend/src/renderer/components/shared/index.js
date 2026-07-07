@@ -5,6 +5,7 @@
  * modules should build on instead of ad-hoc markup + legacy button classes.
  */
 
+export { Autocomplete } from './Autocomplete.jsx';
 export { Button } from './Button.jsx';
 export { IconButton } from './IconButton.jsx';
 export { Kbd } from './Kbd.jsx';
