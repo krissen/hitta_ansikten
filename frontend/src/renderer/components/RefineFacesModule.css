@@ -169,12 +169,12 @@
 }
 
 .cell-keep {
-  color: var(--status-success);
+  color: var(--color-success-text);
   text-align: center;
 }
 
 .cell-remove {
-  color: var(--status-error);
+  color: var(--color-error-text);
   text-align: center;
   font-weight: 500;
 }
