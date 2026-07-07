@@ -254,3 +254,83 @@
     animation: none;
   }
 }
+
+/* ===========================================================================
+   Alert — persistent inline status surface
+   ---------------------------------------------------------------------------
+   Matches the legacy `.status-message` banners (theme.css) against the same
+   --color-*-bg/-text tokens so phase-B migrations are visually lossless.
+   =========================================================================== */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-base);
+  border: 1px solid transparent;
+}
+
+.alert__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  line-height: 1.4;
+}
+
+.alert__body {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.alert__dismiss {
+  flex-shrink: 0;
+  color: inherit;
+  margin: calc(-1 * var(--space-xs)) calc(-1 * var(--space-xs)) calc(-1 * var(--space-xs)) 0;
+}
+
+.alert--success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-color: var(--color-success);
+}
+.alert--warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  border-color: var(--color-warning);
+}
+.alert--error {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border-color: var(--color-error);
+}
+.alert--info {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  border-color: var(--color-info);
+}
+
+/* ===========================================================================
+   EmptyState — shared empty/placeholder surface
+   ---------------------------------------------------------------------------
+   Builds on the base `.empty-state` layout (theme.css: flex column, centered,
+   text-tertiary). Sub-elements mirror the legacy ImageViewer placeholder
+   (.placeholder-icon / .placeholder-hint) so migrations are visually lossless.
+   =========================================================================== */
+.empty-state__icon {
+  font-size: 48px;
+  margin-bottom: var(--space-lg);
+  line-height: 1;
+}
+
+.empty-state__title {
+  font-size: var(--font-md);
+}
+
+.empty-state__description {
+  color: var(--text-secondary);
+}
+
+.empty-state__action {
+  margin-top: var(--space-lg);
+}

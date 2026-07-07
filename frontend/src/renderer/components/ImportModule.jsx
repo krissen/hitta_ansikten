@@ -11,7 +11,7 @@ import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { preferences } from '../workspace/preferences.js';
-import { ProgressBar } from './ProgressBar.jsx';
+import { ProgressBar } from './shared/ProgressBar.jsx';
 import './ImportModule.css';
 
 const DEFAULT_DEST = '~/Pictures/nerladdat';

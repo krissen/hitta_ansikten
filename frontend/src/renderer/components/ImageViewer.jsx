@@ -17,7 +17,7 @@ import { toFileUrl } from '../shared/fileUrl.js';
 import { computeFitTransform } from '../shared/fitTransform.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
-import { LoadingOverlay } from './ProgressBar.jsx';
+import { LoadingOverlay } from './shared/ProgressBar.jsx';
 import { t } from '../../i18n/index.js';
 import './ImageViewer.css';
 
