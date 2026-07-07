@@ -20,25 +20,30 @@ const STATE_CLASS = {
   error: 'is-error'
 };
 
-const COMPONENT_LABELS = {
-  backend: t('startupStatus.labels.backend'),
-  database: t('startupStatus.labels.database'),
-  mlModels: t('startupStatus.labels.mlModels')
-};
-
-const INITIAL_STATUS = {
-  items: {
-    backend: { state: 'loading', message: t('startupStatus.status.connecting') },
-    database: { state: 'pending', message: t('startupStatus.status.waiting') },
-    mlModels: { state: 'pending', message: t('startupStatus.status.waiting') }
-  },
-  allReady: false,
-  hasError: false
-};
+// Built at render time (not module load) so t() resolves against the active
+// locale. A module-level object would freeze the strings at import, before any
+// locale switch could take effect.
+function createInitialStatus() {
+  return {
+    items: {
+      backend: { state: 'loading', message: t('startupStatus.status.connecting') },
+      database: { state: 'pending', message: t('startupStatus.status.waiting') },
+      mlModels: { state: 'pending', message: t('startupStatus.status.waiting') }
+    },
+    allReady: false,
+    hasError: false
+  };
+}
 
 export function StartupStatus() {
   const { isConnected, api } = useBackend();
-  const [status, setStatus] = useState(INITIAL_STATUS);
+  // Same timing rationale: resolve the labels in render, not at module load.
+  const COMPONENT_LABELS = {
+    backend: t('startupStatus.labels.backend'),
+    database: t('startupStatus.labels.database'),
+    mlModels: t('startupStatus.labels.mlModels')
+  };
+  const [status, setStatus] = useState(createInitialStatus);
   const [dismissed, setDismissed] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const readyTimerRef = useRef(null);
