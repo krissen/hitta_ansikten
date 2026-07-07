@@ -204,11 +204,15 @@ class DetectionService:
 
             logger.debug(f"[DetectionService] Loading RAW at half size for detection: {image_path}")
             with rawpy.imread(str(image_path)) as raw:
-                full_height = raw.sizes.height
+                full_long_side = max(raw.sizes.height, raw.sizes.width)
                 rgb = raw.postprocess(half_size=True)
             # libraw's half_size halves each dimension; derive the exact factor
-            # from the sensor dimensions rather than assuming 2.0.
-            coord_scale = full_height / rgb.shape[0]
+            # from the sensor dimensions rather than assuming 2.0. Compare the
+            # LONG sides: raw.sizes reports pre-flip sensor dimensions while
+            # rgb is post-flip output, so height/height would mix axes for a
+            # 90°-rotated (portrait) NEF and yield ~1.33 instead of 2.0 —
+            # max/max is orientation-invariant (Nagelfar #154 issue-001).
+            coord_scale = full_long_side / max(rgb.shape[0], rgb.shape[1])
             return rgb, coord_scale
         return self._load_image(image_path), 1.0
 

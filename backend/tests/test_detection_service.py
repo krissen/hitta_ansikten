@@ -482,3 +482,57 @@ def test_load_image_for_detection_standard_format_scale_one(tmp_path):
 
     assert coord_scale == 1.0
     assert rgb.shape == (24, 32, 3)
+
+
+def test_load_image_for_detection_portrait_raw_orientation_invariant(tmp_path, monkeypatch):
+    """coord_scale must be orientation-invariant for rotated (portrait) RAWs.
+
+    raw.sizes reports PRE-flip sensor dimensions while postprocess() output is
+    POST-flip: for a 90°-rotated NEF, sizes.height (short sensor side, e.g.
+    5520) pairs with a TALL output (4140 high), so height/height would give
+    ~1.33 instead of the true 2.0. The long-side ratio is flip-proof.
+    """
+    import api.services.detection_service as det_mod
+
+    class FakeSizes:
+        # Landscape sensor 8280x5520, camera held in portrait (flip=6).
+        height = 5520
+        width = 8280
+
+    class FakeRaw:
+        sizes = FakeSizes()
+
+        def postprocess(self, half_size=False):
+            assert half_size is True
+            # Post-flip half-size output: portrait 4140 high x 2760 wide.
+            return np.zeros((4140, 2760, 3), dtype=np.uint8)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    class FakeRawpy:
+        @staticmethod
+        def imread(path):
+            return FakeRaw()
+
+    class FailingCache:
+        # Force the cache-miss branch.
+        def compute_file_hash(self, p):
+            raise RuntimeError("no cache")
+
+    monkeypatch.setattr(det_mod, "rawpy", FakeRawpy)
+    monkeypatch.setattr(det_mod, "get_preprocessing_cache", lambda: FailingCache())
+
+    svc = _service()
+    p = tmp_path / "portrait.nef"
+    p.write_bytes(b"fake")
+
+    rgb, coord_scale = svc._load_image_for_detection(p)
+
+    assert rgb.shape == (4140, 2760, 3)
+    # Long-side ratio: 8280 / 4140 == 2.0 exactly (height/height would be
+    # 5520/4140 ≈ 1.33 — the portrait bug this pins).
+    assert coord_scale == 2.0
