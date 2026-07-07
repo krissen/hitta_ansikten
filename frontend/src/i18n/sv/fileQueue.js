@@ -25,13 +25,13 @@ module.exports = {
     "renameSelectedTitle": "Byt namn på valda filer",
     "renameFilteredTitle": "Byt namn på filtrerade filer",
     "renameTitle": "Byt namn på filer utifrån identifierade ansikten",
-    "renaming": "Byter namn...",
+    "renaming": "Byter namn…",
     "skip": "Hoppa över",
     "start": "Starta"
   },
 
   "filter": {
-    "placeholder": "Filtrera...  a|b = eller  a&b = och",
+    "placeholder": "Filtrera…  a|b = eller  a&b = och",
     "clearTitle": "Rensa filter (Esc)"
   },
 
@@ -124,16 +124,16 @@ module.exports = {
     "fileAlreadyInQueue": "Filen finns redan i kön",
     "allFilesAlreadyInQueue": "Alla {count} filer finns redan i kön",
     "queueSorted": "Kön sorterad i bokstavsordning",
-    "loadingFileList": "Laddar fillista...",
+    "loadingFileList": "Laddar fillista…",
     "fileAlreadyProcessed": "{fileName} är redan behandlad. Aktivera fixläge eller klicka på 🔄 för att behandla om.",
     "undid": "🔄 Ångrade {fileName}",
     "undoFailed": "Kunde inte ångra {fileName}",
     "reprocessing": "🔄 Behandlar om {fileName}",
     "reprocessFailed": "Kunde inte behandla om {fileName}",
-    "generatingNames": "Skapar namnförslag för {count} filer...",
+    "generatingNames": "Skapar namnförslag för {count} filer…",
     "renaming": {
-      "one": "Byter namn på {count} fil...",
-      "other": "Byter namn på {count} filer..."
+      "one": "Byter namn på {count} fil…",
+      "other": "Byter namn på {count} filer…"
     },
     "renamed": {
       "one": "Bytte namn på {count} fil",
@@ -147,7 +147,7 @@ module.exports = {
       "other": "Sparade granskning av {fileName} ({count} ansikten)"
     },
     "saveReviewFailed": "Kunde inte spara granskning av {fileName}",
-    "queueComplete": "🎉 Kön klar – alla filer granskade!",
+    "queueComplete": "🎉 Kön klar – alla filer granskade",
     "noSupportedFound": "Inga bildfiler som stöds hittades"
   },
 

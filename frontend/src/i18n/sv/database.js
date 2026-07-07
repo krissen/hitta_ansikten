@@ -105,7 +105,7 @@ module.exports = {
     },
     "duplicateScanFailed": "Dubblettsökning misslyckades: {error}",
     "excludePairFailed": "Kunde inte utesluta paret: {error}",
-    "markedNotDuplicate": "Markerade '{a}' och '{b}' som inte en dubblett",
+    "markedNotDuplicate": "Markerade ”{a}” och ”{b}” som inte en dubblett",
     "removeExclusionFailed": "Kunde inte ta bort uteslutningen: {error}",
     "foundRedundant": {
       "one": "{count} överflödig kodning bland {people} {peopleWord} (≤ {threshold})",
@@ -127,18 +127,18 @@ module.exports = {
     "purgeFailed": "Rensning misslyckades: {error}"
   },
   "dialogs": {
-    "renameConfirm": "Byt namn på '{old}' till '{new}'?",
-    "mergeConfirm": "Slå samman '{source1}' och '{source2}' till '{target}'{backendDesc}?",
-    "mergePairConfirm": "Slå samman '{drop}' till '{keep}'?",
+    "renameConfirm": "Byt namn på ”{old}” till ”{new}”?",
+    "mergeConfirm": "Slå samman ”{source1}” och ”{source2}” till ”{target}”{backendDesc}?",
+    "mergePairConfirm": "Slå samman ”{drop}” till ”{keep}”?",
     "dedupConfirm": {
       "one": "Ta bort {count} överflödig kodning från {who}? Detta kan inte ångras.",
       "other": "Ta bort {count} överflödiga kodningar från {who}? Detta kan inte ångras."
     },
-    "deleteConfirm": "Radera '{name}'? Detta tar bort alla deras kodningar permanent.",
-    "moveToIgnoreConfirm": "Flytta '{name}' till ignorerade{backendDesc}?",
-    "moveFromIgnoreConfirm": "Flytta {count} kodningar från ignorerade till '{target}'{backendDesc}?",
-    "undoConfirm": "Ångra bearbetning för filer som matchar '{pattern}'?",
+    "deleteConfirm": "Radera ”{name}”? Detta tar bort alla deras kodningar permanent.",
+    "moveToIgnoreConfirm": "Flytta ”{name}” till ignorerade{backendDesc}?",
+    "moveFromIgnoreConfirm": "Flytta {count} kodningar från ignorerade till ”{target}”{backendDesc}?",
+    "undoConfirm": "Ångra bearbetning för filer som matchar ”{pattern}”?",
     "recentFilesTitle": "Senaste bearbetade filer",
-    "purgeConfirm": "Ta bort de senaste {count} kodningarna från '{name}'{backendDesc}? Detta kan inte ångras."
+    "purgeConfirm": "Ta bort de senaste {count} kodningarna från ”{name}”{backendDesc}? Detta kan inte ångras."
   }
 };

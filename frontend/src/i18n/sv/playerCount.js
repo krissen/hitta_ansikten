@@ -46,7 +46,7 @@ module.exports = {
     "alwaysHeadingTitle": "Alltid uteslutna oavsett tröskel — gäller efter Spara som standard",
     "grupp": "Gruppbilder",
     "alwaysPublik": "Publik (alltid)",
-    "envNote": "Obs: {keys} är satt i miljön och överstyr config — \"Spara som standard\" kanske inte får effekt.",
+    "envNote": "{keys} är satt i miljön och överstyr config — ”Spara som standard” kanske inte får effekt.",
     "saveDefaults": "Spara som standard",
     "saving": "Sparar…",
     "saveDefaultsTitle": "Spara listorna till config (gäller framtida räkningar och CLI)",

@@ -1,6 +1,6 @@
 // Swedish catalog namespace: review
 module.exports = {
-  "placeholder": "Personnamn...",
+  "placeholder": "Personnamn…",
   "ignoredBadge": "Ignorerad",
   "unknown": "Okänd",
   "noFacesDetected": "Inga ansikten identifierade",
@@ -25,7 +25,7 @@ module.exports = {
   },
 
   "status": {
-    "waitingForImage": "Väntar på bild...",
+    "waitingForImage": "Väntar på bild…",
     "detecting": "Identifierar ansikten...",
     "detectionFailed": "Identifiering misslyckades",
     "detectionCancelled": "Identifiering avbruten",
@@ -37,12 +37,12 @@ module.exports = {
     "accepted": "Godkände {accepted}, ignorerade {ignored}",
     "acceptedSkippedSuffix": ", hoppade över {skipped}",
     "saving": {
-      "one": "Sparar {count} ändring...",
-      "other": "Sparar {count} ändringar..."
+      "one": "Sparar {count} ändring…",
+      "other": "Sparar {count} ändringar…"
     },
     "saved": {
-      "one": "Sparade {count} ändring!",
-      "other": "Sparade {count} ändringar!"
+      "one": "Sparade {count} ändring",
+      "other": "Sparade {count} ändringar"
     },
     "saveError": "Fel vid sparande – granskningen markerades INTE som klar",
     "changesDiscarded": "Ändringar kasserade",
@@ -74,7 +74,7 @@ module.exports = {
     "confirmNameChange": "Bekräfta namnändring",
     "confirmIgnore": "Bekräfta ignorering",
     "bestMatch": "Bästa träff:",
-    "nameMismatch": "Du valde \"{name}\" istället. Är du säker?",
+    "nameMismatch": "Du valde ”{name}” istället. Är du säker?",
     "ignoreConfirm": "Du valde att ignorera det här ansiktet. Är du säker?",
     "hintConfirms": "bekräftar",
     "hintCancels": "avbryter",

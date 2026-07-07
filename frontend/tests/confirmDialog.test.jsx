@@ -34,7 +34,7 @@ describe('ConfirmDialog — name-mismatch branch', () => {
     expect(matchInfo).toContain('Anna Andersson');
     expect(matchInfo).toContain('82%');
     expect(container.querySelector('.modal__message').textContent).toBe(
-      'Du valde "Berit" istället. Är du säker?',
+      'Du valde ”Berit” istället. Är du säker?',
     );
   });
 
