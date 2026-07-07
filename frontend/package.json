@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@tailwindcss/cli": "^4.3.2",
     "@testing-library/react": "^16.0.0",
     "electron": "^36.3.2",
     "electron-builder": "^26.0.0",
@@ -46,6 +47,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.7.0",
     "jsdom": "^26.0.0",
+    "tailwindcss": "^4.3.2",
     "vitest": "^3.0.0"
   },
   "build": {

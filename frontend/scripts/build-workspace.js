@@ -7,7 +7,7 @@
 const esbuild = require('esbuild');
 const path = require('path');
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execSync, spawn, spawnSync } = require('child_process');
 
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev') || isWatch;
@@ -64,14 +64,51 @@ const buildOptions = {
   logLevel: 'info'
 };
 
+// Tailwind utility layer (see src/renderer/tailwind.css). Compiled by the
+// Tailwind CLI into a sibling bundle that workspace-flex.html links after
+// workspace-bundle.css so legacy (unlayered) CSS keeps winning the cascade.
+const tailwindInput = path.join(__dirname, '..', 'src', 'renderer', 'tailwind.css');
+const tailwindOutput = path.join(outdir, 'tailwind-bundle.css');
+
+function tailwindArgs(extra = []) {
+  return ['@tailwindcss/cli', '-i', tailwindInput, '-o', tailwindOutput, ...extra];
+}
+
+// One-shot Tailwind build; propagates a non-zero exit code on failure.
+function buildTailwind() {
+  const args = tailwindArgs(isDev ? [] : ['--minify']);
+  const result = spawnSync('npx', args, { stdio: 'inherit' });
+  if (result.status !== 0) {
+    console.error('Tailwind build failed');
+    process.exit(result.status || 1);
+  }
+}
+
+// Watch-mode Tailwind, running in parallel with the esbuild watch context.
+// `--watch=always` keeps the watcher alive even when stdin is closed (the CLI
+// otherwise exits on stdin EOF, e.g. when run detached / piped / in CI).
+// Killed when this process exits so no orphan watcher is left behind.
+function watchTailwind() {
+  const child = spawn('npx', tailwindArgs(['--watch=always']), { stdio: 'inherit' });
+  const cleanup = () => {
+    if (!child.killed) child.kill();
+  };
+  process.on('exit', cleanup);
+  process.on('SIGINT', () => { cleanup(); process.exit(0); });
+  process.on('SIGTERM', () => { cleanup(); process.exit(0); });
+  return child;
+}
+
 async function build() {
   try {
     if (isWatch) {
       const ctx = await esbuild.context(buildOptions);
       await ctx.watch();
+      watchTailwind();
       console.log('Watching for changes...');
     } else {
       const result = await esbuild.build(buildOptions);
+      buildTailwind();
       if (result.metafile && !isDev) {
         const analysis = await esbuild.analyzeMetafile(result.metafile, { verbose: false });
         console.log('\nBundle analysis:\n' + analysis);
