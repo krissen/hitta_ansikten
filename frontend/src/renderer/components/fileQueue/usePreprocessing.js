@@ -256,9 +256,12 @@ export function usePreprocessing(queue, { processedHashes, processedFilesLoaded,
   useEffect(() => {
     if (queue.length === 0) return;
 
-    // Count files still preprocessing
+    // Count files still preprocessing. preprocessingStatus values are objects
+    // ({ status, ... }); compare the .status field against the string enum (the
+    // old code compared the whole object, so this branch never matched and the
+    // completion toast never fired).
     const pendingPreprocessing = queue.filter(item => {
-      const status = preprocessingStatus[item.filePath];
+      const status = preprocessingStatus[item.filePath]?.status;
       // Still preprocessing if no status yet or in progress
       return !status ||
              (status !== PreprocessingStatus.COMPLETED &&
@@ -271,7 +274,7 @@ export function usePreprocessing(queue, { processedHashes, processedFilesLoaded,
     // Show toast when preprocessing completes (was pending, now all done)
     if (prev.pending > 0 && pendingPreprocessing === 0 && queue.length > 0) {
       const completedCount = queue.filter(item =>
-        preprocessingStatus[item.filePath] === PreprocessingStatus.COMPLETED
+        preprocessingStatus[item.filePath]?.status === PreprocessingStatus.COMPLETED
       ).length;
       if (completedCount > 0) {
         showToast(t('fileQueue.toasts.preprocessingComplete', { count: completedCount }), 'success', 3000);
