@@ -112,7 +112,7 @@ export function StartupStatus() {
       <div className="startup-status-header">
         {headerText}
       </div>
-      <div className="startup-status-items">
+      <div className="startup-status-items text-text-secondary">
         {Object.entries(items).map(([key, item]) => (
           <div key={key} className={`startup-item ${STATE_CLASS[item.state] || ''}`}>
             <span className={`startup-icon ${STATE_CLASS[item.state] || ''}`}>
