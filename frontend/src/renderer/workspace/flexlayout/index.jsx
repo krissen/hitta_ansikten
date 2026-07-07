@@ -19,6 +19,12 @@ import { debug, debugError } from '../../shared/debug.js';
 import '../../theme.css';
 import '../../theme-manager.js'; // Side-effect: initializes theme on load
 
+// Shared UI primitives stylesheet (.btn / .icon-btn). Shipped app-wide from the
+// root so the design-system styles are present regardless of which modules
+// currently consume the primitives. The primitives also import this file
+// themselves (esbuild dedupes), so they carry their styles in isolation/tests.
+import '../../components/shared/shared.css';
+
 // Import FlexLayout CSS
 import 'flexlayout-react/style/light.css';
 

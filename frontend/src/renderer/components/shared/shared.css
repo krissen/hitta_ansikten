@@ -1,0 +1,168 @@
+/* ===========================================================================
+   Shared primitive styles — Button, IconButton
+   ---------------------------------------------------------------------------
+   New class names (.btn / .icon-btn) styled directly against theme.css tokens,
+   visually matching the legacy .btn-action/.btn-secondary/.btn-danger/.btn-icon
+   categories. The legacy classes are untouched and remain aliases until the
+   cleanup PR (B7). See docs/dev/theming.md "Button Categories".
+   =========================================================================== */
+
+/* --- Button base ---------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  font-family: inherit;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-base), transform var(--transition-fast),
+    border-color var(--transition-base), filter var(--transition-base);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Button sizes --------------------------------------------------------- */
+.btn--md {
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--font-sm);
+}
+
+.btn--sm {
+  padding: 2px var(--space-sm);
+  font-size: var(--font-xs);
+}
+
+/* --- Button variants ------------------------------------------------------ */
+/* Primary — main CTA (matches legacy .btn-action). */
+.btn--primary {
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+  border: none;
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+}
+
+/* Secondary — standard action (matches legacy .btn-secondary). */
+.btn--secondary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+}
+.btn--secondary:hover:not(:disabled) {
+  background: var(--btn-secondary-hover-bg);
+  border-color: var(--border-strong);
+}
+
+/* Ghost — low-emphasis / tertiary action (borderless, muted). */
+.btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+}
+.btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Danger — destructive action (matches legacy .btn-danger). */
+.btn--danger {
+  background: var(--color-error);
+  color: var(--text-inverse);
+  border: none;
+}
+.btn--danger:hover:not(:disabled) {
+  filter: brightness(0.85);
+}
+
+/* --- Loading spinner ------------------------------------------------------ */
+/* Animation lives in a CSS class (never inline) so the reduced-motion guard
+   below — and the global prefers-reduced-motion block landing in A5 — can
+   disable it. */
+.btn__spinner {
+  width: 0.85em;
+  height: 0.85em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--radius-full);
+  animation: btn-spinner-rotate 0.7s linear infinite;
+}
+
+@keyframes btn-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn__spinner {
+    animation: none;
+  }
+}
+
+/* --- IconButton ----------------------------------------------------------- */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-primary);
+  background: transparent;
+  transition: background var(--transition-base), transform var(--transition-fast),
+    box-shadow var(--transition-base), color var(--transition-base);
+}
+
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* IconButton sizes */
+.icon-btn--md {
+  width: 24px;
+  height: 24px;
+}
+.icon-btn--sm {
+  width: 20px;
+  height: 20px;
+}
+
+/* IconButton variants */
+/* Elevated (default) — raised chip, mirrors legacy .btn-icon exactly
+   (resting bg-elevated; hover btn-icon-hover-bg + shadow-sm). */
+.icon-btn--elevated {
+  background: var(--bg-elevated);
+}
+.icon-btn--elevated:hover:not(:disabled) {
+  background: var(--btn-icon-hover-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.icon-btn--ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.icon-btn--danger {
+  color: var(--color-error);
+}
+.icon-btn--danger:hover:not(:disabled) {
+  background: var(--color-error);
+  color: var(--text-inverse);
+}
