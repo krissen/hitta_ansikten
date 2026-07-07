@@ -273,29 +273,69 @@ def _atomic_jsonl_write(entries, target_path):
         raise e
 
 
+# The four writable database collections, in canonical order. Used by
+# save_database's ``only`` parameter for per-collection (dirty-flag) saves.
+DB_COLLECTIONS = frozenset({"known", "ignored", "hardneg", "processed"})
+
+
 def save_database(
     known_faces: dict[str, list[dict[str, Any]]],
     ignored_faces: list[dict[str, Any]],
     hard_negatives: dict[str, list[dict[str, Any]]],
-    processed_files: list[dict[str, Any]]
+    processed_files: list[dict[str, Any]],
+    only: set[str] | frozenset[str] | None = None,
 ) -> None:
     """
     Save database with atomic writes and file locking to prevent corruption.
 
     Uses atomic write pattern (write to temp file, then rename) to ensure
     database files are never left in a partially-written state.
-    Writes the four files in parallel for better throughput.
+
+    Args:
+        known_faces, ignored_faces, hard_negatives, processed_files:
+            The four collections to persist.
+        only: Optional subset of ``DB_COLLECTIONS`` ({'known', 'ignored',
+            'hardneg', 'processed'}) naming exactly which files to rewrite.
+            ``None`` (default) rewrites all four — preserving CLI/legacy
+            behavior. Unknown names raise ``ValueError``. Only the named files
+            are touched on disk; the others keep their existing mtime/size.
+
+    Multi-file saves write in parallel (ThreadPoolExecutor). A single-file save
+    writes inline (no pool overhead).
     """
+    if only is not None:
+        unknown = set(only) - DB_COLLECTIONS
+        if unknown:
+            raise ValueError(f"save_database: unknown collections in only={sorted(unknown)}")
+        selected = frozenset(only)
+    else:
+        selected = DB_COLLECTIONS
+
+    if not selected:
+        return  # Nothing selected — nothing to write.
+
     BASE_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Write all database files in parallel
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        futures = [
-            pool.submit(_atomic_pickle_write, known_faces, ENCODING_PATH),
-            pool.submit(_atomic_pickle_write, ignored_faces, IGNORED_PATH),
-            pool.submit(_atomic_pickle_write, hard_negatives, HARDNEG_PATH),
-            pool.submit(_atomic_jsonl_write, processed_files, PROCESSED_PATH),
-        ]
+    # (writer, data, path) for each selected file.
+    writes = []
+    if "known" in selected:
+        writes.append((_atomic_pickle_write, known_faces, ENCODING_PATH))
+    if "ignored" in selected:
+        writes.append((_atomic_pickle_write, ignored_faces, IGNORED_PATH))
+    if "hardneg" in selected:
+        writes.append((_atomic_pickle_write, hard_negatives, HARDNEG_PATH))
+    if "processed" in selected:
+        writes.append((_atomic_jsonl_write, processed_files, PROCESSED_PATH))
+
+    if len(writes) == 1:
+        # Single-file save: skip the thread-pool overhead.
+        writer, data, path = writes[0]
+        writer(data, path)
+        return
+
+    # Multi-file save: write in parallel for better throughput.
+    with ThreadPoolExecutor(max_workers=len(writes)) as pool:
+        futures = [pool.submit(writer, data, path) for writer, data, path in writes]
         # Raise first exception if any write failed
         for f in futures:
             f.result()

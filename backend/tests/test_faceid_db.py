@@ -107,6 +107,84 @@ def test_save_creates_all_files(db_dir):
     assert faceid_db.PROCESSED_PATH.exists()
 
 
+def test_save_only_rewrites_named_files(db_dir):
+    """save_database(only={'known'}) rewrites just encodings.pkl; the other
+    three keep their mtime (per-collection dirty-flag save)."""
+    faceid_db.save_database(
+        {"Alice": [_entry([1.0])]},
+        [_entry([0.1])],
+        {"Carol": [_entry([9.0])]},
+        [{"name": "a.NEF", "hash": "h"}],
+    )
+    others = {
+        p: p.stat().st_mtime_ns
+        for p in (faceid_db.IGNORED_PATH, faceid_db.HARDNEG_PATH, faceid_db.PROCESSED_PATH)
+    }
+    enc_before = faceid_db.ENCODING_PATH.stat().st_mtime_ns
+
+    # Bump mtimes so a rewrite is unambiguously detectable.
+    import os
+    for p in others:
+        st = p.stat()
+        os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+
+    faceid_db.save_database(
+        {"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]}, [], {}, [], only={"known"}
+    )
+
+    assert faceid_db.ENCODING_PATH.stat().st_mtime_ns != enc_before
+    for p, mtime in others.items():
+        assert p.stat().st_mtime_ns == mtime, f"{p.name} was rewritten"
+    # Only known.pkl content changed; the untouched files keep old content.
+    known, ignored, hardneg, processed = faceid_db.load_database()
+    assert set(known.keys()) == {"Alice", "Bob"}
+    assert len(ignored) == 1  # unchanged on disk
+    assert "Carol" in hardneg
+    assert processed == [{"name": "a.NEF", "hash": "h"}]
+
+
+def test_save_only_subset_rewrites_exactly_those(db_dir):
+    faceid_db.save_database({}, [], {}, [])
+    paths = {
+        "known": faceid_db.ENCODING_PATH,
+        "ignored": faceid_db.IGNORED_PATH,
+        "hardneg": faceid_db.HARDNEG_PATH,
+        "processed": faceid_db.PROCESSED_PATH,
+    }
+    before = {k: p.stat().st_mtime_ns for k, p in paths.items()}
+    import os
+    for p in paths.values():
+        st = p.stat()
+        os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+
+    faceid_db.save_database(
+        {"A": [_entry([1.0])]}, [], {"B": [_entry([2.0])]}, [],
+        only={"known", "hardneg"},
+    )
+    assert paths["known"].stat().st_mtime_ns != before["known"]
+    assert paths["hardneg"].stat().st_mtime_ns != before["hardneg"]
+    assert paths["ignored"].stat().st_mtime_ns == before["ignored"]
+    assert paths["processed"].stat().st_mtime_ns == before["processed"]
+
+
+def test_save_only_empty_set_is_noop(db_dir):
+    # Files must not even be created when only=set().
+    faceid_db.save_database({"A": [_entry([1.0])]}, [], {}, [], only=set())
+    assert not faceid_db.ENCODING_PATH.exists()
+
+
+def test_save_only_unknown_collection_raises(db_dir):
+    with pytest.raises(ValueError):
+        faceid_db.save_database({}, [], {}, [], only={"known", "bogus"})
+
+
+def test_save_only_none_rewrites_all(db_dir):
+    faceid_db.save_database({}, [], {}, [], only=None)
+    for p in (faceid_db.ENCODING_PATH, faceid_db.IGNORED_PATH,
+              faceid_db.HARDNEG_PATH, faceid_db.PROCESSED_PATH):
+        assert p.exists()
+
+
 def test_load_missing_files_returns_empty_defaults(db_dir):
     # Nothing written yet.
     known, ignored, hardneg, processed = faceid_db.load_database()

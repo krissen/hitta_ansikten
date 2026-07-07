@@ -267,7 +267,8 @@ class RefinementService:
         )
         if not dry_run and total_removed > 0:
             removed_by_person, total_removed = self.store.mutate(
-                lambda known, ignored, hardneg, processed: compute(known, True)
+                lambda known, ignored, hardneg, processed: compute(known, True),
+                touches={"known"},
             )
             self.store.flush()  # admin action → persist synchronously
 
@@ -482,7 +483,8 @@ class RefinementService:
         )
         if not dry_run and total_removed > 0:
             removed_by_person, total_removed = self.store.mutate(
-                lambda known, ignored, hardneg, processed: compute(known, True)
+                lambda known, ignored, hardneg, processed: compute(known, True),
+                touches={"known"},
             )
             self.store.flush()  # admin action → persist synchronously
 
@@ -567,7 +569,8 @@ class RefinementService:
         )
         if not dry_run and total_removed > 0:
             repaired, total_removed = self.store.mutate(
-                lambda known, ignored, hardneg, processed: compute(known, True)
+                lambda known, ignored, hardneg, processed: compute(known, True),
+                touches={"known"},
             )
             self.store.flush()  # admin action → persist synchronously
 

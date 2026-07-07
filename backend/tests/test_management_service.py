@@ -290,7 +290,7 @@ async def test_dedup_noop_schedules_no_save(db_dir):
 
     assert result["total_removed"] == 0
     store = db_store_mod.get_db_store()
-    assert store._dirty is False  # no mutation was recorded
+    assert not store._dirty  # no mutation was recorded (empty dirty set)
     assert store._save_timer is None  # and no save is pending
 
 
