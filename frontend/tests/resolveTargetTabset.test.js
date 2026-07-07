@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { Model, Actions } from 'flexlayout-react';
 
-import { resolveTargetTabset } from '../src/renderer/workspace/flexlayout/tabsetUtils.js';
+import {
+  resolveTargetTabset,
+  ensureActiveTabset,
+} from '../src/renderer/workspace/flexlayout/tabsetUtils.js';
 
 // Two-tabset layout mirroring the default review layout: a narrow 15% Review
 // column first, then the wide 85% Image Viewer. On a freshly-loaded model the
@@ -44,5 +47,51 @@ describe('resolveTargetTabset', () => {
     // Make the narrow tabset active; resolveTargetTabset must honor it.
     model.doAction(Actions.setActiveTabset(narrow.getId()));
     expect(resolveTargetTabset(model).getId()).toBe(narrow.getId());
+  });
+});
+
+describe('ensureActiveTabset', () => {
+  it('sets an active tabset on a fresh model that has none', () => {
+    const model = freshReviewModel();
+    expect(model.getActiveTabset()).toBeUndefined();
+
+    const applied = ensureActiveTabset(model);
+    expect(applied).toBe(true);
+    // Elects the main working area (85%), same target resolveTargetTabset picks.
+    expect(model.getActiveTabset()).toBeTruthy();
+    expect(model.getActiveTabset().getWeight()).toBe(85);
+  });
+
+  it('is a no-op when a tabset is already active', () => {
+    const model = freshReviewModel();
+    let narrow = null;
+    model.visitNodes((n) => {
+      if (n.getType() === 'tabset' && n.getWeight() === 15) narrow = n;
+    });
+    model.doAction(Actions.setActiveTabset(narrow.getId()));
+
+    const applied = ensureActiveTabset(model);
+    expect(applied).toBe(false);
+    // The pre-existing active tabset is left untouched.
+    expect(model.getActiveTabset().getId()).toBe(narrow.getId());
+  });
+
+  it('prefers a maximized tabset over the largest area when one is restored', () => {
+    // Fake model with no active tabset but a maximized one — the restored
+    // maximized tabset is where the user was working, so it wins.
+    const maximized = { getId: () => 'MAX' };
+    let setId = null;
+    const model = {
+      getActiveTabset: () => undefined,
+      getMaximizedTabset: () => maximized,
+      doAction: (action) => { setId = action.data?.tabsetNode ?? action.data?.node; },
+    };
+    const applied = ensureActiveTabset(model);
+    expect(applied).toBe(true);
+    expect(setId).toBe('MAX');
+  });
+
+  it('returns false for a falsy model', () => {
+    expect(ensureActiveTabset(null)).toBe(false);
   });
 });
