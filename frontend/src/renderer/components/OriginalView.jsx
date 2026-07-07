@@ -140,8 +140,12 @@ export function OriginalView() {
     canvas.height = canvasHeight * dpr;
     ctx.scale(dpr, dpr);
 
-    // Clear canvas
-    ctx.fillStyle = '#2a2a2a';
+    // Clear canvas with the themed elevated background. Read from the CSS var
+    // so the letterbox matches the active theme (same getComputedStyle approach
+    // as ImageViewer's face-box colors).
+    const clearColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg-elevated').trim() || '#2a2a2a';
+    ctx.fillStyle = clearColor;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     let imageScale, imageX, imageY;
@@ -332,6 +336,23 @@ export function OriginalView() {
 
   useEffect(() => {
     render();
+  }, [render]);
+
+  // Repaint on theme change so the canvas clear color tracks the active theme.
+  // theme-manager fires `theme-changed` and flips data-theme; the ThemeEditor
+  // live preview writes inline CSS vars on <html> with no event — a
+  // MutationObserver on data-theme + style covers both (mirrors ImageViewer).
+  useEffect(() => {
+    const observer = new MutationObserver(render);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'style']
+    });
+    window.addEventListener('theme-changed', render);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('theme-changed', render);
+    };
   }, [render]);
 
   // ============================================

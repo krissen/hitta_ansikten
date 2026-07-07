@@ -177,7 +177,7 @@
 .file-queue-filter-bar .filter-icon {
   color: var(--text-tertiary);
   font-size: var(--font-sm);
-  font-family: monospace;
+  font-family: var(--font-mono);
   flex-shrink: 0;
 }
 

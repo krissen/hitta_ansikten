@@ -71,6 +71,16 @@
   --face-confirmed-bg: rgba(56, 168, 24, 0.9);
   --face-ignored-color: #9e9e9e;     /* Gray for ignored faces */
   --face-ignored-bg: rgba(158, 158, 158, 0.9);
+  /* Match-confidence tiers for face boxes (drawn over the photo). Colors are
+     theme-independent by default since they sit on image pixels, not the UI. */
+  --face-uncertain-color: #ffc107;              /* Amber - uncertain name/ignore */
+  --face-uncertain-bg: rgba(255, 193, 7, 0.9);
+  --face-confidence-medium-color: #2196f3;      /* Blue - medium confidence */
+  --face-confidence-medium-bg: rgba(33, 150, 243, 0.9);
+  --face-confidence-low-color: #ff9800;         /* Orange - low confidence */
+  --face-confidence-low-bg: rgba(255, 152, 0, 0.9);
+  --face-confidence-none-color: #f44336;        /* Red - very low confidence */
+  --face-confidence-none-bg: rgba(244, 67, 54, 0.9);
 
   /* Overlay Colors */
   --overlay-bg: #987840;        /* Bronze/copper (semi-dark for light theme) */
@@ -156,6 +166,17 @@
   --face-confirmed-bg: rgba(76, 175, 80, 0.9);
   --face-ignored-color: #9e9e9e;     /* Gray for ignored faces */
   --face-ignored-bg: rgba(158, 158, 158, 0.9);
+  /* Match-confidence tiers for face boxes (drawn over the photo). Kept equal to
+     the light theme: the boxes sit on image pixels, and these hues read clearly
+     over both light and dark UI chrome. */
+  --face-uncertain-color: #ffc107;              /* Amber - uncertain name/ignore */
+  --face-uncertain-bg: rgba(255, 193, 7, 0.9);
+  --face-confidence-medium-color: #2196f3;      /* Blue - medium confidence */
+  --face-confidence-medium-bg: rgba(33, 150, 243, 0.9);
+  --face-confidence-low-color: #ff9800;         /* Orange - low confidence */
+  --face-confidence-low-bg: rgba(255, 152, 0, 0.9);
+  --face-confidence-none-color: #f44336;        /* Red - very low confidence */
+  --face-confidence-none-bg: rgba(244, 67, 54, 0.9);
 
   /* Overlay Colors */
   --overlay-bg: #0a0a0a;        /* Near black (dark for dark theme) */
@@ -727,6 +748,9 @@ html, body {
 .text-warning { color: var(--color-warning-text); }
 .text-error { color: var(--color-error-text); }
 .text-info { color: var(--color-info); }
+
+/* Muted placeholder text for workspace fallback/loading states */
+.workspace-placeholder-text { color: var(--text-tertiary); }
 
 /* Canonical selected/active data-row highlight — reuse for every list/table
    "current row". A faint accent tint + a left accent bar + bold, NOT a solid

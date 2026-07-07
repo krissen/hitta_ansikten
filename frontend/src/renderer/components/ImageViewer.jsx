@@ -277,10 +277,24 @@ export function ImageViewer() {
         confirmedColor: styles.getPropertyValue('--face-confirmed-color').trim() || '#4caf50',
         confirmedBg: styles.getPropertyValue('--face-confirmed-bg').trim() || 'rgba(76, 175, 80, 0.9)',
         ignoredColor: styles.getPropertyValue('--face-ignored-color').trim() || '#9e9e9e',
-        ignoredBg: styles.getPropertyValue('--face-ignored-bg').trim() || 'rgba(158, 158, 158, 0.9)'
+        ignoredBg: styles.getPropertyValue('--face-ignored-bg').trim() || 'rgba(158, 158, 158, 0.9)',
+        uncertainColor: styles.getPropertyValue('--face-uncertain-color').trim() || '#ffc107',
+        uncertainBg: styles.getPropertyValue('--face-uncertain-bg').trim() || 'rgba(255, 193, 7, 0.9)',
+        confidenceMediumColor: styles.getPropertyValue('--face-confidence-medium-color').trim() || '#2196f3',
+        confidenceMediumBg: styles.getPropertyValue('--face-confidence-medium-bg').trim() || 'rgba(33, 150, 243, 0.9)',
+        confidenceLowColor: styles.getPropertyValue('--face-confidence-low-color').trim() || '#ff9800',
+        confidenceLowBg: styles.getPropertyValue('--face-confidence-low-bg').trim() || 'rgba(255, 152, 0, 0.9)',
+        confidenceNoneColor: styles.getPropertyValue('--face-confidence-none-color').trim() || '#f44336',
+        confidenceNoneBg: styles.getPropertyValue('--face-confidence-none-bg').trim() || 'rgba(244, 67, 54, 0.9)'
       };
     }
-    const { activeHighlightColor, confirmedColor, confirmedBg, ignoredColor, ignoredBg } = themeColorsRef.current;
+    const {
+      activeHighlightColor, confirmedColor, confirmedBg, ignoredColor, ignoredBg,
+      uncertainColor, uncertainBg,
+      confidenceMediumColor, confidenceMediumBg,
+      confidenceLowColor, confidenceLowBg,
+      confidenceNoneColor, confidenceNoneBg
+    } = themeColorsRef.current;
 
     // Calculate placements with collision avoidance
     const placedBoxes = [];
@@ -382,20 +396,20 @@ export function ImageViewer() {
         strokeColor = ignoredColor;
         textBgColor = ignoredBg;
       } else if (matchCase === 'uncertain_name') {
-        strokeColor = '#ffc107';
-        textBgColor = 'rgba(255, 193, 7, 0.9)';
+        strokeColor = uncertainColor;
+        textBgColor = uncertainBg;
       } else if (confidence >= 0.65) {
         strokeColor = confirmedColor;
         textBgColor = confirmedBg;
       } else if (confidence >= 0.50) {
-        strokeColor = '#2196f3';
-        textBgColor = 'rgba(33, 150, 243, 0.9)';
+        strokeColor = confidenceMediumColor;
+        textBgColor = confidenceMediumBg;
       } else if (confidence >= 0.35) {
-        strokeColor = '#ff9800';
-        textBgColor = 'rgba(255, 152, 0, 0.9)';
+        strokeColor = confidenceLowColor;
+        textBgColor = confidenceLowBg;
       } else {
-        strokeColor = '#f44336';
-        textBgColor = 'rgba(244, 67, 54, 0.9)';
+        strokeColor = confidenceNoneColor;
+        textBgColor = confidenceNoneBg;
       }
 
       // Draw active face highlight (outer glow)
