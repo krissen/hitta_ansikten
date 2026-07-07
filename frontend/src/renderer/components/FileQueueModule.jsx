@@ -13,11 +13,13 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useModuleEvent, useEmitEvent, useModuleAPI } from '../hooks/useModuleEvent.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useConfirm } from '../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { scrollBehavior } from '../shared/motion.js';
 import { PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
+import { Button, IconButton, EmptyState } from './shared';
 import { isFileEligible as isFileEligiblePure, findNextEligibleIndex, isRenameEligible } from './fileQueueEligibility.js';
 import { compileFilter } from './filterExpression.js';
 import { t } from '../../i18n/index.js';
@@ -42,6 +44,7 @@ export function FileQueueModule({ node }) {
   const emit = useEmitEvent();
   const { hasListeners, waitForListeners } = useModuleAPI();
   const globalShowToast = useToast();
+  const confirm = useConfirm();
 
   // Queue state (queue + currentIndex) lives in a reducer-backed hook; every
   // mutation goes through queueActions.* so the transitions stay pure/testable.
@@ -141,6 +144,7 @@ export function FileQueueModule({ node }) {
     applyRename: queueActions.applyRename,
     api,
     showToast,
+    confirm,
     isConnected,
     fixMode,
     fixModeRef,
@@ -1487,35 +1491,31 @@ export function FileQueueModule({ node }) {
       <div className="module-header">
         <span className="module-title">{t('fileQueue.title')}</span>
         <div className="file-queue-actions">
-          <button
-            className="btn-icon"
+          <IconButton
+            icon="plus"
+            size="sm"
+            label={t('fileQueue.buttons.addFiles')}
             onClick={openFileDialog}
-            title={t('fileQueue.buttons.addFiles')}
-          >
-            <Icon name="plus" size={14} />
-          </button>
-          <button
-            className="btn-icon"
+          />
+          <IconButton
+            icon="folder-plus"
+            size="sm"
+            label={t('fileQueue.buttons.addFolder')}
             onClick={openFolderDialog}
-            title={t('fileQueue.buttons.addFolder')}
-          >
-            <Icon name="folder-plus" size={14} />
-          </button>
-          <button
-            className="btn-icon"
+          />
+          <IconButton
+            icon="sort"
+            size="sm"
+            label={t('fileQueue.buttons.sortQueue')}
             onClick={sortQueue}
-            title={t('fileQueue.buttons.sortQueue')}
             disabled={queue.length < 2}
-          >
-            <Icon name="sort" size={14} />
-          </button>
-          <button
-            className="btn-icon"
+          />
+          <IconButton
+            icon={autoAdvance ? 'play' : 'pause'}
+            size="sm"
+            label={autoAdvance ? t('fileQueue.buttons.autoAdvanceOn') : t('fileQueue.buttons.autoAdvanceOff')}
             onClick={() => setAutoAdvance(!autoAdvance)}
-            title={autoAdvance ? t('fileQueue.buttons.autoAdvanceOn') : t('fileQueue.buttons.autoAdvanceOff')}
-          >
-            <Icon name={autoAdvance ? 'play' : 'pause'} size={14} />
-          </button>
+          />
         </div>
       </div>
 
@@ -1542,30 +1542,33 @@ export function FileQueueModule({ node }) {
         {queue.length > 0 && (
           <>
             {selectedFiles.size > 0 && (
-              <button
-                className="btn-secondary"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={clearSelected}
                 title={t('fileQueue.buttons.clearSelectedTitle')}
               >
                 {t('fileQueue.buttons.clearSelected')}
-              </button>
+              </Button>
             )}
             {completedCount > 0 && selectedFiles.size === 0 && (
-              <button
-                className="btn-secondary"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={clearCompleted}
                 title={t('fileQueue.buttons.clearDoneTitle')}
               >
                 {t('fileQueue.buttons.clearDone')}
-              </button>
+              </Button>
             )}
-            <button
-              className="btn-secondary"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={clearQueue}
               title={t('fileQueue.buttons.clearAllTitle')}
             >
               {t('fileQueue.buttons.clearAll')}
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -1599,13 +1602,14 @@ export function FileQueueModule({ node }) {
               {displayOrder.length}/{queue.length}
             </span>
           )}
-          <button
-            className="btn-icon filter-close"
+          <IconButton
+            icon="close"
+            size="sm"
+            variant="ghost"
+            className="filter-close"
+            label={t('fileQueue.filter.clearTitle')}
             onClick={closeFilter}
-            title={t('fileQueue.filter.clearTitle')}
-          >
-            <Icon name="close" size={12} />
-          </button>
+          />
         </div>
       )}
 
@@ -1624,10 +1628,10 @@ export function FileQueueModule({ node }) {
       {/* File list */}
       <div ref={listRef} className="module-body file-queue-list">
         {queue.length === 0 ? (
-          <div className="empty-state">
-            <p>{t('fileQueue.emptyStates.noFiles')}</p>
-            <p className="hint">{t('fileQueue.emptyStates.addHint')}</p>
-          </div>
+          <EmptyState
+            title={t('fileQueue.emptyStates.noFiles')}
+            description={t('fileQueue.emptyStates.addHint')}
+          />
         ) : (
           displayOrder.map(({ item, originalIndex }) => (
             <FileQueueItem
@@ -1705,24 +1709,25 @@ export function FileQueueModule({ node }) {
                 renameLabel = t('fileQueue.buttons.rename', { count: renameCount });
               }
               return renameCount > 0 && (
-                <button
-                  className="btn-secondary"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={handleRename}
-                  disabled={renameInProgress}
+                  loading={renameInProgress}
                   title={hasSelection ? t('fileQueue.buttons.renameSelectedTitle') : visibleIds ? t('fileQueue.buttons.renameFilteredTitle') : t('fileQueue.buttons.renameTitle')}
                 >
                   {renameInProgress ? t('fileQueue.buttons.renaming') : renameLabel}
-                </button>
+                </Button>
               );
             })()}
             {currentIndex >= 0 ? (
-              <button className="btn-secondary" onClick={skipCurrent}>
+              <Button variant="secondary" size="sm" onClick={skipCurrent}>
                 {t('fileQueue.buttons.skip')} <Icon name="skip-next" size={12} />
-              </button>
+              </Button>
             ) : queue.some(isFileEligible) ? (
-              <button className="btn-action" onClick={() => startNextEligible({ showToastIfNone: false })}>
+              <Button variant="primary" size="sm" onClick={() => startNextEligible({ showToastIfNone: false })}>
                 {t('fileQueue.buttons.start')} <Icon name="play" size={12} />
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>

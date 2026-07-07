@@ -60,6 +60,7 @@ const h = vi.hoisted(() => {
   const api = { get: vi.fn(), post: vi.fn() };
   const emit = vi.fn();
   const showToast = vi.fn();
+  const confirm = vi.fn();
   const manager = {
     on: (evt, cb) => {
       if (!managerHandlers.has(evt)) managerHandlers.set(evt, new Set());
@@ -75,7 +76,7 @@ const h = vi.hoisted(() => {
     completed: new Map(),
   };
   return {
-    registry, ipc, managerHandlers, api, emit, showToast, manager,
+    registry, ipc, managerHandlers, api, emit, showToast, confirm, manager,
     isConnected: true,
     recentFiles: [],
     renamePreview: { items: [] },
@@ -89,6 +90,13 @@ vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
 
 vi.mock('../src/renderer/context/ToastContext.jsx', () => ({
   useToast: () => h.showToast,
+}));
+
+// The rename confirmation moved from the native window.confirm() to the
+// promise-based useConfirm() (fas B4). Swap the context hook for a controllable
+// stub so the confirm-gate tests assert against it instead of the window global.
+vi.mock('../src/renderer/context/ConfirmContext.jsx', () => ({
+  useConfirm: () => h.confirm,
 }));
 
 vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
@@ -237,6 +245,8 @@ beforeEach(() => {
   h.managerHandlers.clear();
   h.emit.mockClear();
   h.showToast.mockClear();
+  h.confirm.mockReset();
+  h.confirm.mockResolvedValue(true);
   h.api.get.mockReset();
   h.api.post.mockReset();
   h.manager.addToQueue.mockClear();
@@ -458,15 +468,19 @@ describe('FileQueueModule — rename flow (characterization)', () => {
   });
 
   it('confirmation gate on (default): declining aborts without a rename request', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    h.confirm.mockResolvedValue(false);
     const { container } = await mountWithProcessed();
-    await act(async () => { fireEvent.click(renameButton(container)); });
-    expect(confirmSpy).toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(renameButton(container));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(h.confirm).toHaveBeenCalled();
     expect(renamePosts()).toHaveLength(0);
   });
 
   it('confirmation gate on: accepting posts the rename and updates the row path', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    h.confirm.mockResolvedValue(true);
     // Short target: FileQueueItem truncates displayed names past 25 chars, so a
     // long new name would surface as an ellipsis; the path update is the point.
     h.renameResult = {
@@ -476,6 +490,8 @@ describe('FileQueueModule — rename flow (characterization)', () => {
     const { container } = await mountWithProcessed();
     await act(async () => {
       fireEvent.click(renameButton(container));
+      // Extra flushes: the confirm() await now precedes the rename post.
+      await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -486,13 +502,13 @@ describe('FileQueueModule — rename flow (characterization)', () => {
 
   it('confirmation gate off (preference): renames with no confirm dialog', async () => {
     setPrefs({ rename: { requireConfirmation: false } });
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const { container } = await mountWithProcessed();
     await act(async () => {
       fireEvent.click(renameButton(container));
       await Promise.resolve();
+      await Promise.resolve();
     });
-    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(h.confirm).not.toHaveBeenCalled();
     expect(renamePosts()).toHaveLength(1);
   });
 });

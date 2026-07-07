@@ -32,6 +32,7 @@ import {
  * @param {Function} deps.applyRename - propagate a renamed map onto the queue
  * @param {object} deps.api - backend client
  * @param {Function} deps.showToast
+ * @param {Function} deps.confirm - promise-based confirm() from useConfirm()
  * @param {boolean} deps.isConnected
  * @param {boolean} deps.fixMode
  * @param {React.MutableRefObject} deps.fixModeRef
@@ -48,6 +49,7 @@ export function useNefRename({
   applyRename,
   api,
   showToast,
+  confirm,
   isConnected,
   fixMode,
   fixModeRef,
@@ -161,12 +163,12 @@ export function useNefRename({
 
     if (requireConfirmation) {
       const selectionNote = hasSelection ? t('fileQueue.dialogs.renameConfirmSelection') : '';
-      const confirmed = window.confirm(
-        t('fileQueue.dialogs.renameConfirm', {
+      const confirmed = await confirm({
+        message: t('fileQueue.dialogs.renameConfirm', {
           count: eligiblePaths.length,
           selection: selectionNote
-        })
-      );
+        }),
+      });
       if (!confirmed) return;
     }
 
@@ -229,7 +231,7 @@ export function useNefRename({
       setRenameInProgress(false);
     }
   }, [
-    queue, api, showPreviewNames, fetchRenamePreview, showToast, selectedFiles,
+    queue, api, showPreviewNames, fetchRenamePreview, showToast, confirm, selectedFiles,
     fixModeRef, dirtyPathsRef, visibleIdsRef, preprocessingManager, applyRename,
     setPreprocessingStatus,
   ]);

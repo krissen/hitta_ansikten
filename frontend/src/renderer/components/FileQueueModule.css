@@ -263,61 +263,32 @@
   text-align: right;
 }
 
-/* Remove button */
-.remove-btn {
+/* Remove / reprocess buttons — rendered via the shared IconButton (.icon-btn),
+   but kept slim and hover-revealed to preserve the compact row look. The
+   .file-item scope bumps specificity so these win over .icon-btn defaults. */
+.file-item .remove-btn,
+.file-item .reprocess-btn {
   flex-shrink: 0;
   width: 18px;
   height: 18px;
-  border: none;
-  background: transparent;
   color: var(--text-tertiary);
-  cursor: pointer;
-  font-size: var(--font-md);
-  line-height: 1;
   border-radius: var(--radius-sm);
   opacity: 0;
-  transition: opacity var(--transition-base), background var(--transition-base), transform var(--transition-fast);
+  transition: opacity var(--transition-base), background var(--transition-base),
+    transform var(--transition-fast), color var(--transition-base);
 }
 
-.file-item:hover .remove-btn {
-  opacity: 1;
-}
-
-.remove-btn:active {
-  transform: scale(0.9);
-}
-
-.remove-btn:hover {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-}
-
-/* Reprocess button */
-.reprocess-btn {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border: none;
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  opacity: 0;
-  transition: opacity var(--transition-base), background var(--transition-base), transform var(--transition-fast);
-}
-
+.file-item:hover .remove-btn,
 .file-item:hover .reprocess-btn {
   opacity: 1;
 }
 
-.reprocess-btn:active {
-  transform: scale(0.9);
+.file-item .remove-btn:hover:not(:disabled) {
+  background: var(--color-error-bg);
+  color: var(--color-error);
 }
 
-.reprocess-btn:hover {
+.file-item .reprocess-btn:hover:not(:disabled) {
   background: var(--color-info-bg);
   color: var(--color-info);
 }
