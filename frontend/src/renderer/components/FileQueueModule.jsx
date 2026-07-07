@@ -28,7 +28,7 @@ import './FileQueueModule.css';
  * Avoids a preferences import to prevent circular dependency.
  * @returns {boolean}
  */
-const getAutoLoadPreference = () => {
+export const getAutoLoadPreference = () => {
   try {
     const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
@@ -45,7 +45,7 @@ const getAutoLoadPreference = () => {
  * Read rename configuration from preferences, omitting defaults.
  * @returns {object|null}
  */
-const getRenameConfig = () => {
+export const getRenameConfig = () => {
   try {
     const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
@@ -80,7 +80,7 @@ const getRenameConfig = () => {
  * @param {string} key
  * @returns {boolean}
  */
-const getNotificationPreference = (key) => {
+export const getNotificationPreference = (key) => {
   try {
     const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
@@ -103,7 +103,7 @@ const getNotificationPreference = (key) => {
  * Read preprocessing config including rolling window settings.
  * @returns {object}
  */
-const getPreprocessingConfig = () => {
+export const getPreprocessingConfig = () => {
   try {
     const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
@@ -126,7 +126,7 @@ const getPreprocessingConfig = () => {
  * Read rename confirmation preference.
  * @returns {boolean}
  */
-const getRequireRenameConfirmation = () => {
+export const getRequireRenameConfirmation = () => {
   try {
     const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
@@ -141,7 +141,7 @@ const getRequireRenameConfirmation = () => {
  * Read auto-remove missing files preference.
  * @returns {boolean}
  */
-const getAutoRemoveMissingPreference = () => {
+export const getAutoRemoveMissingPreference = () => {
   try {
     const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
@@ -156,7 +156,7 @@ const getAutoRemoveMissingPreference = () => {
  * Read toast duration multiplier from preferences.
  * @returns {number}
  */
-const getToastDurationMultiplier = () => {
+export const getToastDurationMultiplier = () => {
   try {
     const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
@@ -171,7 +171,7 @@ const getToastDurationMultiplier = () => {
  * Read insert mode preference ("bottom" or "alphabetical").
  * @returns {string}
  */
-const getInsertModePreference = () => {
+export const getInsertModePreference = () => {
   try {
     const stored = localStorage.getItem('ansikten-preferences');
     if (stored) {
@@ -188,7 +188,7 @@ const getInsertModePreference = () => {
  * @param {object} b
  * @returns {number}
  */
-const naturalSortCompare = (a, b) => {
+export const naturalSortCompare = (a, b) => {
   return a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' });
 };
 
