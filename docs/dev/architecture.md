@@ -287,11 +287,21 @@ Location: `~/.local/share/faceid/config.json`
       "ctx_id": -1
     }
   },
-  "match_threshold": 0.4,
+  "backend_thresholds": {
+    "insightface": {
+      "match_threshold": 0.4,
+      "ignore_distance": 0.35,
+      "hard_negative_distance": 0.32
+    }
+  },
   "auto_ignore": false,
   "image_viewer_app": "Ansikten"
 }
 ```
+
+> Match/ignore/hard-negative thresholds live only in `backend_thresholds.<backend>`
+> (single source of truth, per distance metric). Legacy top-level flat threshold keys
+> are migrated away on load (`config_version` → 2). See [Database](database.md#config).
 
 ### Frontend Config
 

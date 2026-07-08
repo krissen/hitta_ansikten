@@ -28,6 +28,7 @@ from core.attempts import log_attempt_stats
 from core.config import load_config
 from core.db import BASE_DIR, get_file_hash
 from core.files import RAW_EXTENSIONS
+from core.matching import _get_backend_thresholds
 from face_backends import create_backend
 
 from .db_store import get_db_store
@@ -494,9 +495,15 @@ class DetectionService:
 
         Returns one of: 'name', 'ign', 'uncertain_name', 'uncertain_ign', 'unknown'
         """
-        # Get thresholds from config
-        name_thr = self.config.get("match_threshold", 0.54)
-        ignore_thr = self.config.get("ignore_distance", 0.48)
+        # Thresholds come from the single source of truth shared with the CLI
+        # (backend_thresholds.<backend>), so both code paths match at the same
+        # backend-appropriate distances. A name is auto-filled only below
+        # match_threshold; faces in the uncertain band [match_threshold,
+        # match_threshold + ...) are left "unknown" here but still surface the
+        # nearest person via match_alternatives (see _match_encoding_alternatives).
+        thresholds = _get_backend_thresholds(self.config, self.backend)
+        name_thr = thresholds.get("match_threshold", 0.4)
+        ignore_thr = thresholds.get("ignore_distance", 0.35)
         margin = self.config.get("prefer_name_margin", 0.15)
 
         has_name = name_dist is not None and name_dist < name_thr

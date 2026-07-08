@@ -185,14 +185,21 @@ User configuration overrides.
             "ctx_id": -1
         }
     },
-    "match_threshold": 0.4,
+    "backend_thresholds": {
+        "insightface": {
+            "match_threshold": 0.4,
+            "ignore_distance": 0.35,
+            "hard_negative_distance": 0.32
+        }
+    },
     "auto_ignore": false,
     "auto_ignore_on_fix": true,
     "max_downsample_px": 2800,
     "max_midsample_px": 4500,
     "max_fullres_px": 8000,
     "image_viewer_app": "Ansikten",
-    "trash_retention_days": 30
+    "trash_retention_days": 30,
+    "config_version": 2
 }
 ```
 
@@ -202,12 +209,26 @@ User configuration overrides.
 |-----|---------|-------------|
 | `detection_model` | `"hog"` | `"hog"` (fast) or `"cnn"` (accurate) |
 | `backend.type` | `"insightface"` | InsightFace (512-dim, cosine distance) |
-| `match_threshold` | `0.4` | Distance threshold for matches |
+| `backend_thresholds.<backend>.match_threshold` | `0.4` (insightface) | **Single source of truth** for the match distance. A name is auto-filled only below this cosine distance. |
+| `backend_thresholds.<backend>.ignore_distance` | `0.35` (insightface) | Distance below which a face is proposed as "ign". |
+| `backend_thresholds.<backend>.hard_negative_distance` | `0.32` (insightface) | Distance below which a confirmed hard negative suppresses a person. |
+| `prefer_name_margin` | `0.15` | A name must beat "ign" by this margin to win automatically. |
 | `auto_ignore` | `false` | Auto-ignore unmatched faces |
 | `image_viewer_app` | `"Ansikten"` | External preview app |
 | `trash_retention_days` | `30` | Auto-purge culling-trash files older than N days (`0` = keep forever). Editable under Preferences → Files → Trash (Gallra). |
 | `twin_margin` | `0.1` | When the top-2 candidates are a confirmed-distinct pair within this cosine distance, break the tie with a k-NN vote. |
 | `twin_knn_k` | `5` | Neighbours in the twin-disambiguation k-NN vote (effective `k = min(this, photos per person)`). |
+| `config_version` | `2` | Config schema version; bumped by migrations in `core/config._migrate_config`. |
+
+> **Thresholds — single source of truth.** Match/ignore/hard-negative distances live
+> **only** in `backend_thresholds.<backend>` (per backend, per distance metric). The legacy
+> top-level flat keys `match_threshold`/`ignore_distance`/`hard_negative_distance` were
+> euclidean-era (dlib) values and are no longer consulted — with InsightFace's cosine metric a
+> stale `0.6` would match almost anything. On load, a one-time migration (`config_version` → 2)
+> moves such legacy configs onto the canonical cosine thresholds and drops the flat keys; the
+> wrong-metric values are **not** carried forward. Faces in the "uncertain band" just above
+> `match_threshold` are not auto-assigned but still surface the nearest person in the review
+> alternatives list.
 
 > **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 

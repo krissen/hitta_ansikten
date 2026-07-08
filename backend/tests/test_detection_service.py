@@ -34,6 +34,7 @@ class FakeBackend:
     """
 
     backend_name = "insightface"
+    distance_metric = "cosine"
 
     def compute_distances(self, matrix, encoding):
         matrix = np.asarray(matrix, dtype=float)
@@ -73,8 +74,10 @@ def _known_entry(vec, backend="insightface"):
 # --------------------------------------------------------------------------
 # 1. Match-status decision logic (_determine_match_case)
 # --------------------------------------------------------------------------
-# Thresholds pinned to the code defaults: match_threshold=0.54,
-# ignore_distance=0.48, prefer_name_margin=0.15.
+# Thresholds now come from the single source of truth shared with the CLI:
+# _get_backend_thresholds(config, backend). With an empty config the insightface
+# (cosine) backend yields the canonical defaults match_threshold=0.4,
+# ignore_distance=0.35; prefer_name_margin defaults to 0.15.
 
 def _case(name_dist, ignore_dist, config=None):
     return _service(config)._determine_match_case(name_dist, ignore_dist)
@@ -85,8 +88,10 @@ def test_match_case_unknown_when_no_distances():
 
 
 def test_match_case_unknown_when_above_thresholds():
-    # A name match at 0.60 is beyond match_threshold (0.54) -> not a hit.
-    assert _case(0.60, None) == "unknown"
+    # A name match at 0.45 is beyond the cosine match_threshold (0.4) -> not a
+    # hit. This is the "uncertain band" [0.4, ...): no auto-fill here, but the
+    # person still surfaces via match_alternatives.
+    assert _case(0.45, None) == "unknown"
 
 
 def test_match_case_name_only():
@@ -98,27 +103,47 @@ def test_match_case_ignore_only():
 
 
 def test_match_case_name_clearly_better():
-    # name < ignore - margin  (0.20 < 0.45 - 0.15) -> confident name.
+    # name hits (0.20 < 0.4); ignore misses (0.45 >= 0.35) -> confident name.
     assert _case(0.20, 0.45) == "name"
 
 
 def test_match_case_ignore_clearly_better():
+    # name misses (0.45 >= 0.4); ignore hits (0.20 < 0.35) -> confident ign.
     assert _case(0.45, 0.20) == "ign"
 
 
 def test_match_case_uncertain_name_when_close_and_name_nearer():
-    # Both hit, |0.30-0.35| = 0.05 < margin, name nearer -> uncertain_name.
-    assert _case(0.30, 0.35) == "uncertain_name"
+    # Both hit, |0.28-0.30| = 0.02 < margin, name nearer -> uncertain_name.
+    assert _case(0.28, 0.30) == "uncertain_name"
 
 
 def test_match_case_uncertain_ign_when_close_and_ignore_nearer():
-    assert _case(0.35, 0.30) == "uncertain_ign"
+    # Both hit, |0.34-0.30| = 0.04 < margin, ignore nearer -> uncertain_ign.
+    assert _case(0.34, 0.30) == "uncertain_ign"
 
 
-def test_match_case_honors_config_thresholds():
-    # Tighten the name threshold so 0.30 no longer counts as a name hit.
-    cfg = {"match_threshold": 0.25, "ignore_distance": 0.48, "prefer_name_margin": 0.15}
+def test_match_case_honors_backend_thresholds():
+    # Tighten the insightface name threshold via backend_thresholds (the single
+    # source of truth) so 0.30 no longer counts as a name hit.
+    cfg = {
+        "backend_thresholds": {
+            "insightface": {
+                "match_threshold": 0.25,
+                "ignore_distance": 0.35,
+                "hard_negative_distance": 0.32,
+            }
+        },
+        "prefer_name_margin": 0.15,
+    }
     assert _case(0.30, None, cfg) == "unknown"
+
+
+def test_match_case_ignores_legacy_flat_keys():
+    # Stale euclidean-era flat keys must NOT loosen cosine matching: with only a
+    # flat match_threshold=0.6 set, a 0.45 name distance is still "unknown"
+    # because the canonical cosine default (0.4) governs.
+    cfg = {"match_threshold": 0.6, "ignore_distance": 0.5}
+    assert _case(0.45, None, cfg) == "unknown"
 
 
 # --------------------------------------------------------------------------

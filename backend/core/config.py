@@ -54,6 +54,21 @@ WORKER_JOIN_TIMEOUT = 30  # seconds - timeout for worker process join
 WORKER_TERMINATE_TIMEOUT = 5  # seconds - timeout after terminate before kill
 
 
+# Config schema version. Incremented when a structural migration is added to
+# _migrate_config(). v2 moved match/ignore/hard-negative thresholds out of the
+# top-level flat keys into backend_thresholds.<backend>.
+CONFIG_VERSION = 2
+
+# Legacy euclidean-era (dlib) threshold keys that older configs kept at the top
+# level. They must not drive InsightFace (cosine) matching; _migrate_config()
+# rewrites them into a correct-metric backend_thresholds block and drops them.
+_LEGACY_FLAT_THRESHOLD_KEYS = (
+    "match_threshold",
+    "ignore_distance",
+    "hard_negative_distance",
+)
+
+
 # === Default Configuration ===
 DEFAULT_CONFIG = {
     # === Automatiska åtgärder & flöden ===
@@ -95,12 +110,12 @@ DEFAULT_CONFIG = {
     "rectangle_thickness": 6,
 
     # === Matchningsparametrar (justera för träffsäkerhet) ===
-    # Max-avstånd för att godkänna namn-match (lägre = striktare)
-    "match_threshold": 0.54,
+    # Match/ignore/hard-negative-trösklarna bor i backend_thresholds nedan
+    # (en källa till sanning, per backend och distansmetrik). De gamla platta
+    # nycklarna match_threshold/ignore_distance har tagits bort — de var
+    # euklidiska (dlib) värden som inte gäller InsightFace cosinus-distans.
     # Minsta "confidence" för att visa namn (0.0–1.0, högre = striktare)
     "min_confidence": 0.5,
-    # Max-avstånd för att automatiskt föreslå ignorering ("ign")
-    "ignore_distance": 0.48,
     # Namn måste vara så här mycket bättre än ignore för att vinna automatiskt
     "prefer_name_margin": 0.15,
 
@@ -145,6 +160,10 @@ DEFAULT_CONFIG = {
     # === App trash (Gallra) ===
     # Auto-purge trashed files older than this many days. 0 = keep forever.
     "trash_retention_days": 30,
+
+    # Schema version. Bumped by migrations in _migrate_config(); a fresh config
+    # is written at the current version and never needs migrating.
+    "config_version": CONFIG_VERSION,
 }
 
 
@@ -189,15 +208,75 @@ def init_logging(
         logger.addHandler(handler)
 
 
+def _migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Apply one-time, idempotent migrations to a persisted config dict.
+
+    v2 threshold migration: if the config still carries legacy top-level flat
+    threshold keys but has no ``backend_thresholds.insightface`` block, pin the
+    canonical InsightFace cosine thresholds and drop the flat keys. The stale
+    flat values (euclidean-era, e.g. match_threshold=0.6) are deliberately NOT
+    copied forward — they are wrong-metric for InsightFace and would match far
+    too loosely. A config that already has ``backend_thresholds.insightface`` is
+    left untouched, so re-running is a no-op.
+
+    Args:
+        raw: Config dict as read from disk (mutated in place).
+
+    Returns:
+        (config, changed) — ``changed`` is True when a migration ran.
+    """
+    changed = False
+
+    backend_thresholds = raw.get("backend_thresholds")
+    has_insightface_block = (
+        isinstance(backend_thresholds, dict) and "insightface" in backend_thresholds
+    )
+    has_flat_keys = any(k in raw for k in _LEGACY_FLAT_THRESHOLD_KEYS)
+
+    if has_flat_keys and not has_insightface_block:
+        canonical = dict(DEFAULT_CONFIG["backend_thresholds"]["insightface"])
+        merged = dict(backend_thresholds) if isinstance(backend_thresholds, dict) else {}
+        merged["insightface"] = canonical
+        raw["backend_thresholds"] = merged
+        for key in _LEGACY_FLAT_THRESHOLD_KEYS:
+            raw.pop(key, None)
+        raw["config_version"] = CONFIG_VERSION
+        changed = True
+        logging.info(
+            "Config migration v%d: pinned canonical InsightFace cosine thresholds "
+            "(match=%.2f ignore=%.2f hard_negative=%.2f) and removed legacy flat "
+            "threshold keys.",
+            CONFIG_VERSION,
+            canonical["match_threshold"],
+            canonical["ignore_distance"],
+            canonical["hard_negative_distance"],
+        )
+
+    return raw, changed
+
+
 def load_config() -> dict[str, Any]:
-    """Load configuration from file or create default."""
+    """Load configuration from file or create default.
+
+    Runs one-time migrations (see _migrate_config) and persists them back to
+    disk before merging over DEFAULT_CONFIG.
+    """
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     if CONFIG_PATH.exists():
         try:
             with open(CONFIG_PATH, "r") as f:
-                return {**DEFAULT_CONFIG, **json.load(f)}
+                raw = json.load(f)
         except Exception:
-            pass  # Invalid JSON or read error; fall through to create default
+            raw = None  # Invalid JSON or read error; fall through to create default
+        if raw is not None:
+            migrated, changed = _migrate_config(raw)
+            if changed:
+                try:
+                    with open(CONFIG_PATH, "w") as f:
+                        json.dump(migrated, f, indent=2)
+                except Exception:
+                    logging.warning("Failed to persist migrated config; continuing in memory")
+            return {**DEFAULT_CONFIG, **migrated}
     with open(CONFIG_PATH, "w") as f:
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG
