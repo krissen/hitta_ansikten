@@ -102,6 +102,53 @@ Because the detector re-runs at the app's default `det_size=(640, 640)` and the
 recognition head shares insightface's exact preprocessing, recomputed vectors
 reproduce the stored ones at cosine ≈ 1.0.
 
+## Metrics + report layer (PR B3)
+
+The analytical core sits on top of the B2 dataset/cache:
+
+- **`metrics.py`** — pure functions over embeddings + labels (numpy in,
+  dataclasses out, no I/O, no insightface):
+  - `closed_set_identification` — leave-one-out rank-1/rank-5 in two gallery
+    modes: per-person centroid (mean → re-L2) and all-encodings max-sim (the
+    probe's own vector excluded).
+  - `open_set_identification` — DIR@rank1 vs FAR for held-out / ignored probes
+    that must be rejected.
+  - `build_pairs` + `verification_roc` — genuine/impostor pair scoring, ROC AUC
+    and TAR@FAR (1e-2 / 1e-3), with impostor subsets: all-comers, same-surname
+    (siblings), and the `distinct_pairs` twin pair.
+  - `twin_confusion_rate` — fraction of twin probes whose nearest wrong-person
+    is the co-twin.
+  - `threshold_sweep` — cosine-distance grid 0.20–0.80 step 0.01 →
+    precision/recall/FAR/FRR per point (the empirical check on the app's
+    0.4 / 0.35 defaults).
+  - `detection_recall` / `detection_recall_by_stratum` — matched /
+    (matched + detector_missed), overall and per stratum.
+- **`embeddings.py`** — turns `matched` dataset rows into embeddings (cached,
+  reusing B2's `_data/emb/`) plus a blur score (variance of the Laplacian of the
+  aligned crop, cached under `_data/blur/<detector>.json`).
+- **`report.py`** — per-face strata assignment (bbox-area quartile, blur
+  quartile, is_manual, sibling surname, twin, event, attempt-log hardness),
+  markdown/CSV rendering, and matplotlib (Agg) plots.
+- **`run.py`** — the CLI orchestrator: index → dataset → embeddings → metrics →
+  `_data/report.md`, `_data/report.csv`, `_data/plots/*.png`. Seeded RNG for any
+  sampling; the config (seed, split, roots, model list, partial flag) is written
+  into the report header. Wall-clock per stage is recorded but marked
+  informational.
+
+```bash
+cd backend
+# Full run over the default roots (or a staging dir), buffalo_l:
+python -m benchmarks.run --models buffalo_l ~/.local/share/faceid/benchmark_staging
+
+# Quick partial run (cap DB records, flag the report as partial):
+python -m benchmarks.run --limit 500 --seed 7 --partial
+```
+
+Strata note: `blur` (variance of Laplacian on the aligned crop) is computed at
+embed time and cached; `hardness` joins `attempt_stats.jsonl` by source basename
+(images that needed multiple detection attempts are "hard"). matplotlib is a
+runtime dependency already (used by the app), so no extra install is needed.
+
 ## Layout
 
 | File | Role |
@@ -113,13 +160,18 @@ reproduce the stored ones at cosine ≈ 1.0.
 | `cache.py` | 3-level on-disk cache (detections + embeddings) |
 | `dataset.py` | Detector run + IoU match → per-face dataset manifest |
 | `models/` | `Detector`/`RecognitionModel` protocols, alignment, buffalo adapters |
+| `metrics.py` | Pure metric functions (closed/open-set, ROC, sweep, twins, det recall) |
+| `embeddings.py` | Matched rows → cached embeddings + blur score |
+| `report.py` | Strata assignment, markdown/CSV rendering, matplotlib plots |
 | `resolve.py` | CLI: build index, report resolution |
 | `dataset.py` | CLI: assemble `_data/dataset.jsonl` |
 | `baseline_check.py` | CLI: recomputed-vs-stored cosine regression |
 | `report_feasibility.py` | CLI: full markdown feasibility report |
+| `run.py` | CLI: full pipeline → `_data/report.md` + `.csv` + `plots/` |
 | `_data/` | Generated cache/reports/lists (gitignored) |
 
-Tests live in `backend/tests/test_benchmark_resolver.py` and
-`backend/tests/test_benchmark_models.py`; they use synthetic tmp dirs, a
-fabricated mini-DB, and fake models — the only insightface-dependent test is
-guarded by an import check. They never touch the real database.
+Tests live in `backend/tests/test_benchmark_resolver.py`,
+`backend/tests/test_benchmark_models.py`, `test_benchmark_metrics.py` and
+`test_benchmark_report.py`; they use synthetic tmp dirs, a fabricated mini-DB,
+hand-computable embeddings, and fake models — the only insightface-dependent
+test is guarded by an import check. They never touch the real database.
