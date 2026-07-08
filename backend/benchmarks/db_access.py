@@ -14,6 +14,7 @@ disk loader used by the CLIs. NOTHING here mutates the database.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import pickle
 from collections import defaultdict
@@ -39,6 +40,22 @@ class FaceRecord:
     bbox: dict | None             # {x, y, width, height} or None
     is_manual: bool
     created_at: str | None
+    encoding: Any = None          # stored L2-normalized embedding (np.ndarray) or None
+    encoding_hash: str | None = None  # SHA1 of encoding.tobytes(); face-level id
+
+    @property
+    def bbox_xyxy(self) -> tuple[float, float, float, float] | None:
+        """Bounding box as ``(x1, y1, x2, y2)`` in image pixels, if present."""
+        if not self.bbox:
+            return None
+        try:
+            x = float(self.bbox["x"])
+            y = float(self.bbox["y"])
+            w = float(self.bbox["width"])
+            h = float(self.bbox["height"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        return (x, y, x + w, y + h)
 
     @property
     def bbox_area(self) -> int | None:
@@ -70,6 +87,13 @@ def records_from_db(db: dict[str, list[dict[str, Any]]]) -> list[FaceRecord]:
             if not sha1:
                 continue
             recorded_file = entry.get("file") or ""
+            encoding = entry.get("encoding")
+            encoding_hash = entry.get("encoding_hash")
+            if encoding_hash is None and encoding is not None:
+                try:
+                    encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
+                except (AttributeError, ValueError):
+                    encoding_hash = None
             records.append(
                 FaceRecord(
                     identity=str(identity),
@@ -79,6 +103,8 @@ def records_from_db(db: dict[str, list[dict[str, Any]]]) -> list[FaceRecord]:
                     bbox=entry.get("bounding_box"),
                     is_manual=bool(entry.get("is_manual", False)),
                     created_at=entry.get("created_at"),
+                    encoding=encoding,
+                    encoding_hash=encoding_hash,
                 )
             )
     return records

@@ -69,17 +69,57 @@ staging directory and re-run `resolve.py` pointing at it. See the feasibility
 report's "Backup recovery procedure" section for the exact restic commands and
 the estimated data volume.
 
+## Model abstractions, cache & baseline (PR B2)
+
+On top of the B1 resolver sits a small model-evaluation core:
+
+- **`models/base.py`** — light `Detector` / `RecognitionModel` protocols (a
+  `Face` = bbox xyxy + 5 landmarks + score; recognition embeds a *pre-aligned*
+  112×112 BGR crop to an L2-normalized vector). These are deliberately **not**
+  the app's `FaceBackend` ABC.
+- **`models/align.py`** — the canonical `align_112` (insightface `norm_crop`),
+  the single alignment every model consumes.
+- **`models/buffalo.py`** — `BuffaloDetector` (SCRFD via `FaceAnalysis`,
+  detection module only, configurable `det_size`) and `BuffaloRecognition`
+  (the `w600k_r50` head run *directly* on an aligned crop, bypassing its
+  internal detector; preprocessing is insightface's own `get_feat`).
+- **`cache.py`** — 3-level cache under `_data/`: the B1 `source_index.json`,
+  then `detections/<image_hash>.<detector>.npz` and `emb/<model>/<face_id>.npy`.
+  Adding a model recomputes only that model's column; reruns are cheap.
+- **`dataset.py`** — runs the detector per resolved image, IoU≥0.5-matches
+  detections to the DB's stored boxes, and writes `_data/dataset.jsonl` with
+  every DB face bucketed `matched` / `detector_missed` / `unresolved`.
+- **`baseline_check.py`** — regression test: recomputed buffalo_l embedding vs
+  the stored `encodings.pkl` vector (cosine similarity distribution).
+
+```bash
+cd backend
+python -m benchmarks.dataset          # build _data/dataset.jsonl (+ bucket counts)
+python -m benchmarks.baseline_check   # cosine sim: recomputed vs stored
+```
+
+Because the detector re-runs at the app's default `det_size=(640, 640)` and the
+recognition head shares insightface's exact preprocessing, recomputed vectors
+reproduce the stored ones at cosine ≈ 1.0.
+
 ## Layout
 
 | File | Role |
 |---|---|
 | `resolver.py` | Pure index + join core (SHA1→path, incremental cache) |
-| `db_access.py` | Read-only DB → `FaceRecord` extraction |
+| `db_access.py` | Read-only DB → `FaceRecord` extraction (incl. stored encoding) |
 | `strata.py` | Pure stratification (quartiles, surnames, twins, events) |
 | `config.py` | Photo-root discovery + data-file locations |
+| `cache.py` | 3-level on-disk cache (detections + embeddings) |
+| `dataset.py` | Detector run + IoU match → per-face dataset manifest |
+| `models/` | `Detector`/`RecognitionModel` protocols, alignment, buffalo adapters |
 | `resolve.py` | CLI: build index, report resolution |
+| `dataset.py` | CLI: assemble `_data/dataset.jsonl` |
+| `baseline_check.py` | CLI: recomputed-vs-stored cosine regression |
 | `report_feasibility.py` | CLI: full markdown feasibility report |
 | `_data/` | Generated cache/reports/lists (gitignored) |
 
-Tests live in `backend/tests/test_benchmark_resolver.py` and use synthetic tmp
-dirs plus a fabricated mini-DB — they never touch the real database.
+Tests live in `backend/tests/test_benchmark_resolver.py` and
+`backend/tests/test_benchmark_models.py`; they use synthetic tmp dirs, a
+fabricated mini-DB, and fake models — the only insightface-dependent test is
+guarded by an import check. They never touch the real database.
