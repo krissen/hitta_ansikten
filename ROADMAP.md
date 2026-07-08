@@ -35,6 +35,12 @@ deliverables, DoD) för en prestandarelease.
 - [ ] **FileQueueModule: `n`/`p`-genvägarna är fortfarande enbart visibility-gate:ade** — efter aktiv-tabset-svepet (I1) gatar Review och Culling på aktiv tabset via `hooks/useActiveTabset.js`, men FileQueues globala `n`/`p` (nästa/föregående fil) körs så länge panelen är synlig. Ingen aktiv konflikt idag (varken Review eller Culling binder `n`/`p`, och FileQueue saknar delete-genväg), men FileQueue är en *companion-drivare*: den ska förbli aktiv medan Review/bildvisaren är aktiv, så en naiv migrering till "egen tabset aktiv" skulle bryta flödet. Kräver companion-modellering (companions = review/image-viewer) — egen PR. `PlayerCountModule` har ingen global tangentlyssnare (inget att migrera).
 - [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
 
+### Benchmark-spår (ansiktsigenkänning)
+
+- [x] **B1 — Källbilds-resolver + genomförbarhetsrapport** (grind för hela spåret). `backend/benchmarks/` bygger SHA1→sökväg-index och joinar mot databasens hashar; genomförbarhetsrapport klar. **Utfall: GO.** Lokalt löses bara ~0,5 % av källbilderna (originalen arkiverades bort efter behandling), men restic-backupen (Hetzner + kailash-T7, läst via `kosha`) innehåller ~80 % exakt (2 188 av 2 728 olösta bilder) → projicerad total ~80 % bilder/ansikten och **87 av 104 identiteter blir gallery+probe-bärkraftiga**. Hämtvägen är end-to-end-verifierad (`restic dump` → lokal staging, SHA1 matchar databasen exakt). Uppskattad restore-volym ~91 GB.
+- [ ] **B2 — Full backup-restore till staging** — bulk-restore av de ~2 188 återhämtningsbara händelsemapparna (~91 GB) från restic till `~/.local/share/faceid/benchmark_staging/`, kör om `resolve.py`, bekräfta hash-join. Kräver restic-restore på kailash (creds ligger där) streamat till kedar; olöst-listan i `benchmarks/_data/unresolved_hashes.json` är arbetslistan.
+- [ ] **B3+ — Bygg gallery/probe-splits och kör benchmark** — efter restore: skapa utvärderingsdataset med hårda strata (Björneholt-tvillingparet, syskon-efternamnsgrupper, små bbox-areor).
+
 ### Lång sikt
 
 - [ ] **Plugin-system** - Utökningsbart system för tredjepartsmoduler
