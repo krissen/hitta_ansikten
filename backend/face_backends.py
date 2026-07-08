@@ -435,7 +435,7 @@ def create_backend(config: dict) -> FaceBackend:
 
         elif backend_type == 'insightface':
             settings = backend_config.get('insightface', {})
-            det_size = normalize_det_size(settings.get('det_size', [1280, 1280]))
+            det_size = normalize_det_size(settings.get('det_size', [640, 640]))
             return backend_class(
                 model_name=settings.get('model_name', 'buffalo_l'),
                 ctx_id=settings.get('ctx_id', -1),

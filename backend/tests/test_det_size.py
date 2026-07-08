@@ -45,9 +45,13 @@ def test_normalize_rejects_bad_shapes(bad):
 # DEFAULT_CONFIG
 # --------------------------------------------------------------------------
 
-def test_default_config_det_size_is_1280_square():
+def test_default_config_det_size_is_640_square():
+    # 640 pending benchmark-track (B3) ground truth: local measurement of
+    # 640 vs 1280 was recall-neutral at 1.2-1.75x wall time, so the default
+    # is not raised on inconclusive evidence. Raising det_size remains a
+    # supported config knob.
     det_size = DEFAULT_CONFIG["backend"]["insightface"]["det_size"]
-    assert normalize_det_size(det_size) == (1280, 1280)
+    assert normalize_det_size(det_size) == (640, 640)
 
 
 # --------------------------------------------------------------------------
@@ -82,12 +86,12 @@ def test_factory_passes_configured_det_size_int(fake_registry):
     assert backend.det_size == (960, 960)
 
 
-def test_factory_defaults_to_1280_when_absent(fake_registry):
-    # Absence of the key = new default applies (no config migration).
+def test_factory_defaults_to_640_when_absent(fake_registry):
+    # Absence of the key = default applies (no config migration).
     backend = create_backend({"backend": {"type": "insightface"}})
-    assert backend.det_size == (1280, 1280)
+    assert backend.det_size == (640, 640)
 
 
-def test_factory_defaults_to_1280_with_empty_config(fake_registry):
+def test_factory_defaults_to_640_with_empty_config(fake_registry):
     backend = create_backend({})
-    assert backend.det_size == (1280, 1280)
+    assert backend.det_size == (640, 640)
