@@ -199,6 +199,53 @@ python -m benchmarks.run ~/.local/share/faceid/benchmark_staging \
 > sha256, license, dim, preprocessing) is under version control; the `.onnx`
 > files live under the gitignored `_data/models/`.
 
+## AdaFace IR-101 adapter (PR B5)
+
+A third recognition head: **AdaFace** (Kim et al., CVPR 2022 — quality-adaptive
+margin, MIT, [`github.com/mk-minchul/AdaFace`](https://github.com/mk-minchul/AdaFace)).
+The OODFace study ranks AdaFace strongest on **hard / low-quality faces** (blur,
+small faces) — this app's exact pain points — so it is the most interesting
+challenger to buffalo_l. Unlike LVFace, AdaFace ships **no official ONNX**: the
+published weights are PyTorch checkpoints, so there is an extra export step.
+
+- **`models/export_adaface.py`** — one-shot CLI for a **networked machine**.
+  Downloads the IR-101 WebFace12M checkpoint (MIT HF mirror
+  `marcelo-victor/adaface_ir101_webface12m`, or `--checkpoint PATH` for the
+  authoritative Google-Drive file from the AdaFace repo), loads the vendored
+  IR-101 architecture, exports to ONNX (dynamic batch, opset 17, embedding head
+  only), runs **torch-vs-ONNX parity** (cosine > 0.999 on random inputs + a real
+  crop if present), and records checkpoint/ONNX sha256 + license + preprocessing
+  + opset in the committed `models_manifest.json`. **Torch is an export-time
+  dependency only** — never a benchmark runtime dep; run it in a scratch venv.
+- **`models/_adaface_ir101_net.py`** — the vendored IR-101 backbone (MIT,
+  © 2022 Minchul Kim), a faithful trimmed port (`ir` mode only) so export can
+  reconstruct the net and load the checkpoint `state_dict` with `strict=True`.
+- **`models/adaface.py`** — `AdaFaceRecognition` runs the exported ONNX via
+  `onnxruntime` on the canonical 112×112 BGR crop. Preprocessing is **verified
+  against the reference** (AdaFace `inference.py` `to_input`): `to_input` starts
+  from a PIL **RGB** image and reverses the channel axis to feed the net **BGR**,
+  then normalizes `(x−127.5)/127.5`. Our crop is *already* BGR, so the adapter
+  applies **no channel swap** — the exact opposite of LVFace. Getting this wrong
+  silently tanks AdaFace's score and yields a false "AdaFace is worse"
+  conclusion; the parity test pins it. The IR-101 backbone L2-normalizes its
+  embedding internally, and the adapter re-normalizes (idempotent) to honor the
+  `RecognitionModel` contract.
+
+```bash
+# --- networked machine, scratch venv (torch is export-time only) ---
+python3 -m venv /tmp/adaface-export && . /tmp/adaface-export/bin/activate
+pip install torch onnx onnxruntime onnxscript huggingface_hub numpy pillow
+cd backend
+python -m benchmarks.models.export_adaface          # download + export + verify
+
+# --- any machine with the exported ONNX under _data/models/adaface_ir101/ ---
+python -m benchmarks.run ~/.local/share/faceid/benchmark_staging \
+    --models buffalo_l,lvface_base,adaface_ir101
+```
+
+> `onnxscript` is only needed by newer torch's exporter; the CLI forces the
+> legacy TorchScript exporter (`dynamo=False`) so it also works without it.
+
 ## Layout
 
 | File | Role |
@@ -213,6 +260,9 @@ python -m benchmarks.run ~/.local/share/faceid/benchmark_staging \
 | `models/download.py` | CLI: fetch model weights from HF + committed `models_manifest.json` |
 | `models/lvface.py` | LVFace ONNX recognition adapter (onnxruntime, verified preprocessing) |
 | `models/verify_lvface_parity.py` | CLI: parity gate (adapter vs reference pipeline, cosine > 0.999) |
+| `models/adaface.py` | AdaFace IR-101 ONNX recognition adapter (BGR no-swap, verified `to_input`) |
+| `models/export_adaface.py` | CLI (networked): checkpoint → ONNX export + torch-parity + manifest |
+| `models/_adaface_ir101_net.py` | Vendored IR-101 backbone (MIT, © Minchul Kim), export-time only |
 | `metrics.py` | Pure metric functions (closed/open-set, ROC, sweep, twins, det recall) |
 | `embeddings.py` | Matched rows → cached embeddings + blur score |
 | `report.py` | Strata assignment, markdown/CSV rendering, matplotlib plots |
