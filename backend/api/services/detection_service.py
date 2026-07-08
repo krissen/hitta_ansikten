@@ -56,7 +56,10 @@ class DetectionService:
         logger.info(f"[DetectionService] Loaded config: backend={self.config.get('backend', {}).get('type', 'dlib')}")
 
         self.backend = create_backend(self.config)
-        logger.info(f"[DetectionService] Initialized backend: {self.backend.backend_name}")
+        logger.info(
+            f"[DetectionService] Initialized backend: {self.backend.backend_name} "
+            f"(detection strategy: {self._detection_strategy_token()})"
+        )
 
         # All reads/mutations of the face DB go through the process-wide
         # FaceDBStore — the single in-memory authority (freshness by file
@@ -401,10 +404,35 @@ class DetectionService:
         except OSError:
             return 0
 
+    def _detection_strategy_token(self) -> str:
+        """Detection-strategy token for the cache key.
+
+        Encodes the parameters that change detection *results* (not just the
+        matching step): the effective det_size and a tiling flag. Format:
+        ``d{W}x{H}+t{0|1}`` — e.g. ``d1280x1280+t0``. Tiling is off (``t0``)
+        until PR 4b enables it; keeping the placeholder here lets that change
+        extend the token without another key-format change. Backends without a
+        det_size (e.g. dlib) yield ``d0x0+t0``.
+        """
+        det_size = getattr(self.backend, "det_size", None)
+        if isinstance(det_size, (list, tuple)) and len(det_size) == 2:
+            w, h = int(det_size[0]), int(det_size[1])
+        else:
+            w = h = 0
+        tiling = 0  # placeholder; PR 4b will drive this from config
+        return f"d{w}x{h}+t{tiling}"
+
     def _detection_cache_key(self, file_hash: str) -> str:
-        """Detection-cache key: file hash + registry version (single source of truth
-        so reads and writes can't drift apart)."""
-        return f"{file_hash}@{self._distinct_pairs_version()}"
+        """Detection-cache key: file hash + registry version + strategy token.
+
+        Format: ``{file_hash}@{distinct_pairs_version}#{strategy_token}``.
+        Single source of truth so reads and writes can't drift apart, and so a
+        det_size / tiling change can't serve stale detections from another
+        strategy. See ``_detection_strategy_token`` for the token format."""
+        return (
+            f"{file_hash}@{self._distinct_pairs_version()}"
+            f"#{self._detection_strategy_token()}"
+        )
 
     def _cached_detection_meta(self, file_hash: Optional[str]) -> Tuple[Dict[str, Any], float]:
         """(detection_meta, processing_time_ms) from the detection cache, or ({}, 0)."""
