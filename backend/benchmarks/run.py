@@ -66,12 +66,27 @@ def _make_lvface(variant: str):
     return factory
 
 
+def _make_adaface(det_size):
+    """Factory for AdaFace IR-101.
+
+    Like LVFace, AdaFace ships a recognition head only, so detection +
+    alignment reuse buffalo_l's SCRFD detector (the benchmark's canonical
+    alignment) and its cached detections. The ONNX must be exported first via
+    ``python -m benchmarks.models.export_adaface`` (AdaFace has no official ONNX).
+    """
+    from .models.adaface import AdaFaceRecognition
+    from .models.buffalo import BuffaloDetector
+
+    return BuffaloDetector(det_size=det_size), AdaFaceRecognition()
+
+
 MODEL_FACTORIES = {
     "buffalo_l": _make_buffalo,
     "lvface_tiny": _make_lvface("lvface_tiny"),
     "lvface_small": _make_lvface("lvface_small"),
     "lvface_base": _make_lvface("lvface_base"),
     "lvface_large": _make_lvface("lvface_large"),
+    "adaface_ir101": _make_adaface,
 }
 
 
