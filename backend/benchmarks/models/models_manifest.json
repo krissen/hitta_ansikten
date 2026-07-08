@@ -53,6 +53,32 @@
       "dim": 512,
       "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
       "local_path": "_data/models/lvface_tiny/LVFace-T_Glint360K.onnx"
+    },
+    "yolov8n-face": {
+      "source_url": "https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov8n-face.onnx",
+      "repo": "",
+      "path": "yolov8n-face.onnx",
+      "sha256": "06b941fd5792be624ad18f2df9ede0a021c4df165dd418204d978c20fd555928",
+      "license": "AGPL-3.0",
+      "dim": 0,
+      "preprocessing": "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; NMS-baked output (1, M, 6+3K): [x1,y1,x2,y2,score,class,(x,y,vis)*5]",
+      "local_path": "_data/models/yolov8n-face/yolov8n-face.onnx",
+      "kind": "detector",
+      "license_note": "Ultralytics-derived YOLOv8 weights trained on WIDERFACE (akanametov/yolo-face 1.0.0 release). AGPL-3.0 is acceptable for this LOCAL, non-shipped benchmark tooling only; the weights are NOT bundled into the distributed app. Do not redistribute inside a proprietary product.",
+      "note": "Pre-exported ONNX with NMS baked in; onnxruntime-only, no torch. The adapter (yoloface.py) auto-detects this layout and only confidence-filters (NMS already applied). Emits 5-point facial landmarks in SCRFD order (norm_crop-compatible)."
+    },
+    "yolov8n-face-raw": {
+      "source_url": null,
+      "repo": "",
+      "path": "yolov8n-face-raw.onnx",
+      "sha256": null,
+      "license": "AGPL-3.0",
+      "dim": 0,
+      "preprocessing": "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; raw YOLOv8-pose head (1, 4+nc+3K, N), pre-NMS",
+      "local_path": "_data/models/yolov8n-face-raw/yolov8n-face-raw.onnx",
+      "kind": "detector",
+      "license_note": "Same weights/license as yolov8n-face; differs only in the ONNX export (no baked NMS).",
+      "note": "Produced offline (exercises the adapter's own NMS path); not auto-downloadable. One-time export in a SCRATCH venv (never the project venv): pip install ultralytics; python -c \"from ultralytics import YOLO; YOLO('yolov8n-face.pt').export(format='onnx', opset=12, imgsz=640, nms=False, simplify=True)\" then place the .onnx at the local_path above. The .pt is the akanametov 1.0.0 release asset yolov8n-face.pt."
     }
   }
 }
