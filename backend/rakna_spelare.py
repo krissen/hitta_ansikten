@@ -3,55 +3,67 @@
 
 import argparse
 import glob
-import json
 import os
-import re
 import shutil
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
-from pathlib import Path
-from statistics import median, mean
+from datetime import datetime
 
-CONFIG_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "faceid"
-CONFIG_FILE = CONFIG_DIR / "rakna_spelare.json"
+from core.playerstats import (
+    ALWAYS_GRUPP,
+    ALWAYS_PUBLIK,
+    bucket_counter,
+    build_entries,
+    compute_baseline,
+    compute_player_stats,
+    load_exclusion_config,
+    parse_filename,
+    resolve_always_markers,
+    resolve_exclusion_sets,
+    save_exclusion_config,
+    segment_matches,
+)
+
+# The pure counting/statistics core and the exclusion-config helpers live in
+# ``core.playerstats`` so the CLI and the FastAPI backend share one source of
+# truth. Re-exported here for backward compatibility: the CLI's historical
+# public surface (external callers / tests import these names from
+# ``rakna_spelare``). This module keeps only terminal rendering + argparse/main.
+__all__ = [
+    "ALWAYS_GRUPP",
+    "ALWAYS_PUBLIK",
+    "build_entries",
+    "bucket_counter",
+    "compute_baseline",
+    "compute_player_stats",
+    "load_exclusion_config",
+    "parse_filename",
+    "resolve_always_markers",
+    "resolve_exclusion_sets",
+    "save_exclusion_config",
+    "segment_matches",
+]
 
 
-def load_exclusion_config() -> dict[str, list[str]]:
-    if CONFIG_FILE.exists():
-        try:
-            with open(CONFIG_FILE, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass
-    return {"tranare": [], "publik": []}
+def _split_csv(value: str | None) -> list[str] | None:
+    if not value:
+        return None
+    return [n.strip() for n in value.split(",") if n.strip()]
 
 
 def get_exclusion_lists(args: argparse.Namespace) -> tuple[set[str], set[str], set[str]]:
-    config = load_exclusion_config()
-
-    env_tranare = os.environ.get("RAKNA_TRANARE", "")
-    env_publik = os.environ.get("RAKNA_PUBLIK", "")
-
-    if env_tranare:
-        config["tranare"] = [n.strip() for n in env_tranare.split(",") if n.strip()]
-    if env_publik:
-        config["publik"] = [n.strip() for n in env_publik.split(",") if n.strip()]
-
-    if args.tranare:
-        config["tranare"] = [n.strip() for n in args.tranare.split(",") if n.strip()]
+    # --tranare/--publik replace config/env; --add-* extend. The base sets
+    # (config/env + built-in ALWAYS markers) come from the shared resolver, so
+    # the CLI and the GUI/API agree on Laget/FBK/Klacken etc.
+    tranare_set, publik_set, grupp_set = resolve_exclusion_sets(
+        tranare=_split_csv(args.tranare),
+        publik=_split_csv(args.publik),
+    )
     if args.add_tranare:
-        config["tranare"].extend([n.strip() for n in args.add_tranare.split(",") if n.strip()])
-
-    if args.publik:
-        config["publik"] = [n.strip() for n in args.publik.split(",") if n.strip()]
+        tranare_set |= set(_split_csv(args.add_tranare) or [])
     if args.add_publik:
-        config["publik"].extend([n.strip() for n in args.add_publik.split(",") if n.strip()])
-
-    # "Laget" is a group photo, not an individual
-    grupp = {"Laget"}
-
-    return set(config["tranare"]), set(config["publik"]), grupp
+        publik_set |= set(_split_csv(args.add_publik) or [])
+    return tranare_set, publik_set, grupp_set
 
 
 class Colors:
@@ -70,44 +82,6 @@ class Colors:
     def disable(cls) -> None:
         cls.RED = cls.YELLOW = cls.GREEN = cls.CYAN = ""
         cls.MAGENTA = cls.BOLD = cls.DIM = cls.RESET = ""
-
-
-def parse_filename(fn: str) -> tuple[datetime | None, list[str] | None]:
-    """
-    Plockar ut timestamp och lista av namn från ett filnamn enligt format:
-    YYMMDD_HHMMSS[-N]_Namn1[, _Namn2,...].jpg
-
-    Returnerar två värden:
-      1) datetime-objekt (baserat på YYMMDDHHMMSS, där "-N" suffix tas bort)
-      2) lista av namn (utan några "-N" baktill)
-    """
-    base = os.path.basename(fn)
-    name, ext = os.path.splitext(base)
-    i1 = name.find("_")
-    i2 = name.find("_", i1 + 1)
-    if i1 == -1 or i2 == -1:
-        return None, None
-
-    dt_full = name[:i2]
-    names_part = name[i2 + 1 :]
-
-    dt_part = dt_full.split("-", 1)[0]
-    dt_str = dt_part.replace("_", "")
-    try:
-        dt = datetime.strptime(dt_str, "%y%m%d%H%M%S")
-    except ValueError:
-        return None, None
-
-    raw_names = [n.strip() for n in names_part.split(",_") if n.strip()]
-    names = [re.sub(r"-\d+$", "", n) for n in raw_names]
-    return dt, names
-
-
-def compute_baseline(counts: list[int], method: str = "median") -> float:
-    """Compute baseline (target) value from a list of counts."""
-    if not counts:
-        return 0
-    return median(counts) if method == "median" else mean(counts)
 
 
 def render_bar(value: int, baseline: float, width: int = 20, ascii_mode: bool = False) -> str:
@@ -298,13 +272,13 @@ def print_section(
     tranare_set = tranare_set or set()
     publik_set = publik_set or set()
     grupp_set = grupp_set or set()
-    excluded = tranare_set | publik_set | grupp_set
 
-    players = {n: c for n, c in counter.items() if n not in excluded and c >= min_images}
-    below_threshold = {n: c for n, c in counter.items() if n not in excluded and c < min_images}
-    tranare = {n: c for n, c in counter.items() if n in tranare_set}
-    publik = {n: c for n, c in counter.items() if n in publik_set}
-    grupp = {n: c for n, c in counter.items() if n in grupp_set}
+    buckets = bucket_counter(counter, min_images, tranare_set, publik_set, grupp_set)
+    players = buckets["players"]
+    below_threshold = buckets["below_threshold"]
+    tranare = buckets["tranare"]
+    publik = buckets["publik"]
+    grupp = buckets["grupp"]
 
     baseline_counts = list(players.values())
     baseline = compute_baseline(baseline_counts, baseline_method) if baseline_counts else 0
@@ -404,30 +378,13 @@ def main(args: argparse.Namespace) -> None:
         print("Ingen fil matchade angivet mönster.")
         sys.exit(1)
 
-    entries = []
-    for fn in files:
-        dt, names = parse_filename(fn)
-        if dt is None:
-            continue
-        entries.append((dt, names, fn))
+    entries = build_entries(files)
 
     if not entries:
         print("Inga giltiga bilder hittades bland matchande filer.")
         sys.exit(1)
 
-    entries.sort(key=lambda x: x[0])
-
-    matcher = []
-    current_match = [0]
-    for i in range(1, len(entries)):
-        prev_dt = entries[i - 1][0]
-        this_dt = entries[i][0]
-        if this_dt - prev_dt > timedelta(minutes=args.gap_minutes):
-            matcher.append(current_match)
-            current_match = [i]
-        else:
-            current_match.append(i)
-    matcher.append(current_match)
+    matcher = segment_matches(entries, args.gap_minutes)
 
     total_counter = Counter()
     total_timestamps = defaultdict(list)

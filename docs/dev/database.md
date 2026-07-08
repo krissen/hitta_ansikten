@@ -21,9 +21,25 @@ Override with `$XDG_DATA_HOME` environment variable.
 | `hardneg.pkl` | pickle | Hard negative examples |
 | `processed_files.jsonl` | JSONL | Files already processed |
 | `attempt_stats.jsonl` | JSONL | Processing attempt log |
-| `metadata.json` | JSON | Version and migration info |
+| `db_meta.json` | JSON | Schema marker (`{"schema": N}`) — skips re-normalization |
+| `manual_suffixes.json` | JSON | Free-text filename suffixes keyed by content hash |
+| `distinct_pairs.json` | JSON | Confirmed-distinct name pairs (e.g. twins) |
 | `config.json` | JSON | User configuration |
 | `ansikten.log` | text | Debug/error log |
+
+The four writable collections — `encodings.pkl`, `ignored.pkl`, `hardneg.pkl`,
+`processed_files.jsonl` — are the ones `load_database`/`save_database` manage;
+the JSON sidecars are owned by their respective services.
+
+> **Concurrency / integrity.** Every read takes a shared `flock` (`LOCK_SH`);
+> every write goes to a temp file under an exclusive `flock` (`LOCK_EX`) and is
+> then atomically `rename`d into place, so a reader never sees a half-written
+> file. Pickles are loaded through a `RestrictedUnpickler` that whitelists only
+> numpy/`builtins`/`collections` classes — a malicious pickle can't execute
+> arbitrary code.
+
+> `metadata.json` (`METADATA_PATH`) is a legacy path constant that is no longer
+> written or read; schema/migration state now lives in `db_meta.json`.
 
 ---
 
@@ -56,7 +72,14 @@ Known faces database. Dictionary mapping person names to encoding lists.
 - All encodings are InsightFace (512-dim, cosine distance)
 - Legacy entries (bare numpy arrays) auto-migrate to dict format
 - One person can have multiple encodings from different images
-- dlib encodings (128-dim) are deprecated and auto-removed at server startup
+- dlib encodings (128-dim) are deprecated; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint
+
+**Manual faces.** A face added by hand in review (not auto-detected) is stored as an
+entry with `encoding: None`, `encoding_hash: None`, `bounding_box: None`, and
+`is_manual: True`. It still records `file` and the source file's content `hash` — the
+hash anchors the name to the image so the rename pipeline recovers it even after the file
+is renamed (rename matches by hash and basename). A manual entry has no vector, so it
+never participates in matching; it only carries the name → file association.
 
 ### ignored.pkl
 
@@ -121,17 +144,32 @@ Detailed log of all processing attempts.
 - `attempt`: Resolution attempt (1-3)
 - `resolution`: "downsample", "midsample", or "fullres"
 
-### metadata.json
+### db_meta.json
 
-Version and migration metadata.
+Schema marker written after the encoding collections are normalized to the
+current on-disk schema (`DB_SCHEMA_VERSION`). Its presence lets `load_database`
+skip the per-entry normalization pass (see [Migration](#migration)).
 
 ```json
-{
-    "version": "2.0",
-    "last_migration": "2025-01-01T12:00:00",
-    "backend": "insightface"
-}
+{ "schema": 2 }
 ```
+
+Written atomically (temp-file + rename). A missing/malformed marker simply
+forces a full normalization pass on the next load.
+
+### manual_suffixes.json
+
+Free-text filename suffixes set from review, keyed by the source file's content
+hash (stable across rename). Not person names — never enter `encodings.pkl` or
+autocomplete. See `POST /api/v1/files/manual-suffix` in the API reference.
+
+### distinct_pairs.json
+
+Confirmed-distinct name pairs (people who look alike but are different, e.g.
+identical twins) stored as sorted `[name_a, name_b]` pairs. The scanner uses
+them to stop suggesting a merge and to trigger twin k-NN disambiguation. Managed
+via the `management/distinct-pair(s)` endpoints; self-heals when a name is
+removed.
 
 ### config.json
 
@@ -153,7 +191,8 @@ User configuration overrides.
     "max_downsample_px": 2800,
     "max_midsample_px": 4500,
     "max_fullres_px": 8000,
-    "image_viewer_app": "Ansikten"
+    "image_viewer_app": "Ansikten",
+    "trash_retention_days": 30
 }
 ```
 
@@ -166,8 +205,11 @@ User configuration overrides.
 | `match_threshold` | `0.4` | Distance threshold for matches |
 | `auto_ignore` | `false` | Auto-ignore unmatched faces |
 | `image_viewer_app` | `"Ansikten"` | External preview app |
+| `trash_retention_days` | `30` | Auto-purge culling-trash files older than N days (`0` = keep forever). Editable under Preferences → Files → Trash (Gallra). |
+| `twin_margin` | `0.1` | When the top-2 candidates are a confirmed-distinct pair within this cosine distance, break the tie with a k-NN vote. |
+| `twin_knn_k` | `5` | Neighbours in the twin-disambiguation k-NN vote (effective `k = min(this, photos per person)`). |
 
-> **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are automatically removed at server startup.
+> **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 
 ---
 
@@ -208,43 +250,44 @@ Expected format: `YYMMDD_HHMMSS[-N][_names].NEF`
 
 ## Database Operations
 
+The canonical data layer is `core.db` (`faceid_db` is a deprecation shim that
+aliases to it). Inside the FastAPI server, code goes through the process-wide
+`FaceDBStore` (`api/services/db_store.py`) rather than calling `core.db`
+directly — see [Architecture → Backend Data Layer](architecture.md#backend-data-layer).
+
 ### Load Database
 
 ```python
-from faceid_db import load_database
+from core.db import load_database
 
-known_faces, ignored, processed, stats = load_database()
+known_faces, ignored, hard_negatives, processed = load_database()
 ```
 
-### Save Encoding
+### Save Database (all or a subset)
 
 ```python
-from faceid_db import save_encoding
+from core.db import save_database
 
-save_encoding(
-    name="Anna",
-    encoding=face_encoding,
-    file_path="/path/to/image.NEF",
-    file_hash="abc123...",
-    backend="insightface"
-)
+# Rewrite all four collections (default; CLI/legacy behavior)
+save_database(known_faces, ignored, hard_negatives, processed)
+
+# Rewrite only the named files — the others keep their mtime/size on disk.
+# ``only`` is a subset of {'known', 'ignored', 'hardneg', 'processed'}.
+save_database(known_faces, ignored, hard_negatives, processed, only={"known"})
 ```
 
-### Check if Processed
+A single-file save writes inline; a multi-file save writes the files in
+parallel. The store uses `only=` to persist just the collections a mutation
+touched, cutting write amplification from four files to one or two on the common
+review paths.
+
+### File hash / processed lookup
 
 ```python
-from faceid_db import is_processed
+from core.db import get_file_hash, load_processed_files
 
-if is_processed(file_hash):
-    print("Already processed")
-```
-
-### Mark as Processed
-
-```python
-from faceid_db import mark_processed
-
-mark_processed(filename, file_hash)
+file_hash = get_file_hash("/path/to/image.NEF")   # chunked SHA1, or None
+processed = load_processed_files()                 # [{"name":..., "hash":...}]
 ```
 
 ---
@@ -253,7 +296,8 @@ mark_processed(filename, file_hash)
 
 ### Legacy Formats
 
-Old encodings (bare numpy arrays) automatically migrate to dict format:
+Old encodings (bare numpy arrays, or dicts missing backend metadata)
+automatically migrate to the modern dict format on load:
 
 ```python
 # Old format (legacy)
@@ -266,12 +310,30 @@ Old encodings (bare numpy arrays) automatically migrate to dict format:
 ]}
 ```
 
-> **Note:** Any legacy dlib (128-dim) encodings are automatically purged at startup.
+### Schema marker (one-time normalization)
+
+`load_database` no longer re-normalizes every entry on every load. The first
+load of an un-migrated DB runs the full pass, saves the result back (via
+`save_database(only=...)`, only the collections that actually changed), and
+writes `db_meta.json` (`{"schema": DB_SCHEMA_VERSION}`) atomically. Later loads
+read the marker and skip the pass. Safety rules:
+
+- Data files are rewritten only when normalization changed something (a clean
+  load only drops the marker).
+- If any entry is corrupt, nothing is written (no save-back, no marker) — the DB
+  keeps being re-normalized each load, preserving the drop-in-memory behavior.
+- A missing/malformed marker falls back to a full pass. Bump
+  `DB_SCHEMA_VERSION` to force a fresh pass + re-save.
+
+> **Note:** Any legacy dlib (128-dim) encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 
 ### Migration Scripts
 
-- `migrera_processed.py` - Migrate processed_files format
-- `update_encodings_with_filehash.py` - Add file hashes to old encodings
+Archived one-shot tools in `backend/scripts/archive/` (run from `backend/` with
+`python scripts/archive/<tool>.py`):
+
+- `scripts/archive/migrera_processed.py` - Migrate processed_files format
+- `scripts/archive/update_encodings_with_filehash.py` - Add file hashes to old encodings
 
 ---
 

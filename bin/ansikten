@@ -1,0 +1,62 @@
+#!/bin/sh
+# Ansikten launcher — open the desktop app with an optional workflow subcommand.
+#
+#   ansikten [faces|culling|import] [--clear] PATH...
+#
+#   ansikten *.NEF                 # face queue + start (legacy behaviour)
+#   ansikten faces --clear *.NEF   # replace the face queue, then start
+#   ansikten culling DIR           # open DIR for culling (append)
+#   ansikten culling --clear DIR   # replace the culling folder set with DIR
+#   ansikten culling --clear       # empty the culling workspace
+#   ansikten import                # open the import module (card autodetected)
+#   ansikten import DIR            # ...and pre-fill DIR as the destination
+#
+# All parsing/routing lives in the app (src/main/cli-args.js); this launcher
+# stays thin. Its only smart bit: default the verb to `faces` when the first
+# argument isn't a known verb, preserving the bare `ansikten *.NEF` habit.
+
+APP="/Applications/Ansikten.app/Contents/MacOS/Ansikten"
+
+usage() {
+  cat >&2 <<'EOF'
+ansikten [faces|culling|import] [--clear] PATH...
+
+  ansikten *.NEF                 face queue + start (default)
+  ansikten faces --clear *.NEF   replace the face queue, then start
+  ansikten culling DIR           open DIR for culling (just DIR, not subfolders)
+  ansikten culling -r DIR        ...including subfolders (recursive)
+  ansikten culling --clear DIR   replace the culling folder set with DIR
+  ansikten culling --clear       empty the culling workspace
+  ansikten import                open the import module (card autodetected)
+  ansikten import DIR            ...and pre-fill DIR as the destination
+
+Verbs: faces (default), culling (alias cull), import. --clear/-c resets
+the target's working set first; without it paths are appended. --recursive/-r
+(culling) scans subfolders too; the default is just the named folder. import
+takes an optional destination folder; the source card is autodetected.
+EOF
+}
+
+# Help is handled by the launcher itself — the only layer that can print to
+# the terminal once the app backgrounds with `&` — and works without the app
+# being installed.
+case "$1" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+esac
+
+if [ ! -x "$APP" ]; then
+  echo "Ansikten är inte installerad i /Applications" >&2
+  exit 1
+fi
+
+case "$1" in
+  faces | culling | cull | import | "")
+    "$APP" "$@" >/dev/null 2>&1 &
+    ;;
+  *)
+    "$APP" faces "$@" >/dev/null 2>&1 &
+    ;;
+esac

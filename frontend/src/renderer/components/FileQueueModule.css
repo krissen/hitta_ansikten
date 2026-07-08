@@ -104,7 +104,7 @@
 
 .file-item.active {
   background: var(--color-info-bg);
-  border-color: var(--color-info);
+  border-color: var(--color-info-text);
 }
 
 .file-item.completed {
@@ -177,7 +177,7 @@
 .file-queue-filter-bar .filter-icon {
   color: var(--text-tertiary);
   font-size: var(--font-sm);
-  font-family: monospace;
+  font-family: var(--font-mono);
   flex-shrink: 0;
 }
 
@@ -263,63 +263,34 @@
   text-align: right;
 }
 
-/* Remove button */
-.remove-btn {
+/* Remove / reprocess buttons — rendered via the shared IconButton (.icon-btn),
+   but kept slim and hover-revealed to preserve the compact row look. The
+   .file-item scope bumps specificity so these win over .icon-btn defaults. */
+.file-item .remove-btn,
+.file-item .reprocess-btn {
   flex-shrink: 0;
   width: 18px;
   height: 18px;
-  border: none;
-  background: transparent;
   color: var(--text-tertiary);
-  cursor: pointer;
-  font-size: var(--font-md);
-  line-height: 1;
   border-radius: var(--radius-sm);
   opacity: 0;
-  transition: opacity var(--transition-base), background var(--transition-base), transform var(--transition-fast);
+  transition: opacity var(--transition-base), background var(--transition-base),
+    transform var(--transition-fast), color var(--transition-base);
 }
 
-.file-item:hover .remove-btn {
-  opacity: 1;
-}
-
-.remove-btn:active {
-  transform: scale(0.9);
-}
-
-.remove-btn:hover {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-}
-
-/* Reprocess button */
-.reprocess-btn {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border: none;
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  opacity: 0;
-  transition: opacity var(--transition-base), background var(--transition-base), transform var(--transition-fast);
-}
-
+.file-item:hover .remove-btn,
 .file-item:hover .reprocess-btn {
   opacity: 1;
 }
 
-.reprocess-btn:active {
-  transform: scale(0.9);
+.file-item .remove-btn:hover:not(:disabled) {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
 }
 
-.reprocess-btn:hover {
+.file-item .reprocess-btn:hover:not(:disabled) {
   background: var(--color-info-bg);
-  color: var(--color-info);
+  color: var(--color-info-text);
 }
 
 .reprocess-btn-placeholder {
@@ -380,7 +351,7 @@
 }
 
 .preprocessing-status .status-paused {
-  color: var(--text-warning);
+  color: var(--color-warning-text);
 }
 
 .preprocessing-status .status-active {
@@ -428,11 +399,11 @@
 
 .preprocess-indicator.completed,
 .preprocess-indicator.loading {
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .preprocess-indicator.error {
-  color: var(--color-error);
+  color: var(--color-error-text);
   font-weight: bold;
   font-size: var(--font-sm);
   line-height: 1;
@@ -566,7 +537,7 @@
 }
 
 .inline-preview.error .preview-error {
-  color: var(--color-error);
+  color: var(--color-error-text);
   font-size: var(--font-sm);
   font-style: italic;
 }
@@ -603,12 +574,12 @@
 
 .file-item.completed .face-count {
   background: var(--color-success-bg);
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .file-item.already-processed:not(.completed) .face-count {
   background: var(--color-success-bg);
-  color: var(--color-success);
+  color: var(--color-success-text);
   opacity: 0.8;
 }
 
@@ -677,7 +648,7 @@
 }
 
 .tooltip-row.tooltip-error .tooltip-value {
-  color: var(--color-error);
+  color: var(--color-error-text);
 }
 
 .tooltip-row.tooltip-sidecars {

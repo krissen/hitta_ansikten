@@ -1,0 +1,100 @@
+.rename-nef {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.rename-nef-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.rename-nef-glob {
+  flex: 1 1 200px;
+  min-width: 140px;
+}
+
+.rename-nef-roots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rename-nef-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  border: 1px solid var(--border-subtle);
+  font-size: 0.8em;
+}
+
+/* Keep the shared IconButton compact inside the pill-sized chip. */
+.rename-nef-chip-x.icon-btn--sm {
+  width: 16px;
+  height: 16px;
+}
+
+.rename-nef-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.rename-nef-summary {
+  margin-bottom: 10px;
+  font-size: 0.9em;
+}
+
+.rename-nef-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rename-nef-table th,
+.rename-nef-table td {
+  padding: 3px 8px;
+  text-align: left;
+}
+
+.rename-nef-table th {
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rename-nef-arrow {
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.rename-nef-table tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.rename-nef-nodate,
+.rename-nef-result {
+  margin-top: 12px;
+  font-size: 0.85em;
+}
+
+.rename-nef-nodate ul,
+.rename-nef-result ul {
+  margin: 4px 0 0 16px;
+  padding: 0;
+  color: var(--text-secondary);
+}
+
+.rename-nef-errors {
+  color: var(--color-error);
+}

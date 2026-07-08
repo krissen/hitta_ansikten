@@ -7,53 +7,71 @@ warnings.filterwarnings("ignore", category=UserWarning, module="face_recognition
 
 import copy
 import fnmatch
-import glob
 import hashlib
-import json
 import logging
 import math
 import multiprocessing
 import os
 import pickle
 import queue
-import re
 import shutil
 import signal
 import sys
-import tempfile
 import time
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import TYPE_CHECKING, Callable, Iterator, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator
 
 if TYPE_CHECKING:
     from prompt_toolkit.completion import Completer
 
 import numpy as np
 
-from faceid_db import (ARCHIVE_DIR, ATTEMPT_SETTINGS_SIG, BASE_DIR,
-                       CONFIG_PATH, LOGGING_PATH, SUPPORTED_EXT, get_file_hash,
-                       load_attempt_log, load_database, save_database, safe_pickle_load)
-from face_backends import create_backend, FaceBackend
 from cli_config import (
+    CACHE_DIR,
+    MAX_ATTEMPTS,
+    MAX_QUEUE,
+    MAX_WORKER_WAIT_TIME,
+    ORDINARY_PREVIEW_PATH,
+    QUEUE_GET_TIMEOUT,
+    RESERVED_COMMANDS,
     # Constants
-    TEMP_DIR, ORDINARY_PREVIEW_PATH, MAX_ATTEMPTS, MAX_QUEUE, CACHE_DIR,
-    RESERVED_COMMANDS, MAX_WORKER_WAIT_TIME,
-    QUEUE_GET_TIMEOUT, WORKER_JOIN_TIMEOUT, WORKER_TERMINATE_TIMEOUT,
+    TEMP_DIR,
+    WORKER_JOIN_TIMEOUT,
+    WORKER_TERMINATE_TIMEOUT,
+    archive_stats_if_needed,
+    get_attempt_settings,
+    get_max_possible_attempts,
+    get_settings_signature,
+    hash_encoding,
     # Config
-    init_logging, load_config,
-    get_attempt_settings, get_max_possible_attempts,
-    get_settings_signature, archive_stats_if_needed, hash_encoding
+    init_logging,
+    load_config,
 )
 from cli_image import (
-    load_and_resize_raw, create_labeled_image,
-    export_and_show_original, show_temp_image
+    create_labeled_image,
+    export_and_show_original,
+    load_and_resize_raw,
+    show_temp_image,
 )
-from cli_matching import (
-    best_matches, get_face_match_status,
-    label_preview_for_encodings
+from cli_matching import best_matches, get_face_match_status, label_preview_for_encodings
+from core.attempts import log_attempt_stats
+from core.naming import (
+    build_new_filename,
+    collect_persons_for_files,
+    is_unrenamed,
+    resolve_fornamn_dubletter,
+)
+from face_backends import FaceBackend, create_backend
+from faceid_db import (
+    BASE_DIR,
+    SUPPORTED_EXT,
+    get_file_hash,
+    load_attempt_log,
+    load_database,
+    safe_pickle_load,
+    save_database,
 )
 
 # Initialize logging at module load
@@ -105,47 +123,6 @@ def parse_inputs(args: list[str], supported_ext: set[str] | list[str]) -> Iterat
                 if fnmatch.fnmatch(f.name, arg) and f.suffix in supported_ext and f.is_file() and f not in seen:
                     seen.add(f)
                     yield f.resolve()
-
-
-def log_attempt_stats(
-    image_path: Path | str,
-    attempts: list[dict],
-    used_attempt_idx: int | None,
-    base_dir: Path | str | None = None,
-    log_name: str = "attempt_stats.jsonl",
-    review_results: list[str] | None = None,
-    labels_per_attempt: list[list[dict]] | None = None,
-    file_hash: str | None = None,
-) -> None:
-    """
-    Spara attempts-statistik för en bild till en JSONL-fil i base_dir.
-    :param image_path: Path till bilden.
-    :param attempts: Lista med dict för varje attempt.
-    :param used_attempt_idx: Index (int) för attempt som blev det faktiska valet (eller None om ingen).
-    :param base_dir: Path till katalogen där loggfilen ska finnas (om None: '.').
-    :param log_name: Filnamn på loggfilen.
-    :param review_results: Lista med user_review_encodings-resultat per attempt, t.ex. ["ok", "retry", ...]
-    :param labels_per_attempt: Lista av etikettlistor (labels från varje attempt).
-    :param file_hash: (str, optional) SHA1-hash av filen som behandlas.
-    """
-    from pathlib import Path
-    if base_dir is None:
-        base_dir = Path(".")
-    log_entry = {
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-        "filename": str(image_path),
-        "file_hash": file_hash,
-        "attempts": attempts,
-        "used_attempt": used_attempt_idx
-    }
-    if review_results is not None:
-        log_entry["review_results"] = review_results
-    if labels_per_attempt is not None:
-        log_entry["labels_per_attempt"] = labels_per_attempt
-    log_path = Path(base_dir) / log_name
-    Path(base_dir).mkdir(parents=True, exist_ok=True)
-    with open(log_path, "a") as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
 def handle_manual_add(
@@ -332,9 +309,6 @@ def user_review_encodings(
     labels = []
     all_ignored = True
     retry_requested = False
-    margin = config["prefer_name_margin"]
-    name_thr = config["match_threshold"]
-    ignore_thr = config["ignore_distance"]
 
     def handle_answer(ans, actions, default=None):
         if ans in ("", "enter"):
@@ -544,12 +518,12 @@ def user_review_encodings(
             labels.append({"label": f"#{i+1}\n{name}", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
 
     if retry_requested:
-        logging.debug(f"[REVIEW] Retry ombett, återgår till anropare")
+        logging.debug("[REVIEW] Retry ombett, återgår till anropare")
         return "retry", []
     if all_ignored:
-        logging.debug(f"[REVIEW] Alla ansikten ignorerade; returnerar 'all_ignored'.")
+        logging.debug("[REVIEW] Alla ansikten ignorerade; returnerar 'all_ignored'.")
         return "all_ignored", []
-    logging.debug(f"[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
+    logging.debug("[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
     return "ok", labels
 
 
@@ -898,192 +872,6 @@ def process_image(
                                    config, backend, attempt_results)
 
 
-def extract_prefix_suffix(fname: str) -> tuple[str | None, str | None]:
-    """
-    Returnera (prefix, suffix) där prefix = YYMMDD_HHMMSS eller YYMMDD_HHMMSS-2,
-    suffix = .NEF
-    """
-    m = re.match(r"^(\d{6}_\d{6}(?:-\d+)?)(?:_[^.]*)?(\.NEF)$", fname, re.IGNORECASE)
-    if not m:
-        return None, None
-    return m.group(1), m.group(2)
-
-def is_unrenamed(fname: str) -> bool:
-    """Returnera True om filnamn är YYMMDD_HHMMSS.NEF eller YYMMDD_HHMMSS-1.NEF etc."""
-    prefix, suffix = extract_prefix_suffix(fname)
-    return bool(prefix and suffix)
-
-def collect_persons_for_files(
-    filelist: list[Path | str],
-    known_faces: dict[str, list],
-    processed_files: list[dict] | None = None,
-    attempt_log: list[dict] | None = None,
-) -> dict[str, list[str]]:
-    """
-    Returnera dict: { filename: [namn, ...] }
-    Merge-strategi: review-ordning först, sedan komplettera från encodings.
-    """
-    import hashlib
-    from pathlib import Path
-
-    file_to_persons = {}
-    hash_to_persons = {}
-
-    for name, entries in known_faces.items():
-        for entry in entries:
-            if isinstance(entry, dict):
-                f = entry.get("file")
-                h = entry.get("hash")
-                if f:
-                    f = Path(f).name
-                    file_to_persons.setdefault(f, []).append(name)
-                if h:
-                    hash_to_persons.setdefault(h, []).append(name)
-
-    filehash_map = {}
-    for f in filelist:
-        fpath = Path(f)
-        h = get_file_hash(fpath)
-        filehash_map[fpath.name] = h
-
-    if processed_files is None:
-        processed_files = []
-    processed_name_to_hash = {Path(x['name']).name: x.get('hash') for x in processed_files if isinstance(x, dict) and x.get('name')}
-
-    if attempt_log is None:
-        attempt_log = load_attempt_log()
-
-    stats_by_hash = {}
-    stats_by_name = {}
-    basename_count = {}
-
-    for entry in attempt_log:
-        fn = Path(entry.get("filename", "")).name
-        fh = entry.get("file_hash")
-        if entry.get("used_attempt") is not None and entry.get("review_results"):
-            idx = entry["used_attempt"]
-            if idx < len(entry.get("labels_per_attempt", [])):
-                res = entry["review_results"][idx]
-                labels = entry["labels_per_attempt"][idx]
-                if res == "ok" and labels:
-                    persons = []
-                    for lbl in labels:
-                        label = lbl["label"] if isinstance(lbl, dict) else lbl
-                        if "\n" in label:
-                            namn = label.split("\n", 1)[1]
-                            if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
-                                persons.append(namn)
-                    if persons:
-                        if fh:
-                            stats_by_hash[fh] = persons
-                        stats_by_name[fn] = persons
-                        basename_count[fn] = basename_count.get(fn, 0) + 1
-
-    result = {}
-    for f in filelist:
-        fname = Path(f).name
-        h = filehash_map.get(fname) or processed_name_to_hash.get(fname)
-
-        encoding_persons = file_to_persons.get(fname, [])
-        if not encoding_persons and h:
-            encoding_persons = hash_to_persons.get(h, [])
-
-        review_persons = []
-        if h and h in stats_by_hash:
-            review_persons = stats_by_hash[h]
-        elif fname in stats_by_name and basename_count.get(fname, 0) == 1:
-            review_persons = stats_by_name[fname]
-
-        if review_persons:
-            persons = list(review_persons)
-            for name in encoding_persons:
-                if name not in persons:
-                    persons.append(name)
-        else:
-            persons = encoding_persons
-
-        result[fname] = persons
-    return result
-
-def normalize_name(name: str) -> str:
-    """
-    Normalize name by removing diacritics and sanitizing for safe filename use.
-
-    Security: Replaces path separators and null bytes to prevent path traversal.
-    """
-    # Remove diacritics (Källa → Kalla, François → Francois)
-    n = unicodedata.normalize('NFKD', name)
-    n = "".join(c for c in n if not unicodedata.combining(c))
-
-    # Sanitize for filesystem safety: remove path separators and null bytes
-    # Replace / and \ with _ to prevent directory traversal
-    n = n.replace('/', '_').replace('\\', '_').replace('\0', '_')
-
-    return n
-
-def split_fornamn_efternamn(namn: str) -> tuple[str, str]:
-    # "Edvin Twedmark" => "Edvin", "Twedmark"
-    parts = namn.strip().split()
-    if len(parts) < 2:
-        return parts[0], ""
-    return parts[0], " ".join(parts[1:])
-
-def resolve_fornamn_dubletter(all_persons: list[str]) -> dict[str, str]:
-    """
-    all_persons: lista av alla personnamn (kan förekomma flera gånger)
-    Returnerar dict namn → kortnamn (bara förnamn, eller förnamn+efternamnsbokstav om flera delar efternamn).
-    """
-    # Skapa map förnamn -> set av fulla namn (dvs. efternamn)
-    fornamn_map = {}
-    namn_map = {}
-    for namn in set(all_persons):
-        fornamn, efternamn = split_fornamn_efternamn(namn)
-        if fornamn not in fornamn_map:
-            fornamn_map[fornamn] = set()
-        fornamn_map[fornamn].add(efternamn)
-        namn_map[namn] = (fornamn, efternamn)
-    # Bestäm för varje namn: bara förnamn om unikt, annars förnamn+efternamnsbokstav(ar)
-    kortnamn = {}
-    for namn, (fornamn, efternamn) in namn_map.items():
-        efternamnset = fornamn_map[fornamn] - {""}
-        if len(efternamnset) <= 1:
-            # Endast ett efternamn för detta förnamn → endast förnamn behövs
-            kortnamn[namn] = fornamn
-        else:
-            # Flera olika efternamn: bygg så många tecken från efternamn som krävs
-            andra_efternamn = sorted(efternamnset - {efternamn})
-            prefixlen = 1
-            while any(efternamn[:prefixlen] == andra[:prefixlen] for andra in andra_efternamn):
-                prefixlen += 1
-            kortnamn[namn] = fornamn + (efternamn[:prefixlen] if efternamn else "")
-    return kortnamn
-
-def build_new_filename(fname: str, personer: list[str], namnmap: dict[str, str]) -> str | None:
-    """
-    Build new filename with person names.
-
-    Security: Validates against path traversal attempts.
-    """
-    prefix, suffix = extract_prefix_suffix(fname)
-    if not (prefix and suffix):
-        return None
-    fornamn_lista = []
-    for namn in personer:
-        kort = namnmap.get(namn)
-        if kort:
-            fornamn_lista.append(normalize_name(kort))
-    if not fornamn_lista:
-        return None
-    namnstr = ",_".join(fornamn_lista)
-    new_name = f"{prefix}_{namnstr}{suffix}"
-
-    # Security: Validate no path traversal attempts
-    if '..' in new_name or '/' in new_name or '\\' in new_name or '\0' in new_name:
-        logging.error(f"[SECURITY] Rejected unsafe filename: {new_name}")
-        return None
-
-    return new_name
-
 def is_file_processed(path: Path | str, processed_files: list[dict]) -> bool:
     """Kolla om filen redan är processad, via namn ELLER hash."""
     path_name = Path(path).name if not isinstance(path, str) else path
@@ -1329,7 +1117,7 @@ def preprocess_worker(
     try:
         # Initialize backend in worker process
         from face_backends import create_backend
-        logging.debug(f"[WORKER] About to create backend from config")
+        logging.debug("[WORKER] About to create backend from config")
         backend = create_backend(config)
         logging.debug(f"[WORKER] Initialized backend: {backend.backend_name}")
 
@@ -1380,10 +1168,10 @@ def preprocess_worker(
         logging.error(f"[PREPROCESS worker][ERROR] {e}")
         import traceback
         # Print error to stderr so it's visible to user
-        print(f"\n⚠️  KRITISKT FEL: Worker-processen kraschade!", file=sys.stderr)
+        print("\n⚠️  KRITISKT FEL: Worker-processen kraschade!", file=sys.stderr)
         print(f"⚠️  Fel: {type(e).__name__}: {e}", file=sys.stderr)
-        print(f"⚠️  Main-processen kommer att fortsätta utan parallell preprocessing.", file=sys.stderr)
-        print(f"⚠️  Se ansikten.log för detaljer.\n", file=sys.stderr)
+        print("⚠️  Main-processen kommer att fortsätta utan parallell preprocessing.", file=sys.stderr)
+        print("⚠️  Se ansikten.log för detaljer.\n", file=sys.stderr)
         traceback.print_exc()
     finally:
         # Always signal completion, even on error, to unblock main loop
@@ -1591,9 +1379,9 @@ def main() -> None:
     time.sleep(0.1)  # Give workers a moment to start
     if preprocess_done.is_set() and preprocessed_queue.empty():
         logging.warning("[PREPROCESS] Worker exited immediately - will fall back to main process")
-        print(f"\n⚠️  VARNING: Worker-processen avslutades omedelbart!", file=sys.stderr)
-        print(f"⚠️  Detta tyder på ett fel i worker-processen.", file=sys.stderr)
-        print(f"⚠️  Preprocessing kommer att göras i main-processen istället (långsammare).\n", file=sys.stderr)
+        print("\n⚠️  VARNING: Worker-processen avslutades omedelbart!", file=sys.stderr)
+        print("⚠️  Detta tyder på ett fel i worker-processen.", file=sys.stderr)
+        print("⚠️  Preprocessing kommer att göras i main-processen istället (långsammare).\n", file=sys.stderr)
 
     # === STEG 2: Bild-för-bild, attempt-för-attempt ===
     done_images = set()

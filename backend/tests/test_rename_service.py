@@ -8,8 +8,6 @@ Verifies that:
 4. Encoding data is merged correctly with review data
 """
 
-import pytest
-from pathlib import Path
 from unittest.mock import patch
 
 from api.services.rename_service import collect_persons_for_files
@@ -142,6 +140,74 @@ class TestCollectPersonsForFiles:
             result = collect_persons_for_files(filelist, known_faces, attempt_log=attempt_log)
 
         assert result[str(test_file)] == ["Encoding Person"]
+
+    def test_manual_face_hash_only_not_suppressed_by_basename(self, tmp_path):
+        """A manual face anchored only by hash must survive when another face matches
+        by basename.
+
+        Regression for the reported bug: after a file is renamed, the auto-detected
+        face's encoding points to the current basename while the manually added face's
+        encoding diverges (e.g. it still carries the pre-rename basename, or only a
+        hash). The old fallback consulted the hash index only when the basename index
+        was empty, so the basename hit for the detected face silently dropped the
+        manual face. The lookup is now a union of both indexes.
+        """
+        test_file = tmp_path / "260111_080910_Aryan.NEF"
+        test_file.touch()
+        known_faces = {
+            # Detected face: encoding basename matches the current filename.
+            "Aryan": [{"file": "260111_080910_Aryan.NEF", "hash": "H", "encoding": [0.1]}],
+            # Manual face: encoding basename has diverged, only the hash still matches.
+            "Elis": [{"file": "260111_080910.NEF", "hash": "H",
+                      "encoding": None, "is_manual": True}],
+        }
+        filelist = [str(test_file)]
+
+        with patch("api.services.rename_service.get_file_hash", return_value="H"):
+            result = collect_persons_for_files(filelist, known_faces, attempt_log=[])
+
+        assert result[str(test_file)] == ["Aryan", "Elis"]
+
+    def test_legacy_manual_face_hash_none_recovered_by_basename(self, tmp_path):
+        """A legacy manual entry (hash=None) is still recovered via the basename index
+        alongside a detected face on the same file."""
+        test_file = tmp_path / "260111_080910_Aryan.NEF"
+        test_file.touch()
+        known_faces = {
+            "Aryan": [{"file": "260111_080910_Aryan.NEF", "hash": "H", "encoding": [0.1]}],
+            "Elis": [{"file": "260111_080910_Aryan.NEF", "hash": None,
+                      "encoding": None, "is_manual": True}],
+        }
+        filelist = [str(test_file)]
+
+        with patch("api.services.rename_service.get_file_hash", return_value="H"):
+            result = collect_persons_for_files(filelist, known_faces, attempt_log=[])
+
+        assert result[str(test_file)] == ["Aryan", "Elis"]
+
+    def test_union_does_not_duplicate_when_both_keys_match(self, tmp_path):
+        """A face matched by both basename and hash appears once, and merging with
+        review data does not duplicate it."""
+        test_file = tmp_path / "IMG_0001.NEF"
+        test_file.touch()
+        known_faces = {
+            "Aryan": [{"file": "IMG_0001.NEF", "hash": "H", "encoding": [0.1]}],
+        }
+        filelist = [str(test_file)]
+        attempt_log = [
+            {
+                "filename": str(test_file),
+                "file_hash": "H",
+                "used_attempt": 0,
+                "review_results": ["ok"],
+                "labels_per_attempt": [[{"label": "#1\nAryan"}]],
+            },
+        ]
+
+        with patch("api.services.rename_service.get_file_hash", return_value="H"):
+            result = collect_persons_for_files(filelist, known_faces, attempt_log=attempt_log)
+
+        assert result[str(test_file)] == ["Aryan"]
 
     def test_ignored_labels_filtered(self, tmp_path):
         """Labels marked as ignored should not be included."""

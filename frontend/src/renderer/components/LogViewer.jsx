@@ -12,6 +12,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { getLogBuffer, clearLogBuffer, debug } from '../shared/debug.js';
+import { Button } from './shared';
+import { useToast } from '../context/ToastContext.jsx';
+import { t } from '../../i18n/index.js';
 import './LogViewer.css';
 
 /**
@@ -37,7 +40,7 @@ export function LogViewer() {
   const [logs, setLogs] = useState([]);
   const [filterLevel, setFilterLevel] = useState('all');
   const [filterSource, setFilterSource] = useState('all');
-  const [copyFeedback, setCopyFeedback] = useState(false);
+  const showToast = useToast();
   const autoScrollRef = useRef(true);
   const entriesRef = useRef(null);
   const lastBufferLengthRef = useRef(0);
@@ -146,10 +149,10 @@ export function LogViewer() {
     const text = formatLogsForClipboard(filteredLogs);
     try {
       await navigator.clipboard.writeText(text);
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 1500);
+      showToast(t('logs.copied'), 'success');
     } catch (err) {
-      console.error('Failed to copy logs:', err);
+      debug('LogViewer', 'Failed to copy logs:', err);
+      showToast(t('logs.copyFailed'), 'error');
     }
   };
 
@@ -168,36 +171,36 @@ export function LogViewer() {
   });
 
   return (
-    <div className="module-container log-viewer">
+    <div className="module-container log-viewer" data-keyboard-scope="isolated">
       <div className="module-header">
-        <h3 className="module-title">Logs</h3>
+        <h3 className="module-title">{t('logs.title')}</h3>
         <div className="button-group">
           <select
             className="form-select"
             value={filterSource}
             onChange={(e) => setFilterSource(e.target.value)}
           >
-            <option value="all">All Sources</option>
-            <option value="backend">Backend</option>
-            <option value="frontend">Frontend</option>
+            <option value="all">{t('logs.source.all')}</option>
+            <option value="backend">{t('logs.source.backend')}</option>
+            <option value="frontend">{t('logs.source.frontend')}</option>
           </select>
           <select
             className="form-select"
             value={filterLevel}
             onChange={(e) => setFilterLevel(e.target.value)}
           >
-            <option value="all">All Levels</option>
-            <option value="debug">Debug</option>
-            <option value="info">Info</option>
-            <option value="warn">Warning</option>
-            <option value="error">Error</option>
+            <option value="all">{t('logs.level.all')}</option>
+            <option value="debug">{t('logs.level.debug')}</option>
+            <option value="info">{t('logs.level.info')}</option>
+            <option value="warn">{t('logs.level.warning')}</option>
+            <option value="error">{t('logs.level.error')}</option>
           </select>
-          <button type="button" className="btn-secondary" onClick={copyLogs}>
-            {copyFeedback ? 'Copied!' : 'Copy'}
-          </button>
-          <button type="button" className="btn-secondary" onClick={clearLogs}>
-            Clear
-          </button>
+          <Button variant="secondary" onClick={copyLogs}>
+            {t('logs.copy')}
+          </Button>
+          <Button variant="secondary" onClick={clearLogs}>
+            {t('logs.clear')}
+          </Button>
         </div>
       </div>
 
@@ -209,8 +212,8 @@ export function LogViewer() {
         {filteredLogs.length === 0 ? (
           <div className="empty-state">
             {logs.length === 0
-              ? 'Waiting for log entries...'
-              : 'No log entries match the current filter'}
+              ? t('logs.empty.waiting')
+              : t('logs.empty.noMatch')}
           </div>
         ) : (
           filteredLogs.map(entry => (

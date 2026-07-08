@@ -1,0 +1,544 @@
+.culling {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+
+/* Filter-bar toggle buttons (Rutnät, Papperskorg) signal their on-state via
+   aria-pressed — give the pressed state the accent look the legacy .btn-action
+   carried, matching the old active-toggle appearance. */
+.culling-filterbar .btn[aria-pressed="true"] {
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+  border-color: transparent;
+}
+
+.culling-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+
+.culling-glob {
+  flex: 1 1 200px;
+  min-width: 140px;
+}
+
+.culling-spacer {
+  flex: 1;
+}
+
+.culling-roots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.culling-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  border: 1px solid var(--border-subtle);
+  font-size: 0.8em;
+}
+
+/* The remove-folder control is a shared IconButton; keep it compact and round
+   so it reads as the chip's little × rather than a full toolbar button. */
+.culling-chip-x {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: var(--text-secondary);
+}
+
+/* Two-column resizable body */
+.culling-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* Live per-player count column (left of the list+preview area). Width is set
+   inline (resizable via .culling-stats-divider) and persisted. */
+.culling-stats {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg-secondary);
+}
+
+/* On the warm beige (light) theme the caramel --bg-secondary is too dark behind
+   the deviation-colored numbers; lighten the stats column to the light peach
+   --bg-elevated so the status-text hues read clearly. (Row hover uses the shared
+   --bg-row-hover; see below.) Dark theme keeps --bg-secondary. */
+:root[data-theme="light"] .culling-stats {
+  background: var(--bg-elevated);
+}
+
+.culling-stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 10px;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.culling-stats-baseline {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+
+.culling-stats-empty {
+  padding: 8px 10px;
+  color: var(--text-secondary);
+}
+
+.culling-stats-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 10px;
+}
+
+/* Per-player table mirrors the Räkna spelare layout (name · count · % · Δ%). */
+.culling-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82em;
+  font-variant-numeric: tabular-nums;
+}
+
+.culling-stats-table th,
+.culling-stats-table td {
+  padding: 2px 6px;
+  text-align: left;
+}
+
+.culling-stats-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.culling-stats-table td.num,
+.culling-stats-table th.num {
+  text-align: right;
+}
+
+.culling-stat-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 12ch;
+}
+
+.culling-stat-row.clickable { cursor: pointer; }
+/* The active row uses the shared .row-selected highlight (added in JSX); hover
+   must not override its background, hence :not(.row-selected). */
+.culling-stat-row:hover:not(.row-selected) { background: var(--bg-row-hover); }
+
+/* Distribution bar + deviation colors mirror the player-count level thresholds. */
+.culling-stats-table .bar-col { width: 30%; }
+
+.culling-bar-track {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.culling-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.culling-bar-fill.level-ok { background: var(--color-success); }
+.culling-bar-fill.level-warn { background: var(--color-warning); }
+.culling-bar-fill.level-high { background: var(--color-error); }
+
+/* Δ text uses the dedicated deviation vars (darker than the bright semantic
+   --color-* on the beige theme so small numbers stay legible; the bar fills
+   above keep the bright --color-* since solid blocks read fine). */
+.culling-stats-table .delta.delta-ok { color: var(--color-success-text); }
+.culling-stats-table .delta.delta-warn { color: var(--color-warning-text); }
+.culling-stats-table .delta.delta-high { color: var(--color-error-text); }
+
+/* Excluded groups (coaches / group photos / audience / below-threshold). */
+.culling-stats-excluded {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.culling-stats-group > summary {
+  cursor: pointer;
+  padding: 3px 0;
+  color: var(--text-secondary);
+  font-size: 0.82em;
+  user-select: none;
+}
+
+.culling-stats-group ul {
+  margin: 3px 0 6px 14px;
+  padding: 0;
+  font-size: 0.8em;
+  color: var(--text-secondary);
+}
+
+/* Draggable divider between the stats column and the list+preview area. */
+.culling-stats-divider {
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background: var(--border-subtle);
+}
+
+.culling-stats-divider:hover { background: var(--accent-primary); }
+
+/* Wraps the list + divider + preview so the divider drag measures this area
+   (excluding the fixed stats column). */
+.culling-main {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
+.culling-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-right: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.culling-list-header {
+  padding: 6px 10px;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.culling-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* The list is focusable (tabIndex=-1) so keyboard nav can be handed back to it
+   after using a control; the active row already signals selection, so no ring. */
+.culling-files:focus { outline: none; }
+
+.culling-files li {
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The active row uses the shared .row-selected highlight (added in JSX); hover
+   must not override its background, hence :not(.row-selected). */
+.culling-files li:hover:not(.row-selected) {
+  background: var(--bg-row-hover);
+}
+
+/* Current row with uncommitted name toggles: a solid orange warning (not the
+   .row-selected green) showing the previewed filename, so a pending rename reads
+   at a glance. Overrides the selection highlight for this distinct state. */
+.culling-files li.active.pending {
+  background: var(--color-warning);
+  color: var(--text-on-accent);
+  box-shadow: none;
+}
+
+.culling-rename-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1px 4px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-sm);
+}
+
+.culling-rename-input:focus {
+  outline: none;
+}
+
+/* Right-click context menu (cursor-positioned popover). */
+.culling-context-menu {
+  position: fixed;
+  z-index: var(--z-dropdown);
+  min-width: 200px;
+  margin: 0;
+  padding: var(--space-xs) 0;
+  list-style: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--font-sm);
+  color: var(--text-primary);
+}
+
+.culling-context-menu li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  padding: var(--space-xs) var(--space-md);
+  cursor: pointer;
+}
+
+.culling-context-menu li:hover {
+  background: var(--bg-hover);
+}
+
+.culling-menu-sep {
+  height: 1px;
+  margin: var(--space-xs) 0;
+  padding: 0;
+  background: var(--border-subtle);
+  cursor: default;
+}
+
+.culling-menu-sep:hover {
+  background: var(--border-subtle);
+}
+
+.culling-menu-keys {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.culling-context-menu kbd {
+  min-width: 18px;
+  padding: 1px var(--space-xs);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  background: var(--bg-active);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.culling-divider {
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border-subtle);
+  flex: 0 0 auto;
+}
+
+.culling-divider:hover {
+  background: var(--accent-primary);
+}
+
+.culling-preview {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+/* Name-toggle overlay: pinned to the top of the preview, horizontally centered.
+   Uncheck a name to preview the filename without it; ⌘↵ commits the rename. */
+.culling-name-overlay {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.culling-name-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.culling-name-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, var(--bg-primary));
+  border: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+  cursor: pointer;
+  user-select: none;
+}
+
+.culling-name-chip input { cursor: pointer; margin: 0; }
+
+/* A toggled-off name is struck through and dimmed to read as "will be removed". */
+.culling-name-chip.removed {
+  opacity: 0.55;
+}
+.culling-name-chip.removed span {
+  text-decoration: line-through;
+}
+
+/* The previewed filename now lives in the left list row; the overlay only
+   shows the chips plus a small hint while a removal is pending. */
+.culling-name-hint {
+  font-size: 0.78em;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.culling-name-hint kbd {
+  min-width: 16px;
+  padding: 0 var(--space-xs);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  background: var(--bg-active);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+/* Unsaved name-change confirm dialog. Chrome comes from the shared Modal
+   (top-layer <dialog> + backdrop); only the previewed filename and the inline
+   key hints in the footer buttons need module styling. */
+.culling-confirm-preview {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.culling-confirm-modal .culling-menu-keys {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 6px;
+}
+
+.culling-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* ----- Overview (grid) mode -------------------------------------------- */
+/* A scrollable contact sheet that replaces the list+preview area when the view
+   mode is "grid". The min column width (160px) is kept in sync with
+   GRID_CELL_MIN in CullingModule.jsx, which drives the keyboard column count. */
+.culling-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+  padding: 8px;
+  align-content: start;
+  outline: none;
+}
+
+.culling-grid-cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--bg-elevated);
+  border: 2px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: opacity 0.12s ease, border-color 0.12s ease;
+}
+
+.culling-grid-cell:hover {
+  border-color: var(--border-subtle);
+}
+
+.culling-grid-cell.selected {
+  border-color: var(--accent-primary);
+}
+
+/* Highlighted (contains the clicked player) — accent ring, kept visible even
+   when another cell is selected. Dimmed cells are the non-matches. */
+.culling-grid-cell.highlight {
+  border-color: var(--accent-primary);
+  box-shadow: inset 0 0 0 2px var(--accent-primary);
+}
+
+.culling-grid-cell.dimmed {
+  opacity: 0.35;
+}
+
+.culling-grid-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.culling-grid-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 1.2em;
+}
+
+/* Filename caption, revealed on hover/selection so the grid stays clean. */
+.culling-grid-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 3px 5px;
+  font-size: 0.7em;
+  line-height: 1.2;
+  color: var(--overlay-text);
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.72));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.culling-grid-cell:hover .culling-grid-caption,
+.culling-grid-cell.selected .culling-grid-caption {
+  opacity: 1;
+}

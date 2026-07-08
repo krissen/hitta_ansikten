@@ -22,6 +22,27 @@ export function isFileEligible(item, context) {
 }
 
 /**
+ * Determine if a queue item is eligible for the face-based rename.
+ *
+ * Rename targets files whose review is done (`status === 'completed'`) or that are
+ * already in the database (`isAlreadyProcessed`, when not in fix-mode). A file with
+ * unsaved review changes (in `dirtyPaths`) is held out until its review is persisted,
+ * so a rename never reads the database before a just-added manual face has been saved.
+ *
+ * @param {Object} item - Queue item with status, isAlreadyProcessed, filePath
+ * @param {boolean} fixMode - Whether fix-mode (re-review) is on
+ * @param {Set<string>} [dirtyPaths] - filePaths with unsaved review changes
+ * @returns {boolean}
+ */
+export function isRenameEligible(item, fixMode, dirtyPaths) {
+  if (!item) return false;
+  const eligible = item.status === 'completed' || (!fixMode && item.isAlreadyProcessed);
+  if (!eligible) return false;
+  if (dirtyPaths && dirtyPaths.has(item.filePath)) return false;
+  return true;
+}
+
+/**
  * Find the index of the next eligible file in the queue.
  * @param {Array} queue - Array of queue items
  * @param {Object} context - Context with fixMode and processedFiles Set

@@ -5,19 +5,20 @@ Endpoints for face detection operations.
 ML libraries loaded lazily on first detection request.
 """
 
+import logging
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import List, Optional
-import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 def get_detection_service():
-    """Lazy import to avoid loading ML libs at startup"""
-    from ..services.detection_service import detection_service
-    return detection_service
+    """Lazy import + lazy construction to avoid loading ML libs at startup"""
+    from ..services.detection_service import get_detection_service as _get
+    return _get()
 
 # Request/Response models
 class DetectionRequest(BaseModel):
@@ -48,6 +49,7 @@ class DetectedFace(BaseModel):
     ignore_confidence: Optional[int] = None
     match_alternatives: Optional[List[MatchAlternative]] = None
     encoding_hash: Optional[str] = None
+    disambiguated: Optional[Dict[str, Any]] = None
 
 class DetectionResult(BaseModel):
     image_path: str
@@ -127,7 +129,7 @@ async def reload_database():
     """
     Reload face database from disk
 
-    Useful when database has been modified externally (e.g., by hantera_ansikten script).
+    Useful when database has been modified externally (e.g., by the archived hantera_ansikten.py script).
     Clears detection cache to ensure fresh results with updated data.
     """
     logger.info("[Detection] Reloading database...")
@@ -174,7 +176,8 @@ async def detect_faces(request: DetectionRequest):
                         MatchAlternative(**alt)
                         for alt in face.get("match_alternatives", [])
                     ] if face.get("match_alternatives") else None,
-                    encoding_hash=face.get("encoding_hash")
+                    encoding_hash=face.get("encoding_hash"),
+                    disambiguated=face.get("disambiguated")
                 )
                 for face in result["faces"]
             ],
@@ -209,6 +212,7 @@ async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height
         - Browser cache: 1 week (604800s)
     """
     from pathlib import Path
+
     from ..services.preprocessing_cache import get_cache
 
     logger.debug(f"[Detection] Getting thumbnail from {image_path} at ({x},{y},{width},{height})")

@@ -5,7 +5,8 @@
  * Toggle menu items use checkboxes to show current state.
  */
 
-const { Menu, shell, ipcMain, app, dialog } = require('electron');
+const { Menu, shell, ipcMain, dialog } = require('electron');
+const { t } = require('../i18n');
 const path = require('path');
 const fs = require('fs');
 
@@ -65,74 +66,84 @@ function createApplicationMenu(mainWindow) {
       label: 'Ansikten',
       submenu: [
         {
-          label: 'About Ansikten',
+          label: t('menu.app.about'),
           click: () => {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
-              title: 'About Ansikten',
+              title: t('menu.app.about'),
               message: 'Ansikten',
-              detail: `Version: ${versionString}\n\nFace detection and annotation tool for event photography.\n\nhttps://github.com/krissen/ansikten`,
+              detail: t('menu.app.aboutDetail', { version: versionString }),
               buttons: ['OK']
             });
           }
         },
         { type: 'separator' },
         {
-          label: 'Preferences...',
+          label: t('menu.app.preferences'),
           click: () => {
             sendMenuCommand('open-preferences');
           }
         },
         { type: 'separator' },
         {
-          label: 'Hide Ansikten',
+          label: t('menu.app.hide'),
           role: 'hide'
         },
         {
-          label: 'Hide Others',
+          label: t('menu.app.hideOthers'),
           role: 'hideOthers'
         },
         {
-          label: 'Show All',
+          label: t('menu.app.showAll'),
           role: 'unhide'
         },
         { type: 'separator' },
         {
-          label: 'Quit Ansikten',
+          label: t('menu.app.quit'),
           role: 'quit'
         }
       ]
     }] : []),
 
     {
-      label: 'Edit',
+      label: t('menu.edit.title'),
       submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
+        { role: 'undo', label: t('menu.edit.undo') },
+        { role: 'redo', label: t('menu.edit.redo') },
         { type: 'separator' },
         {
-          label: 'Undo Face Action',
+          label: t('menu.edit.undoFaceAction'),
           accelerator: 'CmdOrCtrl+Shift+Z',
           click: () => {
             sendMenuCommand('undo-face-action');
           }
         },
+        {
+          // No accelerator: Cmd+Shift+Backspace is handled by the visible review
+          // surface's keydown (ReviewModule), not a global menu accelerator, so
+          // it can't shadow other modules' key handling. Menu item stays for
+          // discoverability.
+          label: t('menu.edit.undoDelete'),
+          click: () => {
+            sendMenuCommand('undo-delete-file');
+          }
+        },
         { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'delete' },
+        { role: 'cut', label: t('menu.edit.cut') },
+        { role: 'copy', label: t('menu.edit.copy') },
+        { role: 'paste', label: t('menu.edit.paste') },
+        { role: 'delete', label: t('menu.edit.delete') },
         { type: 'separator' },
-        { role: 'selectAll' }
+        { role: 'selectAll', label: t('menu.edit.selectAll') }
       ]
     },
 
     // File menu
     {
-      label: 'File',
+      label: t('menu.file.title'),
       submenu: [
         {
-          label: 'Open Image...',
+          label: t('menu.file.openImage'),
           accelerator: 'CmdOrCtrl+O',
           click: () => {
             sendMenuCommand( 'open-file');
@@ -140,7 +151,7 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Reload Database',
+          label: t('menu.file.reloadDatabase'),
           accelerator: 'CmdOrCtrl+R',
           click: () => {
             sendMenuCommand( 'reload-database');
@@ -148,23 +159,43 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Save All Changes',
+          label: t('menu.file.saveAll'),
           accelerator: 'CmdOrCtrl+S',
           click: () => {
             sendMenuCommand( 'save-all-changes');
           }
         },
         {
-          label: 'Discard Changes',
+          label: t('menu.file.discard'),
           accelerator: 'Escape',
           click: () => {
             sendMenuCommand( 'discard-changes');
           }
         },
         { type: 'separator' },
+        {
+          label: t('menu.file.openInLightroom'),
+          accelerator: 'CmdOrCtrl+Shift+L',
+          click: () => {
+            sendMenuCommand('open-raw-in-lightroom');
+          }
+        },
+        { type: 'separator' },
+        {
+          // No accelerator: Cmd+Backspace is handled by the visible review
+          // surface's keydown (ReviewModule), not a global menu accelerator —
+          // a global one would shadow Gallra spelare's own Cmd+Backspace (its
+          // tab's file-queue stays mounted) and trash the wrong file. Menu item
+          // stays for discoverability.
+          label: t('menu.file.deleteToTrash'),
+          click: () => {
+            sendMenuCommand('delete-current-file');
+          }
+        },
+        { type: 'separator' },
         ...(!isMac ? [
           {
-            label: 'Quit',
+            label: t('menu.file.quit'),
             accelerator: 'CmdOrCtrl+Q',
             role: 'quit'
           }
@@ -174,10 +205,10 @@ function createApplicationMenu(mainWindow) {
 
     // View menu
     {
-      label: 'View',
+      label: t('menu.view.title'),
       submenu: [
         {
-          label: 'Image Viewer',
+          label: t('modules.image-viewer'),
           accelerator: 'CmdOrCtrl+,',
           click: () => {
             sendMenuCommand('open-image-viewer');
@@ -186,7 +217,7 @@ function createApplicationMenu(mainWindow) {
         { type: 'separator' },
         {
           id: 'boxes-visible',
-          label: 'Show Bounding Boxes',
+          label: t('menu.view.showBoxes'),
           accelerator: 'Shift+B',
           type: 'checkbox',
           checked: true, // Default: visible
@@ -196,7 +227,7 @@ function createApplicationMenu(mainWindow) {
         },
         {
           id: 'boxes-all-faces',
-          label: 'Show All Faces',
+          label: t('menu.view.showAllFaces'),
           accelerator: 'b',
           type: 'checkbox',
           checked: true, // Default: all faces (unchecked = single face)
@@ -206,28 +237,28 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Zoom In',
+          label: t('menu.view.zoomIn'),
           accelerator: 'CmdOrCtrl+Plus',
           click: () => {
             sendMenuCommand( 'zoom-in');
           }
         },
         {
-          label: 'Zoom Out',
+          label: t('menu.view.zoomOut'),
           accelerator: 'CmdOrCtrl+-',
           click: () => {
             sendMenuCommand( 'zoom-out');
           }
         },
         {
-          label: 'Reset Zoom (1:1)',
+          label: t('menu.view.resetZoom'),
           accelerator: 'CmdOrCtrl+=',
           click: () => {
             sendMenuCommand( 'reset-zoom');
           }
         },
         {
-          label: 'Auto-Fit',
+          label: t('menu.view.autoFit'),
           accelerator: 'CmdOrCtrl+0',
           click: () => {
             sendMenuCommand( 'auto-fit');
@@ -236,7 +267,7 @@ function createApplicationMenu(mainWindow) {
         { type: 'separator' },
         {
           id: 'auto-center',
-          label: 'Auto-Center on Face',
+          label: t('menu.view.autoCenter'),
           accelerator: 'c',
           type: 'checkbox',
           checked: true,
@@ -246,7 +277,7 @@ function createApplicationMenu(mainWindow) {
         },
         {
           id: 'show-file-info',
-          label: 'Show Review Progress',
+          label: t('menu.view.reviewProgress'),
           accelerator: 'Shift+I',
           type: 'checkbox',
           checked: true,
@@ -256,21 +287,21 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Open Original View',
+          label: t('menu.view.openOriginalView'),
           accelerator: 'CmdOrCtrl+Shift+O',
           click: () => {
             sendMenuCommand( 'open-original-view');
           }
         },
         {
-          label: 'Open Log Viewer',
+          label: t('menu.view.openLogViewer'),
           accelerator: 'CmdOrCtrl+L',
           click: () => {
             sendMenuCommand( 'open-log-viewer');
           }
         },
         {
-          label: 'Open Review Module',
+          label: t('menu.view.openReviewModule'),
           accelerator: 'CmdOrCtrl+Shift+F',
           click: () => {
             sendMenuCommand( 'open-review-module');
@@ -278,35 +309,69 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Statistics Dashboard',
+          label: t('modules.statistics-dashboard'),
           accelerator: 'CmdOrCtrl+Shift+S',
           click: () => {
             sendMenuCommand( 'open-statistics-dashboard');
           }
         },
         {
-          label: 'Database Management',
+          label: t('modules.import'),
+          accelerator: 'CmdOrCtrl+Shift+I',
+          click: () => {
+            sendMenuCommand('open-import');
+          }
+        },
+        {
+          label: t('modules.rename-nef'),
+          accelerator: 'CmdOrCtrl+Shift+B',
+          click: () => {
+            sendMenuCommand('open-rename-nef');
+          }
+        },
+        {
+          label: t('modules.player-count'),
+          accelerator: 'CmdOrCtrl+Shift+K',
+          click: () => {
+            sendMenuCommand('open-player-count');
+          }
+        },
+        {
+          label: t('modules.culling'),
+          accelerator: 'CmdOrCtrl+Shift+G',
+          click: () => {
+            sendMenuCommand('open-culling');
+          }
+        },
+        {
+          label: t('menu.view.openTrash'),
+          click: () => {
+            sendMenuCommand('open-trash');
+          }
+        },
+        {
+          label: t('modules.database-management'),
           accelerator: 'CmdOrCtrl+Shift+D',
           click: () => {
             sendMenuCommand( 'open-database-management');
           }
         },
         {
-          label: 'Refine Faces',
+          label: t('modules.refine-faces'),
           accelerator: 'CmdOrCtrl+Shift+E',
           click: () => {
             sendMenuCommand('open-refine-faces');
           }
         },
         {
-          label: 'File Queue',
+          label: t('modules.file-queue'),
           accelerator: 'CmdOrCtrl+Shift+U',
           click: () => {
             sendMenuCommand('open-file-queue');
           }
         },
         {
-          label: 'Preferences',
+          label: t('modules.preferences'),
           accelerator: 'CmdOrCtrl+Shift+P',
           click: () => {
             sendMenuCommand('open-preferences');
@@ -314,10 +379,10 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Theme',
+          label: t('menu.theme.title'),
           submenu: [
             {
-              label: 'Theme Editor...',
+              label: t('menu.theme.editor'),
               accelerator: 'CmdOrCtrl+Shift+T',
               click: () => {
                 sendMenuCommand('open-theme-editor');
@@ -325,19 +390,19 @@ function createApplicationMenu(mainWindow) {
             },
             { type: 'separator' },
             {
-              label: 'Light (Terminal Beige)',
+              label: t('menu.theme.light'),
               click: () => {
                 sendMenuCommand('theme-light');
               }
             },
             {
-              label: 'Dark (CRT Phosphor)',
+              label: t('menu.theme.dark'),
               click: () => {
                 sendMenuCommand('theme-dark');
               }
             },
             {
-              label: 'Follow System',
+              label: t('menu.theme.followSystem'),
               click: () => {
                 sendMenuCommand('theme-system');
               }
@@ -346,14 +411,14 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Toggle Developer Tools',
+          label: t('menu.view.toggleDevTools'),
           accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
           click: () => {
             mainWindow.webContents.toggleDevTools();
           }
         },
         {
-          label: 'Reload',
+          label: t('menu.view.reload'),
           accelerator: 'CmdOrCtrl+Shift+R',
           click: () => {
             mainWindow.webContents.reload();
@@ -364,41 +429,41 @@ function createApplicationMenu(mainWindow) {
 
     // Window menu
     {
-      label: 'Window',
+      label: t('menu.window.title'),
       submenu: [
         {
-          label: 'Layout Templates',
+          label: t('menu.window.layoutTemplates'),
           submenu: [
             {
-              label: 'Review Mode',
+              label: t('menu.window.reviewMode'),
               accelerator: 'CmdOrCtrl+1',
               click: () => {
                 sendMenuCommand( 'layout-template-review');
               }
             },
             {
-              label: 'Comparison Mode',
+              label: t('menu.window.comparisonMode'),
               accelerator: 'CmdOrCtrl+2',
               click: () => {
                 sendMenuCommand( 'layout-template-comparison');
               }
             },
             {
-              label: 'Full Image',
+              label: t('menu.window.fullImage'),
               accelerator: 'CmdOrCtrl+3',
               click: () => {
                 sendMenuCommand( 'layout-template-full-image');
               }
             },
             {
-              label: 'Statistics Mode',
+              label: t('menu.window.statsMode'),
               accelerator: 'CmdOrCtrl+4',
               click: () => {
                 sendMenuCommand( 'layout-template-stats');
               }
             },
             {
-              label: 'Queue Review Mode',
+              label: t('menu.window.queueReviewMode'),
               accelerator: 'CmdOrCtrl+5',
               click: () => {
                 sendMenuCommand('layout-queue-review');
@@ -408,7 +473,7 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Grid Presets',
+          label: t('menu.window.gridPresets'),
           submenu: [
             {
               label: '50% / 50%',
@@ -449,17 +514,17 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Layout',
+          label: t('menu.window.layout'),
           submenu: [
             {
-              label: 'Add Column',
+              label: t('menu.window.addColumn'),
               accelerator: 'CmdOrCtrl+Shift+]',
               click: () => {
                 sendMenuCommand('layout-add-column');
               }
             },
             {
-              label: 'Remove Column',
+              label: t('menu.window.removeColumn'),
               accelerator: 'CmdOrCtrl+Shift+[',
               click: () => {
                 sendMenuCommand('layout-remove-column');
@@ -467,14 +532,14 @@ function createApplicationMenu(mainWindow) {
             },
             { type: 'separator' },
             {
-              label: 'Add Row',
+              label: t('menu.window.addRow'),
               accelerator: 'CmdOrCtrl+Shift+}',
               click: () => {
                 sendMenuCommand('layout-add-row');
               }
             },
             {
-              label: 'Remove Row',
+              label: t('menu.window.removeRow'),
               accelerator: 'CmdOrCtrl+Shift+{',
               click: () => {
                 sendMenuCommand('layout-remove-row');
@@ -482,28 +547,28 @@ function createApplicationMenu(mainWindow) {
             },
             { type: 'separator' },
             {
-              label: 'Move Panel to New Column Left',
+              label: t('menu.window.moveLeft'),
               accelerator: 'CmdOrCtrl+Alt+Left',
               click: () => {
                 sendMenuCommand('layout-move-new-left');
               }
             },
             {
-              label: 'Move Panel to New Column Right',
+              label: t('menu.window.moveRight'),
               accelerator: 'CmdOrCtrl+Alt+Right',
               click: () => {
                 sendMenuCommand('layout-move-new-right');
               }
             },
             {
-              label: 'Move Panel to New Row Above',
+              label: t('menu.window.moveAbove'),
               accelerator: 'CmdOrCtrl+Alt+Up',
               click: () => {
                 sendMenuCommand('layout-move-new-above');
               }
             },
             {
-              label: 'Move Panel to New Row Below',
+              label: t('menu.window.moveBelow'),
               accelerator: 'CmdOrCtrl+Alt+Down',
               click: () => {
                 sendMenuCommand('layout-move-new-below');
@@ -513,38 +578,38 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Reset Layout',
+          label: t('menu.window.resetLayout'),
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
             sendMenuCommand( 'reset-layout');
           }
         },
         {
-          label: 'Export Layout...',
+          label: t('menu.window.exportLayout'),
           click: () => {
             sendMenuCommand( 'export-layout');
           }
         },
         {
-          label: 'Import Layout...',
+          label: t('menu.window.importLayout'),
           click: () => {
             sendMenuCommand( 'import-layout');
           }
         },
         { type: 'separator' },
         {
-          label: 'Minimize',
+          label: t('menu.window.minimize'),
           role: 'minimize'
         },
         {
-          label: 'Close',
+          label: t('menu.window.close'),
           accelerator: 'CmdOrCtrl+W',
           role: 'close'
         },
         ...(isMac ? [
           { type: 'separator' },
           {
-            label: 'Bring All to Front',
+            label: t('menu.window.bringAllToFront'),
             role: 'front'
           }
         ] : [])
@@ -553,10 +618,10 @@ function createApplicationMenu(mainWindow) {
 
     // Help menu
     {
-      label: 'Help',
+      label: t('menu.help.title'),
       submenu: [
         {
-          label: 'Keyboard Shortcuts',
+          label: t('menu.help.keyboardShortcuts'),
           accelerator: 'CmdOrCtrl+/',
           click: () => {
             sendMenuCommand('show-keyboard-shortcuts');
@@ -564,26 +629,26 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: 'Documentation',
+          label: t('menu.help.documentation'),
           click: async () => {
             await shell.openExternal('https://github.com/krissen/ansikten#readme');
           }
         },
         {
-          label: 'User Guide',
+          label: t('menu.help.userGuide'),
           click: async () => {
             await shell.openExternal('https://github.com/krissen/ansikten/blob/main/docs/user/getting-started.md');
           }
         },
         {
-          label: 'Report Issue',
+          label: t('menu.help.reportIssue'),
           click: async () => {
             await shell.openExternal('https://github.com/krissen/ansikten/issues/new');
           }
         },
         { type: 'separator' },
         {
-          label: 'GitHub Repository',
+          label: t('menu.help.githubRepo'),
           click: async () => {
             await shell.openExternal('https://github.com/krissen/ansikten');
           }
@@ -591,13 +656,13 @@ function createApplicationMenu(mainWindow) {
         ...(!isMac ? [
           { type: 'separator' },
           {
-            label: 'About Ansikten',
+            label: t('menu.app.about'),
             click: () => {
               dialog.showMessageBox(mainWindow, {
                 type: 'info',
-                title: 'About Ansikten',
+                title: t('menu.app.about'),
                 message: 'Ansikten',
-                detail: `Version: ${versionString}\n\nFace detection and annotation tool for event photography.\n\nhttps://github.com/krissen/ansikten`,
+                detail: t('menu.app.aboutDetail', { version: versionString }),
                 buttons: ['OK']
               });
             }

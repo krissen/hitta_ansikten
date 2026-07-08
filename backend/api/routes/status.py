@@ -4,10 +4,11 @@ Status Routes
 Endpoints for checking image processing status.
 """
 
+import logging
+from typing import List, Literal, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, Literal, List
-import logging
 
 from ..websocket.progress import set_log_categories
 
@@ -56,7 +57,7 @@ async def get_image_status(image_path: str):
     logger.info(f"[Status] Checking status for: {image_path}")
 
     try:
-        # TODO: Implement using db_service
+        # TODO: Implement real status lookup (currently returns a placeholder)
         return ImageStatus(
             image_path=image_path,
             is_processed=False,

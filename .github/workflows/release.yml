@@ -173,11 +173,6 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/pyproject.toml
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake libdlib-dev
-
       - name: Install Python dependencies
         working-directory: backend
         run: |

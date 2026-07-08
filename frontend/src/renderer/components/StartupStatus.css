@@ -18,11 +18,11 @@
 }
 
 .startup-status.all-ready {
-  border-color: var(--color-success);
+  border-color: var(--color-success-text);
 }
 
 .startup-status.has-error {
-  border-color: var(--color-error);
+  border-color: var(--color-error-text);
 }
 
 .startup-status-header {
@@ -33,11 +33,11 @@
 }
 
 .startup-status.all-ready .startup-status-header {
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .startup-status.has-error .startup-status-header {
-  color: var(--color-error);
+  color: var(--color-error-text);
 }
 
 .startup-status-items {
@@ -105,15 +105,15 @@
 }
 
 .startup-message.is-ready {
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .startup-message.is-error {
-  color: var(--color-error);
+  color: var(--color-error-text);
 }
 
 .startup-message.is-loading {
-  color: var(--color-info);
+  color: var(--color-info-text);
   animation: pulse-loading 1.5s ease-in-out infinite;
 }
 
@@ -123,7 +123,7 @@
 }
 
 .startup-error-detail {
-  color: var(--color-error);
+  color: var(--color-error-text);
   cursor: help;
   flex-shrink: 0;
 }

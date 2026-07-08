@@ -1,0 +1,129 @@
+/**
+ * Tailwind v4 layer for Ansikten
+ *
+ * theme.css remains the single source of truth for all design tokens.
+ * This file only exposes Tailwind utilities that map 1:1 onto those tokens
+ * via `@theme inline`, so both themes, the tri-state switch, and the
+ * ThemeEditor runtime overrides (setProperty on the live var()) keep working
+ * by construction.
+ *
+ * No preflight: the project owns its resets (see theme.css + component CSS).
+ * See docs/dev/theming.md for the naming scheme and coexistence rules.
+ */
+
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Scan the renderer sources for utility classes. dist/ is gitignored and thus
+   excluded from Tailwind's source detection automatically. */
+@source "./";
+
+/* Dark variant keys off the same data-theme attribute the app already uses. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/**
+ * Map Tailwind utility namespaces 1:1 onto the existing theme.css variables.
+ * `inline` means the utility emits the var() reference directly (e.g.
+ * `bg-bg-primary` -> `background-color: var(--bg-primary)`).
+ *
+ * Caveat: for the SAME-NAME mappings below (--color-success and friends,
+ * --font-*, --radius-*, --shadow-*) there is nothing to inline, so Tailwind
+ * emits them as circular declarations on `:root, :host` inside @layer theme.
+ * They are neutralised only because theme.css is UNLAYERED and unlayered
+ * declarations always beat layered ones — theme.css's real values win.
+ * Do NOT move theme.css into a cascade layer: that would make these
+ * self-references live and break all status colors, fonts, radii and shadows.
+ *
+ * Naming is 1:1 and grep-able (`bg-bg-primary`, `text-text-primary`); the only
+ * deviation is the accent short-form (`accent` -> --accent-primary).
+ * --z-* is used via arbitrary values (`z-(--z-modal)`); --transition-* is left
+ * to legacy vars. Neither is mapped.
+ */
+@theme inline {
+  /* Backgrounds */
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-bg-tertiary: var(--bg-tertiary);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+  --color-bg-row-hover: var(--bg-row-hover);
+  --color-bg-row-active: var(--bg-row-active);
+
+  /* Foreground text */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-inverse: var(--text-inverse);
+  --color-text-on-accent: var(--text-on-accent);
+
+  /* Borders */
+  --color-border-subtle: var(--border-subtle);
+  --color-border-medium: var(--border-medium);
+  --color-border-strong: var(--border-strong);
+
+  /* Accent (short-form: the one naming deviation) */
+  --color-accent: var(--accent-primary);
+  --color-accent-hover: var(--accent-primary-hover);
+  --color-accent-secondary: var(--accent-secondary);
+  --color-accent-secondary-hover: var(--accent-secondary-hover);
+
+  /* Semantic status colors (hue + -bg + -text variants where they exist) */
+  --color-success: var(--color-success);
+  --color-success-bg: var(--color-success-bg);
+  --color-success-text: var(--color-success-text);
+  --color-warning: var(--color-warning);
+  --color-warning-bg: var(--color-warning-bg);
+  --color-warning-text: var(--color-warning-text);
+  --color-error: var(--color-error);
+  --color-error-bg: var(--color-error-bg);
+  --color-error-text: var(--color-error-text);
+  --color-info: var(--color-info);
+  --color-info-bg: var(--color-info-bg);
+
+  /* Overlay */
+  --color-overlay-bg: var(--overlay-bg);
+  --color-overlay-text: var(--overlay-text);
+
+  /* Spacing scale */
+  --spacing-xs: var(--space-xs);
+  --spacing-sm: var(--space-sm);
+  --spacing-md: var(--space-md);
+  --spacing-lg: var(--space-lg);
+  --spacing-xl: var(--space-xl);
+  --spacing-2xl: var(--space-2xl);
+
+  /* Font sizes (text-* size utilities) */
+  --text-xs: var(--font-xs);
+  --text-sm: var(--font-sm);
+  --text-base: var(--font-base);
+  --text-md: var(--font-md);
+  --text-lg: var(--font-lg);
+  --text-xl: var(--font-xl);
+  --text-2xl: var(--font-2xl);
+
+  /* Font families */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Border radius */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-full: var(--radius-full);
+
+  /* Shadows */
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+}
+
+/* No base border reset. Preflight's `border: 0 solid` default would zero the
+   UA-default borders that unmigrated form controls (<select>/<input> in e.g.
+   TrashPanel, LogViewer, StatisticsDashboard, RenameNefModule) still rely on —
+   author CSS beats UA styles even from inside a layer. Until those controls
+   are migrated to shared primitives (phase A/B), border utilities must set an
+   explicit style: `border border-solid border-border-medium`. Revisit a base
+   reset once nothing depends on UA-default borders. */

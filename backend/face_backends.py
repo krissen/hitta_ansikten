@@ -5,9 +5,10 @@ Provides pluggable backends for face detection and recognition.
 Supports both dlib (via face_recognition) and InsightFace.
 """
 
-from abc import ABC, abstractmethod
-import numpy as np
 import logging
+from abc import ABC, abstractmethod
+
+import numpy as np
 
 # Constants
 EPSILON_NORM = 1e-6  # Small value to avoid division by zero in normalization
@@ -181,7 +182,6 @@ class InsightFaceBackend(FaceBackend):
         # Import standard library modules and initialize buffers BEFORE try block
         # so they're guaranteed available in exception handlers
         import os
-        import sys
         import warnings
         from contextlib import redirect_stderr, redirect_stdout
         from io import StringIO
@@ -220,7 +220,6 @@ class InsightFaceBackend(FaceBackend):
             # Suppress verbose output during InsightFace initialization
             # ONNX prints directly to stdout/stderr from C++ layer
             with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
-                import insightface
                 from insightface.app import FaceAnalysis
 
                 self.app = FaceAnalysis(

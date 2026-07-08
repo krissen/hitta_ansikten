@@ -109,7 +109,7 @@ chmod +x Ansikten-X.X.X.AppImage
 Backend-servern startar automatiskt när appen öppnas.
 
 Om servern inte startar:
-1. Öppna Log Viewer (`Cmd+L`)
+1. Öppna Loggar (`Cmd+L`)
 2. Kontrollera felmeddelanden
 3. Verifiera att port 5001 är ledig
 

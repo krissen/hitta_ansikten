@@ -1,0 +1,91 @@
+.import-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.import-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.import-label {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+}
+
+.import-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.import-dest-row {
+  display: flex;
+  gap: 8px;
+}
+
+.import-dest {
+  flex: 1;
+  min-width: 0;
+}
+
+.import-radios {
+  display: flex;
+  gap: 16px;
+}
+
+.import-eject {
+  margin-top: -4px;
+}
+
+.import-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.import-hint {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+}
+
+.import-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.import-progress-label {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.import-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  font-size: 0.9em;
+}
+
+.import-ok { color: var(--color-success); }
+.import-warn { color: var(--color-warning); }
+
+.import-errors {
+  font-size: 0.85em;
+  color: var(--color-error);
+}
+
+.import-errors ul {
+  margin: 4px 0 0 16px;
+  padding: 0;
+}

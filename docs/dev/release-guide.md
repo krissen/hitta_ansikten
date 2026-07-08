@@ -45,13 +45,27 @@ npx electron .
 
 Arbetsprincip för planering och releaseförberedelse:
 
-1. Planera framtida arbete i `docs/dev/roadmap.md`
+1. Planera framtida arbete i [`ROADMAP.md`](../../ROADMAP.md) (löpande backlog/known issues/teknisk skuld); release-scopade prestandaplaner ligger i [`docs/dev/performance-plan.md`](performance-plan.md)
 2. När arbete är klart inför release, flytta relevanta punkter från roadmap till `CHANGELOG.md`
 3. Finslipa `CHANGELOG.md` så den beskriver ändringarna sedan senaste tag
 
 Det här håller roadmap framåtblickande och changelog release-fokuserad.
 
-### 3. Skapa och pusha tag
+### 3. Uppdatera versionsnummer (bumpa båda)
+
+Vid release-bygget är **`v*`-taggen auktoritativ** för frontend-versionen:
+workflow-steget "Set version from tag" kör `npm pkg set version=${GITHUB_REF_NAME#v}`,
+så `frontend/package.json` skrivs över med taggens nummer i CI. De committade
+versionsnumren i repot används alltså inte av frontend-bygget — men de ska ändå
+hållas i synk så att fristående backend-körning och `/health` rapporterar rätt.
+
+Bumpa därför **båda** committade versionerna tillsammans, till samma nummer som taggen:
+
+- `frontend/package.json` → `version`
+- `backend/pyproject.toml` → `version` (och `version=` i `backend/api/server.py`,
+  som exponeras via `/health`; se ROADMAP för den kända dubbleringen)
+
+### 4. Skapa och pusha tag
 
 ```bash
 # Skapa annoterad tag
@@ -63,7 +77,7 @@ git push origin v1.0.1
 
 > **Viktigt:** Taggen måste börja med `v` (t.ex. `v1.0.1`, inte `1.0.1`).
 
-### 4. Övervaka bygget
+### 5. Övervaka bygget
 
 1. Gå till [GitHub Actions](https://github.com/krissen/ansikten/actions)
 2. Klicka på "Release" workflow
@@ -74,7 +88,7 @@ Byggtider (ungefärliga):
 - Windows: ~10 minuter
 - Linux: ~6 minuter
 
-### 5. Publicera release
+### 6. Publicera release
 
 1. Gå till [GitHub Releases](https://github.com/krissen/ansikten/releases)
 2. Hitta draft-releasen (skapad automatiskt)

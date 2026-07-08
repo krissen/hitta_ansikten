@@ -138,7 +138,7 @@ InsightFace is the only supported backend:
 |---------|----------|----------|-----------|
 | InsightFace | 512-dim | Cosine | ~0.4 |
 
-> **Note:** dlib was deprecated in January 2026. Any existing dlib encodings are automatically removed at server startup.
+> **Note:** dlib was deprecated in January 2026. Any existing dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 
 ### Data Flow
 
@@ -165,22 +165,28 @@ Optional: Rename file
 ```
 ansikten/
 ├── backend/
-│   ├── hitta_ansikten.py     # Main CLI (~2000 lines, legacy name)
-│   ├── faceid_db.py          # Database layer
-│   ├── face_backends.py      # Backend abstraction
+│   ├── core/                 # Shared logic (config, matching, image, db, …)
+│   ├── hitta_ansikten.py     # Main CLI (legacy name)
+│   ├── faceid_db.py          # Deprecation shim → core.db
+│   ├── cli_config/image/matching.py  # Deprecation shims → core.*
+│   ├── face_backends.py      # Backend abstraction (InsightFace)
 │   ├── api/
-│   │   ├── server.py         # FastAPI entry
+│   │   ├── server.py         # FastAPI entry (routers under /api/v1)
 │   │   ├── routes/           # REST endpoints
+│   │   ├── services/         # Service layer (detection, management, …)
 │   │   └── websocket/        # WebSocket handlers
-│   └── hantera_ansikten.py   # DB management tool
+│   └── scripts/archive/      # Archived legacy/one-shot CLI tools
 │
 ├── frontend/
 │   ├── main.js               # Electron entry
 │   ├── src/
 │   │   ├── main/             # Main process
 │   │   └── renderer/
-│   │       ├── workspace/    # FlexLayout React
-│   │       └── modules/      # UI modules
+│   │       ├── workspace/flexlayout/  # FlexLayout workspace
+│   │       ├── components/   # React module components (+ review/culling/fileQueue subdirs)
+│   │       ├── hooks/        # Shared React hooks
+│   │       ├── shared/       # api-client + utilities
+│   │       └── context/      # React context providers
 │   └── scripts/
 │       └── build-workspace.js
 │
@@ -188,7 +194,7 @@ ansikten/
 │   ├── user/                 # User documentation
 │   └── dev/                  # Developer documentation
 │
-└── shared/                   # Common definitions
+└── shared/                   # Common type definitions (schemas)
 ```
 
 ---
@@ -207,8 +213,8 @@ source venv/bin/activate
 # Dry-run rename
 ./hitta_ansikten.py --rename --simulate .
 
-# Database management
-./hantera_ansikten.py
+# Database management (archived legacy tool)
+python scripts/archive/hantera_ansikten.py
 ```
 
 ### Run Frontend
@@ -239,7 +245,7 @@ python -m api.server
 
 ### Easy (1-2 hours)
 
-1. **Add docstrings** to `faceid_db.py` functions
+1. **Add docstrings** to `core/db.py` functions
 2. **Improve comments** in complex code sections
 3. **Fix typos** in comments or strings
 4. **Add type hints** to function signatures

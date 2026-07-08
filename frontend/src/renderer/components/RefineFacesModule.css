@@ -169,12 +169,12 @@
 }
 
 .cell-keep {
-  color: var(--status-success);
+  color: var(--color-success-text);
   text-align: center;
 }
 
 .cell-remove {
-  color: var(--status-error);
+  color: var(--color-error-text);
   text-align: center;
   font-weight: 500;
 }
@@ -200,21 +200,28 @@
 
 /* Preview warnings */
 .preview-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
   margin-bottom: var(--space-sm);
 }
 
-.warning-message {
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--bg-warning, #fff3cd);
-  border: 1px solid var(--status-warning, #ffc107);
-  border-radius: var(--radius-sm);
-  color: var(--text-warning, #856404);
+/* Shape-repair dry-run modal */
+.repair-modal-summary {
+  margin: 0 0 var(--space-sm) 0;
+  color: var(--text-primary);
   font-size: var(--font-sm);
-  margin-bottom: var(--space-xs);
 }
 
-.warning-message:last-child {
-  margin-bottom: 0;
+.repair-modal-list {
+  margin: 0;
+  padding-left: var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 }
 
 /* Info box */
@@ -250,8 +257,8 @@
 
 /* Migration section */
 .migration-section {
-  background: var(--bg-warning, var(--bg-elevated));
-  border-color: var(--status-warning, var(--border-medium));
+  background: var(--bg-elevated);
+  border-color: var(--border-medium);
 }
 
 .migration-info {

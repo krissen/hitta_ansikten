@@ -7,7 +7,7 @@ Provides database management operations for the workspace.
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from ..services.management_service import management_service
@@ -81,6 +81,64 @@ class OperationResponse(BaseModel):
     purged_by_backend: Optional[dict] = None
     new_state: Optional[DatabaseState] = None
     files_undone: Optional[List[str]] = None
+    removed_per_person: Optional[dict] = None
+    total_removed: Optional[int] = None
+
+
+class DuplicatePair(BaseModel):
+    name_a: str
+    name_b: str
+    distance: float
+    count_a: int
+    count_b: int
+    separability: Optional[float] = None
+    margin: Optional[float] = None
+    likely_distinct: bool = False
+
+
+class FindDuplicatesResponse(BaseModel):
+    pairs: List[DuplicatePair]
+    threshold: float
+    people_compared: int
+
+
+class DistinctPairRequest(BaseModel):
+    name_a: str
+    name_b: str
+
+
+class DistinctPairEntry(BaseModel):
+    name_a: str
+    name_b: str
+
+
+class DistinctPairsResponse(BaseModel):
+    pairs: List[DistinctPairEntry]
+    count: int
+
+
+class PersonRedundancy(BaseModel):
+    name: str
+    total: int
+    redundant: int
+    kept: int
+
+
+class RedundantEncodingsResponse(BaseModel):
+    people: List[PersonRedundancy]
+    threshold: float
+    total_redundant: int
+
+
+class DedupPeopleRequest(BaseModel):
+    names: List[str]
+    threshold: float = 0.0
+    dry_run: bool = False
+
+
+class DistinctPairOperationResponse(BaseModel):
+    status: str
+    count: int
 
 
 class RecentFile(BaseModel):
@@ -144,6 +202,83 @@ async def get_database_state():
 
     except Exception as e:
         logger.error(f"[Management] Error getting database state: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/management/find-duplicates", response_model=FindDuplicatesResponse)
+async def find_duplicates(threshold: float = Query(0.35, ge=0, le=2)):
+    """
+    Find pairs of distinctly-named people whose faces look like the same person.
+
+    Returns centroid-distance candidate pairs (closest first) for review and
+    merge. `threshold` is a cosine distance (lower = stricter; default 0.35).
+    """
+    try:
+        logger.info(f"[Management] Finding duplicate people (threshold={threshold})")
+        result = await management_service.find_duplicate_people(threshold)
+        return FindDuplicatesResponse(**result)
+
+    except Exception as e:
+        logger.error(f"[Management] Error finding duplicates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/management/distinct-pairs", response_model=DistinctPairsResponse)
+async def list_distinct_pairs():
+    """List confirmed-distinct name-pairs (excluded from duplicate suggestions)."""
+    try:
+        result = await management_service.list_distinct_pairs()
+        return DistinctPairsResponse(**result)
+    except Exception as e:
+        logger.error(f"[Management] Error listing distinct pairs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/management/distinct-pair", response_model=DistinctPairOperationResponse)
+async def add_distinct_pair(request: DistinctPairRequest):
+    """Mark a name-pair as confirmed-distinct (not a duplicate); the scanner skips it."""
+    try:
+        result = await management_service.add_distinct_pair(request.name_a, request.name_b)
+        return DistinctPairOperationResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Management] Error adding distinct pair: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/management/redundant-encodings", response_model=RedundantEncodingsResponse)
+async def redundant_encodings(threshold: float = Query(0.0, ge=0, le=2)):
+    """Per-person count of redundant encodings (exact, plus near at threshold>0)."""
+    try:
+        result = await management_service.find_redundant_encodings(threshold)
+        return RedundantEncodingsResponse(**result)
+    except Exception as e:
+        logger.error(f"[Management] Error scanning redundant encodings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/management/dedup-people", response_model=OperationResponse)
+async def dedup_people(request: DedupPeopleRequest):
+    """Remove redundant encodings from the named people (keeps one per group)."""
+    try:
+        result = await management_service.dedup_people(
+            request.names, threshold=request.threshold, dry_run=request.dry_run
+        )
+        return OperationResponse(**result)
+    except Exception as e:
+        logger.error(f"[Management] Error deduping people: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/management/distinct-pair/remove", response_model=DistinctPairOperationResponse)
+async def remove_distinct_pair(request: DistinctPairRequest):
+    """Remove a confirmed-distinct pair (undo) so it can be suggested again."""
+    try:
+        result = await management_service.remove_distinct_pair(request.name_a, request.name_b)
+        return DistinctPairOperationResponse(**result)
+    except Exception as e:
+        logger.error(f"[Management] Error removing distinct pair: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

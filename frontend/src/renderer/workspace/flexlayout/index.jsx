@@ -11,16 +11,27 @@ import { FlexLayoutWorkspace } from './FlexLayoutWorkspace.jsx';
 import { ModuleAPIProvider } from '../../context/ModuleAPIContext.jsx';
 import { BackendProvider } from '../../context/BackendContext.jsx';
 import { ToastProvider } from '../../context/ToastContext.jsx';
+import { ConfirmProvider } from '../../context/ConfirmContext.jsx';
 import { NotificationListener } from '../../components/NotificationListener.jsx';
 import { ConnectionStatus } from '../../components/ConnectionStatus.jsx';
-import { debug, debugWarn, debugError } from '../../shared/debug.js';
+import { debug, debugError } from '../../shared/debug.js';
 
 // Import theme system (must be first among CSS imports to define variables)
 import '../../theme.css';
 import '../../theme-manager.js'; // Side-effect: initializes theme on load
 
+// Shared UI primitives stylesheet (.btn / .icon-btn). Shipped app-wide from the
+// root so the design-system styles are present regardless of which modules
+// currently consume the primitives. The primitives also import this file
+// themselves (esbuild dedupes), so they carry their styles in isolation/tests.
+import '../../components/shared/shared.css';
+
 // Import FlexLayout CSS
 import 'flexlayout-react/style/light.css';
+
+// FlexLayout chrome + toast overrides — MUST be imported last so its rules
+// win over both component CSS and flexlayout-react's default light.css.
+import './flexlayout-overrides.css';
 
 /**
  * Initialize the FlexLayout workspace
@@ -42,9 +53,11 @@ function initFlexLayoutWorkspace() {
       <ModuleAPIProvider>
         <BackendProvider>
           <ToastProvider>
-            <NotificationListener />
-            <ConnectionStatus />
-            <FlexLayoutWorkspace />
+            <ConfirmProvider>
+              <NotificationListener />
+              <ConnectionStatus />
+              <FlexLayoutWorkspace />
+            </ConfirmProvider>
           </ToastProvider>
         </BackendProvider>
       </ModuleAPIProvider>

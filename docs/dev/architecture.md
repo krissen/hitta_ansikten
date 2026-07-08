@@ -33,14 +33,75 @@ ansikten/
 
 ### Core Components
 
-| File | Purpose |
-|------|---------|
-| `hitta_ansikten.py` | Main CLI entry point (~2000 lines) |
-| `faceid_db.py` | Database layer, handles all I/O |
-| `face_backends.py` | Pluggable backend abstraction |
+Shared logic lives in the `core/` package, imported by both the legacy CLI and
+the FastAPI backend. The old top-level modules survive as thin deprecation shims
+(`import faceid_db` / `cli_config` / `cli_image` / `cli_matching` re-export the
+matching `core.*` module — `faceid_db` even aliases itself to `core.db` in
+`sys.modules`, so patching one name patches both).
+
+| File / package | Purpose |
+|----------------|---------|
+| `core/config.py` | Configuration and settings (shim: `cli_config`) |
+| `core/matching.py` | Face-matching / threshold utilities (shim: `cli_matching`) |
+| `core/image.py` | RAW/image loading and resizing (shim: `cli_image`) |
+| `core/db.py` | Database layer — pickle/JSONL I/O, locking, migration (shim: `faceid_db`) |
+| `core/attempts.py` | Attempt-statistics JSONL logger |
+| `core/naming.py` | Filename ↔ person-name helpers |
+| `core/playerstats.py` | Player-count statistics + exclusion config |
+| `core/files.py` | Canonical supported image-extension sets |
+| `hitta_ansikten.py` | Main CLI entry point (legacy name) |
+| `face_backends.py` | Pluggable backend abstraction (InsightFace) |
 | `api/server.py` | FastAPI server entry point |
 | `api/routes/` | REST API endpoints |
+| `api/services/` | Service layer (detection, management, statistics, …) |
 | `api/websocket/` | WebSocket handlers |
+
+### Backend Data Layer
+
+The server holds the face DB in memory through a single authority — the
+process-wide **`FaceDBStore`** (`api/services/db_store.py`) — instead of each
+service keeping its own copy:
+
+- **One store, four collections.** `known_faces` (dict), `ignored_faces`
+  (list), `hard_negatives` (dict), `processed_files` (list), loaded once from
+  `core.db.load_database()`.
+- **Access API.** `snapshot()` returns the live collections; `read(fn)` runs a
+  read-only aggregation under the store lock; `mutate(fn, touches=...)` applies
+  a write, bumps the version, and marks the named collections dirty; `flush()`
+  writes now (for endpoints that promise durability and for shutdown).
+- **External-change detection.** Every access cheap-stats the backing files and
+  reloads when a file's `(st_mtime_ns, st_size)` fingerprint differs from the
+  recorded baseline (e.g. the CLI wrote while the GUI was open).
+- **Debounced, per-collection saves.** A mutation schedules a *leading-coalesce*
+  save 500 ms after the first mutation of a burst; dirty flags accumulate and
+  the save rewrites only the dirty union (`save_database(only=...)`), so a
+  confirm no longer rewrites all four files.
+- **Version counter.** A monotonic `version` is bumped on every mutation/reload,
+  letting downstream caches detect staleness cheaply.
+- **Single-writer model.** The GUI serializes writes through the store;
+  CLI-vs-server concurrent writes remain last-writer-wins.
+
+**`MatchingIndex`** (`api/services/matching_index.py`) precomputes the
+per-backend stacked candidate matrices (lenient/strict known + ignored) once per
+store `version` and reuses them across every detected face until the DB changes.
+It is version-invalidated (rebuilt under `store.read` with double-checked
+locking) rather than restacked per match.
+
+Services are reached through **lazy getters** (`get_detection_service()` etc.)
+that construct the singleton on first use with double-checked locking — no
+import-time construction.
+
+### Schema-marker migration
+
+`core.db.load_database()` normalizes every encoding entry to the modern dict
+form (backend metadata, `encoding_hash`). To avoid re-running that pass on every
+load, the first migration writes a `db_meta.json` sidecar recording
+`{"schema": <DB_SCHEMA_VERSION>}` (atomic temp-file + rename). Subsequent loads
+read the marker and skip the per-entry pass. The data files are rewritten only
+when normalization actually changed something (`save_database(only=...)`); a
+corrupt entry suppresses both the save-back and the marker; a missing/malformed
+marker falls back to a full pass. Bumping `DB_SCHEMA_VERSION` forces a fresh
+pass + re-save on next load.
 
 ### Processing Pipeline
 
@@ -84,7 +145,7 @@ InsightFace is the only supported backend:
 |---------|----------|----------|-----------|
 | **InsightFace** | 512-dim | Cosine | ~0.4 |
 
-> **Note:** dlib was deprecated in January 2026. Existing dlib encodings are automatically removed at server startup.
+> **Note:** dlib was deprecated in January 2026. Existing dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 
 ---
 
@@ -104,19 +165,31 @@ Electron Renderer Process
 └── src/renderer/
     ├── workspace/
     │   └── flexlayout/
-    │       ├── index.jsx           # React entry
+    │       ├── index.jsx              # React entry
     │       ├── FlexLayoutWorkspace.jsx  # Main component
-    │       ├── ModuleWrapper.jsx   # Vanilla JS wrapper
-    │       └── layouts.js          # Preset configurations
-    └── modules/
-        ├── image-viewer/      # Canvas rendering
-        ├── review-module/     # Face review UI
-        ├── file-queue/        # File management
-        ├── log-viewer/        # Log display
-        ├── original-view/     # NEF comparison
-        ├── statistics-dashboard/
-        └── database-management/
+    │       ├── moduleRegistry.js     # id → component mapping
+    │       ├── layouts.js            # Preset layout configurations
+    │       ├── menuCommands.js       # Menu/shortcut command dispatch
+    │       ├── tabNames.js           # i18n tab titles
+    │       └── tabsetUtils.js        # Active-tabset helpers
+    ├── components/           # React module components (flat + per-module dirs)
+    │   ├── ReviewModule.jsx  #   review/    — FaceCard, reviewActions, keyboard
+    │   ├── CullingModule.jsx #   culling/   — FilterBar, StatsPanel, preview hook
+    │   ├── FileQueueModule.jsx #  fileQueue/ — reducer, prefs, rename/preprocess hooks
+    │   ├── ImageViewer.jsx   # Canvas rendering, zoom/pan
+    │   └── …                 # Statistics, Database, RefineFaces, Import, RenameNef, …
+    ├── hooks/                # Shared hooks (useActiveTabset, useWebSocket, …)
+    ├── shared/               # api-client (HTTP + WS singleton), utilities
+    └── context/              # ModuleAPI context providers
 ```
+
+The larger modules are decomposed: each keeps its top-level `*.jsx` component in
+`components/` and pushes pure logic, sub-components, and hooks into a
+same-named subdirectory (`components/review/`, `components/culling/`,
+`components/fileQueue/`). Cross-cutting hooks live in `hooks/` — notably
+`useActiveTabset`, which gates a module's keyboard shortcuts on its tabset being
+active and supports *companion* modules (a keyboard-less surface, e.g. the image
+viewer, counts as active for its driver module).
 
 ### Module Communication
 
@@ -130,7 +203,7 @@ api.emit('image-loaded', { path: '/path/to/image.nef' });
 api.on('face-selected', (data) => { /* handle */ });
 
 // Backend HTTP calls
-const result = await api.http.post('/api/detect-faces', { imagePath });
+const result = await api.http.post('/api/v1/detect-faces', { imagePath });
 
 // WebSocket events
 api.ws.on('progress', (data) => { /* update UI */ });
@@ -148,10 +221,12 @@ Row (root)
     └── Tab (Image Viewer)
 ```
 
-Preset layouts defined in `layouts.js`:
+Preset layouts defined in `layouts.js` (`getLayoutByName` / `layoutNames`):
 - `review` - Review panel + Image Viewer
+- `review-with-logs` - Review + Image Viewer + Log Viewer
 - `comparison` - Image Viewer + Original View
-- `full-review` - 2x2 grid with all modules
+- `full-review` - Grid with Review, Image Viewer, Original View, Logs
+- `queue-review` - File Queue + Review + Image Viewer
 - `database` - Database Management + Statistics
 
 ---
@@ -245,7 +320,7 @@ Stored in localStorage:
 ### Encoding Compatibility
 
 - All encodings use InsightFace (512-dim vectors)
-- Legacy dlib encodings are automatically purged at startup
+- Legacy dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint
 
 ### Preprocessing Cache
 

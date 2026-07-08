@@ -5,6 +5,8 @@
  * Uses FlexLayout's JSON format: Row -> TabSet -> Tab hierarchy.
  */
 
+import { t } from '../../../i18n/index.js';
+
 /**
  * Default review layout: Review panel (15%) | Image Viewer (85%)
  */
@@ -31,7 +33,7 @@ export const reviewLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Review',
+            name: t('modules.review-module'),
             component: 'review-module',
             enableRenderOnDemand: false,
             config: { moduleId: 'review-module' }
@@ -44,7 +46,7 @@ export const reviewLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Image Viewer',
+            name: t('modules.image-viewer'),
             component: 'image-viewer',
             config: { moduleId: 'image-viewer' }
           }
@@ -90,7 +92,7 @@ export const reviewWithLogsLayout = {
             children: [
               {
                 type: 'tab',
-                name: 'Review',
+                name: t('modules.review-module'),
                 component: 'review-module',
                 config: { moduleId: 'review-module' }
               }
@@ -102,7 +104,7 @@ export const reviewWithLogsLayout = {
             children: [
               {
                 type: 'tab',
-                name: 'Image Viewer',
+                name: t('modules.image-viewer'),
                 component: 'image-viewer',
                 config: { moduleId: 'image-viewer' }
               }
@@ -116,7 +118,7 @@ export const reviewWithLogsLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Log Viewer',
+            name: t('modules.log-viewer'),
             component: 'log-viewer',
             config: { moduleId: 'log-viewer' }
           }
@@ -152,7 +154,7 @@ export const comparisonLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Image Viewer',
+            name: t('modules.image-viewer'),
             component: 'image-viewer',
             config: { moduleId: 'image-viewer' }
           }
@@ -164,7 +166,7 @@ export const comparisonLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Original',
+            name: t('modules.original-view'),
             component: 'original-view',
             config: { moduleId: 'original-view' }
           }
@@ -210,7 +212,7 @@ export const fullReviewLayout = {
             children: [
               {
                 type: 'tab',
-                name: 'Review',
+                name: t('modules.review-module'),
                 component: 'review-module',
                 config: { moduleId: 'review-module' }
               }
@@ -222,7 +224,7 @@ export const fullReviewLayout = {
             children: [
               {
                 type: 'tab',
-                name: 'Image Viewer',
+                name: t('modules.image-viewer'),
                 component: 'image-viewer',
                 config: { moduleId: 'image-viewer' }
               }
@@ -240,7 +242,7 @@ export const fullReviewLayout = {
             children: [
               {
                 type: 'tab',
-                name: 'Original',
+                name: t('modules.original-view'),
                 component: 'original-view',
                 config: { moduleId: 'original-view' }
               }
@@ -252,7 +254,7 @@ export const fullReviewLayout = {
             children: [
               {
                 type: 'tab',
-                name: 'Log Viewer',
+                name: t('modules.log-viewer'),
                 component: 'log-viewer',
                 config: { moduleId: 'log-viewer' }
               }
@@ -295,7 +297,7 @@ export const queueReviewLayout = {
         children: [
           {
             type: 'tab',
-            name: 'File Queue',
+            name: t('modules.file-queue'),
             component: 'file-queue',
             enableRenderOnDemand: false,
             config: { moduleId: 'file-queue' }
@@ -308,7 +310,7 @@ export const queueReviewLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Review',
+            name: t('modules.review-module'),
             component: 'review-module',
             enableRenderOnDemand: false,
             config: { moduleId: 'review-module' }
@@ -321,7 +323,7 @@ export const queueReviewLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Image Viewer',
+            name: t('modules.image-viewer'),
             component: 'image-viewer',
             config: { moduleId: 'image-viewer' }
           }
@@ -357,7 +359,7 @@ export const databaseLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Database',
+            name: t('modules.database-management'),
             component: 'database-management',
             config: { moduleId: 'database-management' }
           }
@@ -369,7 +371,7 @@ export const databaseLayout = {
         children: [
           {
             type: 'tab',
-            name: 'Statistics',
+            name: t('modules.statistics-dashboard'),
             component: 'statistics-dashboard',
             config: { moduleId: 'statistics-dashboard' }
           }
@@ -378,6 +380,51 @@ export const databaseLayout = {
     ]
   }
 };
+
+/**
+ * Single-module layout: one full-width tabset holding just the given module.
+ * Used for self-contained workflow modules (culling, player-count, import,
+ * rename-nef) opened from the landing page so they fill the workspace instead
+ * of docking beside the Review panel.
+ * @param {string} moduleId - Module component id
+ * @param {string} [title] - Tab title (defaults to moduleId)
+ * @returns {object} FlexLayout JSON configuration
+ */
+export function singleModuleLayout(moduleId, title) {
+  return {
+    global: {
+      tabEnableClose: true,
+      tabSetEnableMaximize: true,
+      tabSetEnableDrag: true,
+      tabSetEnableDrop: true,
+      tabSetMinWidth: 100,
+      tabSetMinHeight: 100,
+      borderMinSize: 100,
+      splitterSize: 4,
+      enableEdgeDock: true,
+      tabEnableRenderOnDemand: true
+    },
+    layout: {
+      type: 'row',
+      weight: 100,
+      children: [
+        {
+          type: 'tabset',
+          weight: 100,
+          children: [
+            {
+              type: 'tab',
+              name: title || moduleId,
+              component: moduleId,
+              enableRenderOnDemand: false,
+              config: { moduleId }
+            }
+          ]
+        }
+      ]
+    }
+  };
+}
 
 /**
  * Get layout by name

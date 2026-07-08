@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Canonical agent-instructions file.** This is the single source of truth for
+> AI coding assistants on this repo. [AGENTS.md](AGENTS.md) (Codex) and
+> [.github/copilot-instructions.md](.github/copilot-instructions.md) (Copilot)
+> are thin pointers to this file — put shared guidance here, not in those.
+
 ---
 
 ## Project Overview
@@ -105,18 +110,24 @@ npm run build:linux                        # Linux .AppImage/.deb
 
 ```
 backend/api/
-├── server.py              # FastAPI app entry, CORS, startup
+├── server.py              # FastAPI app entry, CORS, startup (all routers mounted under /api/v1)
 ├── routes/
-│   ├── detection.py       # /api/detect-faces, /api/confirm-identity
-│   ├── management.py      # /api/management/rename-person, merge, delete
-│   ├── database.py        # /api/database/people, names
-│   ├── files.py           # /api/files/rename, rename-preview
-│   ├── refinement.py      # /api/refinement/outliers, update
-│   ├── statistics.py      # /api/statistics
-│   ├── preprocessing.py   # /api/preprocessing
-│   ├── startup.py         # /api/startup/status
-│   └── status.py          # /api/status
+│   ├── detection.py       # /api/v1/detect-faces, /api/v1/confirm-identity
+│   ├── management.py      # /api/v1/management/rename-person, merge, delete
+│   ├── database.py        # /api/v1/database/people, names
+│   ├── files.py           # /api/v1/files/rename, rename-preview, manual-suffix
+│   ├── refinement.py      # /api/v1/refinement/preview, apply
+│   ├── statistics.py      # /api/v1/statistics/summary
+│   ├── preprocessing.py   # /api/v1/preprocessing/*
+│   ├── player_count.py    # /api/v1/players/count, exclusions
+│   ├── culling.py         # /api/v1/culling/* (photo culling / trash)
+│   ├── imports.py         # /api/v1/import/volumes, run
+│   ├── rename_nef.py      # /api/v1/rename-nef/preview, execute
+│   ├── startup.py         # /api/v1/startup/status
+│   └── status.py          # /api/v1/status
 ├── services/
+│   ├── db_store.py             # FaceDBStore: process-wide DB authority (mutate/read/flush)
+│   ├── matching_index.py       # Version-invalidated per-backend candidate matrices
 │   ├── detection_service.py    # Core detection logic, face matching
 │   ├── management_service.py   # Database operations (rename, merge)
 │   ├── refinement_service.py   # Outlier detection, centroid refinement
@@ -127,8 +138,10 @@ backend/api/
     └── progress.py        # ws://localhost:5001/ws/progress
 ```
 
-Core modules (shared with legacy CLI):
-- `faceid_db.py` - Database layer (encodings.pkl, processed_files.jsonl)
+Core package `backend/core/` (shared by the legacy CLI and the API):
+- `core/db.py` - Database layer (encodings.pkl, processed_files.jsonl, db_meta.json). `faceid_db` is a shim aliased to it.
+- `core/config.py`, `core/matching.py`, `core/image.py` - config / matching / image utils (shims: `cli_config`, `cli_matching`, `cli_image`).
+- `core/attempts.py`, `core/naming.py`, `core/playerstats.py`, `core/files.py` - attempt log, naming, player stats, extension sets.
 - `face_backends.py` - InsightFace abstraction
 
 ### Frontend (Electron + React)
@@ -140,15 +153,17 @@ frontend/
 │   ├── index.js                   # Window management, IPC, file watching
 │   └── backend-service.js         # Auto-starts FastAPI server
 ├── src/renderer/
-│   ├── workspace/flexlayout/
-│   │   └── FlexLayoutWorkspace.jsx  # Main workspace component
-│   ├── components/                # React module components
-│   │   ├── ImageViewer.jsx        # Canvas rendering with zoom/pan
+│   ├── workspace/flexlayout/      # FlexLayoutWorkspace + layouts, moduleRegistry, menuCommands, tabsetUtils
+│   ├── components/                # React module components (*.jsx)
 │   │   ├── ReviewModule.jsx       # Face review UI (keyboard nav, autocomplete)
-│   │   ├── FileQueueModule.jsx    # File queue management
-│   │   ├── RefineFacesModule.jsx  # Outlier detection, centroid refinement
-│   │   ├── DatabaseManagement.jsx # Database admin
-│   │   └── ...
+│   │   ├── review/                #   sub-parts: FaceCard, reviewActions, useReviewKeyboard
+│   │   ├── CullingModule.jsx      # Photo culling / trash
+│   │   ├── culling/               #   sub-parts: FilterBar, StatsPanel, useCullingPreview
+│   │   ├── FileQueueModule.jsx    # File queue, preprocessing, rename
+│   │   ├── fileQueue/             #   sub-parts: queueReducer, prefs, useNefRename, usePreprocessing
+│   │   ├── ImageViewer.jsx        # Canvas rendering with zoom/pan
+│   │   └── ...                    # Statistics, Database, RefineFaces, Import, RenameNef, …
+│   ├── hooks/                     # Shared hooks (useActiveTabset, useWebSocket, useAutoRefresh, …)
 │   ├── shared/
 │   │   └── api-client.js          # HTTP + WebSocket client (singleton)
 │   └── context/
@@ -163,7 +178,7 @@ api.emit('image-loaded', { path });
 api.on('face-selected', callback);
 
 // Backend HTTP
-const result = await api.http.post('/api/detect-faces', { image_path });
+const result = await api.http.post('/api/v1/detect-faces', { image_path });
 
 // WebSocket
 api.ws.on('progress', callback);
@@ -177,8 +192,13 @@ api.ws.on('progress', callback);
 
 | Backend | Encoding | Threshold | Status |
 |---------|----------|-----------|--------|
-| InsightFace | 512-dim | ~0.4 | Primary |
-| dlib | 128-dim | ~0.54 | Legacy |
+| InsightFace | 512-dim | ~0.4 | Only supported backend |
+
+> **dlib is deprecated.** InsightFace is the sole active backend. Legacy dlib
+> encodings are left untouched at startup — there is no boot-time scan. The CLI
+> forces InsightFace even if dlib is configured. Removal tooling
+> (`DlibBackend`, the remove-dlib refinement endpoint, `scripts/archive/rensa_dlib.py`) still
+> exists so any legacy dlib encodings can be cleaned up on demand.
 
 Config in `~/.local/share/faceid/config.json`:
 ```json
@@ -206,6 +226,7 @@ Config in `~/.local/share/faceid/config.json`:
 - Backend auto-starts with Electron; use `python -m api.server` for standalone
 - DetectionService caches results by file hash (check cache when debugging)
 - GitHub Actions releases triggered by `v*` tags (e.g., `v1.0.1`)
+- Launch CLI: `ansikten [faces|culling|import] [--clear] PATH...` — the `bin/ansikten` script forwards args to the app; parsing/routing lives in `frontend/src/main/cli-args.js` (one source of truth) → IPC `queue-files` (faces) / `open-culling` (culling) / `open-import` (import, optional destination). No verb = faces; faces and culling are separate working sets. `import` takes an optional *destination* folder (source card is autodetected); a bare `ansikten import` still opens the module
 
 ---
 
@@ -219,7 +240,14 @@ Config in `~/.local/share/faceid/config.json`:
 
 ### Testing
 
-No automated test suite. Manual testing:
+Automated tests exist — run them before pushing:
+
+```bash
+cd backend && pytest        # backend/tests/ (configured in backend/pyproject.toml)
+cd frontend && npm test     # Vitest, frontend/tests/
+```
+
+The suite is small, so also test manually:
 - Run `npx electron .` and test modules in both light/dark themes
 - Check DevTools console for errors
 - Legacy CLI: `./hitta_ansikten.py --simulate *.NEF`
@@ -228,10 +256,41 @@ No automated test suite. Manual testing:
 
 **Always assess if code changes require documentation updates.**
 
-- Bug fixes: Usually no doc update needed
-- API/feature changes: Update relevant docs
-- **MINIMUM**: Note gaps in [TODO.md](TODO.md)
-- **IDEAL**: Update docs alongside code
+| Change type | Documentation action |
+|-------------|----------------------|
+| Bug fix | Usually no update needed |
+| API change | Update [API Reference](docs/dev/api-reference.md) |
+| Feature added/removed | Update relevant user/dev docs |
+| Config change | Update [Database](docs/dev/database.md) |
+| UI change / keyboard shortcut | Update [Workspace Guide](docs/user/workspace-guide.md) |
+
+- **MINIMUM**: Note gaps in [ROADMAP.md](ROADMAP.md) under "Kända brister > Dokumentation"
+- **IDEAL**: Update the actual docs alongside the code
+
+---
+
+## Code Style
+
+### Python (Backend)
+- PEP 8; type hints where appropriate; descriptive names.
+- Docstrings for public functions/classes; inline comments for non-obvious logic.
+
+### JavaScript (Frontend)
+- ES6+ (async/await, destructuring); JSDoc on functions.
+- camelCase for variables/functions, PascalCase for classes/components.
+
+### CSS
+- CSS variables for colors/spacing/fonts; test in light **and** dark themes.
+- Follow patterns in [docs/dev/theming.md](docs/dev/theming.md).
+
+---
+
+## Working Process
+
+- **One PR per thing** — one focused PR per discrete change; don't fold unrelated work together.
+- **Log TODOs immediately** — when the user adds work, or a gap is found, add it to [ROADMAP.md](ROADMAP.md) right away so it isn't lost with the session.
+- **Keep roadmap + changelog current** — every change updates [ROADMAP.md](ROADMAP.md) (the roadmap) and [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` as part of the work, so any new session can resume from the docs alone.
+- **Two roadmap-like files, distinct roles** — [ROADMAP.md](ROADMAP.md) (repo root) is the living, forward-looking backlog / known-issues / tech-debt across all horizons; [docs/dev/performance-plan.md](docs/dev/performance-plan.md) is a narrower, release-scoped plan (sprints, deliverables, Definition of Done) for a performance release. General planning goes in ROADMAP.md; put sprint/DoD detail for a perf release in performance-plan.md.
 
 ---
 
@@ -241,4 +300,6 @@ No automated test suite. Manual testing:
 - [API Reference](docs/dev/api-reference.md)
 - [Database](docs/dev/database.md)
 - [Theming](docs/dev/theming.md)
+- [Accessibility](docs/dev/accessibility.md)
 - [Contributing](docs/dev/contributing.md)
+- [Performance Plan](docs/dev/performance-plan.md)

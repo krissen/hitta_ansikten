@@ -63,11 +63,18 @@ hiddenimports = [
     'api.websocket.progress',
     'api.services',
     'api.services.detection_service',
-    'api.services.db_service',
-    
+
     # Local modules
     'faceid_db',
     'face_backends',
+    'core',
+    'core.config',
+    'core.matching',
+    'core.image',
+    'core.attempts',
+    'core.naming',
+    'core.playerstats',
+    'core.db',
 ]
 
 datas = []

@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
+import { t } from '../../i18n/index.js';
 import './ConnectionStatus.css';
 
 export function ConnectionStatus() {
@@ -14,11 +15,16 @@ export function ConnectionStatus() {
   }
 
   const message = isOffline
-    ? 'Backend unreachable - check your connection'
-    : 'Connecting to backend...';
+    ? t('connection.unreachable')
+    : t('connection.connecting');
+
+  // Offline (backend lost) is an error → assertive alert. The transient
+  // "connecting" state is normal status feedback → polite status.
+  const role = isOffline ? 'alert' : 'status';
+  const ariaLive = isOffline ? 'assertive' : 'polite';
 
   return (
-    <div className="connection-status-banner">
+    <div className="connection-status-banner" role={role} aria-live={ariaLive}>
       <span className="connection-status-icon">⚠</span>
       <span className="connection-status-message">{message}</span>
     </div>

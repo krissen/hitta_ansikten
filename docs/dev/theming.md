@@ -21,6 +21,9 @@ CSS variable system and styling guidelines for Ansikten workspace.
 - Clear button/interactive element separation
 - Obvious hover states without being flashy
 
+For keyboard navigation, ARIA roles, status live-regions and the
+reduced-motion policy, see [Accessibility](accessibility.md).
+
 ---
 
 ## CSS Variables
@@ -46,7 +49,7 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 | `--bg-tertiary` | #987840 | #252525 | Headers, toolbars |
 | `--bg-elevated` | #d8c8a0 | #2a2a2a | Cards, modals |
 | `--bg-hover` | #a08050 | #303030 | Hover states |
-| `--bg-active` | #886830 | #383838 | Active/selected |
+| `--bg-active` | #c8a060 | #383838 | Active/selected |
 
 ### Text Colors
 
@@ -54,9 +57,9 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 |----------|-------|------|-------|
 | `--text-primary` | #1a1008 | #d4d2c0 | Main text |
 | `--text-secondary` | #2d1810 | #a8a698 | Secondary text |
-| `--text-tertiary` | #483020 | #7a7870 | Muted text |
+| `--text-tertiary` | #483020 | #7f7d75 | Muted text |
 | `--text-inverse` | #f8f0e0 | #0f0f0f | Text on accent bg |
-| `--text-on-accent` | #ffffff | #ffffff | Text on accent buttons |
+| `--text-on-accent` | #0a0a0a | #0a0a0a | Text on accent buttons |
 
 ### Border Colors
 
@@ -72,6 +75,7 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 |----------|-------|------|-------|
 | `--accent-primary` | #38a818 | #9acd32 | Primary actions |
 | `--accent-primary-hover` | #2a8010 | #b8e856 | Primary hover |
+| `--accent-primary-alpha-20` | rgba(56,168,24,0.2) | rgba(154,205,50,0.2) | Faint accent tint (selected rows) |
 | `--accent-secondary` | #e85820 | #daa520 | Secondary actions |
 | `--accent-secondary-hover` | #c03810 | #eebb30 | Secondary hover |
 
@@ -80,13 +84,76 @@ Variables defined in `theme.css`, auto-loaded by renderer:
 | Variable | Light | Dark | Usage |
 |----------|-------|------|-------|
 | `--color-success` | #38a818 | #9acd32 | Success state |
-| `--color-success-bg` | #b0e898 | #1a2a1a | Success background |
+| `--color-success-bg` | #d8dcc8 | #1a2a1a | Success background |
+| `--color-success-text` | #174f07 | #9acd32 | Success text (WCAG AA on primary bg) |
 | `--color-warning` | #f87820 | #ffa500 | Warning state |
-| `--color-warning-bg` | #ffc898 | #2a2015 | Warning background |
+| `--color-warning-bg` | #e8d8c8 | #2a2015 | Warning background |
+| `--color-warning-text` | #733000 | #ffa500 | Warning text (WCAG AA on primary bg) |
 | `--color-error` | #e83020 | #ff6347 | Error state |
-| `--color-error-bg` | #ffb0a8 | #2a1515 | Error background |
+| `--color-error-bg` | #e8c8c8 | #2a1515 | Error background |
+| `--color-error-text` | #88160c | #ff6347 | Error text (WCAG AA on primary bg) |
+| `--color-info-text` | #0c466f | #87ceeb | Info text (WCAG AA on primary bg) |
 | `--color-info` | #1888d8 | #87ceeb | Info state |
-| `--color-info-bg` | #a0d0f8 | #15202a | Info background |
+| `--color-info-bg` | #c8dce8 | #15202a | Info background |
+
+### Keyboard focus
+
+`--focus-ring` (`2px solid var(--accent-primary)`) + `--focus-ring-offset` are the
+house focus indicator. Shared primitives apply it on `:focus-visible` only (mouse
+clicks show no ring); new components should do the same instead of hand-rolling
+outlines.
+
+> `--color-*-text` variants are the theme-legible text colors (dark on beige in
+> light, bright on near-black in dark). Use them for status *text*; pair with the
+> matching `--color-*-bg` for the fill.
+
+### Row / Selection Highlights
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `--bg-row-hover` | #e8d8b0 | #252525 | List/table row hover |
+| `--bg-row-active` | `--accent-primary-alpha-20` | `--accent-primary-alpha-20` | Selected/current row tint |
+| `--dropdown-selected-bg` | `--color-info-bg` | #454545 | Highlighted dropdown option |
+
+### Canvas Face Boxes
+
+Colors for face bounding boxes drawn over the photo in `ImageViewer`. They are
+read once via `getComputedStyle` and cached (invalidated on theme change). Kept
+equal across themes because they sit on image pixels, not the UI chrome.
+
+| Variable | Value | Usage |
+|----------|-------|-------|
+| `--face-active-highlight` | #e85820 (light) / #00bcd4 (dark) | Active face outline |
+| `--face-confirmed-color` / `-bg` | green | Confirmed name |
+| `--face-ignored-color` / `-bg` | gray | Ignored face |
+| `--face-uncertain-color` / `-bg` | #ffc107 | Uncertain name/ignore band |
+| `--face-confidence-medium-color` / `-bg` | #2196f3 | Medium confidence (≥0.50) |
+| `--face-confidence-low-color` / `-bg` | #ff9800 | Low confidence (≥0.35) |
+| `--face-confidence-none-color` / `-bg` | #f44336 | Very low confidence (<0.35) |
+
+### Overlay
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `--overlay-bg` | #846837 | #0a0a0a | Overlay/scrim background (AA under overlay text) |
+| `--overlay-text` | #f8f0e0 | #d4d2c0 | Text on overlay |
+
+### Progress
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `--progress-track-bg` | #a08858 | #353535 | Progress track |
+| `--progress-fill` | `--accent-primary` | `--accent-primary` | Progress fill |
+| `--progress-text` | `--text-primary` | `--text-primary` | Progress label |
+| `--progress-height` | 4px | 4px | Bar height |
+| `--progress-radius` | 2px | 2px | Bar radius |
+
+### Button Hover States
+
+| Variable | Light | Dark | Usage |
+|----------|-------|------|-------|
+| `--btn-secondary-hover-bg` | #e8d8b0 | `--bg-hover` | Secondary button hover |
+| `--btn-icon-hover-bg` | #e8d8b0 | `--bg-hover` | Icon button hover |
 
 ---
 
@@ -149,6 +216,20 @@ Based on 4px grid:
 
 ---
 
+## Z-Index Scale
+
+Theme-independent stacking order. Reference these instead of raw z-index values.
+
+| Variable | Value | Usage |
+|----------|-------|-------|
+| `--z-base` | 1 | Default raised elements |
+| `--z-dropdown` | 100 | Dropdowns, autocomplete popups |
+| `--z-sticky` | 200 | Sticky headers/toolbars |
+| `--z-modal` | 1000 | Modals, dialogs |
+| `--z-tooltip` | 2000 | Tooltips, transient overlays |
+
+---
+
 ## Shadows
 
 | Variable | Usage |
@@ -192,28 +273,36 @@ Based on 4px grid:
 
 ### Buttons
 
-```css
-/* Base */
-.btn {
-  padding: var(--space-sm) var(--space-md);
-  font-size: var(--font-sm);
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-base);
-}
+Always use the shared `<Button>` / `<IconButton>` primitives
+(`components/shared/`) — see the "Button Categories" section for the semantic
+model and the migration table. The primitives style `.btn` / `.icon-btn`
+directly against the tokens in `shared.css`.
 
-/* Primary - use --text-on-accent for contrast */
-.btn-primary {
+The legacy `.btn-action` / `.btn-secondary` / `.btn-danger` / `.btn-icon` alias
+classes were **removed in B7** once every call site had migrated; there is no
+raw button class to reach for. The `.btn--primary` variant carries the primary
+CTA styling:
+
+```css
+/* Primary action (Start, Save, Confirm) - use --text-on-accent for contrast */
+.btn--primary {
   background: var(--accent-primary);
   color: var(--text-on-accent);
+  border: none;
 }
 
-/* Ghost */
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
+/* Secondary action (Refresh, Clear, Rename) */
+.btn--secondary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
   border: 1px solid var(--border-medium);
+}
+
+/* Danger (Delete permanently) */
+.btn--danger {
+  background: var(--color-error);
+  color: var(--text-inverse);
+  border: none;
 }
 ```
 
@@ -235,23 +324,44 @@ Based on 4px grid:
 }
 ```
 
-### Badges
+### Icon Buttons
+
+Use `<IconButton>`; its default `elevated` variant is the square, hover-elevated
+toolbar chip (styled as `.icon-btn--elevated` in `shared.css`, consuming the
+`--btn-icon-hover-bg` token):
 
 ```css
-.badge {
-  display: inline-block;
-  padding: var(--space-xs) var(--space-sm);
-  font-size: var(--font-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  border-radius: var(--radius-full);
+/* Toolbar icon button - square, hover-elevated */
+.icon-btn--elevated {
+  background: var(--bg-elevated);
 }
 
-.badge-success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
+.icon-btn--elevated:hover:not(:disabled) {
+  background: var(--btn-icon-hover-bg);
+  box-shadow: var(--shadow-sm);
 }
 ```
+
+### Feedback surfaces
+
+Shared feedback primitives live in
+[`components/shared/`](../../frontend/src/renderer/components/shared/) and are
+styled in `shared.css` against the semantic tokens — reuse them instead of
+hand-rolling banners.
+
+- **`Alert`** (`.alert` + `.alert--{success|warning|info|error}`) — persistent
+  inline status. Uses the `--color-*-bg` / `--color-*-text` / `--color-*` token
+  trio. It replaced the legacy `.status-message` banners, whose CSS was removed
+  in B7.
+- **Toasts** (`.global-toast` + variant class, in `flexlayout-overrides.css`) —
+  transient global feedback on the solid `--color-{success|info|warning|error}`
+  fills with `--text-inverse`; each carries an `IconButton` dismiss
+  (`.global-toast__dismiss`, inherits the pill text colour).
+- **`ProgressBar` / `LoadingOverlay`** (`ProgressBar.css`) — driven by the
+  `--progress-*` tokens (see [Progress](#progress) below).
+- **`EmptyState`** (`.empty-state` + `.empty-state__{icon,title,description,action}`)
+  — builds on the base `.empty-state` layout; mirrors the legacy ImageViewer
+  placeholder (48px icon, `--text-tertiary`, `.hint` secondary line).
 
 ---
 
@@ -430,53 +540,100 @@ You're probably using the wrong variable in the base rule. Fix the base rule ins
 
 ## Button Categories
 
-Standardized button styles for consistency across all modules:
+Buttons are a **semantic model**, not a per-file style. The canonical implementation
+is the shared `<Button>` / `<IconButton>` primitives in
+`components/shared/` — prefer these over hand-rolled `<button className="btn-…">`.
+The primitives render the class contract `btn btn--{variant} btn--{size}` (and
+`icon-btn icon-btn--{variant} icon-btn--{size}`), styled in
+`components/shared/shared.css` directly against the theme tokens.
 
-| Category | Background | Text | Hover | Use For |
-|----------|------------|------|-------|---------|
-| **Primary** | `--accent-primary` | `--text-on-accent` | `--accent-primary-hover` | Main action (Start, Save) |
-| **Secondary** | `--bg-tertiary` | `--text-primary` | `--bg-hover` | Secondary action (Refresh, Reload) |
-| **Ghost** | `transparent` | `--text-secondary` | `--bg-hover` | Tertiary action (Clear, Remove) |
-| **Danger** | `--color-error` | `--text-inverse` | brightness filter | Destructive (Delete, Purge) |
+```jsx
+import { Button, IconButton, Kbd } from '../shared';
 
-### Examples
-
-```css
-/* Primary button */
-.btn-primary {
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-}
-.btn-primary:hover {
-  background: var(--accent-primary-hover);
-}
-
-/* Secondary button */
-.btn-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-.btn-secondary:hover {
-  background: var(--bg-hover);
-}
-
-/* Ghost button */
-.btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-medium);
-}
-.btn-ghost:hover {
-  background: var(--bg-hover);
-}
+<Button variant="primary" onClick={onStart}>Starta</Button>
+<Button variant="secondary" size="sm" onClick={onReload}>Ladda om</Button>
+<Button variant="danger" loading={deleting} onClick={onDelete}>Radera</Button>
+<IconButton icon="trash" label="Ta bort" variant="ghost" onClick={onRemove} />
+<span>Tryck <Kbd>Enter</Kbd> för att bekräfta</span>
 ```
 
-### Button Semantics
+| Variant | Background | Text | Hover | Use For |
+|---------|------------|------|-------|---------|
+| **primary** | `--accent-primary` | `--text-on-accent` | `--accent-primary-hover` | The one main action of a view (Start, Save) |
+| **secondary** | `--bg-elevated` | `--text-primary` | `--btn-secondary-hover-bg` | Standard action (Refresh, Reload, Rename) |
+| **ghost** | `transparent` | `--text-secondary` | `--bg-hover` | Low-emphasis / tertiary action (Clear, Remove, close) |
+| **danger** | `--color-error` | `--text-inverse` | brightness filter | Destructive (Delete, Purge) |
 
-- **Refresh/Reload actions** → Secondary (not Primary)
-- **Clear queue** → Ghost (not Danger - it's not destructive)
-- **Delete permanently** → Danger
-- **Start/Save/Submit** → Primary
+`IconButton` supports `elevated` (default — a raised chip mirroring legacy
+`.btn-icon` exactly: resting `--bg-elevated`, hover `--btn-icon-hover-bg` +
+`--shadow-sm`), `ghost` (flat/low-profile, opt-in) and `danger`. `Button`
+supports all four variants and two sizes (`sm`, `md`). `loading` implies
+`disabled`, sets
+`aria-busy`, and renders an inline spinner whose animation is a CSS class
+(so the reduced-motion guard can disable it). `IconButton`'s `label` is required
+and becomes both `aria-label` and `title`.
+
+The shared [`Autocomplete`](../../frontend/src/renderer/components/shared/Autocomplete.jsx)
+combobox primitive uses the `.autocomplete-wrapper` / `.autocomplete-dropdown` /
+`.autocomplete-item` classes, styled in `components/shared/shared.css` against
+the theme tokens (`--bg-elevated`, `--border-medium`, `--shadow-lg`,
+`--dropdown-selected-bg`, `--color-info`). The dropdown is portalled to `<body>`
+and positioned with `useDropdownPosition`, so those rules are global; consumers
+should not re-declare them. See [accessibility.md §1a](accessibility.md) for the
+ARIA/keyboard contract.
+
+### Semantics
+
+- **Max ONE primary per view/panel.** Primary marks the single most important
+  action. If two buttons look equally important, at most one is primary; the
+  rest are secondary.
+- **Refresh/Reload** → secondary (not primary).
+- **Clear / Remove / close** → ghost (not danger — clearing a queue is not
+  destructive to saved data).
+- **Delete permanently / Purge** → danger.
+- **Start / Save / Submit** → primary.
+
+### Migration from the legacy `.btn-*` classes
+
+The legacy `.btn-action` / `.btn-secondary` / `.btn-danger` / `.btn-icon` alias
+classes were **removed from `theme.css` in B7** once every call site had
+migrated to the primitives. The mapping below is kept for reference (e.g. when
+porting old snippets or reviewing history):
+
+| Legacy class | New primitive | Notes |
+|--------------|---------------|-------|
+| `.btn-primary` / `.btn-confirm` | `<Button variant="primary">` | |
+| `.btn-cancel` | `<Button variant="secondary">` | |
+| `.btn-secondary` | `<Button variant="secondary">` **or** `variant="ghost"` | Triage per use: Refresh/Reload → secondary; Clear/Remove/close → ghost |
+| `.btn-action` | `<Button variant="primary">` **or** `variant="secondary">` | Triage per use; enforce **max one primary per view** |
+| `.btn-danger` | `<Button variant="danger">` | |
+| `.btn-icon` | `<IconButton>` | Default `elevated` variant = visual parity with the old `.btn-icon`; use `variant="ghost"` for low-profile buttons. Requires a `label` (aria-label + title) |
+
+---
+
+## Modals
+
+Modal dialogs use the shared `<Modal>` primitive
+(`components/shared/Modal.jsx`), a native `<dialog showModal()>` styled in
+`shared.css` against the theme tokens: a retro-sharp surface (low `--radius-sm`,
+strong `1px` `--border-strong` border, `--bg-secondary`, `--shadow-lg`) with a
+dimmed `::backdrop` (`--overlay-opacity`). The open animation uses
+`--motion-duration-base` and is disabled under `prefers-reduced-motion`. Class
+contract:
+
+| Class | Role |
+|-------|------|
+| `.modal` / `.modal--{sm,md,lg}` | The `<dialog>` surface + width preset |
+| `.modal__content` | Padded inner wrapper (clicks here are *not* backdrop clicks) |
+| `.modal__title` | Heading (wired to `aria-labelledby`) |
+| `.modal__body` | Body content slot |
+| `.modal__footer` | Right-aligned action row (use `<Button>` primitives) |
+| `.modal__message` / `.modal__hint` | Prompt text / `<Kbd>` keyboard-hint row |
+
+Prefer `<Modal>` over ad-hoc fixed-overlay divs. For confirm/cancel prompts use
+the promise-based `useConfirm()` (see
+[accessibility.md](accessibility.md#5-modals) for the full pattern, keyboard
+shielding, and top-layer rationale).
 
 ---
 
@@ -490,3 +647,98 @@ Users can customize themes via the ThemeEditor module:
 4. Bind presets to light/dark system modes
 
 Custom presets stored in localStorage.
+
+---
+
+## Tailwind Utility Layer
+
+Tailwind v4 is available as a **utility layer on top of the token system** — it
+does not replace it. `theme.css` remains the single source of truth for every
+design value; Tailwind only exposes utilities that reference those same
+`var(--…)` tokens. Because the utilities point straight at the live variables,
+both themes, the tri-state switch, and the ThemeEditor's runtime overrides
+(`setProperty` on `<html>`) keep working through the utilities with no extra
+wiring.
+
+### Build
+
+- Source: [`src/renderer/tailwind.css`](../../frontend/src/renderer/tailwind.css).
+- Compiled by the Tailwind CLI (spawned from
+  [`scripts/build-workspace.js`](../../frontend/scripts/build-workspace.js),
+  alongside esbuild) to `workspace/dist/tailwind-bundle.css`.
+- Linked in `workspace-flex.html` **after** `workspace-bundle.css`.
+- No npm-script or CSP changes; watch mode runs `--watch=always` in parallel
+  with the esbuild watcher.
+
+### Naming scheme (1:1, grep-able)
+
+Utilities map 1:1 onto the token names via `@theme inline`, so the class name
+tells you the token:
+
+| Utility | Token | Note |
+|---------|-------|------|
+| `bg-bg-primary` | `--bg-primary` | background |
+| `text-text-primary` | `--text-primary` | **color** |
+| `border-border-medium` | `--border-medium` | border color |
+| `text-success` / `bg-success-bg` | `--color-success` / `--color-success-bg` | semantic |
+| `p-md`, `gap-lg`, `m-xs` | `--space-*` | spacing scale |
+| `text-base`, `text-2xl` | `--font-*` | **font size** |
+| `font-sans`, `font-mono` | `--font-sans/-mono` | font family |
+| `rounded-lg`, `shadow-md` | `--radius-*`, `--shadow-*` | |
+
+Two things to keep straight:
+
+- **`text-base` is a font *size*; `text-text-primary` is a *color*.** The
+  `text-` prefix is overloaded by Tailwind — size utilities read a `--text-*`
+  key, color utilities read a `--color-text-*` key.
+- **Accent uses a short-form.** The only naming deviation: `accent`,
+  `accent-hover`, `accent-secondary` map to `--accent-primary`,
+  `--accent-primary-hover`, `--accent-secondary` (so `bg-accent`,
+  `text-accent`, `border-accent`).
+
+Not mapped: `--z-*` (use arbitrary values, e.g. `z-(--z-modal)`) and
+`--transition-*` (keep using the legacy vars directly).
+
+### Coexistence rules
+
+The token layer and the utility layer live side by side. Rules that keep them
+from fighting:
+
+1. **Legacy (unlayered) CSS always wins over Tailwind.** Component CSS and
+   `theme.css` are unlayered; Tailwind's output lives in `@layer theme/base/…/utilities`.
+   Unlayered declarations beat *any* layered declaration regardless of
+   specificity — which is also *why* the token definitions in `theme.css`
+   override Tailwind's self-referential `:root` theme emissions. So dropping a
+   utility onto an element that a legacy rule already styles is inert until the
+   legacy rule is removed.
+2. **No `!` utilities.** `!`-important utilities would break rule 1 and let a
+   utility silently override component CSS. Forbidden.
+3. **Migrate, don't layer.** When a component is migrated to utilities, remove
+   its now-dead legacy CSS rules **in the same PR**. Don't leave both.
+4. **Known name collisions:** `text-success` / `text-warning` / `text-error` /
+   `text-info` exist as *both* legacy classes (in `theme.css`, colored via
+   `--color-*-text`) and Tailwind utilities (colored via `--color-*`). Legacy
+   wins today, so behavior is unchanged; the collision is logged in
+   [ROADMAP.md](../../ROADMAP.md) and is cleaned up when the `.status`/`.text-*`
+   layer is migrated.
+
+### Preflight is off (deliberately)
+
+Tailwind's Preflight (its opinionated reset) is **not** imported. The project
+owns its resets — `theme.css` sets `box-sizing` globally, and component CSS
+assumes browser defaults for margins/typography. Pulling in Preflight would
+silently restyle every existing element (headings, lists, form controls).
+
+There is **no base border reset either** (not even Preflight's minimal
+`border: 0 solid`): several unmigrated form controls (`<select>`/`<input>` in
+TrashPanel, LogViewer, StatisticsDashboard, RenameNefModule) have no border
+styling of their own and rely on UA defaults, which any author-level reset —
+layered or not — would zero out. Consequence for utility authors: **border
+utilities must set an explicit border style**, e.g.
+`border border-solid border-border-medium` (a bare `border` only sets the
+width). A base border reset can be reconsidered once the form controls are
+migrated to shared primitives (phase A/B) and nothing depends on UA-default
+borders.
+
+Re-enabling Preflight, if ever, is a deliberate final cleanup PR, not a
+foundation concern.

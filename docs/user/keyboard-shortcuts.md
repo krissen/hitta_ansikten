@@ -92,11 +92,11 @@ Komplett referens för alla tangentbordsgenvägar i Ansikten.
 
 | Genväg | Funktion |
 |--------|----------|
-| `Cmd+1` | Review Mode |
-| `Cmd+2` | Comparison Mode |
-| `Cmd+3` | Full Image |
-| `Cmd+4` | Statistics Mode |
-| `Cmd+5` | Queue Review Mode |
+| `Cmd+1` | Granskningsläge |
+| `Cmd+2` | Jämförelseläge |
+| `Cmd+3` | Helbild |
+| `Cmd+4` | Statistikläge |
+| `Cmd+5` | Köläge |
 
 ### Rutnätsproportioner
 
@@ -133,16 +133,16 @@ Komplett referens för alla tangentbordsgenvägar i Ansikten.
 
 | Genväg | Funktion |
 |--------|----------|
-| `Cmd+,` | Image Viewer |
-| `Cmd+Shift+F` | Review Module |
-| `Cmd+Shift+U` | File Queue |
-| `Cmd+Shift+O` | Original View |
-| `Cmd+L` | Log Viewer |
-| `Cmd+Shift+S` | Statistics Dashboard |
-| `Cmd+Shift+D` | Database Management |
-| `Cmd+Shift+E` | Refine Faces |
-| `Cmd+Shift+P` | Preferences |
-| `Cmd+Shift+T` | Theme Editor |
+| `Cmd+,` | Bildvisare |
+| `Cmd+Shift+F` | Granska ansikten |
+| `Cmd+Shift+U` | Filkö |
+| `Cmd+Shift+O` | Originalvy |
+| `Cmd+L` | Loggar |
+| `Cmd+Shift+S` | Statistik |
+| `Cmd+Shift+D` | Databashantering |
+| `Cmd+Shift+E` | Förfina ansikten |
+| `Cmd+Shift+P` | Inställningar |
+| `Cmd+Shift+T` | Temaredigerare |
 
 ---
 

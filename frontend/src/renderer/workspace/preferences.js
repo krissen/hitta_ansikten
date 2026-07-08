@@ -5,7 +5,7 @@
  * Supports dot notation for nested access (e.g., 'backend.port').
  */
 
-import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { debug, debugError } from '../shared/debug.js';
 
 export class PreferencesManager {
   constructor() {
@@ -65,6 +65,14 @@ export class PreferencesManager {
       rename: {
         renameSidecars: true,       // Also rename associated sidecar files (XMP, etc)
         sidecarExtensions: ['xmp']  // Extensions to look for (case insensitive)
+      },
+      culling: {
+        autoAdvanceAfterRename: true // Move to the next file after a rename in Gallra spelare
+      },
+      paths: {
+        // Root searched recursively to resolve the original NEF for a developed
+        // JPEG in culling ("Öppna i Lightroom"). ~/ is expanded in the main process.
+        rawRoot: '~/Pictures/nerladdat'
       },
       preprocessing: {
         enabled: true,              // Master switch for background preprocessing

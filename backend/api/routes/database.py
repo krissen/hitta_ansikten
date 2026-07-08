@@ -5,16 +5,18 @@ Endpoints for accessing face database (people, statistics).
 Uses faceid_db directly to avoid loading heavy ML libraries on startup.
 """
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List
+import asyncio
 import logging
 import sys
 from pathlib import Path
+from typing import List
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 # Add backend to path for faceid_db import
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from faceid_db import load_database
+from api.services.db_store import get_db_store
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -40,7 +42,7 @@ async def get_people():
     logger.info("[Database] Fetching people list")
 
     try:
-        # TODO: Implement using db_service
+        # TODO: Implement real people listing (currently returns a placeholder)
         return []
     except Exception as e:
         logger.error(f"[Database] Error fetching people: {e}")
@@ -56,8 +58,12 @@ async def get_people_names():
     logger.info("[Database] Fetching people names for autocomplete")
 
     try:
-        known_faces, _, _, _ = load_database()
-        names = sorted(known_faces.keys())
+        # store.read takes the store lock synchronously; run it in a worker
+        # thread so the (possibly first-load) read never blocks the event loop.
+        names = await asyncio.to_thread(
+            get_db_store().read,
+            lambda known, ignored, hardneg, processed: sorted(known.keys()),
+        )
         logger.info(f"[Database] Found {len(names)} people in database")
         return names
     except Exception as e:

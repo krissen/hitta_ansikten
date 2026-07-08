@@ -5,11 +5,12 @@ Main entry point for the Ansikten backend API.
 Provides REST endpoints and WebSocket streaming for face detection.
 """
 
-from contextlib import asynccontextmanager
+import logging
 import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import logging
 
 # Configure logging - level from env var ANSIKTEN_LOG_LEVEL (default: info)
 _log_level_str = os.environ.get('ANSIKTEN_LOG_LEVEL', 'info').upper()
@@ -24,54 +25,37 @@ logger = logging.getLogger(__name__)
 # Lifespan event handler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import asyncio
     import os
     import time
-    import asyncio
-    from .services.startup_service import get_startup_state, LoadingState
-    
-    startup_start = time.perf_counter()
+
+    from .services.startup_service import LoadingState, get_startup_state
+
     startup_state = get_startup_state()
     port = int(os.getenv('ANSIKTEN_PORT', '5001'))
     logger.info("Ansikten Backend API starting up...")
     logger.info(f"Server ready on http://127.0.0.1:{port}")
     
     def _load_database_sync():
-        """Sync function for thread pool - loads database, rotates logs, and migrates dlib"""
-        from .services.management_service import get_management_service
+        """Sync function for thread pool - loads database and rotates logs"""
         from faceid_db import rotate_logs
 
         # Rotate logs on startup to prevent unbounded growth
         rotate_logs()
 
-        svc = get_management_service()
-        return len(svc.known_faces)
-
-    async def _check_dlib_encodings():
-        """Check for deprecated dlib encodings and notify user if found"""
-        from .services.refinement_service import get_refinement_service
-        from .websocket.progress import broadcast_event
+        # Purge trashed files past the retention threshold (0 = keep forever),
+        # so the app trash doesn't grow without bound between sessions.
         try:
-            service = get_refinement_service()
-            result = await service.remove_dlib_encodings(dry_run=True)
-            if result["total_removed"] > 0:
-                count = result["total_removed"]
-                people = result["people_affected"]
-                logger.warning(
-                    f"[Migration] Found {count} deprecated dlib encodings from {people} people. "
-                    f"Run 'python backend/rensa_dlib.py' to remove them."
-                )
-                # Notify frontend after a short delay to ensure WebSocket is connected
-                await asyncio.sleep(2.0)
-                await broadcast_event("notification", {
-                    "type": "warning",
-                    "title": "Föråldrade dlib-encodings",
-                    "message": f"Databasen innehåller {count} dlib-encodings som bör tas bort. "
-                               f"Kör 'python backend/rensa_dlib.py' i terminalen.",
-                    "persistent": True
-                })
-        except Exception as e:
-            logger.warning(f"[Migration] Could not check dlib encodings: {e}")
-    
+            from .services.culling_service import get_culling_service
+            get_culling_service().purge_expired()
+        except Exception:
+            logger.warning("Trash retention purge on startup failed", exc_info=True)
+
+        from .services.db_store import get_db_store
+
+        # Warm the shared store (loads the DB) and report the people count.
+        return get_db_store().read(lambda known, ignored, hardneg, processed: len(known))
+
     async def preload_database():
         t0 = time.perf_counter()
         startup_state.set_state("database", LoadingState.LOADING, "Läser in...")
@@ -81,8 +65,6 @@ async def lifespan(app: FastAPI):
             startup_state.set_state("database", LoadingState.READY,
                                     f"{people_count} persons")
             logger.info(f"[Startup Profile] Database loaded in {elapsed:.2f}s")
-            # Check for deprecated dlib encodings and notify user
-            await _check_dlib_encodings()
         except Exception as e:
             logger.error(f"Failed to pre-load database: {e}", exc_info=True)
             startup_state.set_state("database", LoadingState.ERROR, 
@@ -107,8 +89,8 @@ async def lifespan(app: FastAPI):
         def do_load():
             nonlocal load_error
             try:
-                from .services.detection_service import detection_service
-                _ = detection_service.backend.backend_name
+                from .services.detection_service import get_detection_service
+                _ = get_detection_service().backend.backend_name
             except Exception as e:
                 load_error = e
             finally:
@@ -140,7 +122,7 @@ async def lifespan(app: FastAPI):
     
     asyncio.create_task(eager_load_ml())
     
-    from .websocket.progress import setup_startup_listener, WebSocketLogHandler, process_log_queue
+    from .websocket.progress import WebSocketLogHandler, process_log_queue, setup_startup_listener
     setup_startup_listener()
     
     ws_handler = WebSocketLogHandler()
@@ -156,7 +138,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Ansikten Backend API",
     description="Face detection and annotation API for Ansikten image viewer",
-    version="1.0.0",
+    version="1.4.0",
     lifespan=lifespan
 )
 
@@ -178,7 +160,7 @@ async def health_check():
     - status: "ok" (all ready), "degraded" (has errors), "starting" (still loading)
     - components: backend, database, mlModels with individual states
     """
-    from .services.startup_service import get_startup_state, LoadingState
+    from .services.startup_service import get_startup_state
 
     startup = get_startup_state()
     status_data = startup.get_status()
@@ -210,11 +192,30 @@ async def health_check():
 API_V1_PREFIX = "/api/v1"
 
 # Import routes
-from .routes import detection, status, database, statistics, management, preprocessing, files, startup, refinement
+from .routes import (
+    culling,
+    database,
+    detection,
+    files,
+    imports,
+    management,
+    player_count,
+    preprocessing,
+    refinement,
+    rename_nef,
+    startup,
+    statistics,
+    status,
+)
+
 app.include_router(detection.router, prefix=API_V1_PREFIX, tags=["detection"])
 app.include_router(status.router, prefix=API_V1_PREFIX, tags=["status"])
 app.include_router(database.router, prefix=API_V1_PREFIX, tags=["database"])
 app.include_router(statistics.router, prefix=API_V1_PREFIX, tags=["statistics"])
+app.include_router(player_count.router, prefix=API_V1_PREFIX, tags=["players"])
+app.include_router(culling.router, prefix=API_V1_PREFIX, tags=["culling"])
+app.include_router(imports.router, prefix=API_V1_PREFIX, tags=["import"])
+app.include_router(rename_nef.router, prefix=API_V1_PREFIX, tags=["rename-nef"])
 app.include_router(management.router, prefix=API_V1_PREFIX, tags=["management"])
 app.include_router(refinement.router, prefix=API_V1_PREFIX, tags=["refinement"])
 app.include_router(preprocessing.router, prefix=f"{API_V1_PREFIX}/preprocessing", tags=["preprocessing"])
@@ -223,11 +224,13 @@ app.include_router(startup.router, prefix=API_V1_PREFIX, tags=["startup"])
 
 # WebSocket endpoint
 from .websocket import progress
+
 app.include_router(progress.router)
 
 if __name__ == "__main__":
-    import uvicorn
     import os
+
+    import uvicorn
 
     # Get port from environment variable, default to 5001
     port = int(os.getenv('ANSIKTEN_PORT', '5001'))

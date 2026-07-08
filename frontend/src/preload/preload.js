@@ -5,6 +5,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 // Expose safe, limited APIs to renderer
 contextBridge.exposeInMainWorld("ansiktenAPI", {
+  // Launch intent parsed from the command line, resolved synchronously at
+  // preload time so the renderer can decide whether to show the startup
+  // landing page before its first paint (avoids a landing flash on
+  // `ansikten culling ...` / `ansikten <files>`).
+  launchIntent: ipcRenderer.sendSync("get-launch-intent-sync"),
+
   // IPC communication - only specific channels allowed
   send: (channel, data) => {
     const allowedChannels = ["bild-visad", "sync-view", "renderer-log", "update-menu-state"];
@@ -14,11 +20,13 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
   },
 
   on: (channel, callback) => {
-    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files"];
-    if (allowedChannels.includes(channel)) {
-      // Strip event object for security
-      ipcRenderer.on(channel, (event, ...args) => callback(...args));
-    }
+    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files", "open-culling", "open-import"];
+    if (!allowedChannels.includes(channel)) return undefined;
+    // Strip event object for security. Return a disposer so callers can clean
+    // up in effect teardown and avoid stacking duplicate listeners on re-runs.
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on(channel, handler);
+    return () => ipcRenderer.removeListener(channel, handler);
   },
 
   // Invoke IPC handlers (request-response pattern)
@@ -27,9 +35,12 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
       "open-file-dialog",
       "open-multi-file-dialog",
       "open-folder-dialog",
+      "open-folder-paths",
       "expand-glob",
       "check-file-changed",
-      "get-initial-file"
+      "get-initial-file",
+      "open-raw-in-lightroom",
+      "stat-file-stable"
     ];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
@@ -73,5 +84,22 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
 
   unwatchAllFiles: () => {
     ipcRenderer.send("unwatch-all-files");
+  },
+
+  // Folder-level watching for live auto-refresh (whole directory, debounced).
+  watchFolder: (dir, recursive = true) => {
+    ipcRenderer.send("watch-folder", { dir, recursive });
+  },
+
+  unwatchFolder: (dir) => {
+    ipcRenderer.send("unwatch-folder", dir);
+  },
+
+  onFolderChanged: (callback) => {
+    const handler = (event, dir) => callback(dir);
+    ipcRenderer.on("folder-changed", handler);
+    return () => {
+      ipcRenderer.removeListener("folder-changed", handler);
+    };
   },
 });

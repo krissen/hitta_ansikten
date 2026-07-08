@@ -6,6 +6,7 @@
  */
 
 import { debug, debugWarn, debugError } from './debug.js';
+import { t } from '../../i18n/index.js';
 
 export class NetworkError extends Error {
   constructor(message, { isOffline = false, isTimeout = false, statusCode = null, retryable = true } = {}) {
@@ -65,16 +66,16 @@ export class APIClient {
   _classifyError(err, response = null) {
     if (!navigator.onLine) {
       this._setOffline(true);
-      return new NetworkError('No network connection', { isOffline: true, retryable: true });
+      return new NetworkError(t('errors.noConnection'), { isOffline: true, retryable: true });
     }
 
     if (err.name === 'AbortError') {
-      return new NetworkError('Request timed out', { isTimeout: true, retryable: true });
+      return new NetworkError(t('errors.timeout'), { isTimeout: true, retryable: true });
     }
 
     if (err.name === 'TypeError' && err.message.includes('fetch')) {
       this._setOffline(true);
-      return new NetworkError('Backend unreachable', { isOffline: true, retryable: true });
+      return new NetworkError(t('errors.unreachable'), { isOffline: true, retryable: true });
     }
 
     if (response) {
@@ -83,7 +84,7 @@ export class APIClient {
       return new NetworkError(`HTTP ${statusCode}: ${response.statusText}`, { statusCode, retryable });
     }
 
-    return new NetworkError(err.message || 'Unknown network error', { retryable: false });
+    return new NetworkError(err.message || t('errors.unknown'), { retryable: false });
   }
 
   addConnectionListener(callback) {
@@ -108,21 +109,31 @@ export class APIClient {
 
   async _fetchWithTimeout(url, options = {}) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this._requestTimeout);
-
     const externalSignal = options.signal;
-    if (externalSignal) {
-      externalSignal.addEventListener('abort', () => controller.abort());
+
+    // Honour a signal that is already aborted before the request starts.
+    if (externalSignal?.aborted) {
+      controller.abort();
     }
+
+    // Forward a later external abort. Use { once: true } and remove in finally
+    // so a long-lived caller signal does not accumulate listeners across calls.
+    const onExternalAbort = () => controller.abort();
+    if (externalSignal && !externalSignal.aborted) {
+      externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+    }
+
+    const timeoutId = setTimeout(() => controller.abort(), this._requestTimeout);
 
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
-      clearTimeout(timeoutId);
       this._setOffline(false);
       return response;
-    } catch (err) {
+    } finally {
       clearTimeout(timeoutId);
-      throw err;
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', onExternalAbort);
+      }
     }
   }
 
@@ -460,16 +471,50 @@ export class APIClient {
   }
 
   /**
+   * Get the app-trash auto-purge threshold in days (0 = keep forever)
+   * @returns {Promise<{days: number}>}
+   */
+  async getTrashRetention() {
+    return await this.get('/api/v1/culling/retention');
+  }
+
+  /**
+   * Set the app-trash auto-purge threshold
+   * @param {number} days - Days to keep trashed files (0 = keep forever)
+   * @returns {Promise<{days: number}>}
+   */
+  async setTrashRetention(days) {
+    return await this.post('/api/v1/culling/retention', { days });
+  }
+
+  /**
    * Clear preprocessing cache
    * @returns {Promise<object>}
    */
   async clearCache() {
     const url = new URL('/api/v1/preprocessing/cache', this.baseUrl);
-    const response = await fetch(url.toString(), { method: 'DELETE' });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+    let response;
+    try {
+      response = await this._fetchWithTimeout(url.toString(), {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw this._classifyError(null, response);
+      }
+
+      return await response.json();
+    } catch (err) {
+      if (err instanceof NetworkError) {
+        debugError('Backend', 'DELETE /api/v1/preprocessing/cache failed:', err.message);
+        throw err;
+      }
+      const classified = this._classifyError(err, response);
+      debugError('Backend', 'DELETE /api/v1/preprocessing/cache failed:', classified.message);
+      throw classified;
     }
-    return await response.json();
   }
 
   /**

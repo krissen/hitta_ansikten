@@ -1,0 +1,289 @@
+# Accessibility
+
+House accessibility (a11y) patterns for the Ansikten workspace. This is the
+canonical reference for keyboard navigation, ARIA roles, status feedback and
+reduced-motion handling. When you build a new interactive surface, match the
+patterns below rather than inventing new ones.
+
+The shared feedback and control primitives referenced below (`IconButton`,
+`Modal`/`useConfirm`, the toast system, `Alert`, `ProgressBar`) are implemented
+and live in [`components/shared/`](../../frontend/src/renderer/components/shared/)
+and [`context/`](../../frontend/src/renderer/context/). Build on them rather than
+hand-rolling equivalents. Module-level migration onto them happens in phase B.
+
+---
+
+## 1. Collections with keyboard navigation
+
+The reference implementation is
+[`CullingGrid.jsx`](../../frontend/src/renderer/components/CullingGrid.jsx) — copy
+its shape for any list/grid the user arrows through.
+
+- **Container** carries the collection role and owns DOM focus:
+  - `role="listbox"` (single-column list) or `role="grid"` (2-D grid).
+  - `tabIndex={0}` so the container itself is focusable — arrow keys are
+    handled by a `keydown` listener on the container, **not** on each item.
+  - `aria-label` describing the collection (Swedish, user-facing).
+  - `aria-activedescendant={id-of-active-item}` points at the currently active
+    item's `id`. This is how screen readers announce the "cursor" without
+    moving DOM focus off the container.
+- **Items** are static (they never receive DOM focus themselves):
+  - `role="option"` (in a listbox) or `role="gridcell"` (in a grid).
+  - `aria-selected={bool}` for the active/selected item.
+  - a stable `id` matching what `aria-activedescendant` references
+    (e.g. `culling-grid-cell-${index}`).
+- **Do not** put `tabIndex` on every item and rely on roving focus — the house
+  pattern keeps focus on the container and moves the virtual cursor via
+  `aria-activedescendant`. This scrolls better with large collections and keeps
+  keyboard handling in one place.
+- When the active item changes, scroll it into view with `scrollIntoView`
+  gated on reduced motion (see §6).
+
+### 1a. Autocomplete / combobox inputs
+
+A text field with a filtered suggestion list is a **combobox**, and it follows
+the same virtual-cursor model as §1 — DOM focus stays in the `<input>` and the
+active suggestion is tracked with `aria-activedescendant`, never roving focus.
+Use the shared
+[`Autocomplete`](../../frontend/src/renderer/components/shared/Autocomplete.jsx)
+primitive rather than hand-rolling one; it wires the full ARIA contract:
+
+- **Input** carries `role="combobox"`, `aria-autocomplete="list"`,
+  `aria-expanded` (true only while the list is visible), `aria-controls`
+  pointing at the listbox `id`, and `aria-activedescendant` pointing at the
+  highlighted option's `id`. Give it an `aria-label` (Swedish, user-facing).
+- **List** is `role="listbox"` with the `id` referenced above.
+- **Options** are `role="option"` + `aria-selected`, each with a stable `id`
+  matching `aria-activedescendant` — the same shape as CullingGrid's cells.
+- **Keyboard:** ArrowUp/ArrowDown move the highlight (wrapping); Enter selects
+  the highlight (`selectOnEnter`, opt-out when a document-level handler owns
+  Enter — the review flow does); Escape closes the list, blurs, and
+  `stopPropagation()`s so it does not leak to app-level Escape handlers.
+- The primitive is presentation-only: the consumer computes and ranks the
+  `options` from its own query state and owns the displayed `value`. Highlight
+  and open/close state live in the primitive.
+
+## 2. Clickable non-buttons
+
+If an element performs an action on click, it must be operable by keyboard.
+
+- **Prefer a real `<button>`.** It gets focusability, Enter/Space activation and
+  the correct role for free. Reset its appearance with CSS rather than reaching
+  for a `<div>`.
+- **If a real button is impossible**, make the element button-like:
+  - `role="button"`
+  - `tabIndex={0}`
+  - a `keydown` handler that fires the same action on **Enter and Space**
+    (and calls `preventDefault()` on Space to suppress page scroll).
+- A bare `<div onClick>` with no role/tabindex/key handler is not acceptable for
+  anything the user is expected to activate.
+
+### 2a. Roving tabindex for row lists
+
+A long list of `role="button"` rows that *each* also contain interactive
+controls (checkbox, icon buttons) must **not** leave every row and every nested
+control in the tab order — a 100-row queue would be ~400 tab stops. Use a
+**roving tabindex**: exactly one row is tabbable at a time.
+
+The reference implementation is
+[`FileQueueItem.jsx`](../../frontend/src/renderer/components/fileQueue/FileQueueItem.jsx)
+(the queue list, worst case 100+ rows):
+
+- The parent computes a single **roving target** index (the focused/active row,
+  else the first row shown) and passes `isRovingTarget` to each row.
+- The row and its nested controls carry `tabIndex={isRovingTarget ? 0 : -1}`, so
+  `Tab` enters the list once and `Shift+Tab` leaves it — the list is one tab
+  stop, not N.
+- **Arrow keys move the cursor.** `ArrowUp`/`ArrowDown` on the focused row move
+  focus to the adjacent row (`data-index` carries the row's index back to the
+  parent, which updates the roving target) and `preventDefault()` the scroll.
+  Guard on `e.target === e.currentTarget` so arrows on a nested control don't
+  also navigate rows. `Enter`/`Space` activates the row.
+
+This differs deliberately from §1: §1's `aria-activedescendant` model keeps DOM
+focus on a container and its items are **static** (no interactive children).
+Roving tabindex is the right tool when each row legitimately contains real
+interactive controls (so the items cannot be static options).
+
+> **Scope note.** B7 implemented roving tabindex for the queue list only. The
+> `Preferences` / `ThemeEditor` sidebar navs are a smaller instance of the same
+> problem and are tracked as a follow-up in [ROADMAP.md](../../ROADMAP.md).
+
+## 3. Icon-only buttons
+
+Any control whose visible content is only an icon **must** carry an
+`aria-label` (Swedish, user-facing) so its purpose is announced.
+
+- Use the shared
+  [`IconButton`](../../frontend/src/renderer/components/shared/IconButton.jsx)
+  primitive, which requires an accessible `label` by construction (it becomes
+  both `aria-label` and `title`).
+
+## 4. Status feedback
+
+Non-modal feedback must be announced without stealing focus, via ARIA live
+regions.
+
+- **Transient / global status** (startup progress, "connecting…"): a container
+  with `role="status"` + `aria-live="polite"`. Polite waits for a pause before
+  announcing. See
+  [`StartupStatus.jsx`](../../frontend/src/renderer/components/StartupStatus.jsx).
+- **Errors / lost connection**: `role="alert"` + `aria-live="assertive"` so it
+  interrupts. See
+  [`ConnectionStatus.jsx`](../../frontend/src/renderer/components/ConnectionStatus.jsx),
+  which is `alert`/`assertive` when the backend is unreachable and downgrades to
+  `status`/`polite` for the benign "connecting" state.
+- **Toasts**: the toast system
+  ([`context/ToastContext.jsx`](../../frontend/src/renderer/context/ToastContext.jsx))
+  carries the live-region wiring centrally — the container is
+  `role="status"` + `aria-live="polite"` and `error` toasts announce
+  assertively via `role="alert"`. Emit toasts through `useToast()` rather than
+  hand-rolling a live region per module. Signature:
+  `showToast(message, 'error')` or `showToast(message, { type, duration })`
+  (variants: `success`/`error`/`info`/`warning`); each toast carries an
+  `IconButton` dismiss control.
+- **Persistent inline status**: render through the shared
+  [`Alert`](../../frontend/src/renderer/components/shared/Alert.jsx) primitive
+  (`variant="error|warning|info|success"`, optional `onDismiss`) so styling and
+  semantics stay consistent — `error` is `role="alert"`, the rest `role="status"`.
+  It replaces the ad-hoc `.status-message` banners (migrated in phase B).
+- **Progress**: use the shared
+  [`ProgressBar`](../../frontend/src/renderer/components/shared/ProgressBar.jsx)
+  (`role="progressbar"` with `aria-valuenow/-valuemin/-valuemax`; indeterminate
+  mode omits `aria-valuenow`). `LoadingOverlay` from the same module is a polite
+  status region.
+
+## 5. Modals
+
+Modal dialogs use the **`Modal`** base built on the native `<dialog>` element
+([`components/shared/Modal.jsx`](../../frontend/src/renderer/components/shared/Modal.jsx)).
+Native `<dialog>` (opened via `showModal()`) gives the platform's **top-layer**
+rendering — always above the FlexLayout tabsets, no z-index wars — plus focus
+trapping, the `::backdrop` pseudo-element and `Esc`-to-close (the native `cancel`
+event) for free. Do not build ad-hoc fixed-overlay divs; use `Modal`.
+
+```jsx
+<Modal open={open} onClose={close} title="Titel" footer={buttons} size="sm">
+  {body}
+</Modal>
+```
+
+- `open` drives `showModal()` / `close()`; `onClose` fires on `Esc` and on a
+  backdrop click (opt out with `closeOnBackdrop={false}`). `title` is wired to
+  `aria-labelledby`. `initialFocusRef` focuses a specific element on open,
+  otherwise the platform autofocuses the first focusable child.
+- **Keyboard shielding.** The app's global shortcut layers (e.g.
+  `useReviewKeyboard`) attach *native* `document` keydown listeners, and a native
+  `<dialog>` does not stop keydown from bubbling to `document`. `Modal` therefore
+  calls `stopPropagation()` in a single `onKeyDown` on the dialog element — a
+  React synthetic `stopPropagation()` also stops the underlying native event, so
+  the bubble halts before reaching the `document` listeners. This is the one
+  robust shield for every consumer (it replaces the per-component
+  `stopPropagation` the old review dialogs each carried). `Esc` is unaffected —
+  the browser delivers it as the separate `cancel` event.
+
+**Confirmations.** Use promise-based
+[`useConfirm()`](../../frontend/src/renderer/context/ConfirmContext.jsx) instead
+of `window.confirm()`:
+
+```js
+const confirm = useConfirm();
+if (await confirm({ message: 'Radera personen?', variant: 'danger' })) { … }
+```
+
+`ConfirmProvider` (mounted beside `ToastProvider`) renders a single shared
+`ConfirmDialog` on the `Modal` base — `Enter` confirms, `Esc` cancels, and the
+`danger` variant renders the confirm button as `Button variant="danger"`.
+
+**jsdom note.** jsdom does not implement `showModal`/`close`; the Vitest setup
+([`frontend/tests/setup.js`](../../frontend/tests/setup.js)) polyfills them so
+`Modal`-based component tests can run.
+
+## 6. Reduced motion
+
+The OS "reduce motion" preference must be honoured. There are two halves:
+
+**Declarative (CSS).** A global block at the end of
+[`theme.css`](../../frontend/src/renderer/theme.css) neutralises all animation,
+transition and CSS smooth-scroll under
+`@media (prefers-reduced-motion: reduce)`:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+```
+
+You do not need to opt individual components in — this covers every CSS
+transition/animation automatically.
+
+**Motion tokens.** `--motion-duration-fast` / `--motion-duration-base` in the
+invariant `:root` block of `theme.css` are raw durations (kept in sync with the
+`--transition-*` tokens) for any future JS-friendly or composed animation. Use
+them instead of hard-coding durations.
+
+**Imperative (JS).** CSS cannot reach `element.scrollIntoView({ behavior:
+'smooth' })` — the behavior is chosen in JS. Gate it with the shared util
+[`shared/motion.js`](../../frontend/src/renderer/shared/motion.js):
+
+```js
+import { scrollBehavior } from '../shared/motion.js';
+
+el.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
+```
+
+`scrollBehavior()` returns `'auto'` (instant) when reduced motion is requested,
+`'smooth'` otherwise. `prefersReducedMotion()` from the same module is available
+for any other JS-driven motion decision.
+
+### Manual verification
+
+On macOS, toggle **System Settings → Accessibility → Display → Reduce motion**.
+With it **on**: startup toast, queue/review auto-scroll and all hover
+transitions should snap instantly (no animation). With it **off**: motion is
+unchanged from before. Users without the preference see zero visual difference —
+that is the contract for this work.
+
+---
+
+## 7. Keyboard scope
+
+The Review flow (`useReviewKeyboard`) attaches a **document-level** keydown
+listener for its single-key shortcuts (`a`/`i`/`r`, digits, arrows, `Enter`).
+A module that owns its own keyboard — or is form-heavy and would have those keys
+hijacked while the user types — opts out by marking its root element with
+
+```jsx
+data-keyboard-scope="isolated"
+```
+
+`useReviewKeyboard` bails when `document.activeElement.closest(
+'[data-keyboard-scope="isolated"]')` matches, so **whenever focus is inside an
+isolated module, Review's shortcuts do not fire**. Grep the attribute to find
+every scoped module — it is an explicit, discoverable contract (it replaced a
+hardcoded `.log-viewer, .preferences-module, …` selector list that had already
+gone stale).
+
+Isolation only governs *Review's* handler; a module's own document-level
+shortcuts are unaffected and keep their own gating (tab visibility / active
+tabset).
+
+**Per-module decisions:**
+
+| Module | Isolated? | Rationale |
+|--------|-----------|-----------|
+| LogViewer, Preferences, ThemeEditor, DatabaseManagement | **Yes** | Own keyboard / form-heavy; established before B7. |
+| **FileQueueModule** | **Yes** | Review companion (often same tabset). Has filter/rename inputs and focusable rows; when focus is inside it, Review's `a`/`i`/arrows/digits/`Enter` must not fire. Its own `n`/`p`/filter handler is a document listener gated on tab visibility, so isolation does not disable the companion "advance the queue" workflow. |
+| **PlayerCountModule** | **Yes** | Form-heavy (glob, number inputs, exclusion chip fields) with no own single-key shortcuts; isolation stops `Enter` and letter keys leaking to a visible Review pane. |
+| **RenameNefModule** | **Yes** | Form module (folder/glob inputs, preview/execute); its input `Enter` must not also reach Review's `confirmEnter`. |
+| **CullingModule** | **No** | Culling already claims `Enter`/`Esc`/nav in the **capture** phase, gated on being the *active tabset* (`isTabsetActive`), and explicitly `stopImmediatePropagation()`s so a key can't also reach Review. It is designed to *own* keys when active and *yield* when inactive — an isolation attribute would be redundant and would not change that contract. |
+
+## Related docs
+
+- [Theming](theming.md) — CSS variables, tokens, retro-terminal aesthetic
+- [Contributing](contributing.md)

@@ -1,0 +1,274 @@
+.player-count {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.player-count-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.player-count-refreshing {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.player-count-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.9em;
+}
+
+.player-count-dim {
+  color: var(--text-secondary);
+}
+
+/* Per-match info row: reuses the session summary's flex layout but is a compact
+   inline row inside a match's <details> — drop the top-level summary's divider
+   border and bottom padding (they'd render an unintended line inside every
+   match). */
+.player-count-match-info {
+  margin-top: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 0;
+  border-bottom: none;
+  font-size: 0.85em;
+}
+
+.player-count-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.player-count-table th,
+.player-count-table td {
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.player-count-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.player-count-table td.num,
+.player-count-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.player-count-table tbody tr:hover {
+  background: var(--bg-row-hover);
+}
+
+.player-count-table tbody tr.clickable {
+  cursor: pointer;
+}
+
+.player-count-table .bar-col {
+  width: 22%;
+}
+.player-count-table .spark-col {
+  width: 22%;
+}
+
+.player-bar-track {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+/* Baseline reference at 50% of the track (at-baseline fills half). */
+.player-bar-baseline {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-strong);
+  opacity: 0.6;
+}
+
+.player-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+}
+
+/* Temporal sparkline: a row of density bars across the time window. */
+.player-spark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  width: 100%;
+  height: 16px;
+}
+.player-spark-bin {
+  flex: 1 1 0;
+  background: var(--text-secondary);
+  border-radius: 1px 1px 0 0;
+}
+.player-spark-empty { height: 16px; }
+
+/* Deviation levels mirror the CLI color thresholds (ok/warn/high). */
+.player-bar-fill.level-ok { background: var(--color-success); }
+.player-bar-fill.level-warn { background: var(--color-warning); }
+.player-bar-fill.level-high { background: var(--color-error); }
+
+/* Δ text uses the dedicated deviation vars (darker on the beige theme so small
+   numbers stay legible; the bar fills keep the bright --color-*). */
+.delta.delta-ok { color: var(--color-success-text); }
+.delta.delta-warn { color: var(--color-warning-text); }
+.delta.delta-high { color: var(--color-error-text); }
+
+.player-count-excluded,
+.player-count-matches {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.player-count-group > summary {
+  cursor: pointer;
+  padding: 4px 0;
+  color: var(--text-secondary);
+  font-size: 0.9em;
+  user-select: none;
+}
+
+.player-count-group ul {
+  margin: 4px 0 8px 16px;
+  padding: 0;
+  font-size: 0.85em;
+  color: var(--text-secondary);
+}
+
+/* Counting-options row (gap / baseline / min images + exclusion toggle). */
+.player-count-options {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.player-count-options-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.pc-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8em;
+  color: var(--text-secondary);
+}
+
+.pc-num {
+  width: 72px;
+}
+
+.pc-excl-toggle {
+  margin-left: auto;
+}
+
+/* Coach/audience exclusion editor. */
+.player-count-exclusions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.pc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pc-list-title {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 12px;
+  background: var(--bg-tertiary, var(--bg-secondary));
+  border: 1px solid var(--border-subtle);
+  font-size: 0.82em;
+  color: var(--text-primary);
+}
+
+/* Heading for the config-level always-excluded lists (grupp / always-publik). */
+.pc-always-heading {
+  margin-top: 4px;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+
+.pc-env-note {
+  font-size: 0.8em;
+}
+
+.pc-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.pc-chip-remove:hover {
+  background: var(--color-error);
+  color: var(--text-inverse);
+}
+
+.pc-empty {
+  font-style: italic;
+  font-size: 0.82em;
+}
+
+.pc-add {
+  max-width: 240px;
+  font-size: 0.85em;
+}
+
+.pc-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}

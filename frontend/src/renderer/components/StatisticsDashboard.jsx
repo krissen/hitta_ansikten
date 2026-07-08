@@ -10,11 +10,13 @@
  * - Configurable sections via preferences
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useAutoRefresh } from '../hooks/useAutoRefresh.js';
-import { debug, debugWarn, debugError, getLogBuffer } from '../shared/debug.js';
+import { debug, debugError, getLogBuffer } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
+import { Button, Alert } from './shared';
+import { t } from '../../i18n/index.js';
 import './StatisticsDashboard.css';
 
 /**
@@ -110,7 +112,7 @@ export function StatisticsDashboard() {
   return (
     <div className="module-container stats-dashboard">
       <div className="module-header">
-        <h3 className="module-title">Statistics Dashboard</h3>
+        <h3 className="module-title">{t('statistics.title')}</h3>
         <div className="button-group">
           <label className="form-checkbox">
             <input
@@ -118,7 +120,7 @@ export function StatisticsDashboard() {
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
             />
-            Auto-refresh
+            {t('statistics.autoRefresh')}
           </label>
           <select
             className="form-select"
@@ -130,14 +132,14 @@ export function StatisticsDashboard() {
             <option value="10000">10s</option>
             <option value="30000">30s</option>
           </select>
-          <button className="btn-secondary" onClick={refresh}>
-            Refresh Now
-          </button>
+          <Button variant="secondary" onClick={refresh}>
+            {t('statistics.refreshNow')}
+          </Button>
         </div>
       </div>
 
       <div className="module-body stats-body">
-        {error && <div className="status-message error">Error: {error}</div>}
+        {error && <Alert variant="error">{t('statistics.errorPrefix')} {error}</Alert>}
 
         {/* Attempt Statistics Table */}
         {showAttemptStats && (
@@ -166,8 +168,8 @@ export function StatisticsDashboard() {
         {/* Show message if all sections are hidden */}
         {!showAttemptStats && !showTopFaces && !showRecentImages && !showRecentLogs && (
           <div className="empty-state">
-            All dashboard sections are hidden.<br/>
-            Enable sections in Preferences → Dashboard.
+            {t('statistics.emptyState.line1')}<br/>
+            {t('statistics.emptyState.line2')}
           </div>
         )}
       </div>
@@ -182,8 +184,8 @@ function AttemptStatsSection({ stats, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Attempt Statistics</h4>
-        <div className="empty-state compact">Loading...</div>
+        <h4 className="section-title">{t('statistics.sections.attemptStats')}</h4>
+        <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
   }
@@ -191,24 +193,24 @@ function AttemptStatsSection({ stats, isLoading }) {
   if (!stats || stats.length === 0) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Attempt Statistics</h4>
-        <div className="empty-state compact">No attempt statistics available</div>
+        <h4 className="section-title">{t('statistics.sections.attemptStats')}</h4>
+        <div className="empty-state compact">{t('statistics.empty.attemptStats')}</div>
       </div>
     );
   }
 
   return (
     <div className="section-card">
-      <h4 className="section-title">Attempt Statistics</h4>
+      <h4 className="section-title">{t('statistics.sections.attemptStats')}</h4>
       <table className="attempt-stats-table">
         <thead>
           <tr>
-            <th>Backend &amp; Settings</th>
-            <th className="num">Attempts</th>
-            <th className="num">Chosen</th>
-            <th className="num">Hit %</th>
-            <th className="num">Avg Faces</th>
-            <th className="num">Avg Time</th>
+            <th>{t('statistics.table.backendSettings')}</th>
+            <th className="num">{t('statistics.table.attempts')}</th>
+            <th className="num">{t('statistics.table.chosen')}</th>
+            <th className="num">{t('statistics.table.hitRate')}</th>
+            <th className="num">{t('statistics.table.avgFaces')}</th>
+            <th className="num">{t('statistics.table.avgTime')}</th>
           </tr>
         </thead>
         <tbody>
@@ -241,8 +243,8 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Top Faces (19 most common + Ignored)</h4>
-        <div className="empty-state compact">Loading...</div>
+        <h4 className="section-title">{t('statistics.sections.topFaces', { count: 19 })}</h4>
+        <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
   }
@@ -253,11 +255,13 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
     items.push({ name: '', face_count: 0 });
   }
 
-  // Add ignored as 20th item
+  // Add the ignored-faces summary as the 20th cell. Flagged with `isIgnored`
+  // rather than a magic name so the label comes from the catalog, never a
+  // hardcoded string that could leak to the UI.
   const ignoredText = ignoredStats.total > 0
     ? `(${ignoredStats.count}/${ignoredStats.total}, ${(ignoredStats.fraction * 100).toFixed(1)}%)`
     : '(0)';
-  items.push({ name: 'Ignored', face_count: ignoredText, isIgnored: true });
+  items.push({ name: '', face_count: ignoredText, isIgnored: true });
 
   // Column-major order (fill columns top to bottom, left to right)
   const numCols = 4;
@@ -275,7 +279,7 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
 
   return (
     <div className="section-card">
-      <h4 className="section-title">Top Faces (19 most common + Ignored)</h4>
+      <h4 className="section-title">{t('statistics.sections.topFaces', { count: 19 })}</h4>
       <div className="top-faces-grid">
         {gridItems.map((item, idx) => {
           if (!item) return <div key={idx} className="face-cell">—</div>;
@@ -283,14 +287,12 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
           const className = `face-cell ${item.isIgnored ? 'ignored' : ''}`;
           let content = '—';
 
-          if (item.name) {
-            if (item.name === 'Ignored') {
-              content = `${item.name} ${item.face_count}`;
-            } else {
-              // Show count and percentage (e.g., "Elton (259, 15%)")
-              const pct = item.percentage !== undefined ? `, ${item.percentage}%` : '';
-              content = `${item.name} (${item.face_count}${pct})`;
-            }
+          if (item.isIgnored) {
+            content = `${t('statistics.ignored')} ${item.face_count}`;
+          } else if (item.name) {
+            // Show count and percentage (e.g., "Elton (259, 15%)")
+            const pct = item.percentage !== undefined ? `, ${item.percentage}%` : '';
+            content = `${item.name} (${item.face_count}${pct})`;
           }
 
           return (
@@ -311,8 +313,8 @@ function RecentImagesSection({ images, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Recent Images</h4>
-        <div className="empty-state compact">Loading...</div>
+        <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
+        <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
   }
@@ -320,15 +322,15 @@ function RecentImagesSection({ images, isLoading }) {
   if (!images || images.length === 0) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Recent Images</h4>
-        <div className="empty-state compact">No recent images</div>
+        <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
+        <div className="empty-state compact">{t('statistics.empty.recentImages')}</div>
       </div>
     );
   }
 
   return (
     <div className="section-card">
-      <h4 className="section-title">Recent Images</h4>
+      <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
       <div className="recent-images-list">
         {images.map((img, idx) => (
           <div key={idx} className={`image-entry ${img.source === 'ansikten' ? 'source-ansikten' : 'source-cli'}`}>
@@ -355,8 +357,8 @@ function RecentLogsSection({ logs, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Recent Log Lines</h4>
-        <div className="empty-state compact">Loading...</div>
+        <h4 className="section-title">{t('statistics.sections.recentLogs')}</h4>
+        <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
   }
@@ -364,15 +366,15 @@ function RecentLogsSection({ logs, isLoading }) {
   if (!logs || logs.length === 0) {
     return (
       <div className="section-card">
-        <h4 className="section-title">Recent Log Lines</h4>
-        <div className="empty-state compact">No recent logs</div>
+        <h4 className="section-title">{t('statistics.sections.recentLogs')}</h4>
+        <div className="empty-state compact">{t('statistics.empty.recentLogs')}</div>
       </div>
     );
   }
 
   return (
     <div className="section-card">
-      <h4 className="section-title">Recent Log Lines</h4>
+      <h4 className="section-title">{t('statistics.sections.recentLogs')}</h4>
       <div className="recent-logs-list">
         {logs.map((log, idx) => (
           <div key={idx} className={`stats-log-entry ${log.level}`}>

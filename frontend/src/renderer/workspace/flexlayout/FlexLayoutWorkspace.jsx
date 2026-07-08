@@ -2,306 +2,45 @@
  * FlexLayoutWorkspace - Main workspace component using FlexLayout
  *
  * Pure React implementation - all modules are React components.
+ *
+ * This is the layout host/shell. The pieces it used to inline now live in
+ * focused modules alongside it:
+ *   - moduleRegistry.js  — MODULE_COMPONENTS + MODULE_TITLES
+ *   - shortcutSections.js / ShortcutsHelp.jsx — shortcuts overlay
+ *   - uiPreferences.js   — applyUIPreferences + useUIPreferences
+ *   - layoutGeometry.js  — tabset geometry / panel move-swap-group helpers
+ *   - menuCommands.js    — the menu-command dispatch table
  */
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
-import { reviewLayout, getLayoutByName } from './layouts.js';
+import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
+import { resolveTargetTabset, ensureActiveTabset } from './tabsetUtils.js';
+import { retranslateTabNames } from './tabNames.js';
+import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
-import { themeManager } from '../../theme-manager.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
-import './ShortcutsHelp.css';
+import { MODULE_COMPONENTS, MODULE_TITLES } from './moduleRegistry.js';
+import { useUIPreferences } from './uiPreferences.js';
+import { ShortcutsHelpOverlay } from './ShortcutsHelp.jsx';
+import {
+  applyModuleBasedRatios as geomApplyModuleBasedRatios,
+  swapActivePanel as geomSwapActivePanel,
+  moveToNewTabset as geomMoveToNewTabset,
+  groupAsTab as geomGroupAsTab,
+} from './layoutGeometry.js';
+import { createMenuCommandHandler } from './menuCommands.js';
+import { StartupLanding } from '../../components/StartupLanding.jsx';
 
-// Import React components directly
-import { ImageViewer } from '../../components/ImageViewer.jsx';
-import { OriginalView } from '../../components/OriginalView.jsx';
-import { LogViewer } from '../../components/LogViewer.jsx';
-import { StatisticsDashboard } from '../../components/StatisticsDashboard.jsx';
-import { ReviewModule } from '../../components/ReviewModule.jsx';
-import { DatabaseManagement } from '../../components/DatabaseManagement.jsx';
-import { FileQueueModule } from '../../components/FileQueueModule.jsx';
-import { ThemeEditor } from '../../components/ThemeEditor.jsx';
-import { PreferencesModule } from '../../components/PreferencesModule.jsx';
-import { RefineFacesModule } from '../../components/RefineFacesModule.jsx';
-
+// Re-exported for the characterization tests (tests/flexLayoutWorkspace.test.jsx),
+// which import these from this module. The definitions now live in their own
+// files; re-exporting keeps the test import paths stable.
+export { SHORTCUT_SECTIONS } from './shortcutSections.js';
+export { applyUIPreferences } from './uiPreferences.js';
 
 // Storage key for layout persistence
 const STORAGE_KEY = 'ansikten-flexlayout';
-
-const SHORTCUT_SECTIONS = [
-  {
-    id: 'navigation',
-    title: 'Navigation',
-    modules: [],
-    shortcuts: [
-      { keys: ['Cmd', '←→↑↓'], desc: 'Move focus between panels' },
-      { keys: ['↑', '↓'], desc: 'Previous / next item', sep: '/' },
-      { keys: ['Tab'], desc: 'Complete name (in input)' }
-    ]
-  },
-  {
-    id: 'layout',
-    title: 'Layout',
-    modules: [],
-    shortcuts: [
-      { keys: ['Cmd', '1-4'], desc: 'Switch layout template' },
-      { keys: ['Cmd', 'Shift', ']'], desc: 'Add column' },
-      { keys: ['Cmd', 'Shift', '['], desc: 'Remove column' },
-      { keys: ['Cmd', 'Shift', '}'], desc: 'Add row' },
-      { keys: ['Cmd', 'Shift', '{'], desc: 'Remove row' }
-    ]
-  },
-  {
-    id: 'image-viewer',
-    title: 'Image Viewer',
-    modules: ['image-viewer', 'original-view'],
-    shortcuts: [
-      { keys: ['+', '-'], desc: 'Zoom in/out (hold for continuous)', sep: ' / ' },
-      { keys: ['='], desc: 'Reset to 1:1' },
-      { keys: ['0'], desc: 'Auto-fit to window' },
-      { keys: ['B'], desc: 'Toggle bounding boxes on/off' },
-      { keys: ['b'], desc: 'Toggle single/all boxes' },
-      { keys: ['c', 'C'], desc: 'Toggle auto-center on face', sep: ' / ' }
-    ]
-  },
-  {
-    id: 'face-review',
-    title: 'Face Review',
-    modules: ['review-module'],
-    shortcuts: [
-      { keys: ['Enter', 'A'], desc: 'Accept suggested match', sep: ' / ' },
-      { keys: ['I'], desc: 'Ignore face' },
-      { keys: ['R'], desc: 'Rename / enter name' },
-      { keys: ['1-N'], desc: 'Select match alternative' },
-      { keys: ['↑', '↓'], desc: 'Previous / next face', sep: ' / ' },
-      { keys: ['X'], desc: 'Skip to next file' },
-      { keys: ['Shift', 'Cmd', 'A'], desc: 'Accept all suggestions' },
-      { keys: ['Cmd', 'Z'], desc: 'Undo last face action' },
-      { keys: ['Esc'], desc: 'Cancel detection / discard changes' }
-    ]
-  },
-  {
-    id: 'file-queue',
-    title: 'File Queue',
-    modules: ['file-queue'],
-    shortcuts: [
-      { keys: ['Cmd', 'O'], desc: 'Open files' },
-      { keys: ['↑', '↓'], desc: 'Navigate queue', sep: ' / ' },
-      { keys: ['Enter'], desc: 'Load selected file' },
-      { keys: ['Delete'], desc: 'Remove from queue' },
-      { keys: ['Cmd', 'A'], desc: 'Select all files' }
-    ]
-  },
-  {
-    id: 'general',
-    title: 'General',
-    modules: [],
-    shortcuts: [
-      { keys: ['?'], desc: 'Show this help' },
-      { keys: ['Cmd', 'R'], desc: 'Reload window' },
-      { keys: ['Cmd', ','], desc: 'Preferences' }
-    ]
-  }
-];
-
-function ShortcutRow({ shortcut }) {
-  const { keys, desc, sep = '+' } = shortcut;
-  return (
-    <div className="shortcut-row">
-      {keys.map((key, i) => (
-        <span key={key}>
-          {i > 0 && <span className="key-sep">{sep}</span>}
-          <kbd>{key}</kbd>
-        </span>
-      ))}
-      <span className="shortcut-desc">{desc}</span>
-    </div>
-  );
-}
-
-function ShortcutsHelpOverlay({ onClose, activeModule }) {
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' || e.key === '?') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="shortcuts-overlay" onClick={onClose}>
-      <div className="shortcuts-dialog" onClick={e => e.stopPropagation()}>
-        <div className="shortcuts-header">
-          <h2>Keyboard Shortcuts</h2>
-          <button type="button" className="shortcuts-close" onClick={onClose}>&times;</button>
-        </div>
-        <div className="shortcuts-content">
-          {SHORTCUT_SECTIONS.map(section => {
-            const isActive = section.modules.length > 0 && section.modules.includes(activeModule);
-            return (
-              <div
-                key={section.id}
-                className={`shortcuts-section ${isActive ? 'active-module' : ''}`}
-              >
-                <h3>{section.title}</h3>
-                {section.shortcuts.map((shortcut) => (
-                  <ShortcutRow key={shortcut.desc} shortcut={shortcut} />
-                ))}
-              </div>
-            );
-          })}
-        </div>
-        <div className="shortcuts-footer">
-          Press <kbd>?</kbd> or <kbd>Esc</kbd> to close
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Module component mapping
-const MODULE_COMPONENTS = {
-  'image-viewer': ImageViewer,
-  'original-view': OriginalView,
-  'log-viewer': LogViewer,
-  'statistics-dashboard': StatisticsDashboard,
-  'review-module': ReviewModule,
-  'database-management': DatabaseManagement,
-  'refine-faces': RefineFacesModule,
-  'file-queue': FileQueueModule,
-  'theme-editor': ThemeEditor,
-  'preferences': PreferencesModule
-};
-
-// Module titles
-const MODULE_TITLES = {
-  'image-viewer': 'Image Viewer',
-  'original-view': 'Original View',
-  'log-viewer': 'Logs',
-  'statistics-dashboard': 'Statistics Dashboard',
-  'review-module': 'Face Review',
-  'database-management': 'Database Management',
-  'refine-faces': 'Refine Faces',
-  'file-queue': 'File Queue',
-  'theme-editor': 'Theme Editor',
-  'preferences': 'Preferences'
-};
-
-// Module-specific default layout ratios
-// widthRatio: proportion of row width (horizontal split)
-// heightRatio: proportion when in a secondary row (vertical split)
-// row: default row (1 = primary/top, 2 = secondary/bottom)
-const MODULE_LAYOUT = {
-  'review-module': {
-    widthRatio: 0.15,     // 15% width in its row
-    heightRatio: 0.70,    // Primary row gets 70% height
-    row: 1
-  },
-  'image-viewer': {
-    widthRatio: 0.85,     // 85% width in its row
-    heightRatio: 0.70,    // Primary row gets 70% height
-    row: 1
-  },
-  'original-view': {
-    widthRatio: 0.50,     // 50% when sharing row
-    heightRatio: 0.70,    // Primary row
-    row: 1
-  },
-  'log-viewer': {
-    widthRatio: 0.50,     // 50% when sharing row with stats
-    heightRatio: 0.30,    // Secondary row gets 30% height
-    row: 2
-  },
-  'statistics-dashboard': {
-    widthRatio: 0.50,     // 50% when sharing row with log
-    heightRatio: 0.30,    // Secondary row gets 30% height
-    row: 2
-  },
-  'database-management': {
-    widthRatio: 0.50,     // 50% when sharing row
-    heightRatio: 0.30,    // Secondary row
-    row: 2
-  },
-  'file-queue': {
-    widthRatio: 0.15,     // 15% width in sidebar
-    heightRatio: 0.70,    // Primary row
-    row: 1
-  },
-  'theme-editor': {
-    widthRatio: 0.50,     // 50% when sharing row
-    heightRatio: 0.70,    // Primary row
-    row: 1
-  }
-};
-
-// Simple width ratios for backward compatibility
-const MODULE_RATIOS = Object.fromEntries(
-  Object.entries(MODULE_LAYOUT).map(([k, v]) => [k, v.widthRatio])
-);
-
-/**
- * Apply UI preferences to FlexLayout CSS variables
- * Maps preferences to FlexLayout's theming system
- * @param {object} overrides - Optional override values (for live preview)
- */
-function applyUIPreferences(overrides = null) {
-  const layoutEl = document.querySelector('.flexlayout__layout');
-  if (!layoutEl) {
-    debug('FlexLayout', 'Layout element not found, will retry');
-    return false;
-  }
-
-  // Helper to get value from overrides or preferences
-  const getValue = (path, defaultVal) => {
-    if (overrides && overrides.appearance) {
-      const key = path.split('.').pop();
-      if (overrides.appearance[key] !== undefined) {
-        return overrides.appearance[key];
-      }
-    }
-    return preferences.get(path) || defaultVal;
-  };
-
-  // Size preferences (colors now come from theme.css)
-  const tabsHeight = getValue('appearance.tabsHeight', 28);
-  const tabsFontSize = getValue('appearance.tabsFontSize', 13);
-  const tabPaddingLeft = getValue('appearance.tabPaddingLeft', 8);
-  const tabPaddingRight = getValue('appearance.tabPaddingRight', 6);
-  const tabMinGap = getValue('appearance.tabMinGap', 5);
-
-  // Apply font size to FlexLayout CSS variable
-  layoutEl.style.setProperty('--font-size', `${tabsFontSize}px`);
-
-  // Apply tab sizing via direct CSS injection (colors come from theme)
-  let styleEl = document.getElementById('flexlayout-preferences-style');
-  if (!styleEl) {
-    styleEl = document.createElement('style');
-    styleEl.id = 'flexlayout-preferences-style';
-    document.head.appendChild(styleEl);
-  }
-
-  styleEl.textContent = `
-    /* Tab sizing preferences (colors from theme.css) */
-    .flexlayout__tab_button {
-      padding: 4px ${tabPaddingRight}px 4px ${tabPaddingLeft}px !important;
-      height: ${tabsHeight}px !important;
-      box-sizing: border-box !important;
-      font-size: ${tabsFontSize}px !important;
-      gap: ${tabMinGap}px !important;
-    }
-    .flexlayout__tabset_tabbar_outer {
-      font-size: ${tabsFontSize}px !important;
-      min-height: ${tabsHeight + 4}px !important;
-    }
-  `;
-
-  debug('FlexLayout', 'Applied UI preferences');
-  return true;
-}
 
 /**
  * FlexLayoutWorkspace Component
@@ -311,7 +50,24 @@ export function FlexLayoutWorkspace() {
   const [model, setModel] = useState(null);
   const [ready, setReady] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  // Startup landing page: shown on an empty workspace, dismissed once a module
+  // is opened or an image is loaded. Skipped only when the launch will actually
+  // dispatch a handoff (file args or --clear) — the main process opens the
+  // target then, so the landing would only flash. A bare verb (`ansikten
+  // culling` with no paths and no --clear) sends no handoff, so the landing must
+  // stay, or the user is stranded with no way to pick a workflow. The `import`
+  // verb is the exception: it always opens the import module (its source card is
+  // autodetected, so it needs no path arg), so a bare `ansikten import` still
+  // dispatches a handoff and the landing is suppressed.
+  const launchIntent = window.ansiktenAPI?.launchIntent;
+  const hasLaunchIntent = !!launchIntent &&
+    (launchIntent.hasFiles || launchIntent.clear || launchIntent.verb === 'import');
+  const [showLanding, setShowLanding] = useState(!hasLaunchIntent);
   const moduleAPI = useModuleAPI();
+  // Image paths whose Review has unsaved confirmations/ignores (mirrors the
+  // 'review-dirty' signal the file queue uses). Consulted before auto-closing
+  // the Review panel so culling can't silently drop partially reviewed faces.
+  const reviewDirtyRef = useRef(new Set());
 
   // Initialize model
   useEffect(() => {
@@ -321,7 +77,9 @@ export function FlexLayoutWorkspace() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         debug('FlexLayout', 'Loading saved layout');
-        layoutConfig = JSON.parse(saved);
+        // Persisted layouts freeze each tab's name; re-apply current
+        // translations so old layouts don't show stale (e.g. English) labels.
+        layoutConfig = retranslateTabNames(JSON.parse(saved), MODULE_TITLES);
       }
     } catch (err) {
       debugWarn('FlexLayout', 'Failed to load saved layout:', err);
@@ -341,57 +99,34 @@ export function FlexLayoutWorkspace() {
       splitterSize: 4,                  // Consistent splitter appearance
       tabSetMinWidth: 100,              // Prevent panels from becoming too small
       tabSetMinHeight: 100,
+      tabEnableRename: false,           // Tabs are fixed module labels — their
+                                        // names are re-derived from i18n on
+                                        // restore (retranslateTabNames), so a
+                                        // manual rename couldn't survive anyway.
     };
     layoutConfig.global = { ...layoutConfig.global, ...criticalSettings };
 
     // Create model from config
     try {
       const newModel = Model.fromJson(layoutConfig);
+      // Guarantee an active tabset so keyboard gates elect exactly one owner
+      // from the first keypress (double-trash guard — see ensureActiveTabset).
+      ensureActiveTabset(newModel);
       setModel(newModel);
       setReady(true);
       debug('FlexLayout', 'Model created');
     } catch (err) {
       debugError('FlexLayout', 'Failed to create model:', err);
       // Fall back to default
-      setModel(Model.fromJson(reviewLayout));
+      const fallbackModel = Model.fromJson(reviewLayout);
+      ensureActiveTabset(fallbackModel);
+      setModel(fallbackModel);
       setReady(true);
     }
   }, []);
 
   // Apply UI preferences when ready (and re-apply when preferences change)
-  useEffect(() => {
-    if (!ready) return;
-
-    // Apply preferences (may need retry if layout element not yet mounted)
-    const tryApply = () => {
-      if (!applyUIPreferences()) {
-        setTimeout(tryApply, 100);
-      }
-    };
-    tryApply();
-
-    // Listen for preference changes (saved) - read from actual preferences
-    const handlePrefChange = () => applyUIPreferences();
-    window.addEventListener('preferences-changed', handlePrefChange);
-
-    // Listen for live preview - use tempPrefs from event
-    const handlePreview = (e) => {
-      if (e.detail && e.detail.tempPrefs) {
-        applyUIPreferences(e.detail.tempPrefs);
-      }
-    };
-    window.addEventListener('preferences-preview', handlePreview);
-
-    // Listen for cancel - restore from actual saved preferences
-    const handleCancel = () => applyUIPreferences();
-    window.addEventListener('preferences-cancelled', handleCancel);
-
-    return () => {
-      window.removeEventListener('preferences-changed', handlePrefChange);
-      window.removeEventListener('preferences-preview', handlePreview);
-      window.removeEventListener('preferences-cancelled', handleCancel);
-    };
-  }, [ready]);
+  useUIPreferences(ready);
 
   // Save layout on model change
   const handleModelChange = useCallback((newModel) => {
@@ -401,6 +136,13 @@ export function FlexLayoutWorkspace() {
     } catch (err) {
       debugWarn('FlexLayout', 'Failed to save layout:', err);
     }
+    // When the last module is closed and the workspace is empty, bring the
+    // startup landing back so there's always somewhere to go.
+    let tabCount = 0;
+    newModel.visitNodes((node) => {
+      if (node.getType() === 'tab') tabCount += 1;
+    });
+    if (tabCount === 0) setShowLanding(true);
   }, []);
 
   // Focus tab content when tab is selected (via tab header click)
@@ -454,7 +196,12 @@ export function FlexLayoutWorkspace() {
     'log-viewer',
     'database-management',
     'refine-faces',
-    'theme-editor'
+    'theme-editor',
+    'player-count',
+    'culling',
+    'trash',
+    'import',
+    'rename-nef'
   ]);
 
   // Open a module tab
@@ -468,6 +215,9 @@ export function FlexLayoutWorkspace() {
       debugError('FlexLayout', `Module not found: ${moduleId}`);
       return;
     }
+
+    // Opening any module dismisses the startup landing page.
+    setShowLanding(false);
 
     // Check if module is a singleton and already exists
     const isSingleton = SINGLETON_MODULES.has(moduleId);
@@ -494,10 +244,16 @@ export function FlexLayoutWorkspace() {
       config: { moduleId }
     };
 
-    // Find target tabset or use active one
-    const activeTabset = model.getActiveTabset();
-    if (activeTabset) {
-      model.doAction(Actions.addNode(tabJson, activeTabset.getId(), DockLocation.CENTER, -1));
+    // Resolve where to dock the new tab (active tabset, else main working area).
+    const targetTabset = resolveTargetTabset(model);
+    if (targetTabset) {
+      // select=true so the new tab is shown (not added behind the current one),
+      // and make its tabset active so the switch is visible and later opens dock
+      // here too.
+      model.doAction(Actions.addNode(tabJson, targetTabset.getId(), DockLocation.CENTER, -1, true));
+      model.doAction(Actions.setActiveTabset(targetTabset.getId()));
+    } else {
+      debugWarn('FlexLayout', `No tabset to host module: ${moduleId}`);
     }
 
     debug('FlexLayout', `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`);
@@ -514,6 +270,22 @@ export function FlexLayoutWorkspace() {
     }
   }, [model]);
 
+  // Close any open tab(s) of a module by its component id, leaving the rest of
+  // the workspace untouched (unlike loadLayout/openModuleSolo, which replace the
+  // whole layout). Returns true if anything was closed.
+  const closeModule = useCallback((moduleId) => {
+    if (!model) return false;
+    const ids = [];
+    model.visitNodes((node) => {
+      if (node.getType() === 'tab' && node.getComponent?.() === moduleId) {
+        ids.push(node.getId());
+      }
+    });
+    ids.forEach((id) => model.doAction(Actions.deleteTab(id)));
+    if (ids.length) debug('FlexLayout', `Closed module: ${moduleId} (${ids.length})`);
+    return ids.length > 0;
+  }, [model]);
+
   // Factory function for FlexLayout
   const factory = useCallback((node) => {
     const component = node.getComponent();
@@ -521,8 +293,8 @@ export function FlexLayoutWorkspace() {
 
     if (!ModuleComponent) {
       return (
-        <div style={{ padding: 20, color: '#666' }}>
-          Unknown module: {component}
+        <div className="workspace-placeholder-text" style={{ padding: 20 }}>
+          {t('workspace.unknownModule', { component })}
         </div>
       );
     }
@@ -530,103 +302,10 @@ export function FlexLayoutWorkspace() {
     return <ModuleComponent node={node} />;
   }, []);
 
-  // Get tabset position in layout (using bounding rect)
-  const getTabsetPosition = useCallback((tabset) => {
-    if (!layoutRef.current) return { x: 0, y: 0 };
-
-    const tabsetId = tabset.getId();
-
-    // FlexLayout uses class-based selectors, find the tabset container
-    // The tabset header contains a unique identifier we can use
-    const allTabsets = document.querySelectorAll('.flexlayout__tabset');
-
-    for (const element of allTabsets) {
-      // Check if this element corresponds to our tabset by matching tab IDs
-      const tabButtons = element.querySelectorAll('.flexlayout__tab_button');
-      for (const btn of tabButtons) {
-        const btnId = btn.getAttribute('data-layout-path');
-        if (btnId && btnId.includes(tabsetId)) {
-          const rect = element.getBoundingClientRect();
-          return {
-            x: rect.left + rect.width / 2,
-            y: rect.top + rect.height / 2,
-            rect
-          };
-        }
-      }
-    }
-
-    // Fallback: try to find by iterating through layout structure
-    const allElements = document.querySelectorAll('.flexlayout__tabset');
-    if (allElements.length > 0) {
-      // Get tabsets from model and match by index
-      const tabsets = [];
-      model.visitNodes((node) => {
-        if (node.getType() === 'tabset') {
-          tabsets.push(node);
-        }
-      });
-
-      const tabsetIndex = tabsets.findIndex(ts => ts.getId() === tabsetId);
-      if (tabsetIndex >= 0 && tabsetIndex < allElements.length) {
-        const element = allElements[tabsetIndex];
-        const rect = element.getBoundingClientRect();
-        return {
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2,
-          rect
-        };
-      }
-    }
-
-    return { x: 0, y: 0 };
+  // Apply module-based ratios to all tabsets (width + height weights)
+  const applyModuleBasedRatios = useCallback(() => {
+    geomApplyModuleBasedRatios(model);
   }, [model]);
-
-  // Find tabset in direction based on position
-  const findTabsetInDirection = useCallback((fromTabset, direction) => {
-    const tabsets = [];
-    model.visitNodes((node) => {
-      if (node.getType() === 'tabset') {
-        tabsets.push(node);
-      }
-    });
-
-    if (tabsets.length < 2) return null;
-
-    const fromPos = getTabsetPosition(fromTabset);
-
-    // Filter tabsets in the specified direction
-    const candidates = tabsets.filter(ts => {
-      if (ts.getId() === fromTabset.getId()) return false;
-      const pos = getTabsetPosition(ts);
-
-      switch (direction) {
-        case 'left':
-          return pos.x < fromPos.x;
-        case 'right':
-          return pos.x > fromPos.x;
-        case 'up':
-          return pos.y < fromPos.y;
-        case 'down':
-          return pos.y > fromPos.y;
-        default:
-          return false;
-      }
-    });
-
-    if (candidates.length === 0) return null;
-
-    // Sort by distance and return nearest
-    candidates.sort((a, b) => {
-      const posA = getTabsetPosition(a);
-      const posB = getTabsetPosition(b);
-      const distA = Math.sqrt(Math.pow(posA.x - fromPos.x, 2) + Math.pow(posA.y - fromPos.y, 2));
-      const distB = Math.sqrt(Math.pow(posB.x - fromPos.x, 2) + Math.pow(posB.y - fromPos.y, 2));
-      return distA - distB;
-    });
-
-    return candidates[0];
-  }, [model, getTabsetPosition]);
 
   // Add a new tabset (column or row)
   const addTabset = useCallback((direction) => {
@@ -642,7 +321,7 @@ export function FlexLayoutWorkspace() {
     // Create a placeholder tab in the new tabset
     const placeholderTab = {
       type: 'tab',
-      name: 'Image Viewer',
+      name: t('modules.image-viewer'),
       component: 'image-viewer',
       config: { moduleId: 'image-viewer' }
     };
@@ -680,201 +359,55 @@ export function FlexLayoutWorkspace() {
     const layoutConfig = getLayoutByName(layoutName);
     try {
       const newModel = Model.fromJson(layoutConfig);
+      ensureActiveTabset(newModel);
       setModel(newModel);
     } catch (err) {
       debugError('FlexLayout', 'Failed to load layout:', err);
     }
   }, []);
 
-  // Helper: Get DockLocation from direction string
-  const getDockLocation = useCallback((direction) => {
-    switch (direction) {
-      case 'left': return DockLocation.LEFT;
-      case 'right': return DockLocation.RIGHT;
-      case 'above':
-      case 'up': return DockLocation.TOP;
-      case 'below':
-      case 'down': return DockLocation.BOTTOM;
-      default: return DockLocation.RIGHT;
+  // Replace the workspace with a single self-contained module filling it. Used
+  // by the landing page for workflow steps (culling, player-count, import,
+  // rename-nef) so they don't dock beside the empty Review panel.
+  const openModuleSolo = useCallback((moduleId) => {
+    setShowLanding(false);
+    try {
+      const newModel = Model.fromJson(singleModuleLayout(moduleId, MODULE_TITLES[moduleId]));
+      // A solo layout has a single tabset, but set it active too so the module's
+      // keyboard is live immediately without a click (and for consistency).
+      ensureActiveTabset(newModel);
+      setModel(newModel);
+    } catch (err) {
+      debugError('FlexLayout', 'Failed to open module solo:', err);
     }
   }, []);
 
-  // Apply module-based ratios to all tabsets
-  // Handles both width ratios (horizontal) and height ratios (vertical)
-  const applyModuleBasedRatios = useCallback(() => {
-    const root = model.getRoot();
-    if (!root) return;
-
-    // Helper: Get module layout config
-    const getModuleLayout = (moduleId) => MODULE_LAYOUT[moduleId] || { widthRatio: 0.5, heightRatio: 0.5, row: 1 };
-
-    // Helper: Apply width ratios to tabsets in a row
-    const applyWidthRatios = (children) => {
-      const tabsetsWithModules = [];
-      children.forEach(child => {
-        if (child.getType() === 'tabset') {
-          const selectedTab = child.getSelectedNode();
-          if (selectedTab) {
-            const moduleId = selectedTab.getComponent();
-            const layout = getModuleLayout(moduleId);
-            tabsetsWithModules.push({ node: child, moduleId, ratio: layout.widthRatio });
-          }
-        }
-      });
-
-      if (tabsetsWithModules.length < 2) return;
-
-      // Normalize ratios
-      const totalRatio = tabsetsWithModules.reduce((sum, t) => sum + t.ratio, 0);
-      tabsetsWithModules.forEach(t => {
-        const weight = Math.round((t.ratio / totalRatio) * 100);
-        model.doAction(Actions.updateNodeAttributes(t.node.getId(), { weight }));
-        debug('FlexLayout', `Set ${t.moduleId} width weight to ${weight}`);
-      });
-    };
-
-    // Helper: Apply height ratios to rows
-    const applyHeightRatios = (rows) => {
-      if (rows.length < 2) return;
-
-      // Determine height ratio for each row based on its modules
-      const rowHeights = rows.map(row => {
-        // Find modules in this row
-        let heightRatio = 0.5; // default
-        row.getChildren().forEach(child => {
-          if (child.getType() === 'tabset') {
-            const selectedTab = child.getSelectedNode();
-            if (selectedTab) {
-              const moduleId = selectedTab.getComponent();
-              const layout = getModuleLayout(moduleId);
-              heightRatio = layout.heightRatio;
-            }
-          }
-        });
-        return { node: row, heightRatio };
-      });
-
-      // Apply height weights
-      const totalHeight = rowHeights.reduce((sum, r) => sum + r.heightRatio, 0);
-      rowHeights.forEach(r => {
-        const weight = Math.round((r.heightRatio / totalHeight) * 100);
-        model.doAction(Actions.updateNodeAttributes(r.node.getId(), { weight }));
-        debug('FlexLayout', `Set row height weight to ${weight}`);
-      });
-    };
-
-    // Process root children
-    const children = root.getChildren();
-    const rows = children.filter(c => c.getType() === 'row');
-    const tabsets = children.filter(c => c.getType() === 'tabset');
-
-    if (rows.length > 0) {
-      // Vertical layout: multiple rows
-      applyHeightRatios(rows);
-      // Apply width ratios within each row
-      rows.forEach(row => applyWidthRatios(row.getChildren()));
-    } else if (tabsets.length > 0) {
-      // Horizontal layout: just tabsets in root
-      applyWidthRatios(tabsets);
+  const openLandingStep = useCallback((moduleId) => {
+    setShowLanding(false);
+    // Review needs its multi-pane layout (Review + Image Viewer); every other
+    // landing target is a self-contained view opened solo (fills the workspace)
+    // so a direct pick lands you on that view, not docked beside an empty panel.
+    if (moduleId === 'review-module') {
+      loadLayout('review');
+    } else {
+      openModuleSolo(moduleId);
     }
-
-    debug('FlexLayout', 'Applied module-based ratios');
-  }, [model]);
+  }, [loadLayout, openModuleSolo]);
 
   // Swap active panel with panel in specified direction (Cmd+Arrow)
-  // Moves the active tab past the target tabset, then applies module-based ratios
   const swapActivePanel = useCallback((direction) => {
-    const activeTabset = model.getActiveTabset();
-    if (!activeTabset) {
-      debug('FlexLayout', 'No active tabset');
-      return;
-    }
-
-    const activeTab = activeTabset.getSelectedNode();
-    if (!activeTab) {
-      debug('FlexLayout', 'No active tab to swap');
-      return;
-    }
-
-    // Find target tabset in direction
-    const targetTabset = findTabsetInDirection(activeTabset, direction);
-    if (!targetTabset) {
-      debug('FlexLayout', 'No tabset found in direction:', direction);
-      return;
-    }
-
-    // Move active tab past the target (in the direction pressed)
-    // This creates: pressing Right on [A][B] -> [B][A]
-    const dockLocation = getDockLocation(direction);
-    model.doAction(Actions.moveNode(
-      activeTab.getId(),
-      targetTabset.getId(),
-      dockLocation,
-      -1,
-      true
-    ));
-
-    // After the move, apply module-based ratios
-    // Each module gets its default width ratio regardless of position
-    setTimeout(() => {
-      applyModuleBasedRatios();
-    }, 50);
-
-    debug('FlexLayout', 'Swapped panel', direction);
-  }, [model, findTabsetInDirection, getDockLocation, applyModuleBasedRatios]);
+    geomSwapActivePanel(model, layoutRef, direction);
+  }, [model]);
 
   // Move active panel to new tabset in direction (Cmd+Alt+Arrow)
   const moveToNewTabset = useCallback((direction) => {
-    const activeTabset = model.getActiveTabset();
-    if (!activeTabset) return;
-
-    const activeTab = activeTabset.getSelectedNode();
-    if (!activeTab) return;
-
-    // Move to root in the specified direction (creates new tabset)
-    const rootNode = model.getRoot();
-    const dockLocation = getDockLocation(direction);
-    model.doAction(Actions.moveNode(
-      activeTab.getId(),
-      rootNode.getId(),
-      dockLocation,
-      -1,
-      true
-    ));
-
-    // Apply module-based ratios after the move
-    setTimeout(() => {
-      applyModuleBasedRatios();
-    }, 50);
-
-    debug('FlexLayout', 'Moved panel to new tabset', direction);
-  }, [model, getDockLocation, applyModuleBasedRatios]);
+    geomMoveToNewTabset(model, direction);
+  }, [model]);
 
   // Group active panel as tab with panel in direction (Cmd+Shift+Arrow)
   const groupAsTab = useCallback((direction) => {
-    const activeTabset = model.getActiveTabset();
-    if (!activeTabset) return;
-
-    const activeTab = activeTabset.getSelectedNode();
-    if (!activeTab) return;
-
-    // Find target tabset in direction
-    const targetTabset = findTabsetInDirection(activeTabset, direction);
-    if (!targetTabset) {
-      debug('FlexLayout', 'No tabset found in direction:', direction);
-      return;
-    }
-
-    // Move to target tabset as a tab (CENTER location = same tabset)
-    model.doAction(Actions.moveNode(
-      activeTab.getId(),
-      targetTabset.getId(),
-      DockLocation.CENTER,
-      -1,
-      true
-    ));
-    debug('FlexLayout', 'Grouped panel as tab in direction', direction);
-  }, [model, findTabsetInDirection]);
+    geomGroupAsTab(model, layoutRef, direction);
+  }, [model]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -1025,139 +558,77 @@ export function FlexLayoutWorkspace() {
     };
     loadInitialFile();
 
-    // Listen for menu commands
-    const handleMenuCommand = async (command) => {
-      debug('FlexLayout', 'Menu command:', command);
+    // Listen for menu commands — the dispatch table and unknown-command
+    // fallback (broadcast to modules via moduleAPI.emit) live in menuCommands.js.
+    const handleMenuCommand = createMenuCommandHandler({
+      loadLayout,
+      addTabset,
+      removeEmptyTabset,
+      moveToNewTabset,
+      openModule,
+      moduleAPI,
+    });
 
-      switch (command) {
-        // File commands
-        case 'open-file': {
-          // Use multi-file dialog (same as Cmd+O and + button)
-          const filePaths = await window.ansiktenAPI?.invoke('open-multi-file-dialog');
-          if (filePaths && filePaths.length > 0) {
-            if (window.fileQueue?.add) {
-              window.fileQueue.add(filePaths);
-              setTimeout(() => window.fileQueue.start?.(), 100);
-            } else {
-              moduleAPI.emit('load-image', { imagePath: filePaths[0] });
-            }
-          }
-          break;
-        }
+    const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
-        // Layout template commands
-        case 'layout-template-review':
-        case 'layout-review':
-          loadLayout('review');
-          break;
-        case 'layout-template-comparison':
-        case 'layout-comparison':
-          loadLayout('comparison');
-          break;
-        case 'layout-template-full-image':
-          loadLayout('review');
-          break;
-        case 'layout-template-stats':
-        case 'layout-database':
-          loadLayout('database');
-          break;
-        case 'layout-review-with-logs':
-          loadLayout('review-with-logs');
-          break;
-        case 'layout-full-review':
-          loadLayout('full-review');
-          break;
-        case 'reset-layout':
-          loadLayout('review');
-          break;
-
-        // Layout manipulation commands
-        case 'layout-add-column':
-          addTabset('column');
-          break;
-        case 'layout-remove-column':
-          removeEmptyTabset();
-          break;
-        case 'layout-add-row':
-          addTabset('row');
-          break;
-        case 'layout-remove-row':
-          removeEmptyTabset();
-          break;
-
-        // Move to new column/row commands (Cmd+Alt+Arrow via menu)
-        case 'layout-move-new-left':
-          moveToNewTabset('left');
-          break;
-        case 'layout-move-new-right':
-          moveToNewTabset('right');
-          break;
-        case 'layout-move-new-above':
-          moveToNewTabset('above');
-          break;
-        case 'layout-move-new-below':
-          moveToNewTabset('below');
-          break;
-
-        // Open module commands
-        case 'open-image-viewer':
-          openModule('image-viewer');
-          break;
-        case 'open-original-view':
-          openModule('original-view');
-          break;
-        case 'open-log-viewer':
-          openModule('log-viewer');
-          break;
-        case 'open-review-module':
-          openModule('review-module');
-          break;
-        case 'open-statistics-dashboard':
-          openModule('statistics-dashboard');
-          break;
-        case 'open-database-management':
-          openModule('database-management');
-          break;
-        case 'open-refine-faces':
-          openModule('refine-faces');
-          break;
-        case 'open-file-queue':
-          openModule('file-queue');
-          break;
-        case 'open-theme-editor':
-          openModule('theme-editor');
-          break;
-        case 'layout-queue-review':
-          loadLayout('queue-review');
-          break;
-
-        case 'open-preferences':
-          openModule('preferences');
-          break;
-
-        // Theme commands
-        case 'theme-light':
-          themeManager.setPreference('light');
-          break;
-        case 'theme-dark':
-          themeManager.setPreference('dark');
-          break;
-        case 'theme-system':
-          themeManager.setPreference('system');
-          break;
-
-        // View commands - broadcast to modules
-        default:
-          moduleAPI.emit(command, {});
+    // CLI culling target (`ansikten culling DIR`): close the face-review panel
+    // (culling is a different workflow — Review shouldn't sit in the layout
+    // while culling) and open/focus the culling module as a tab, leaving every
+    // OTHER open tab untouched. Then hand it the folder scope once it has
+    // subscribed. Using waitForListeners avoids a lost-event race on a cold
+    // start where the module hasn't mounted yet — same guard the
+    // FileQueue→ImageViewer handshake uses for 'load-image'.
+    const handleOpenCulling = async ({ roots, clear, recursive }) => {
+      // Open culling FIRST so it docks into the still-valid active tabset.
+      // Closing Review first could delete the active tabset, leaving openModule
+      // with no host (getActiveTabset() → undefined) and silently dropping the
+      // culling tab — so the order matters.
+      openModule('culling');
+      // Then close Review — but not while it has unsaved confirmations/ignores,
+      // which live in ReviewModule state and would be silently dropped. In that
+      // case leave the panel open; the user can save and re-issue the command.
+      if (reviewDirtyRef.current.size === 0) {
+        closeModule('review-module');
       }
+      await moduleAPI.waitForListeners('culling-load', 2000);
+      moduleAPI.emit('culling-load', { roots, clear, recursive });
     };
+    const offOpenCulling = window.ansiktenAPI.on('open-culling', handleOpenCulling);
 
-    window.ansiktenAPI.on('menu-command', handleMenuCommand);
+    // CLI `ansikten import [DEST]`: open the import module and hand it the
+    // optional destination. Unlike culling this doesn't touch the Review panel —
+    // import is its own workflow and shares no layout with Review. waitForListeners
+    // guards the cold-start race where the module hasn't mounted yet.
+    const handleOpenImport = async ({ destination }) => {
+      openModule('import');
+      await moduleAPI.waitForListeners('import-load', 2000);
+      moduleAPI.emit('import-load', { destination });
+    };
+    const offOpenImport = window.ansiktenAPI.on('open-import', handleOpenImport);
+
+    // Track which files have unsaved Review changes so the culling hand-off
+    // above won't close Review and discard them.
+    const offReviewDirty = moduleAPI.on('review-dirty', ({ imagePath, dirty }) => {
+      if (!imagePath) return;
+      if (dirty) reviewDirtyRef.current.add(imagePath);
+      else reviewDirtyRef.current.delete(imagePath);
+    });
+
+    // A loaded image dismisses the landing. Listen on the past-tense
+    // 'image-loaded' (emitted by ImageViewer after a load), NOT the imperative
+    // 'load-image' command: FileQueue uses hasListeners('load-image') to detect
+    // when ImageViewer has mounted, and a permanent listener here would defeat
+    // that guard and reintroduce a lost-event race on first queue load.
+    const unsubscribeImageLoaded = moduleAPI.on('image-loaded', () => setShowLanding(false));
 
     return () => {
-      // Cleanup if needed
+      unsubscribeImageLoaded();
+      offMenuCommand?.();
+      offOpenCulling?.();
+      offOpenImport?.();
+      offReviewDirty?.();
     };
-  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, moduleAPI, moveToNewTabset]);
+  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, moduleAPI, moveToNewTabset]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
@@ -1189,14 +660,13 @@ export function FlexLayoutWorkspace() {
 
   if (!model) {
     return (
-      <div style={{
+      <div className="workspace-placeholder-text" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        height: '100%',
-        color: '#666'
+        height: '100%'
       }}>
-        Loading workspace...
+        {t('workspace.loading')}
       </div>
     );
   }
@@ -1210,6 +680,7 @@ export function FlexLayoutWorkspace() {
         onModelChange={handleModelChange}
         onAction={handleAction}
       />
+      {showLanding && <StartupLanding onOpenModule={openLandingStep} />}
       {showShortcutsHelp && (
         <ShortcutsHelpOverlay
           onClose={() => setShowShortcutsHelp(false)}

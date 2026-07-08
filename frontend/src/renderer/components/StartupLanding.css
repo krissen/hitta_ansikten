@@ -1,0 +1,81 @@
+/* StartupLanding - empty-workspace landing page.
+   Theme-conformant: existing variables only, no new keys, no hardcoded colors. */
+
+.startup-landing {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+  background: var(--bg-primary);
+  font-family: var(--font-sans);
+}
+
+.startup-landing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  max-width: 520px;
+  width: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-2xl);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+/* Section label separating the workflow steps from the other views/tools. */
+.startup-landing-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  margin-top: var(--space-lg);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.startup-landing-divider::before,
+.startup-landing-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.startup-landing-title {
+  margin: 0;
+  font-size: var(--font-2xl);
+  color: var(--text-primary);
+}
+
+.startup-landing-subtitle {
+  margin: 0 0 var(--space-lg);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+.startup-landing-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  width: 100%;
+}
+
+/* Extends the shared Button primitive (variant="primary"); layout tweaks only. */
+.startup-landing-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  font-size: var(--font-lg);
+}

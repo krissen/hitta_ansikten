@@ -9,8 +9,8 @@
   justify-content: center;
   gap: 8px;
   padding: 8px 16px;
-  background-color: var(--warning-bg, #ff9800);
-  color: var(--warning-text, #000);
+  background-color: var(--color-warning);
+  color: var(--text-on-accent);
   font-size: 14px;
   font-weight: 500;
 }

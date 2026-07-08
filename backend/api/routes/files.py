@@ -4,12 +4,21 @@ File Routes
 Endpoints for file operations including rename functionality.
 """
 
+import asyncio
+import logging
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-import logging
 
-from ..services.rename_service import rename_service
+from faceid_db import get_file_hash
+
+from ..services.manual_suffix_service import (
+    get_manual_suffix,
+    normalize_suffix,
+    set_manual_suffix,
+)
+from ..services.rename_service import rename_service, validate_path_security
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -101,6 +110,19 @@ class RenameConfigResponse(BaseModel):
     """Response containing default rename configuration."""
     config: Dict[str, Any]
     presets: Dict[str, Dict[str, str]]
+
+
+class ManualSuffixRequest(BaseModel):
+    """Set/clear a free-text filename suffix for a single image."""
+    image_path: str
+    suffix: str
+
+
+class ManualSuffixResponse(BaseModel):
+    """Stored suffix state plus the normalized preview."""
+    hash: Optional[str] = None
+    suffix: str  # normalized (filesystem-safe) form
+    raw: str     # stored raw text (empty when cleared)
 
 
 # Endpoints
@@ -202,3 +224,46 @@ async def rename_files(request: RenameExecuteRequest):
     except Exception as e:
         logger.error(f"[Files] Error executing rename: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/files/manual-suffix", response_model=ManualSuffixResponse)
+async def get_manual_suffix_endpoint(image_path: str):
+    """
+    Get the stored free-text filename suffix for an image (for UI prefill).
+
+    Returns the raw stored text and its normalized preview. Never touches the
+    face database.
+    """
+    is_valid, error = validate_path_security(image_path)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+
+    # Hashing a (possibly large) NEF is blocking I/O — keep it off the loop.
+    file_hash = await asyncio.to_thread(get_file_hash, image_path)
+    raw = (get_manual_suffix(file_hash) or "") if file_hash else ""
+    return ManualSuffixResponse(hash=file_hash, suffix=normalize_suffix(raw), raw=raw)
+
+
+@router.post("/files/manual-suffix", response_model=ManualSuffixResponse)
+async def set_manual_suffix_endpoint(request: ManualSuffixRequest):
+    """
+    Set or clear the free-text filename suffix for an image.
+
+    An empty (or path/whitespace-only) suffix clears the entry. The suffix is
+    stored keyed by content hash (stable across rename) and is NOT a person
+    name — it never reaches encodings.pkl, autocomplete, or the person pipeline.
+    """
+    is_valid, error = validate_path_security(request.image_path)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+
+    # Hashing a (possibly large) NEF is blocking I/O — keep it off the loop.
+    file_hash = await asyncio.to_thread(get_file_hash, request.image_path)
+    if not file_hash:
+        raise HTTPException(status_code=500, detail="Could not hash file")
+
+    raw = request.suffix or ""
+    set_manual_suffix(file_hash, raw)
+    normalized = normalize_suffix(raw)
+    stored = raw.strip() if normalized else ""
+    return ManualSuffixResponse(hash=file_hash, suffix=normalized, raw=stored)

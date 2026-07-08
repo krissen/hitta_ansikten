@@ -15,8 +15,10 @@ const { app } = require('electron');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const { t } = require('../i18n');
 
-const DEBUG = true;
+// Verbose backend logging is opt-in via ANSIKTEN_DEBUG=1 (off in production).
+const DEBUG = process.env.ANSIKTEN_DEBUG === '1';
 
 class BackendService {
   constructor() {
@@ -218,10 +220,10 @@ class BackendService {
    */
   async waitForReady() {
     console.log(`[BackendService] [${this._timestamp()}] Starting health check polling...`);
-    this._updateStatus('Initializing Python...', 10);
+    this._updateStatus(t('dialogs.splash.initializingPython'), 10);
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
+    // Poll immediately, then retry. The backend takes time to boot, so early
+    // ECONNREFUSED is expected and swallowed quietly by checkHealth().
     for (let i = 0; i < this.maxRetries; i++) {
       if (this.childExited) {
         const logs = this.startupLogs.slice(-20).join('\n');
@@ -231,19 +233,19 @@ class BackendService {
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
         console.log(`[BackendService] [${this._timestamp()}] Backend ready after ${i + 1} attempts`);
-        this._updateStatus('Backend redo!', 80);
+        this._updateStatus(t('dialogs.splash.serverReady'), 80);
         return;
       }
 
       const progress = Math.min(10 + (i / this.maxRetries) * 60, 70);
       if (i === 0) {
-        this._updateStatus('Loading Python modules...', progress);
+        this._updateStatus(t('dialogs.splash.loadingModules'), progress);
       } else if (i === 3) {
-        this._updateStatus('Starting FastAPI...', progress);
+        this._updateStatus(t('dialogs.splash.startingApi'), progress);
       } else if (i === 6) {
-        this._updateStatus('Starting web server...', progress);
+        this._updateStatus(t('dialogs.splash.startingWebServer'), progress);
       } else if (i > 10) {
-        this._updateStatus(`Waiting for backend... (${i}/${this.maxRetries})`, progress);
+        this._updateStatus(t('dialogs.splash.waitingForBackend', { current: i, total: this.maxRetries }), progress);
       }
 
       if (DEBUG && i > 0 && i % 5 === 0) {
@@ -292,8 +294,13 @@ class BackendService {
       );
 
       req.on('error', (err) => {
-        if (DEBUG && err.code !== 'ECONNREFUSED') {
-          console.log(`[BackendService] [${this._timestamp()}] Health check error: ${err.message}`);
+        if (err.code !== 'ECONNREFUSED') {
+          // Capture unusual probe errors in startupLogs so the eventual
+          // timeout diagnostic includes them even when DEBUG is off.
+          this._addLog(`Health check error: ${err.code || ''} ${err.message}`);
+          if (DEBUG) {
+            console.log(`[BackendService] [${this._timestamp()}] Health check error: ${err.message}`);
+          }
         }
         resolve(false);
       });
@@ -319,23 +326,28 @@ class BackendService {
 
     console.log('[BackendService] Stopping backend server...');
 
+    // Capture the handle now: start()'s exit handler nulls this.process, so the
+    // force-kill closure below must not read this.process (it may be null by then).
+    const proc = this.process;
+
     return new Promise((resolve) => {
-      this.process.on('exit', () => {
+      // Force kill after 5 seconds if graceful shutdown did not complete.
+      const forceKillTimer = setTimeout(() => {
+        console.warn('[BackendService] Force killing server');
+        proc.kill('SIGKILL');
+      }, 5000);
+      // Don't let the pending timer keep the Electron main process alive on quit.
+      forceKillTimer.unref();
+
+      proc.on('exit', () => {
+        clearTimeout(forceKillTimer);
         console.log('[BackendService] Server stopped');
         this.process = null;
         resolve();
       });
 
       // Send SIGTERM for graceful shutdown
-      this.process.kill('SIGTERM');
-
-      // Force kill after 5 seconds if not stopped
-      setTimeout(() => {
-        if (this.process) {
-          console.warn('[BackendService] Force killing server');
-          this.process.kill('SIGKILL');
-        }
-      }, 5000);
+      proc.kill('SIGTERM');
     });
   }
 

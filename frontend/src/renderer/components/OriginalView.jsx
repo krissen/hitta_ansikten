@@ -12,7 +12,9 @@ import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts.js';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { useBackend } from '../context/BackendContext.jsx';
-import { debug, debugWarn, debugError } from '../shared/debug.js';
+import { debug, debugError } from '../shared/debug.js';
+import { toFileUrl } from '../shared/fileUrl.js';
+import { t } from '../../i18n/index.js';
 import './OriginalView.css';
 
 // Constants
@@ -47,7 +49,7 @@ export function OriginalView() {
 
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
-  const [placeholder, setPlaceholder] = useState('Waiting for NEF file...');
+  const [placeholder, setPlaceholder] = useState(t('originalView.waiting'));
 
   // Canvas dimensions
   const dimensions = useCanvasDimensions(containerRef);
@@ -67,7 +69,7 @@ export function OriginalView() {
     if (!isNef) {
       debug('OriginalView', 'Not a NEF file, skipping');
       setImage(null);
-      setPlaceholder('Not a NEF file');
+      setPlaceholder(t('originalView.notNef'));
       return;
     }
 
@@ -75,13 +77,13 @@ export function OriginalView() {
     let nefPath = imagePath;
     if (imagePath.includes('_converted.jpg')) {
       debug('OriginalView', 'Converted JPG detected, original path unknown');
-      setPlaceholder('Original NEF path unknown');
+      setPlaceholder(t('originalView.unknownPath'));
       return;
     }
 
     setCurrentNefPath(nefPath);
     setIsLoading(true);
-    setPlaceholder('Loading original...');
+    setPlaceholder(t('originalView.loading'));
 
     try {
       debug('OriginalView', `Loading original: ${nefPath}`);
@@ -90,7 +92,7 @@ export function OriginalView() {
       const result = await api.post('/api/v1/preprocessing/nef', { file_path: nefPath });
 
       if (result.status === 'error') {
-        throw new Error(result.error || 'NEF conversion failed');
+        throw new Error(result.error || t('originalView.conversionFailed'));
       }
 
       const jpgPath = result.nef_jpg_path;
@@ -100,9 +102,10 @@ export function OriginalView() {
       const img = new Image();
       await new Promise((resolve, reject) => {
         img.onload = () => resolve();
-        img.onerror = (err) => reject(new Error('Failed to load image'));
-        const imageSrc = jpgPath.startsWith('file://') ? jpgPath : 'file://' + jpgPath;
-        img.src = imageSrc;
+        img.onerror = (err) => reject(new Error(t('originalView.loadImageFailed')));
+        // Encode path characters (spaces, #, ?, []) so filenames with them load;
+        // the naive 'file://' + path concatenation broke on such names.
+        img.src = toFileUrl(jpgPath);
       });
 
       setImage(img);
@@ -116,7 +119,7 @@ export function OriginalView() {
     } catch (err) {
       debugError('OriginalView', 'Failed to load original:', err);
       setIsLoading(false);
-      setPlaceholder(`Error: ${err.message}`);
+      setPlaceholder(t('originalView.error', { message: err.message }));
     }
   }, [api]);
 
@@ -139,8 +142,12 @@ export function OriginalView() {
     canvas.height = canvasHeight * dpr;
     ctx.scale(dpr, dpr);
 
-    // Clear canvas
-    ctx.fillStyle = '#2a2a2a';
+    // Clear canvas with the themed elevated background. Read from the CSS var
+    // so the letterbox matches the active theme (same getComputedStyle approach
+    // as ImageViewer's face-box colors).
+    const clearColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg-elevated').trim() || '#2a2a2a';
+    ctx.fillStyle = clearColor;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     let imageScale, imageX, imageY;
@@ -333,6 +340,23 @@ export function OriginalView() {
     render();
   }, [render]);
 
+  // Repaint on theme change so the canvas clear color tracks the active theme.
+  // theme-manager fires `theme-changed` and flips data-theme; the ThemeEditor
+  // live preview writes inline CSS vars on <html> with no event — a
+  // MutationObserver on data-theme + style covers both (mirrors ImageViewer).
+  useEffect(() => {
+    const observer = new MutationObserver(render);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'style']
+    });
+    window.addEventListener('theme-changed', render);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('theme-changed', render);
+    };
+  }, [render]);
+
   // ============================================
   // Render
   // ============================================
@@ -346,14 +370,14 @@ export function OriginalView() {
 
       {/* Sync indicator */}
       <div className={`sync-indicator ${isSynced ? 'synced' : 'detached'}`}>
-        {isSynced ? '🔗 Synced' : '🔓 Detached'}
+        {isSynced ? t('originalView.synced') : t('originalView.detached')}
       </div>
 
       {/* Loading/placeholder */}
       {(isLoading || placeholder) && !image && (
         <div className="original-view-placeholder">
           <div className="placeholder-icon">📷</div>
-          <div>{isLoading ? 'Loading original...' : placeholder}</div>
+          <div>{isLoading ? t('originalView.loading') : placeholder}</div>
         </div>
       )}
     </div>

@@ -1,3 +1,5 @@
 __pycache__
 .DS_Store
 SESSION_SUMMARY.md
+tmp
+node_modules/

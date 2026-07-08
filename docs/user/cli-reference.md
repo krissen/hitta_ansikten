@@ -45,10 +45,13 @@ Huvudverktyget för ansiktsigenkänning.
 
 ## hantera_ansikten.py
 
+> **Arkiverat verktyg.** Ligger i `backend/scripts/archive/` och används inte av
+> GUI:t. Kör från `backend/`: `python scripts/archive/hantera_ansikten.py`.
+
 Interaktiv databashantering.
 
 ```bash
-./hantera_ansikten.py
+python scripts/archive/hantera_ansikten.py
 ```
 
 ### Menyalternativ
@@ -67,10 +70,13 @@ Interaktiv databashantering.
 
 ## analysera_ansikten.py
 
+> **Arkiverat verktyg.** Ligger i `backend/scripts/archive/` och används inte av
+> GUI:t. Kör från `backend/`: `python scripts/archive/analysera_ansikten.py`.
+
 Statistik och analys.
 
 ```bash
-./analysera_ansikten.py
+python scripts/archive/analysera_ansikten.py
 ```
 
 Visar:
@@ -123,13 +129,28 @@ Config-fil: `~/.local/share/faceid/rakna_spelare.json`
 ```json
 {
   "tranare": ["Martin", "Ronnie"],
-  "publik": ["Jasenko", "Jelena"]
+  "publik": ["Jasenko", "Jelena"],
+  "grupp": ["Reservlaget"],
+  "always_grupp": ["Laget", "FBK"],
+  "always_publik": ["Klacken"]
 }
 ```
 
-Miljövariabler: `RAKNA_TRANARE`, `RAKNA_PUBLIK`, `NO_COLOR`
+`always_grupp`/`always_publik` är markörer som alltid räknas som gruppbilder/
+publik oavsett tröskel. De är valfria — utelämnade används de inbyggda
+standardvärdena (`Laget`/`FBK` respektive `Klacken`), så befintliga configar är
+oförändrade. Ange dem för att lägga till egna (t.ex. `Forward`) eller ta bort en
+inbyggd; en tom lista nollställer den alltid-uteslutna uppsättningen.
+
+Miljövariabler: `RAKNA_TRANARE`, `RAKNA_PUBLIK`, `RAKNA_GRUPP`,
+`RAKNA_ALWAYS_GRUPP`, `RAKNA_ALWAYS_PUBLIK`, `NO_COLOR`
 
 **Prioritet:** CLI-flaggor > miljövariabler > config-fil > standardvärden
+
+**Alltid exkluderade markörer:** `Laget` och `FBK` räknas alltid som gruppbilder
+(lagbilder) och `Klacken` alltid som publik — de behandlas inte som spelare
+oavsett antal eller config. Dessa läggs alltid till utöver eventuella egna
+namn i `grupp`/`publik`. Gäller både CLI och GUI (Räkna spelare / Gallra spelare).
 
 ### Output
 
@@ -154,14 +175,19 @@ Albin         8    5.2%   -56%   (-10)  [####----------------]  ····:·::·�
 
 ---
 
-## Övriga verktyg
+## Arkiverade verktyg
+
+> Följande fristående legacy- och engångsverktyg ligger i
+> `backend/scripts/archive/` och används inte av GUI:t eller runtime. De körs
+> från `backend/` med `python scripts/archive/<verktyg>.py` (se
+> `backend/scripts/archive/README.md`).
 
 ### ratta_ansikten.py
 
 Granska och korrigera befintliga matchningar.
 
 ```bash
-./ratta_ansikten.py
+python scripts/archive/ratta_ansikten.py
 ```
 
 ### forfina_ansikten.py
@@ -169,7 +195,7 @@ Granska och korrigera befintliga matchningar.
 Förfina ansiktsdetekteringar (justera bounding boxes).
 
 ```bash
-./forfina_ansikten.py
+python scripts/archive/forfina_ansikten.py
 ```
 
 ### update_encodings_with_filehash.py
@@ -177,7 +203,7 @@ Förfina ansiktsdetekteringar (justera bounding boxes).
 Migrera äldre encodings till nytt format med filhashar.
 
 ```bash
-python update_encodings_with_filehash.py 2024*.NEF
+python scripts/archive/update_encodings_with_filehash.py 2024*.NEF
 ```
 
 ### rensa_dlib.py
@@ -186,11 +212,15 @@ Ta bort alla dlib-encodings från databasen. dlib är deprecated.
 
 ```bash
 # Förhandsgranska
-./rensa_dlib.py --dry-run
+python scripts/archive/rensa_dlib.py --dry-run
 
 # Utför borttagning
-./rensa_dlib.py
+python scripts/archive/rensa_dlib.py
 ```
+
+---
+
+## Övriga verktyg
 
 ### filer2mappar.py
 
@@ -262,7 +292,7 @@ Inställningar i `~/.local/share/faceid/config.json`:
 | `auto_ignore` | `false` | Auto-ignorera omatchade ansikten |
 | `image_viewer_app` | `"Ansikten"` | Extern app för förhandsvisning |
 
-> **Not:** dlib-backend är deprecated sedan januari 2026. Om du har äldre dlib-encodings, använd `rensa_dlib.py` eller RefineFaces-modulen i GUI:t för att ta bort dem.
+> **Not:** dlib-backend är deprecated sedan januari 2026. Om du har äldre dlib-encodings, använd `scripts/archive/rensa_dlib.py` eller RefineFaces-modulen i GUI:t för att ta bort dem.
 
 ---
 

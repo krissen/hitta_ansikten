@@ -28,7 +28,7 @@ For distribution, the Python backend is bundled into a standalone executable usi
 # Xcode Command Line Tools
 xcode-select --install
 
-# Homebrew packages (for face_recognition)
+# Homebrew packages (build tooling for InsightFace's native deps)
 brew install cmake
 ```
 
@@ -198,6 +198,14 @@ The workflow will:
 
 Then manually publish the draft release on GitHub.
 
+> **The `v*` tag is authoritative at build time.** The workflow's "Set version
+> from tag" step runs `npm pkg set version=${GITHUB_REF_NAME#v}`, overwriting
+> `frontend/package.json` with the tag's number in CI. The versions committed in
+> the repo are not what ship — but keep them in sync anyway: bump
+> `frontend/package.json` **and** `backend/pyproject.toml` (plus the `version=`
+> string in `backend/api/server.py`, surfaced by `/health`) together to the tag's
+> number when releasing. See [release-guide.md](release-guide.md) for the process.
+
 ---
 
 ## Troubleshooting
@@ -266,6 +274,7 @@ pip install onnxruntime insightface
 |----------|-------------|---------|
 | `ANSIKTEN_PORT` | Backend server port | `5001` |
 | `ANSIKTEN_PYTHON` | Python path (dev only) | Auto-detect |
+| `ANSIKTEN_DEBUG` | Verbose backend-service logging (`1` = on) | Off |
 | `CSC_IDENTITY_AUTO_DISCOVERY` | Disable code signing | - |
 
 ---

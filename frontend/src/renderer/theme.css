@@ -6,7 +6,7 @@
  * - Dark Mode: "CRT Phosphor" (classic terminal with amber/green tones)
  *
  * Usage: Set data-theme="light" or data-theme="dark" on <html> element
- * See: frontend/docs/styling-reference.md for complete documentation
+ * See: docs/dev/theming.md for complete documentation
  */
 
 /* ===========================
@@ -50,15 +50,41 @@
   --color-info: #1888d8;        /* Bright blue (Commodore) */
   --color-info-bg: #c8dce8;     /* Subtle blue tint */
 
+  /* Semantic status TEXT - darker than the hue so status shown as text (Δ
+     numbers, .text-*, .status-message text) reads on the beige backgrounds. The
+     hue --color-* stays bright for backgrounds/fills/icons. */
+  --color-success-text: #174f07;  /* Dark green (AA 4.6:1 on --bg-primary) */
+  --color-warning-text: #733000;  /* Dark orange (AA 4.7:1 on --bg-primary) */
+  --color-error-text: #88160c;    /* Dark red (AA 4.6:1 on --bg-primary) */
+  --color-info-text: #0c466f;     /* Dark blue (AA 4.7:1 on --bg-primary) */
+
+  /* Shared row-hover for data tables/lists (lightens in light mode so dark
+     status text stays legible; see also the broader --bg-hover follow-up). */
+  --bg-row-hover: #e8d8b0;
+  /* Selected/active data-row background: a faint accent tint (paired with a left
+     accent bar via .row-selected). A solid fill reads too sharp and drowns
+     colored row text; the tint keeps text legible. */
+  --bg-row-active: var(--accent-primary-alpha-20);
+
   /* Canvas Highlights */
   --face-active-highlight: #e85820;  /* Orange - visible on light bg */
   --face-confirmed-color: #38a818;   /* Green for confirmed names */
   --face-confirmed-bg: rgba(56, 168, 24, 0.9);
   --face-ignored-color: #9e9e9e;     /* Gray for ignored faces */
   --face-ignored-bg: rgba(158, 158, 158, 0.9);
+  /* Match-confidence tiers for face boxes (drawn over the photo). Colors are
+     theme-independent by default since they sit on image pixels, not the UI. */
+  --face-uncertain-color: #ffc107;              /* Amber - uncertain name/ignore */
+  --face-uncertain-bg: rgba(255, 193, 7, 0.9);
+  --face-confidence-medium-color: #2196f3;      /* Blue - medium confidence */
+  --face-confidence-medium-bg: rgba(33, 150, 243, 0.9);
+  --face-confidence-low-color: #ff9800;         /* Orange - low confidence */
+  --face-confidence-low-bg: rgba(255, 152, 0, 0.9);
+  --face-confidence-none-color: #f44336;        /* Red - very low confidence */
+  --face-confidence-none-bg: rgba(244, 67, 54, 0.9);
 
   /* Overlay Colors */
-  --overlay-bg: #987840;        /* Bronze/copper (semi-dark for light theme) */
+  --overlay-bg: #846837;        /* Bronze/copper, darkened for AA 4.6:1 under --overlay-text */
   --overlay-text: #f8f0e0;      /* Light text on overlay */
 
   /* Shadows */
@@ -97,7 +123,7 @@
   /* Foreground text - Amber/Green CRT */
   --text-primary: #d4d2c0;      /* Light beige/amber */
   --text-secondary: #a8a698;    /* Muted amber */
-  --text-tertiary: #7a7870;     /* Very muted */
+  --text-tertiary: #7f7d75;     /* Very muted (AA 4.7:1 on --bg-primary) */
   --text-inverse: #0f0f0f;      /* Text on light backgrounds */
   --text-on-accent: #0a0a0a;    /* Very dark text on bright accents */
 
@@ -123,12 +149,36 @@
   --color-info: #87ceeb;        /* Sky blue */
   --color-info-bg: #15202a;     /* Dark blue */
 
+  /* Semantic status TEXT - bright on near-black, mirroring the hue (dark theme
+     has plenty of contrast, so status text needs no darkening here). */
+  --color-success-text: #9acd32;  /* Yellow-green */
+  --color-warning-text: #ffa500;  /* Orange */
+  --color-error-text: #ff6347;    /* Tomato red */
+  --color-info-text: #87ceeb;     /* Sky blue (mirrors the hue; ample contrast on near-black) */
+
+  /* Shared row-hover for data tables/lists (lighter than the row background). */
+  --bg-row-hover: #252525;
+  /* Selected/active data-row background: a faint accent tint (paired with a left
+     accent bar via .row-selected). */
+  --bg-row-active: var(--accent-primary-alpha-20);
+
   /* Canvas Highlights */
   --face-active-highlight: #00bcd4;  /* Cyan - visible on dark bg */
   --face-confirmed-color: #4caf50;   /* Green for confirmed names */
   --face-confirmed-bg: rgba(76, 175, 80, 0.9);
   --face-ignored-color: #9e9e9e;     /* Gray for ignored faces */
   --face-ignored-bg: rgba(158, 158, 158, 0.9);
+  /* Match-confidence tiers for face boxes (drawn over the photo). Kept equal to
+     the light theme: the boxes sit on image pixels, and these hues read clearly
+     over both light and dark UI chrome. */
+  --face-uncertain-color: #ffc107;              /* Amber - uncertain name/ignore */
+  --face-uncertain-bg: rgba(255, 193, 7, 0.9);
+  --face-confidence-medium-color: #2196f3;      /* Blue - medium confidence */
+  --face-confidence-medium-bg: rgba(33, 150, 243, 0.9);
+  --face-confidence-low-color: #ff9800;         /* Orange - low confidence */
+  --face-confidence-low-bg: rgba(255, 152, 0, 0.9);
+  --face-confidence-none-color: #f44336;        /* Red - very low confidence */
+  --face-confidence-none-bg: rgba(244, 67, 54, 0.9);
 
   /* Overlay Colors */
   --overlay-bg: #0a0a0a;        /* Near black (dark for dark theme) */
@@ -195,6 +245,18 @@
   --transition-base: 0.15s ease;
   --transition-slow: 0.3s ease;
 
+  /* Motion duration tokens (raw durations, no easing) — for JS-friendly or
+     composed animations. Kept in sync with the transition tokens above. The
+     global prefers-reduced-motion block at the end of this file neutralises
+     these for users who request reduced motion. */
+  /* Keyboard focus ring — one token so every control's :focus-visible looks
+     the same. References the per-theme accent, so it flips with the theme. */
+  --focus-ring: 2px solid var(--accent-primary);
+  --focus-ring-offset: 1px;
+
+  --motion-duration-fast: 0.1s;
+  --motion-duration-base: 0.15s;
+
   /* Z-index Scale */
   --z-base: 1;
   --z-dropdown: 100;
@@ -211,7 +273,23 @@
    BASE RESETS
    =========================== */
 *, *::before, *::after {
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+#workspace-root {
+  width: 100%;
+  height: 100%;
 }
 
 /* Note: Default theme is set via data-theme="dark" in HTML.
@@ -229,94 +307,12 @@
   box-shadow: var(--glow-accent);
 }
 
-/* ===========================
-   STANDARDIZED BUTTON CLASSES
-   =========================== */
-
-/* Base button styles - shared by all button types */
-.btn-action,
-.btn-secondary,
-.btn-danger {
-  padding: var(--space-xs) var(--space-md);
-  font-size: var(--font-sm);
-  font-weight: 500;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-base), transform var(--transition-fast);
-}
-
-.btn-action:active:not(:disabled),
-.btn-secondary:active:not(:disabled),
-.btn-danger:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.btn-action:disabled,
-.btn-secondary:disabled,
-.btn-danger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Primary action button - for main CTAs (Start, Save, Confirm) */
-.btn-action {
-  background: var(--accent-primary);
-  color: var(--text-on-accent);
-  border: none;
-}
-
-.btn-action:hover:not(:disabled) {
-  background: var(--accent-primary-hover);
-}
-
-/* Secondary button - for standard actions (Refresh, Clear, Rename, Skip) */
-.btn-secondary {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  border: 1px solid var(--border-medium);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background: var(--btn-secondary-hover-bg);
-  border-color: var(--border-strong);
-}
-
-/* Danger button - for destructive actions (Delete permanently) */
-.btn-danger {
-  background: var(--color-error);
-  color: var(--text-inverse);
-  border: none;
-}
-
-.btn-danger:hover:not(:disabled) {
-  filter: brightness(0.85);
-}
-
-/* Icon button - for toolbar icons */
-.btn-icon {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-md);
-  transition: background var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
-}
-
-.btn-icon:hover {
-  background: var(--btn-icon-hover-bg);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-icon:active {
-  transform: scale(0.92);
-}
+/* Button styling lives in the shared Button/IconButton primitives
+   (components/shared/shared.css: .btn / .icon-btn). The legacy
+   .btn-action/.btn-secondary/.btn-danger/.btn-icon alias rules were removed in
+   B7 once every call site had migrated to the primitives. The
+   --btn-secondary-hover-bg / --btn-icon-hover-bg tokens above are still consumed
+   by the primitives. See docs/dev/theming.md "Button Categories". */
 
 /* ===========================
    STANDARDIZED LAYOUT CLASSES
@@ -548,10 +544,35 @@
 }
 
 .form-checkbox input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: var(--accent-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.form-checkbox input[type="checkbox"]:hover {
+  border-color: var(--accent-primary);
+}
+
+.form-checkbox input[type="checkbox"]:checked {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.form-checkbox input[type="checkbox"]:checked::after {
+  content: '✓';
+  color: var(--text-on-accent);
+  font-size: 11px;
+  line-height: 1;
 }
 
 /* Slider (range) container */
@@ -653,41 +674,36 @@
 .status-error { background: var(--color-error-bg); }
 .status-info { background: var(--color-info-bg); }
 
-/* Status text colors */
-.text-success { color: var(--color-success); }
-.text-warning { color: var(--color-warning); }
-.text-error { color: var(--color-error); }
-.text-info { color: var(--color-info); }
+/* Status text colors - use the theme-legible text variants (dark on beige,
+   bright on near-black). */
+.text-success { color: var(--color-success-text); }
+.text-warning { color: var(--color-warning-text); }
+.text-error { color: var(--color-error-text); }
+.text-info { color: var(--color-info-text); }
 
-/* Status message box */
-.status-message {
-  padding: var(--space-md);
-  border-radius: var(--radius-md);
-  font-size: var(--font-base);
+/* Keyboard focus ring on form controls — everywhere, not just in modals. The
+   border-color :focus style remains as the pointer-focus affordance. */
+.form-input:focus-visible,
+.form-select:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
-.status-message.success {
-  background: var(--color-success-bg);
-  color: var(--color-success);
-  border: 1px solid var(--color-success);
-}
+/* Muted placeholder text for workspace fallback/loading states */
+.workspace-placeholder-text { color: var(--text-tertiary); }
 
-.status-message.warning {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
-  border: 1px solid var(--color-warning);
-}
-
-.status-message.error {
-  background: var(--color-error-bg);
-  color: var(--color-error);
-  border: 1px solid var(--color-error);
-}
-
-.status-message.info {
-  background: var(--color-info-bg);
-  color: var(--color-info);
-  border: 1px solid var(--color-info);
+/* Canonical selected/active data-row highlight — reuse for every list/table
+   "current row". A faint accent tint + a left accent bar + bold, NOT a solid
+   fill (a solid fill reads too sharp and drowns colored row text). Pair with
+   `:hover:not(.row-selected)` on the row's hover rule so hover doesn't override
+   the selection. */
+.row-selected {
+  background: var(--bg-row-active);
+  box-shadow: inset 3px 0 0 var(--accent-primary);
+  font-weight: 600;
 }
 
 /* ===========================
@@ -752,4 +768,21 @@
   font-size: var(--font-xs);
   font-weight: 600;
   font-family: var(--font-mono);
+}
+
+/* ===========================
+   REDUCED MOTION
+   Honour the OS "reduce motion" accessibility preference. Neutralises all
+   animations, transitions and CSS smooth-scroll. JS-driven smooth scrolling
+   is gated separately via shared/motion.js. See docs/dev/accessibility.md.
+   =========================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

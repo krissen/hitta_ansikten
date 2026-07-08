@@ -170,6 +170,33 @@
   grid-column: 1 / -1;
 }
 
+/* No-faces state: still offer a manual-name affordance so a faceless photo
+   (e.g. an object) can be named. */
+.no-faces-detected {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  text-align: center;
+  padding: var(--space-2xl) var(--space-lg);
+}
+
+.no-faces-detected .no-faces-title {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.no-faces-detected .no-faces-hint {
+  color: var(--text-tertiary);
+  font-size: 0.9em;
+  margin: 0;
+}
+
+.no-faces-detected .add-manual-name-btn {
+  margin-top: var(--space-xs);
+}
+
 /* Probable ignore styling */
 .face-card.probable-ignore {
   border-color: var(--text-tertiary);
@@ -195,6 +222,11 @@
 .match-case.uncertain {
   background: var(--color-warning-bg);
   color: var(--color-warning);
+}
+
+.match-case.twin-disambig {
+  background: color-mix(in srgb, var(--accent-primary) 22%, transparent);
+  color: var(--accent-primary);
 }
 
 /* Face card inline alternatives */
@@ -260,79 +292,14 @@
   color: var(--text-secondary);
 }
 
-.autocomplete-wrapper {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-}
+/* The `.autocomplete-*` dropdown styling now lives in shared.css alongside the
+   Autocomplete primitive; only review-specific input states remain here (see
+   `.face-actions input.name-match` above). */
 
-.autocomplete-wrapper input {
-  width: 100%;
-}
-
-.autocomplete-dropdown {
-  position: fixed;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  overflow-y: auto;
-}
-
-.autocomplete-item {
-  padding: var(--space-sm) var(--space-md);
-  cursor: pointer;
-  font-size: var(--font-sm);
-  color: var(--text-primary);
-  border-left: 3px solid transparent;
-}
-
-.autocomplete-item:hover {
-  background: var(--bg-hover);
-}
-
-.autocomplete-item.selected {
-  background: var(--dropdown-selected-bg);
-  border-left-color: var(--color-info);
-  color: var(--color-info);
-  font-weight: 500;
-}
-
-.confirm-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: var(--z-modal);
-}
-
-.confirm-dialog {
-  background: var(--bg-elevated);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  max-width: 400px;
-  width: 90%;
-  padding: var(--space-xl);
-}
-
-.confirm-dialog h3 {
-  margin: 0 0 var(--space-md) 0;
-  font-size: var(--font-lg);
-  color: var(--color-warning);
-}
-
-.confirm-dialog p {
-  margin: 0 0 var(--space-lg) 0;
-  color: var(--text-primary);
-  line-height: 1.5;
-}
-
-.confirm-dialog .match-info {
+/* Review dialog content on the shared Modal base (native <dialog>). The Modal
+   surface, title, footer and hint are styled in shared.css; these rules cover
+   the review-specific content bits (match-info chip, suffix input). */
+.modal .match-info {
   background: var(--bg-hover);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
@@ -340,48 +307,27 @@
   font-size: var(--font-sm);
 }
 
-.confirm-dialog .match-info strong {
+.modal .match-info strong {
   color: var(--accent-primary);
 }
 
-.confirm-buttons {
-  display: flex;
-  gap: var(--space-md);
-  justify-content: flex-end;
-}
-
-.confirm-buttons button {
-  padding: var(--space-sm) var(--space-lg);
+.modal .suffix-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-lg);
+  border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   font-size: var(--font-base);
-  cursor: pointer;
-  border: 1px solid var(--border-medium);
-}
-
-.confirm-buttons .btn-cancel {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
   color: var(--text-primary);
 }
 
-.confirm-buttons .btn-cancel:hover {
-  background: var(--bg-hover);
-}
-
-.confirm-buttons .btn-confirm {
-  background: var(--color-warning);
-  color: var(--text-on-accent);
-  border-color: var(--color-warning);
-}
-
-.confirm-buttons .btn-confirm:hover {
-  opacity: 0.9;
-}
-
-.confirm-hint {
-  margin-top: var(--space-md);
-  font-size: var(--font-xs);
-  color: var(--text-tertiary);
-  text-align: center;
+.modal .suffix-input:focus {
+  outline: none;
+  border-color: var(--color-info);
+  background: var(--color-info-bg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-info) 30%, transparent);
 }
 
 /* Queue overview bar (footer) */

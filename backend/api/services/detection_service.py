@@ -5,27 +5,34 @@ Wraps existing face detection logic from the Ansikten CLI.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import sys
+import threading
 import time
-import hashlib
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Any, Optional, Tuple
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-# Add parent directory to path to import hitta_ansikten modules
+# Add backend dir to path to import shared core modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from face_backends import create_backend
-from faceid_db import load_database, save_database, get_file_hash, BASE_DIR
-from hitta_ansikten import load_config, log_attempt_stats
-import rawpy
-from PIL import Image
 import numpy as np
+import rawpy
+from PIL import Image, ImageOps
 
+from core.attempts import log_attempt_stats
+from core.config import load_config
+from core.db import BASE_DIR, get_file_hash
+from core.files import RAW_EXTENSIONS
+from face_backends import create_backend
+
+from .db_store import get_db_store
+from .management_service import DISTINCT_PAIRS_PATH, _load_distinct_pairs
+from .matching_index import MatchingIndex
 from .preprocessing_cache import get_cache as get_preprocessing_cache
 
 logger = logging.getLogger(__name__)
@@ -50,13 +57,26 @@ class DetectionService:
         self.backend = create_backend(self.config)
         logger.info(f"[DetectionService] Initialized backend: {self.backend.backend_name}")
 
-        # Load face database
-        self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
-        logger.info(f"[DetectionService] Loaded database: {len(self.known_faces)} people, {len(self.ignored_faces)} ignored faces")
+        # All reads/mutations of the face DB go through the process-wide
+        # FaceDBStore — the single in-memory authority (freshness by file
+        # fingerprint, leading-coalesce debounced saves). No per-service copies
+        # of the collections and no own save machinery.
+        self.store = get_db_store()
+
+        # Version-invalidated matching index: precompiled per-backend candidate
+        # matrices, rebuilt only when the store version moves. The matching
+        # helpers consume it instead of restacking matrices per detected face.
+        self._matching_index = MatchingIndex(self.store, self.backend.backend_name)
 
         # LRU caches using OrderedDict (move_to_end on access, popitem(last=False) to evict)
-        # Detection results cache (keyed by file hash)
+        # Detection results cache (keyed by file hash + registry version)
         self.cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+
+        # Store version the detection (match-result) cache was populated at. The
+        # cache holds match SUGGESTIONS that depend on DB contents; when the
+        # store version moves (a confirm/ignore here or an external reload), the
+        # cache is invalidated on the next detect so stale suggestions can't leak.
+        self._cache_db_version = self.store.version
 
         # Face encoding cache (keyed by face_id) — stores (encoding, bbox, file_hash)
         self.encoding_cache: OrderedDict[str, Tuple[np.ndarray, Dict[str, int], Optional[str]]] = OrderedDict()
@@ -64,11 +84,6 @@ class DetectionService:
         # Image cache (keyed by image path) — stores (rgb_array, timestamp)
         self.image_cache: OrderedDict[str, Tuple[np.ndarray, float]] = OrderedDict()
         self.image_cache_ttl = 1800  # 30 minutes
-
-        # Debounced save state
-        self._save_pending = False
-        self._save_lock = asyncio.Lock()
-        self._save_task: Optional[asyncio.Task] = None
 
     @staticmethod
     def _lru_put(cache: OrderedDict, key, value, max_size: int):
@@ -79,66 +94,21 @@ class DetectionService:
         while len(cache) > max_size:
             cache.popitem(last=False)
 
-    async def _schedule_save(self):
-        """Debounce database saves — coalesces rapid confirm/ignore calls."""
-        async with self._save_lock:
-            if self._save_pending:
-                return  # Already scheduled
-            self._save_pending = True
-
-        async def _do_save():
-            await asyncio.sleep(0.5)  # 500 ms debounce
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                _executor,
-                save_database,
-                self.known_faces,
-                self.ignored_faces,
-                self.hard_negatives,
-                self.processed_files,
-            )
-            async with self._save_lock:
-                self._save_pending = False
-            logger.debug("[DetectionService] Debounced save completed")
-
-        self._save_task = asyncio.create_task(_do_save())
-
-    async def _flush_save(self):
-        """Force immediate save (used for final operations like mark_review_complete)."""
-        # Cancel pending debounced save if any
-        if self._save_task and not self._save_task.done():
-            self._save_task.cancel()
-            try:
-                await self._save_task
-            except asyncio.CancelledError:
-                pass
-        async with self._save_lock:
-            self._save_pending = False
-
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(
-            _executor,
-            save_database,
-            self.known_faces,
-            self.ignored_faces,
-            self.hard_negatives,
-            self.processed_files,
-        )
-
     def reload_database(self) -> Dict[str, Any]:
         """
-        Reload face database from disk
+        Reload face database from disk (via the store) and clear local caches.
 
-        Useful when database has been modified externally (e.g., by hantera_ansikten).
-        Clears detection cache to ensure fresh results with new data.
+        The FaceDBStore reloads its collections from disk on the next read/mutate
+        whenever a backing file's fingerprint changed (e.g. an external edit by
+        scripts/archive/hantera_ansikten.py), so this endpoint no longer loads
+        the DB itself. It clears the detection/encoding/image caches — which hold
+        match SUGGESTIONS computed from the old DB — and re-pins the cache to the
+        current store version. ``store.read`` triggers the freshness check.
 
         Returns:
             Status info with counts
         """
-        logger.info("[DetectionService] Reloading database from disk...")
-
-        # Reload database
-        self.known_faces, self.ignored_faces, self.hard_negatives, self.processed_files = load_database()
+        logger.info("[DetectionService] Reloading database (clearing caches)...")
 
         # Clear caches to ensure fresh results
         old_cache_size = len(self.cache)
@@ -146,23 +116,27 @@ class DetectionService:
         self.encoding_cache.clear()
         self.image_cache.clear()
 
-        logger.info(f"[DetectionService] Database reloaded: {len(self.known_faces)} people, {len(self.ignored_faces)} ignored faces")
+        # read() runs the store's freshness check (reloading on external change)
+        # and reports the live counts under the lock.
+        people_count, ignored_count = self.store.read(
+            lambda known, ignored, hardneg, processed: (len(known), len(ignored))
+        )
+        # Re-pin the match-result cache to the (possibly bumped) store version.
+        self._cache_db_version = self.store.version
+
+        logger.info(f"[DetectionService] Database reloaded: {people_count} people, {ignored_count} ignored faces")
         logger.info(f"[DetectionService] Cleared {old_cache_size} cached detection results")
 
         return {
             "status": "success",
-            "people_count": len(self.known_faces),
-            "ignored_count": len(self.ignored_faces),
+            "people_count": people_count,
+            "ignored_count": ignored_count,
             "cache_cleared": old_cache_size
         }
 
-    def _get_file_hash(self, path: Path) -> str:
-        """Compute SHA1 hash of file using chunked reading"""
-        sha1 = hashlib.sha1()
-        with open(path, "rb") as f:
-            for chunk in iter(lambda: f.read(65536), b''):
-                sha1.update(chunk)
-        return sha1.hexdigest()
+    def _get_file_hash(self, path: Path) -> str | None:
+        """Compute SHA1 hash of file (delegates to the canonical core.db impl)."""
+        return get_file_hash(path)
 
     def _load_image(self, image_path: Path) -> np.ndarray:
         """Load image as RGB array (supports NEF and standard formats)
@@ -171,7 +145,8 @@ class DetectionService:
         """
         ext = image_path.suffix.lower()
 
-        if ext in ['.nef', '.cr2', '.arw']:  # RAW formats
+        # RAW formats handled by rawpy/libraw (canonical set in core.files).
+        if ext in RAW_EXTENSIONS:  # RAW formats
             # Check preprocessing cache for converted JPG
             try:
                 cache = get_preprocessing_cache()
@@ -180,7 +155,7 @@ class DetectionService:
 
                 if cached_jpg and os.path.exists(cached_jpg):
                     logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
-                    img = Image.open(cached_jpg)
+                    img = ImageOps.exif_transpose(Image.open(cached_jpg))
                     return np.array(img.convert('RGB'))
             except Exception as e:
                 logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
@@ -192,11 +167,64 @@ class DetectionService:
             return rgb
         else:  # Standard formats (JPG, PNG, etc.)
             logger.debug(f"[DetectionService] Loading standard image: {image_path}")
-            img = Image.open(image_path)
+            # Honor EXIF orientation so detection/thumbnail coordinates match how the
+            # frontend (Chromium <img>) displays the image, which auto-applies EXIF.
+            # PIL does not transpose on its own; without this, phone JPEGs with an
+            # orientation tag get faces detected in the un-rotated frame → misplaced
+            # boxes and sideways thumbnail crops. RAW is unaffected (libraw orients).
+            img = ImageOps.exif_transpose(Image.open(image_path))
             return np.array(img.convert('RGB'))
 
-    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """Detect faces and match against database. Returns (faces, detection_meta)."""
+    def _load_image_for_detection(self, image_path: Path) -> Tuple[np.ndarray, float]:
+        """Load pixels for DETECTION, allowing a fast half-size RAW decode.
+
+        Returns ``(rgb, coord_scale)`` where ``coord_scale`` maps ``rgb``'s
+        pixel space back to the full-resolution space the frontend displays
+        (the preprocessed full-res JPG). For cached JPGs and standard formats
+        the scale is 1.0. On a RAW cache miss the file is decoded with
+        ``half_size=True`` (~2.7x faster demosaic); detection quality is
+        equivalent (measured IoU 0.976-0.993, embedding cosine similarity
+        0.966-0.994 on real NEFs) because detection downscales to <=4500 px
+        anyway, and the returned ``coord_scale`` lets the caller keep bounding
+        boxes in full-resolution space. Display/thumbnail paths must NOT use
+        this method — they need full-resolution pixels.
+        """
+        ext = image_path.suffix.lower()
+        if ext in RAW_EXTENSIONS:
+            try:
+                cache = get_preprocessing_cache()
+                file_hash = cache.compute_file_hash(str(image_path))
+                cached_jpg = cache.get_nef_conversion(file_hash)
+                if cached_jpg and os.path.exists(cached_jpg):
+                    logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
+                    img = ImageOps.exif_transpose(Image.open(cached_jpg))
+                    return np.array(img.convert('RGB')), 1.0
+            except Exception as e:
+                logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
+
+            logger.debug(f"[DetectionService] Loading RAW at half size for detection: {image_path}")
+            with rawpy.imread(str(image_path)) as raw:
+                full_long_side = max(raw.sizes.height, raw.sizes.width)
+                rgb = raw.postprocess(half_size=True)
+            # libraw's half_size halves each dimension; derive the exact factor
+            # from the sensor dimensions rather than assuming 2.0. Compare the
+            # LONG sides: raw.sizes reports pre-flip sensor dimensions while
+            # rgb is post-flip output, so height/height would mix axes for a
+            # 90°-rotated (portrait) NEF and yield ~1.33 instead of 2.0 —
+            # max/max is orientation-invariant (Nagelfar #154 issue-001).
+            coord_scale = full_long_side / max(rgb.shape[0], rgb.shape[1])
+            return rgb, coord_scale
+        return self._load_image(image_path), 1.0
+
+    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: Optional[str] = None, coord_scale: float = 1.0) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Detect faces and match against database. Returns (faces, detection_meta).
+
+        ``coord_scale`` maps the supplied ``rgb``'s pixel space back to the
+        full-resolution space the frontend displays (e.g. 2.0 when the RAW was
+        decoded with ``half_size=True``). It is folded into the bounding-box
+        scale factor so every consumer — API results, the encoding cache, and
+        DB writes — keeps receiving full-resolution coordinates.
+        """
         import cv2
 
         # Resize if needed (optimize performance)
@@ -206,20 +234,20 @@ class DetectionService:
             new_width = int(width * scale)
             new_height = int(height * scale)
             rgb_resized = cv2.resize(rgb, (new_width, new_height), interpolation=cv2.INTER_AREA)
-            scale_factor = 1 / scale
+            scale_factor = (1 / scale) * coord_scale
             detection_px = max(new_width, new_height)
             scale_label = "mid"  # Scaled to ~4500px, matching CLI "mid" level
         else:
             rgb_resized = rgb
-            scale_factor = 1.0
+            scale_factor = coord_scale
             detection_px = max(width, height)
-            scale_label = "full"
+            scale_label = "full" if coord_scale == 1.0 else "half"
 
-        # Build detection metadata
+        # Build detection metadata (original_size in full-resolution space)
         detection_meta = {
             "scale_label": scale_label,
             "scale_px": detection_px,
-            "original_size": (width, height),
+            "original_size": (int(width * coord_scale), int(height * coord_scale)),
         }
 
         # Detect faces using configured backend
@@ -238,6 +266,9 @@ class DetectionService:
 
         # Match against database
         results = []
+        # Confirmed-distinct pairs (e.g. twins): load once per image for the
+        # recognition tie-break below.
+        distinct_pairs = _load_distinct_pairs()
         for i, (encoding, location) in enumerate(zip(face_encodings, face_locations)):
             top, right, bottom, left = location
 
@@ -260,6 +291,19 @@ class DetectionService:
 
             # Get match alternatives (top-N)
             match_alternatives = self._match_encoding_alternatives(encoding, top_n=9)
+
+            # Twin tie-break: when the top-2 candidates are a registered
+            # confirmed-distinct pair and nearly equidistant from the probe, the
+            # single-nearest matcher can pick the wrong twin. Re-decide with a
+            # k-NN vote over both people's confirmed faces.
+            disambiguated = None
+            disamb = self._maybe_disambiguate_twins(
+                encoding, match_alternatives, match_case, distinct_pairs
+            )
+            if disamb is not None:
+                best_match, chosen_distance, match_alternatives, disambiguated = disamb
+                if chosen_distance is not None:
+                    best_distance = chosen_distance
 
             full_encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
             face_id = f"face_{i}_{full_encoding_hash[:16]}"
@@ -291,73 +335,154 @@ class DetectionService:
                 "ignore_distance": float(ignore_distance) if ignore_distance is not None else None,
                 "ignore_confidence": ignore_confidence,
                 "match_alternatives": match_alternatives,
-                "encoding_hash": full_encoding_hash
+                "encoding_hash": full_encoding_hash,
+                "disambiguated": disambiguated
             })
 
         return results, detection_meta
 
+    def _get_matching_index(self) -> MatchingIndex:
+        """Return the matching index, building it lazily.
+
+        Constructed in ``__init__`` for the production service, but tests
+        instantiate via ``__new__`` (no ``__init__``) and set ``store``/
+        ``backend`` by hand — build on first use so those paths work too.
+        """
+        idx = getattr(self, "_matching_index", None)
+        if idx is None:
+            idx = MatchingIndex(self.store, self.backend.backend_name)
+            self._matching_index = idx
+        return idx
+
     def _match_encoding(self, encoding: np.ndarray) -> Tuple[Optional[str], Optional[float]]:
         """Match encoding against known faces database"""
+        # Precompiled per-person matrices from the version-invalidated index
+        # (rebuilt only when the DB changes); distance computation runs here.
         best_name = None
         best_distance = None
-
-        for name, entries in self.known_faces.items():
-            # Extract encodings for this person (filter by backend)
-            person_encodings = []
-            for entry in entries:
-                if isinstance(entry, dict):
-                    entry_enc = entry.get("encoding")
-                    entry_backend = entry.get("backend", "dlib")
-                else:
-                    entry_enc = entry
-                    entry_backend = "dlib"
-
-                if entry_enc is not None and entry_backend == self.backend.backend_name:
-                    person_encodings.append(entry_enc)
-
-            if not person_encodings:
-                continue
-
-            # Compute distances
-            distances = self.backend.compute_distances(np.array(person_encodings), encoding)
+        for name, matrix in self._get_matching_index().known_lenient_items():
+            distances = self.backend.compute_distances(matrix, encoding)
             min_distance = float(np.min(distances))
-
             if best_distance is None or min_distance < best_distance:
                 best_distance = min_distance
                 best_name = name
 
         return best_name, best_distance
 
+    def _distinct_pairs_version(self) -> int:
+        """Registry version for cache keys: the file's mtime (ns), or 0 if absent."""
+        try:
+            return DISTINCT_PAIRS_PATH.stat().st_mtime_ns
+        except OSError:
+            return 0
+
+    def _detection_cache_key(self, file_hash: str) -> str:
+        """Detection-cache key: file hash + registry version (single source of truth
+        so reads and writes can't drift apart)."""
+        return f"{file_hash}@{self._distinct_pairs_version()}"
+
+    def _cached_detection_meta(self, file_hash: Optional[str]) -> Tuple[Dict[str, Any], float]:
+        """(detection_meta, processing_time_ms) from the detection cache, or ({}, 0)."""
+        if file_hash:
+            cached = self.cache.get(self._detection_cache_key(file_hash))
+            if cached:
+                return cached.get("detection_meta", {}), cached.get("processing_time_ms", 0)
+        return {}, 0
+
+    def _person_match_encodings(self, name: str) -> List[np.ndarray]:
+        """Usable encodings for `name` for the active backend (mirrors _match_encoding)."""
+        return self._get_matching_index().person_lenient_rows(name)
+
+    def _maybe_disambiguate_twins(
+        self,
+        encoding: np.ndarray,
+        match_alternatives: List[Dict[str, Any]],
+        match_case: Optional[str],
+        distinct_pairs: set,
+    ) -> Optional[Tuple[str, Optional[float], List[Dict[str, Any]], Dict[str, Any]]]:
+        """Apply the twin tie-break to one face, if it qualifies.
+
+        Returns ``(chosen, chosen_distance, reordered_alternatives, info)`` when
+        the top-2 candidates are a registered confirmed-distinct pair, neither is
+        ignored, both are plausible names and within ``twin_margin``, and the
+        k-NN vote yields a winner. The chosen alternative is moved to the front of
+        the returned list so the recommended option matches the decision; the rest
+        keep their order. Returns ``None`` when no override applies.
+        """
+        if not distinct_pairs or match_case not in ("name", "uncertain_name"):
+            return None
+        if len(match_alternatives) < 2:
+            return None
+        top1, top2 = match_alternatives[0], match_alternatives[1]
+        if top1.get("is_ignored") or top2.get("is_ignored"):
+            return None
+        pair = tuple(sorted((top1["name"], top2["name"])))
+        twin_margin = self.config.get("twin_margin", 0.1)
+        if pair not in distinct_pairs or (top2["distance"] - top1["distance"]) > twin_margin:
+            return None
+
+        twin_knn_k = self.config.get("twin_knn_k", 5)
+        chosen = self._disambiguate_distinct_pair(
+            encoding, top1["name"], top2["name"], twin_knn_k
+        )
+        if chosen is None:
+            return None
+
+        chosen_alt = next((a for a in match_alternatives if a["name"] == chosen), None)
+        chosen_distance = None
+        reordered = match_alternatives
+        if chosen_alt is not None:
+            chosen_distance = chosen_alt["distance"]
+            reordered = [chosen_alt] + [a for a in match_alternatives if a is not chosen_alt]
+        info = {
+            "between": [top1["name"], top2["name"]],
+            "chosen": chosen,
+            "method": "knn",
+            "k": min(
+                twin_knn_k,
+                len(self._person_match_encodings(top1["name"]))
+                + len(self._person_match_encodings(top2["name"])),
+            ),
+        }
+        return chosen, chosen_distance, reordered, info
+
+    def _disambiguate_distinct_pair(
+        self, encoding: np.ndarray, name_a: str, name_b: str, k: int
+    ) -> Optional[str]:
+        """Pick between two confirmed-distinct look-alikes via a k-NN vote.
+
+        The default matcher already assigns by the single nearest encoding, so a
+        plain 1-NN tie-break would just repeat it. Here we vote among the probe's
+        k nearest encodings drawn from the *union* of both people's confirmed
+        faces — more robust to one noisy crop. Returns the winning name, or None
+        when either side has no usable encoding or the vote ties.
+        """
+        a_vecs = self._person_match_encodings(name_a)
+        b_vecs = self._person_match_encodings(name_b)
+        if not a_vecs or not b_vecs:
+            return None
+        allv = np.array(a_vecs + b_vecs)
+        labels = np.array([0] * len(a_vecs) + [1] * len(b_vecs))
+        dists = self.backend.compute_distances(allv, encoding)
+        kk = min(k, len(dists))
+        nearest = np.argsort(dists)[:kk]
+        a_votes = int(np.sum(labels[nearest] == 0))
+        b_votes = int(np.sum(labels[nearest] == 1))
+        if a_votes == b_votes:
+            return None
+        return name_a if a_votes > b_votes else name_b
+
     def _match_ignored(self, encoding: np.ndarray) -> Tuple[Optional[int], Optional[float]]:
         """Match encoding against ignored faces database"""
-        best_idx = None
-        best_distance = None
+        # Precompiled stacked matrix from the index (preserves the original
+        # filtered order, so the returned argmin index is unchanged).
+        encodings_matrix = self._get_matching_index().ignored_matrix()
+        if encodings_matrix is None:
+            return None, None
 
-        # Collect encodings from ignored_faces that match our backend
-        ignored_encodings = []
-        for entry in self.ignored_faces:
-            if isinstance(entry, dict):
-                enc = entry.get("encoding")
-                backend = entry.get("backend", "dlib")
-            else:
-                enc = entry
-                backend = "dlib"
-
-            if enc is not None and backend == self.backend.backend_name:
-                # Ensure encoding is a proper numpy array
-                enc_array = np.asarray(enc)
-                if enc_array.ndim == 1:  # Valid 1D encoding
-                    ignored_encodings.append(enc_array)
-
-        if ignored_encodings:
-            # Stack into 2D array for batch distance computation
-            encodings_matrix = np.vstack(ignored_encodings)
-            distances = self.backend.compute_distances(encodings_matrix, encoding)
-            min_distance = float(np.min(distances))
-            best_distance = min_distance
-            best_idx = int(np.argmin(distances))
-
-        return best_idx, best_distance
+        distances = self.backend.compute_distances(encodings_matrix, encoding)
+        min_distance = float(np.min(distances))
+        return int(np.argmin(distances)), min_distance
 
     def _determine_match_case(
         self,
@@ -405,23 +530,13 @@ class DetectionService:
         """
         all_matches = []
 
+        # Precompiled per-person matrices from the index. Alternatives filter
+        # strictly on an explicit backend key (no dlib default) and 1-D
+        # encodings — the index's "strict" set mirrors exactly that.
+        candidates = self._get_matching_index().known_strict_items()
+
         # Match against known faces
-        for name, entries in self.known_faces.items():
-            # Filter by backend and ensure proper numpy arrays
-            person_encodings = []
-            for e in entries:
-                if isinstance(e, dict) and e.get("backend") == self.backend.backend_name:
-                    enc = e.get("encoding")
-                    if enc is not None:
-                        enc_array = np.asarray(enc)
-                        if enc_array.ndim == 1:
-                            person_encodings.append(enc_array)
-
-            if not person_encodings:
-                continue
-
-            # Stack into 2D array for batch distance computation
-            encodings_matrix = np.vstack(person_encodings)
+        for name, encodings_matrix in candidates:
             distances = self.backend.compute_distances(encodings_matrix, encoding)
             min_distance = float(np.min(distances))
 
@@ -468,22 +583,47 @@ class DetectionService:
         if not path.exists():
             raise FileNotFoundError(f"Image not found: {image_path}")
 
+        # Match SUGGESTIONS in the detection cache depend on the DB contents, so
+        # invalidate them when the store version moved since the cache was last
+        # pinned (a confirm/ignore here, or an external reload picked up by the
+        # store's freshness check). The registry version is folded into the key
+        # for twin-pair edits; this covers plain known_faces/ignored changes.
+        db_version = self.store.version
+        if db_version != self._cache_db_version:
+            self.cache.clear()
+            self._cache_db_version = db_version
+
         # Check cache (hash computed in thread pool to avoid blocking event loop)
         loop = asyncio.get_event_loop()
         file_hash = await loop.run_in_executor(_executor, self._get_file_hash, path)
-        if not force_reprocess and file_hash in self.cache:
+        # Fold the confirmed-distinct registry version into the cache key, so a
+        # twin-pair add/remove invalidates stale suggestions for already-viewed
+        # photos (matching depends on the registry, not just the file contents).
+        cache_key = self._detection_cache_key(file_hash)
+        if not force_reprocess and cache_key in self.cache:
             logger.info(f"[DetectionService] Using cached result for: {image_path}")
-            self.cache.move_to_end(file_hash)
-            cached_result = self.cache[file_hash]
+            self.cache.move_to_end(cache_key)
+            cached_result = self.cache[cache_key]
             cached_result["cached"] = True
             return cached_result
 
-        # Load image in thread pool
-        rgb = await loop.run_in_executor(_executor, self._load_image, path)
+        # Load image in thread pool. Detection may decode RAW at half size on
+        # a preprocessing-cache miss; coord_scale maps boxes back to full-res.
+        rgb, coord_scale = await loop.run_in_executor(
+            _executor, self._load_image_for_detection, path
+        )
+
+        # Capture the DB version the matching pass computes against. The
+        # entry-time check/clear above and the cache write below straddle
+        # awaits, and _cache_db_version is process-wide — a concurrent detect
+        # interleaving with a confirm could otherwise write a pre-mutation
+        # result under the new pin and serve it stale until the next version
+        # move. Gating the write on this captured value closes that window.
+        version_at_compute = self.store.version
 
         # Detect and match faces in thread pool
         faces, detection_meta = await loop.run_in_executor(
-            _executor, self._detect_and_match_faces, rgb, 4500, file_hash
+            _executor, self._detect_and_match_faces, rgb, 4500, file_hash, coord_scale
         )
 
         # Build result
@@ -496,8 +636,16 @@ class DetectionService:
             "detection_meta": detection_meta
         }
 
-        # Cache result with LRU eviction
-        self._lru_put(self.cache, file_hash, result, MAX_DETECTION_CACHE)
+        # Cache result with LRU eviction (keyed by file hash + registry
+        # version) — but only if the DB did not move under us mid-compute;
+        # a possibly-stale suggestion must not outlive the version bump.
+        if self.store.version == version_at_compute:
+            self._lru_put(self.cache, cache_key, result, MAX_DETECTION_CACHE)
+        else:
+            logger.debug(
+                "[DetectionService] DB version advanced during detection — "
+                "skipping cache write for %s", image_path,
+            )
         logger.info(f"[DetectionService] Detected {len(faces)} faces in {processing_time:.1f}ms")
 
         return result
@@ -623,17 +771,21 @@ class DetectionService:
                 "is_manual": True
             }
 
-            if person_name not in self.known_faces:
-                self.known_faces[person_name] = []
-            self.known_faces[person_name].append(entry)
+            def add_manual(known, ignored, hardneg, processed):
+                if person_name not in known:
+                    known[person_name] = []
+                known[person_name].append(entry)
+                return len(known[person_name])
 
-            await self._schedule_save()
-            logger.info(f"[DetectionService] Saved manual face for {person_name} (total: {len(self.known_faces[person_name])})")
+            # store.mutate schedules the debounced save (leading-coalesce),
+            # matching the old per-face _schedule_save cadence — no flush.
+            count = self.store.mutate(add_manual, touches={"known"})
+            logger.info(f"[DetectionService] Saved manual face for {person_name} (total: {count})")
 
             return {
                 "status": "success",
                 "person_name": person_name,
-                "encodings_count": len(self.known_faces[person_name])
+                "encodings_count": count
             }
 
         # Get encoding + cached file_hash from cache
@@ -669,15 +821,8 @@ class DetectionService:
             "bounding_box": bbox
         }
 
-        # Add to known_faces
-        if person_name not in self.known_faces:
-            self.known_faces[person_name] = []
-
-        self.known_faces[person_name].append(entry)
-
+        hard_neg_entry = None
         if suggested_name and suggested_name != person_name:
-            if suggested_name not in self.hard_negatives:
-                self.hard_negatives[suggested_name] = []
             hard_neg_entry = {
                 "encoding": encoding,
                 "file": str(image_path),
@@ -687,17 +832,31 @@ class DetectionService:
                 "created_at": datetime.now().isoformat(),
                 "encoding_hash": encoding_hash
             }
-            self.hard_negatives[suggested_name].append(hard_neg_entry)
+
+        def add_known(known, ignored, hardneg, processed):
+            if person_name not in known:
+                known[person_name] = []
+            known[person_name].append(entry)
+            if hard_neg_entry is not None:
+                if suggested_name not in hardneg:
+                    hardneg[suggested_name] = []
+                hardneg[suggested_name].append(hard_neg_entry)
+            return len(known[person_name])
+
+        # store.mutate schedules the debounced save (leading-coalesce) — the old
+        # per-face _schedule_save cadence; no synchronous flush here.
+        # Touches known always; hardneg only when the user corrected a suggestion.
+        touches = {"known"} | ({"hardneg"} if hard_neg_entry is not None else set())
+        count = self.store.mutate(add_known, touches=touches)
+        if hard_neg_entry is not None:
             logger.info(f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})")
 
-        await self._schedule_save()
-
-        logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {len(self.known_faces[person_name])})")
+        logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {count})")
 
         return {
             "status": "success",
             "person_name": person_name,
-            "encodings_count": len(self.known_faces[person_name])
+            "encodings_count": count
         }
 
     async def ignore_face(self, face_id: str, image_path: str) -> Dict[str, Any]:
@@ -715,10 +874,13 @@ class DetectionService:
 
         # Handle manual faces (no encoding to add to ignored list)
         if face_id.startswith("manual_"):
-            logger.info(f"[DetectionService] Manual face ignored (no encoding to save)")
+            logger.info("[DetectionService] Manual face ignored (no encoding to save)")
+            ignored_count = self.store.read(
+                lambda known, ignored, hardneg, processed: len(ignored)
+            )
             return {
                 "status": "success",
-                "ignored_count": len(self.ignored_faces)
+                "ignored_count": ignored_count
             }
 
         # Get encoding + cached file_hash from cache
@@ -754,17 +916,18 @@ class DetectionService:
             "bounding_box": bbox
         }
 
-        # Add to ignored_faces
-        self.ignored_faces.append(entry)
+        def add_ignored(known, ignored, hardneg, processed):
+            ignored.append(entry)
+            return len(ignored)
 
-        # Debounced save
-        await self._schedule_save()
+        # store.mutate schedules the debounced save (leading-coalesce).
+        ignored_count = self.store.mutate(add_ignored, touches={"ignored"})
 
-        logger.info(f"[DetectionService] Added face to ignored list (total: {len(self.ignored_faces)})")
+        logger.info(f"[DetectionService] Added face to ignored list (total: {ignored_count})")
 
         return {
             "status": "success",
-            "ignored_count": len(self.ignored_faces)
+            "ignored_count": ignored_count
         }
 
     def _confirm_identity_nosave(
@@ -774,13 +937,23 @@ class DetectionService:
         image_path: str,
         suggested_name: Optional[str] = None
     ) -> Dict[str, Any]:
-        """In-memory confirm without saving to disk. Returns result dict."""
+        """Confirm one face through the store (no explicit flush). Returns result dict.
+
+        Mutations go through ``store.mutate`` (which schedules the debounced
+        save); ``batch_confirm`` calls ``store.flush`` once at the end for
+        immediate batch durability.
+        """
         if face_id.startswith("manual_"):
             backend_info = self.backend.get_model_info()
+            # Anchor manual faces by content hash (like detected faces) so the rename
+            # pipeline can recover the name by hash even after the file is renamed —
+            # mirrors the single-call confirm_identity path.
+            path = Path(image_path)
+            file_hash = get_file_hash(path) if path.exists() else None
             entry = {
                 "encoding": None,
                 "file": str(image_path),
-                "hash": None,
+                "hash": file_hash,
                 "backend": self.backend.backend_name,
                 "backend_version": backend_info.get("version", "unknown"),
                 "created_at": datetime.now().isoformat(),
@@ -788,11 +961,15 @@ class DetectionService:
                 "bounding_box": None,
                 "is_manual": True
             }
-            if person_name not in self.known_faces:
-                self.known_faces[person_name] = []
-            self.known_faces[person_name].append(entry)
+            def add_manual(known, ignored, hardneg, processed):
+                if person_name not in known:
+                    known[person_name] = []
+                known[person_name].append(entry)
+                return len(known[person_name])
+
+            count = self.store.mutate(add_manual, touches={"known"})
             return {"status": "success", "person_name": person_name,
-                    "encodings_count": len(self.known_faces[person_name])}
+                    "encodings_count": count}
 
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -814,13 +991,8 @@ class DetectionService:
             "bounding_box": bbox
         }
 
-        if person_name not in self.known_faces:
-            self.known_faces[person_name] = []
-        self.known_faces[person_name].append(entry)
-
+        hard_neg_entry = None
         if suggested_name and suggested_name != person_name:
-            if suggested_name not in self.hard_negatives:
-                self.hard_negatives[suggested_name] = []
             hard_neg_entry = {
                 "encoding": encoding,
                 "file": str(image_path),
@@ -830,15 +1002,30 @@ class DetectionService:
                 "created_at": datetime.now().isoformat(),
                 "encoding_hash": encoding_hash
             }
-            self.hard_negatives[suggested_name].append(hard_neg_entry)
 
+        def add_known(known, ignored, hardneg, processed):
+            if person_name not in known:
+                known[person_name] = []
+            known[person_name].append(entry)
+            if hard_neg_entry is not None:
+                if suggested_name not in hardneg:
+                    hardneg[suggested_name] = []
+                hardneg[suggested_name].append(hard_neg_entry)
+            return len(known[person_name])
+
+        # Touches known always; hardneg only when the user corrected a suggestion.
+        touches = {"known"} | ({"hardneg"} if hard_neg_entry is not None else set())
+        count = self.store.mutate(add_known, touches=touches)
         return {"status": "success", "person_name": person_name,
-                "encodings_count": len(self.known_faces[person_name])}
+                "encodings_count": count}
 
     def _ignore_face_nosave(self, face_id: str, image_path: str) -> Dict[str, Any]:
-        """In-memory ignore without saving to disk. Returns result dict."""
+        """In-memory ignore, scheduling the store's debounced save. Returns result dict."""
         if face_id.startswith("manual_"):
-            return {"status": "success", "ignored_count": len(self.ignored_faces)}
+            ignored_count = self.store.read(
+                lambda known, ignored, hardneg, processed: len(ignored)
+            )
+            return {"status": "success", "ignored_count": ignored_count}
 
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -859,8 +1046,13 @@ class DetectionService:
             "encoding_hash": encoding_hash,
             "bounding_box": bbox
         }
-        self.ignored_faces.append(entry)
-        return {"status": "success", "ignored_count": len(self.ignored_faces)}
+
+        def add_ignored(known, ignored, hardneg, processed):
+            ignored.append(entry)
+            return len(ignored)
+
+        ignored_count = self.store.mutate(add_ignored, touches={"ignored"})
+        return {"status": "success", "ignored_count": ignored_count}
 
     async def batch_confirm(
         self,
@@ -898,8 +1090,9 @@ class DetectionService:
             except Exception as e:
                 errors.append({"face_id": ig["face_id"], "error": str(e)})
 
-        # Single save for entire batch
-        await self._flush_save()
+        # Single durable save for the entire batch (equivalent to the old
+        # _flush_save): cancel the pending debounce and write now.
+        await asyncio.get_event_loop().run_in_executor(_executor, self.store.flush)
 
         logger.info(f"[DetectionService] Batch: confirmed={confirmed}, ignored={ignored}, errors={len(errors)}")
 
@@ -957,13 +1150,10 @@ class DetectionService:
                 "hash": face.get('encoding_hash', '')
             })
 
-        # Get detection metadata from cache if available
-        detection_meta = {}
-        processing_time_ms = 0
-        if file_hash and file_hash in self.cache:
-            cached = self.cache[file_hash]
-            detection_meta = cached.get("detection_meta", {})
-            processing_time_ms = cached.get("processing_time_ms", 0)
+        # Detection metadata from the cache, keyed exactly as detect_faces stores
+        # it (file hash + registry version); otherwise the logged attempt stats
+        # would lose their timing / scale metadata.
+        detection_meta, processing_time_ms = self._cached_detection_meta(file_hash)
 
         # Build attempt info with backend metadata for statistics compatibility
         backend_info = self.backend.get_model_info()
@@ -998,15 +1188,26 @@ class DetectionService:
         # Add to processed_files so file won't be re-processed (even if renamed)
         file_name = Path(image_path).name
         entry = {"name": file_name, "hash": file_hash}
-        if entry not in self.processed_files:
-            self.processed_files.append(entry)
-            await self._flush_save()  # Immediate save — review is finalized
+
+        def add_processed(known, ignored, hardneg, processed):
+            # Re-check under the lock, then append in place (never rebind).
+            if entry not in processed:
+                processed.append(entry)
+                return True
+            return False
+
+        added = self.store.mutate(add_processed, touches={"processed"}) if self.store.read(
+            lambda known, ignored, hardneg, processed: entry not in processed
+        ) else False
+        if added:
+            # Immediate durable save — the review is finalized.
+            await asyncio.get_event_loop().run_in_executor(_executor, self.store.flush)
             logger.info(f"[DetectionService] Added {file_name} to processed_files")
 
         # Invalidate statistics cache so dashboard picks up new data
         try:
-            from .statistics_service import statistics_service
-            statistics_service.invalidate_cache()
+            from .statistics_service import get_statistics_service
+            get_statistics_service().invalidate_cache()
         except Exception:
             pass  # Non-critical
 
@@ -1017,8 +1218,24 @@ class DetectionService:
         }
 
 
-# Singleton instance
-detection_service = DetectionService()
+# Lazy singleton — construction is deferred so importing this module has no
+# side effects (no InsightFace load, no real data-dir access at import time).
+# Double-checked locking: first calls can race in from worker threads (e.g.
+# preprocessing's ThreadPoolExecutor via the module-level helpers below), and
+# an unguarded check-then-set could construct several instances (multiple
+# InsightFace loads, split caches).
+_detection_service = None
+_detection_service_lock = threading.Lock()
+
+
+def get_detection_service() -> DetectionService:
+    """Return the process-wide DetectionService, constructing it on first use."""
+    global _detection_service
+    if _detection_service is None:
+        with _detection_service_lock:
+            if _detection_service is None:
+                _detection_service = DetectionService()
+    return _detection_service
 
 
 # ============================================================================
@@ -1037,7 +1254,6 @@ def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> Optional[str]:
         Path to JPG file, or None if conversion failed
     """
     import tempfile
-    import io
 
     path = Path(nef_path)
     if not path.exists():
@@ -1046,7 +1262,7 @@ def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> Optional[str]:
 
     try:
         # Load RAW image
-        rgb = detection_service._load_image(path)
+        rgb = get_detection_service()._load_image(path)
 
         # Convert to PIL Image
         img = Image.fromarray(rgb)
@@ -1084,7 +1300,7 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> D
         raise FileNotFoundError(f"Image not found: {image_path}")
 
     # Load image
-    rgb = detection_service._load_image(path)
+    rgb = get_detection_service()._load_image(path)
     height, width = rgb.shape[:2]
 
     # Resize for detection if needed
@@ -1100,8 +1316,8 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> D
         scale_factor = 1.0
 
     # Detect faces
-    detection_model = detection_service.config.get('detection_model', 'hog')
-    face_locations, face_encodings = detection_service.backend.detect_faces(
+    detection_model = get_detection_service().config.get('detection_model', 'hog')
+    face_locations, face_encodings = get_detection_service().backend.detect_faces(
         rgb_resized,
         model=detection_model,
         upsample=0
@@ -1158,7 +1374,7 @@ def generate_face_thumbnails(image_path: str, faces: List[Dict], size: int = 150
         raise FileNotFoundError(f"Image not found: {image_path}")
 
     # Load image once
-    rgb = detection_service._load_image(path)
+    rgb = get_detection_service()._load_image(path)
     img_height, img_width = rgb.shape[:2]
 
     thumbnails = []

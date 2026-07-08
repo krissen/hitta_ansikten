@@ -9,7 +9,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { apiClient } from '../shared/api-client.js';
-import { debug, debugWarn, debugError, getCategories } from '../shared/debug.js';
+import { debug, debugError, getCategories } from '../shared/debug.js';
 import { preferences } from '../workspace/preferences.js';
 
 // Create the context

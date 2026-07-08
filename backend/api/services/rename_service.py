@@ -8,16 +8,16 @@ Ported from the Ansikten CLI rename functionality.
 import logging
 import os
 import re
-import unicodedata
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
+from api.services.db_store import get_db_store
+from core.files import SUPPORTED_EXTENSIONS
+from core.naming import normalize_name
 from faceid_db import (
-    load_database,
-    save_database,
-    load_attempt_log,
     get_file_hash,
+    load_attempt_log,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ def extract_exif_datetime(file_path: Path) -> Optional[datetime]:
     if ext in ['.nef', '.cr2', '.arw', '.dng', '.raw']:
         try:
             import rawpy
-            with rawpy.imread(str(file_path)) as raw:
+            with rawpy.imread(str(file_path)):
                 # rawpy doesn't expose EXIF directly, try exifread as fallback
                 pass
         except Exception as e:
@@ -217,12 +217,7 @@ def format_datetime(dt: datetime, pattern: str) -> str:
 # Supported file extensions
 # ============================================================================
 
-# RAW formats and common image formats supported for rename operations
-SUPPORTED_EXTENSIONS = [
-    ".nef", ".cr2", ".cr3", ".arw", ".dng", ".raw", ".raf", ".orf", ".rw2",  # RAW
-    ".jpg", ".jpeg", ".tiff", ".tif", ".png",  # Standard
-]
-
+# SUPPORTED_EXTENSIONS (RAW + standard) is imported from core.files above.
 # Build regex pattern for extensions (case-insensitive matching done via re.IGNORECASE)
 _EXT_PATTERN = "|".join(re.escape(ext) for ext in SUPPORTED_EXTENSIONS)
 
@@ -311,22 +306,6 @@ def is_unrenamed(fname: str) -> bool:
     pattern = rf"^(\d{{6}}_\d{{6}}(?:-\d+)?[a-zA-Z]{{0,3}})({_EXT_PATTERN})$"
     m = re.match(pattern, fname, re.IGNORECASE)
     return bool(m)
-
-
-def normalize_name(name: str) -> str:
-    """
-    Normalize name by removing diacritics and sanitizing for safe filename use.
-
-    Security: Replaces path separators and null bytes to prevent path traversal.
-    """
-    # Remove diacritics (Källa → Kalla, François → Francois)
-    n = unicodedata.normalize('NFKD', name)
-    n = "".join(c for c in n if not unicodedata.combining(c))
-
-    # Sanitize for filesystem safety: remove path separators and null bytes
-    n = n.replace('/', '_').replace('\\', '_').replace('\0', '_')
-
-    return n
 
 
 def split_fornamn_efternamn(namn: str) -> Tuple[str, str]:
@@ -433,7 +412,8 @@ def build_new_filename_with_config(
     personer: List[str],
     namnmap: Dict[str, str],
     file_path: Optional[Path],
-    config: Optional[Dict[str, Any]]
+    config: Optional[Dict[str, Any]],
+    manual_suffix: Optional[str] = None
 ) -> Optional[str]:
     """
     Build new filename with person names using configuration.
@@ -444,6 +424,8 @@ def build_new_filename_with_config(
         namnmap: Dict mapping full name to short name
         file_path: Path to file (for EXIF/date extraction)
         config: Rename configuration
+        manual_suffix: Optional free-text suffix (raw). Normalized and appended
+            AFTER the person names. NOT a person name; never touches the DB.
 
     Returns:
         New filename or None if cannot build.
@@ -473,6 +455,16 @@ def build_new_filename_with_config(
                 kort = kort.replace('/', '_').replace('\\', '_').replace('\0', '_')
             name_list.append(kort)
 
+    # Append the free-text manual suffix (if any) AFTER the person names, so a
+    # suffix-only file (no faces) still renames. Lazy import avoids a circular
+    # dependency (manual_suffix_service imports normalize_name from here).
+    if manual_suffix:
+        from api.services.manual_suffix_service import normalize_suffix
+        normalized_suffix = normalize_suffix(manual_suffix)
+        if normalized_suffix:
+            name_list.append(normalized_suffix)
+
+    # Return None only when there is nothing to write (no names AND no suffix).
     if not name_list:
         return None
 
@@ -634,9 +626,14 @@ def collect_persons_for_files(
         fname = fpath.name
         h = filehash_map.get(str(fpath)) or processed_name_to_hash.get(fname)
 
-        encoding_persons = file_to_persons.get(fname, [])
-        if not encoding_persons and h:
-            encoding_persons = hash_to_persons.get(h, [])
+        # Union of basename- and hash-matched names (deduped). Manual faces may be
+        # anchored by only one key (legacy entries have hash=None → basename-only),
+        # so a hash-only match must not be suppressed by a basename match, or vice versa.
+        encoding_persons = list(file_to_persons.get(fname, []))
+        if h:
+            for name in hash_to_persons.get(h, []):
+                if name not in encoding_persons:
+                    encoding_persons.append(name)
 
         review_persons = []
         if h and h in stats_by_hash:
@@ -770,8 +767,12 @@ class RenameService:
                     "conflict_with": error
                 })
 
-        # Load database
-        known_faces, _, _, processed_files = load_database()
+        # Read known_faces + processed_files from the shared store (single
+        # authority; no per-request pickle load). collect_persons_for_files
+        # only reads these collections, so a snapshot is sufficient.
+        known_faces, processed_files = get_db_store().read(
+            lambda known, ignored, hardneg, processed: (known, processed)
+        )
 
         # Collect persons for validated files only
         persons_map = collect_persons_for_files(
@@ -779,6 +780,18 @@ class RenameService:
             known_faces,
             processed_files
         )
+
+        # Build a manual-suffix map keyed by full path (content-hash lookup).
+        # A free-text suffix is NOT a person name and never touches the DB.
+        from api.services.manual_suffix_service import get_manual_suffix
+        suffix_map: Dict[str, str] = {}
+        for fp in validated_paths:
+            p = Path(fp)
+            if p.exists():
+                h = get_file_hash(p)
+                raw = get_manual_suffix(h) if h else None
+                if raw:
+                    suffix_map[fp] = raw
 
         # Collect all person names for disambiguation
         all_persons = []
@@ -829,8 +842,11 @@ class RenameService:
 
             # Get persons for this file (keyed by full path to avoid basename collisions)
             persons = persons_map.get(file_path, [])
-            logger.debug(f"[RenameService] {fname}: persons={persons}")
-            if not persons:
+            raw_suffix = suffix_map.get(file_path)
+            logger.debug(f"[RenameService] {fname}: persons={persons} suffix={raw_suffix!r}")
+            # Skip only when there are neither faces nor a manual suffix — a
+            # faceless photo with a suffix must still rename.
+            if not persons and not raw_suffix:
                 items.append({
                     "original_path": file_path,
                     "original_name": fname,
@@ -842,8 +858,10 @@ class RenameService:
                 })
                 continue
 
-            # Build new filename using config
-            new_name = build_new_filename_with_config(fname, persons, name_map, path, effective_config)
+            # Build new filename using config (suffix appended after any names)
+            new_name = build_new_filename_with_config(
+                fname, persons, name_map, path, effective_config, manual_suffix=raw_suffix
+            )
             logger.debug(f"[RenameService] {fname} -> {new_name}")
             if not new_name:
                 items.append({
@@ -992,38 +1010,49 @@ class RenameService:
             new_name = Path(item["new"]).name
             name_map[old_name] = new_name
 
-        # Load current database
-        known_faces, ignored_faces, hard_negatives, processed_files = load_database()
+        def compute(known_faces, processed_files, apply_changes):
+            updated_count = 0
 
-        updated_count = 0
+            # Update known_faces entries (edited in place only when applying)
+            for person_name, entries in known_faces.items():
+                for entry in entries:
+                    if isinstance(entry, dict) and entry.get("file"):
+                        old_file = Path(entry["file"]).name
+                        if old_file in name_map:
+                            updated_count += 1
+                            if apply_changes:
+                                old_path = Path(entry["file"])
+                                new_path = old_path.parent / name_map[old_file]
+                                entry["file"] = str(new_path)
+                                logger.debug(f"[RenameService] Updated encoding entry: {old_file} -> {name_map[old_file]}")
 
-        # Update known_faces entries
-        for person_name, entries in known_faces.items():
-            for entry in entries:
-                if isinstance(entry, dict) and entry.get("file"):
-                    old_file = Path(entry["file"]).name
-                    if old_file in name_map:
-                        # Update the file path
-                        old_path = Path(entry["file"])
-                        new_path = old_path.parent / name_map[old_file]
-                        entry["file"] = str(new_path)
+            # Update processed_files entries
+            for pf in processed_files:
+                if isinstance(pf, dict) and pf.get("name"):
+                    old_name = Path(pf["name"]).name
+                    if old_name in name_map:
                         updated_count += 1
-                        logger.debug(f"[RenameService] Updated encoding entry: {old_file} -> {name_map[old_file]}")
+                        if apply_changes:
+                            old_path = Path(pf["name"])
+                            new_path = old_path.parent / name_map[old_name]
+                            pf["name"] = str(new_path)
+                            logger.debug(f"[RenameService] Updated processed entry: {old_name} -> {name_map[old_name]}")
 
-        # Update processed_files entries
-        for pf in processed_files:
-            if isinstance(pf, dict) and pf.get("name"):
-                old_name = Path(pf["name"]).name
-                if old_name in name_map:
-                    old_path = Path(pf["name"])
-                    new_path = old_path.parent / name_map[old_name]
-                    pf["name"] = str(new_path)
-                    updated_count += 1
-                    logger.debug(f"[RenameService] Updated processed entry: {old_name} -> {name_map[old_name]}")
+            return updated_count
 
-        # Save updated database
+        store = get_db_store()
+        # Plan under read() first so a no-op schedules no save; going through the
+        # store's write path keeps its in-memory state authoritative (a direct
+        # save_database would clobber it).
+        updated_count = store.read(
+            lambda known, ignored, hardneg, processed: compute(known, processed, False)
+        )
         if updated_count > 0:
-            save_database(known_faces, ignored_faces, hard_negatives, processed_files)
+            updated_count = store.mutate(
+                lambda known, ignored, hardneg, processed: compute(known, processed, True),
+                touches={"known", "processed"},
+            )
+            store.flush()  # user-confirmed rename → persist synchronously
             logger.info(f"[RenameService] Updated {updated_count} database entries after rename")
 
         return updated_count
