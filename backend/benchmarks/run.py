@@ -80,6 +80,23 @@ def _make_adaface(det_size):
     return BuffaloDetector(det_size=det_size), AdaFaceRecognition()
 
 
+def _make_yolo(model_name):
+    """A YOLO-face detector paired with the buffalo_l recognition head.
+
+    The mirror image of the LVFace/AdaFace factories: here only the *detector*
+    is swapped, isolating detection's contribution — recognition stays
+    buffalo_l so embeddings remain comparable to the stored DB vectors.
+    """
+
+    def factory(det_size):
+        from .models.buffalo import BuffaloRecognition
+        from .models.yoloface import YoloFaceDetector
+
+        return YoloFaceDetector(model_name=model_name, input_size=det_size[0]), BuffaloRecognition()
+
+    return factory
+
+
 MODEL_FACTORIES = {
     "buffalo_l": _make_buffalo,
     "lvface_tiny": _make_lvface("lvface_tiny"),
@@ -87,6 +104,8 @@ MODEL_FACTORIES = {
     "lvface_base": _make_lvface("lvface_base"),
     "lvface_large": _make_lvface("lvface_large"),
     "adaface_ir101": _make_adaface,
+    "yolov8n-face": _make_yolo("yolov8n-face"),
+    "yolov8n-face-raw": _make_yolo("yolov8n-face-raw"),
 }
 
 
