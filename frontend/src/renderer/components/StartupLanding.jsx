@@ -65,18 +65,21 @@ export function StartupLanding({ onOpenModule }) {
     return () => clearInterval(id);
   }, [checkVolumes]);
 
-  const renderStep = (step) => {
+  // Workflow steps are the page's main actions (primary, numbered — they form
+  // a sequence); tools are supporting views (secondary, unnumbered).
+  const renderStep = (step, ordinal) => {
     const disabled = step.requiresCard && !cardPresent;
     return (
       <Button
         key={step.moduleId}
-        variant="primary"
+        variant={ordinal != null ? 'primary' : 'secondary'}
         className="startup-landing-step"
         disabled={disabled}
         title={disabled ? t('startupLanding.importCardHint') : undefined}
         onClick={() => onOpenModule(step.moduleId)}
       >
-        <Icon name={step.icon} size={20} />
+        {ordinal != null && <span className="step-ordinal" aria-hidden="true">{ordinal}.</span>}
+        <Icon name={step.icon} size={16} />
         <span>{t(`modules.${step.moduleId}`)}</span>
       </Button>
     );
@@ -87,10 +90,11 @@ export function StartupLanding({ onOpenModule }) {
       <div className="startup-landing-card">
         <h1 className="startup-landing-title">{t('startupLanding.title')}</h1>
         <p className="startup-landing-subtitle">{t('startupLanding.subtitle')}</p>
-        <div className="startup-landing-steps">{STEPS.map(renderStep)}</div>
+        <div className="startup-landing-divider">{t('startupLanding.workflow')}</div>
+        <div className="startup-landing-steps">{STEPS.map((s, i) => renderStep(s, i + 1))}</div>
 
         <div className="startup-landing-divider">{t('startupLanding.tools')}</div>
-        <div className="startup-landing-steps">{TOOLS.map(renderStep)}</div>
+        <div className="startup-landing-steps">{TOOLS.map((s) => renderStep(s))}</div>
       </div>
     </div>
   );
