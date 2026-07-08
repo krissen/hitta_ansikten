@@ -1,8 +1,9 @@
-"""CLI: acquire recognition model weights for the benchmark harness.
+"""CLI: acquire model weights (recognition heads and detectors) for the harness.
 
 The benchmark can drive several recognition heads (buffalo_l today, LVFace and
-others later). Their weights are large and MIT/Apache licensed but not vendored:
-this tool downloads a named model from Hugging Face into
+others later) and detectors (YOLO-face). Their weights are large and not
+vendored: this tool downloads a named model — from Hugging Face, or from a
+direct URL such as a GitHub release asset (``ModelSpec.url``) — into
 ``_data/models/<name>/`` (gitignored) and records what it fetched in a
 **committed** ``models_manifest.json`` next to this file — the manifest is code
 (source URL, sha256, license, embedding dim, preprocessing notes), the weights
@@ -49,16 +50,20 @@ HF_RESOLVE = "https://huggingface.co/{repo}/resolve/main/{path}"
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """A downloadable recognition model.
+    """A downloadable benchmark model (recognition head or detector).
 
     Attributes:
         name: the benchmark model key (matches ``run.py``'s ``--models``).
-        repo: Hugging Face repo id.
-        path: file path within the repo (the ONNX weights).
+        repo: Hugging Face repo id ("" when ``url`` is set).
+        path: file path within the repo (the ONNX weights). When ``url`` is
+            set, only its basename is used (the local filename).
         sha256: expected sha256 (== the Hub's git-LFS oid) for integrity.
         license: SPDX license id of the weights.
-        dim: embedding dimensionality the ONNX head outputs.
+        dim: embedding dimensionality the ONNX head outputs (0 for detectors).
         preprocessing: short human note on the input contract (verified spec).
+        url: optional direct download URL (e.g. a GitHub release asset) that
+            bypasses the Hugging Face resolve endpoint entirely.
+        kind: ``"recognition"`` (default) or ``"detector"``.
     """
 
     name: str
@@ -68,6 +73,8 @@ class ModelSpec:
     license: str
     dim: int
     preprocessing: str
+    url: str | None = None
+    kind: str = "recognition"
 
 
 # Verified against github.com/bytedance/LVFace inference_onnx.py (MIT):
@@ -115,6 +122,24 @@ KNOWN_MODELS: dict[str, ModelSpec] = {
         dim=512,
         preprocessing=_LVFACE_PRE,
     ),
+    # YOLOv8-face detector (5-point landmarks; see models/yoloface.py). AGPL-3.0
+    # ultralytics-derived weights — acceptable for this LOCAL, non-shipped
+    # benchmark tooling only; never bundled into the distributed app. Direct
+    # GitHub release asset (the HF CDN mirror hosts are not reliably reachable).
+    "yolov8n-face": ModelSpec(
+        name="yolov8n-face",
+        repo="",
+        path="yolov8n-face.onnx",
+        sha256="06b941fd5792be624ad18f2df9ede0a021c4df165dd418204d978c20fd555928",
+        license="AGPL-3.0",
+        dim=0,
+        preprocessing=(
+            "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; "
+            "NMS-baked output (1, M, 6+3K): [x1,y1,x2,y2,score,class,(x,y,vis)*5]"
+        ),
+        url="https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov8n-face.onnx",
+        kind="detector",
+    ),
 }
 
 
@@ -137,6 +162,8 @@ def sha256_of(path: Path, chunk: int = 1 << 20) -> str:
 # ---------------------------------------------------------------------------
 def _download_via_hf_hub(spec: ModelSpec, dest: Path) -> bool:
     """Try ``huggingface_hub.hf_hub_download``; return False if unavailable."""
+    if spec.url:
+        return False  # direct-URL spec (not a Hub artifact)
     try:
         from huggingface_hub import hf_hub_download
     except ImportError:
@@ -152,13 +179,13 @@ def _download_via_hf_hub(spec: ModelSpec, dest: Path) -> bool:
 
 
 def _download_via_https(spec: ModelSpec, dest: Path) -> None:
-    """Dependency-free streaming download from the Hub's resolve endpoint."""
+    """Dependency-free streaming download (Hub resolve endpoint or direct URL)."""
     import os
 
-    url = HF_RESOLVE.format(repo=spec.repo, path=spec.path)
+    url = spec.url or HF_RESOLVE.format(repo=spec.repo, path=spec.path)
     headers = {"User-Agent": "ansikten-benchmark-downloader"}
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
-    if token:
+    if token and not spec.url:
         headers["Authorization"] = f"Bearer {token}"
 
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -200,7 +227,8 @@ def download_model(spec: ModelSpec, *, force: bool = False) -> Path:
             return dest
         print(f"[{spec.name}] sha256 mismatch on disk, re-downloading", file=sys.stderr)
 
-    print(f"[{spec.name}] downloading {spec.repo}/{spec.path} ...", file=sys.stderr)
+    source = spec.url or f"{spec.repo}/{spec.path}"
+    print(f"[{spec.name}] downloading {source} ...", file=sys.stderr)
     if not _download_via_hf_hub(spec, dest):
         _download_via_https(spec, dest)
 
@@ -232,8 +260,8 @@ def write_manifest(manifest: dict) -> None:
 
 
 def manifest_entry(spec: ModelSpec) -> dict:
-    return {
-        "source_url": HF_RESOLVE.format(repo=spec.repo, path=spec.path),
+    entry = {
+        "source_url": spec.url or HF_RESOLVE.format(repo=spec.repo, path=spec.path),
         "repo": spec.repo,
         "path": spec.path,
         "sha256": spec.sha256,
@@ -242,12 +270,30 @@ def manifest_entry(spec: ModelSpec) -> dict:
         "preprocessing": spec.preprocessing,
         "local_path": str(Path("_data/models") / spec.name / Path(spec.path).name),
     }
+    if spec.kind != "recognition":
+        entry["kind"] = spec.kind
+    return entry
+
+
+def update_manifest_entry(existing: dict | None, spec: ModelSpec) -> dict:
+    """Fresh entry for ``spec``, preserving hand-maintained keys.
+
+    Keys present in the committed manifest but not produced by
+    :func:`manifest_entry` (e.g. ``license_note``, ``note``) are carried over so
+    a CLI run never silently drops curated documentation.
+    """
+    fresh = manifest_entry(spec)
+    if existing:
+        for key, value in existing.items():
+            fresh.setdefault(key, value)
+    return fresh
 
 
 def update_manifest(spec: ModelSpec) -> None:
     """Record ``spec`` in the committed manifest (idempotent)."""
     manifest = load_manifest()
-    manifest.setdefault("models", {})[spec.name] = manifest_entry(spec)
+    models = manifest.setdefault("models", {})
+    models[spec.name] = update_manifest_entry(models.get(spec.name), spec)
     write_manifest(manifest)
 
 
@@ -268,7 +314,8 @@ def main(argv=None) -> int:
         for name, spec in KNOWN_MODELS.items():
             dest = local_path(spec)
             state = "present" if dest.exists() else "not downloaded"
-            print(f"{name:14s} {spec.repo}/{spec.path}  [{spec.license}, dim={spec.dim}, {state}]")
+            source = spec.url or f"{spec.repo}/{spec.path}"
+            print(f"{name:14s} {source}  [{spec.license}, dim={spec.dim}, {state}]")
         return 0
 
     names = list(KNOWN_MODELS) if args.all else args.models
