@@ -70,12 +70,24 @@
   width: 100%;
 }
 
-/* Extends the shared Button primitive (variant="primary"); layout tweaks only. */
+/* Extends the shared Button primitive; layout tweaks only. Size (font/padding)
+   comes from the primitive: this component historically declared font-lg +
+   thick padding, but the legacy .btn-action rules used to win the cascade so
+   the rule was dormant — B7's bundle-order change woke it up and everything
+   grew. Keep the primitive's compact size. */
 .startup-landing-step {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--space-sm);
-  padding: var(--space-md);
-  font-size: var(--font-lg);
+  width: 100%;
+}
+
+/* Ordinal for the workflow steps — the first group IS a sequence. */
+.startup-landing-step .step-ordinal {
+  font-family: var(--font-mono);
+  color: inherit;
+  opacity: 0.75;
+  min-width: 1.2em;
+  text-align: right;
 }
