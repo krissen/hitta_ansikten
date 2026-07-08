@@ -8,7 +8,7 @@ Orchestrates, per model:
 Usage (from ``backend/``)::
 
     python -m benchmarks.run --models buffalo_l
-    python -m benchmarks.run --models buffalo_l --roots ~/.local/share/faceid/benchmark_staging
+    python -m benchmarks.run ~/.local/share/faceid/benchmark_staging --models buffalo_l,lvface_base
     python -m benchmarks.run --limit 500 --seed 7      # quick partial run
 
 Everything read is treated as strictly read-only (DB + photos). All output
@@ -49,8 +49,29 @@ def _make_buffalo(det_size):
     return BuffaloDetector(det_size=det_size), BuffaloRecognition()
 
 
+def _make_lvface(variant: str):
+    """Factory for an LVFace variant.
+
+    LVFace ships a recognition head only, so detection + alignment reuse
+    buffalo_l's SCRFD detector (the benchmark's canonical alignment). Sharing
+    the detector name means LVFace runs reuse the cached buffalo_l detections.
+    """
+
+    def factory(det_size):
+        from .models.buffalo import BuffaloDetector
+        from .models.lvface import LVFaceRecognition
+
+        return BuffaloDetector(det_size=det_size), LVFaceRecognition(variant)
+
+    return factory
+
+
 MODEL_FACTORIES = {
     "buffalo_l": _make_buffalo,
+    "lvface_tiny": _make_lvface("lvface_tiny"),
+    "lvface_small": _make_lvface("lvface_small"),
+    "lvface_base": _make_lvface("lvface_base"),
+    "lvface_large": _make_lvface("lvface_large"),
 }
 
 
@@ -321,8 +342,9 @@ def main(argv=None) -> int:
     from .resolve import build_index
 
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--models", nargs="+", default=["buffalo_l"],
-                    help=f"Models to evaluate (available: {', '.join(MODEL_FACTORIES)}).")
+    ap.add_argument("--models", default="buffalo_l",
+                    help="Comma-separated models to evaluate "
+                         f"(available: {', '.join(MODEL_FACTORIES)}).")
     ap.add_argument("roots", nargs="*", help="Photo roots to scan (override config).")
     ap.add_argument("--config", default=None, help="Path to a roots.json config.")
     ap.add_argument("--cache", default=str(cfg.CACHE_PATH), help="Index cache path.")
@@ -341,7 +363,8 @@ def main(argv=None) -> int:
                     help="Flag the report as partial (restore still running).")
     args = ap.parse_args(argv)
 
-    unknown = [m for m in args.models if m not in MODEL_FACTORIES]
+    models = [m.strip() for m in args.models.split(",") if m.strip()]
+    unknown = [m for m in models if m not in MODEL_FACTORIES]
     if unknown:
         print(f"Unknown model(s): {unknown}. Available: {list(MODEL_FACTORIES)}", file=sys.stderr)
         return 2
@@ -366,7 +389,7 @@ def main(argv=None) -> int:
     per_model_strata = {}
     per_model_rank1 = {}
     dataset_buckets = None
-    for model_name in args.models:
+    for model_name in models:
         print(f"[{model_name}] building dataset + embeddings ...", file=sys.stderr)
         result, faces, face_strata, rank1_maps = run_model(
             model_name, records, index,
@@ -393,7 +416,7 @@ def main(argv=None) -> int:
     meta = {
         "generated": R.now_iso(),
         "partial": args.partial,
-        "models": ", ".join(args.models),
+        "models": ", ".join(models),
         "seed": args.seed,
         "roots": ", ".join(str(r) for r in roots),
         "db": args.db,

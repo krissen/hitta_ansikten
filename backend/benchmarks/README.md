@@ -149,6 +149,56 @@ embed time and cached; `hardness` joins `attempt_stats.jsonl` by source basename
 (images that needed multiple detection attempts are "hard"). matplotlib is a
 runtime dependency already (used by the app), so no extra install is needed.
 
+## LVFace adapter (PR B4)
+
+A second recognition head sits alongside buffalo_l: **LVFace** (ByteDance,
+ICCV 2025 — a Large Vision-Transformer face model, MIT-licensed ONNX weights on
+Hugging Face [`bytedance-research/LVFace`](https://huggingface.co/bytedance-research/LVFace),
+variants Tiny/Small/Base/Large).
+
+- **`models/download.py`** — model-acquisition CLI. Downloads a named model from
+  the Hub (via `huggingface_hub` if importable, else dependency-free streaming
+  HTTPS) into `_data/models/<name>/` (gitignored) and maintains the **committed**
+  [`models/models_manifest.json`](models/models_manifest.json) (source URL,
+  sha256, license, embedding dim, preprocessing note). The Hub stores each LFS
+  blob's **sha256 as its git-LFS oid**, so the manifest hash doubles as an
+  integrity check on every future download.
+- **`models/lvface.py`** — `LVFaceRecognition` runs the ONNX head directly via
+  `onnxruntime` on the benchmark's canonical 112×112 BGR crop. Preprocessing is
+  **verified against the reference** (github.com/bytedance/LVFace
+  `inference_onnx.py`): BGR→RGB, transpose to NCHW float32, normalize
+  `(x−127.5)/127.5` → `[-1, 1]`. The ONNX emits a **raw** 512-d embedding (the
+  reference L2-normalizes only at cosine time); the adapter L2-normalizes to
+  honor the `RecognitionModel` contract (cosine is invariant to that). Variant
+  selection (Base default) or an explicit `model_path`; dynamic-batch embed with
+  a padding fallback for a statically-pinned batch dim.
+- **`models/verify_lvface_parity.py`** — the **parity gate**. Feeds the *same*
+  aligned crop through (a) the adapter and (b) a verbatim port of the reference
+  preprocessing into the *same* ONNX session, and requires cosine `> 0.999`.
+  Because both share identical weights, any lower cosine is a pure preprocessing
+  discrepancy (wrong channel order / mean-scale / layout) — the one failure mode
+  that silently corrupts embeddings and yields a false "LVFace is worse"
+  conclusion. Run once per variant after downloading weights.
+
+```bash
+cd backend
+
+# List known models / download the Base variant:
+python -m benchmarks.models.download --list
+python -m benchmarks.models.download lvface_base
+
+# Parity gate (must print PARITY OK, cosine > 0.999):
+python -m benchmarks.models.verify_lvface_parity --variant lvface_base
+
+# Two-model comparison report (comma-separated --models):
+python -m benchmarks.run ~/.local/share/faceid/benchmark_staging \
+    --models buffalo_l,lvface_base
+```
+
+> **Weights are never committed.** Only `models_manifest.json` (name, URL,
+> sha256, license, dim, preprocessing) is under version control; the `.onnx`
+> files live under the gitignored `_data/models/`.
+
 ## Layout
 
 | File | Role |
@@ -159,7 +209,10 @@ runtime dependency already (used by the app), so no extra install is needed.
 | `config.py` | Photo-root discovery + data-file locations |
 | `cache.py` | 3-level on-disk cache (detections + embeddings) |
 | `dataset.py` | Detector run + IoU match → per-face dataset manifest |
-| `models/` | `Detector`/`RecognitionModel` protocols, alignment, buffalo adapters |
+| `models/` | `Detector`/`RecognitionModel` protocols, alignment, buffalo + LVFace adapters |
+| `models/download.py` | CLI: fetch model weights from HF + committed `models_manifest.json` |
+| `models/lvface.py` | LVFace ONNX recognition adapter (onnxruntime, verified preprocessing) |
+| `models/verify_lvface_parity.py` | CLI: parity gate (adapter vs reference pipeline, cosine > 0.999) |
 | `metrics.py` | Pure metric functions (closed/open-set, ROC, sweep, twins, det recall) |
 | `embeddings.py` | Matched rows → cached embeddings + blur score |
 | `report.py` | Strata assignment, markdown/CSV rendering, matplotlib plots |
@@ -171,7 +224,9 @@ runtime dependency already (used by the app), so no extra install is needed.
 | `_data/` | Generated cache/reports/lists (gitignored) |
 
 Tests live in `backend/tests/test_benchmark_resolver.py`,
-`backend/tests/test_benchmark_models.py`, `test_benchmark_metrics.py` and
-`test_benchmark_report.py`; they use synthetic tmp dirs, a fabricated mini-DB,
-hand-computable embeddings, and fake models — the only insightface-dependent
-test is guarded by an import check. They never touch the real database.
+`backend/tests/test_benchmark_models.py`, `test_benchmark_metrics.py`,
+`test_benchmark_report.py` and `test_benchmark_lvface.py`; they use synthetic
+tmp dirs, a fabricated mini-DB, hand-computable embeddings, fake models, and a
+tiny on-the-fly ONNX head (for the LVFace adapter) — the insightface- and
+real-weight-dependent tests are guarded by import/existence checks. They never
+touch the real database and never hit the network.
