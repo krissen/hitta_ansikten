@@ -113,6 +113,13 @@ Hard negative examples - faces that should never match certain people.
 }
 ```
 
+Both matching paths apply them: a person is skipped as a candidate when the
+probe is closer than `backend_thresholds.<backend>.hard_negative_distance` to any
+of that person's hard negatives. The CLI does this in `core.matching.best_matches`;
+the API/GUI does it in `detection_service._match_encoding` /
+`_match_encoding_alternatives`, fed by `MatchingIndex`'s per-person hard-negative
+matrices (rebuilt whenever a `touches={"hardneg"}` mutation bumps the store version).
+
 ### processed_files.jsonl
 
 One JSON object per line, tracking processed files.
