@@ -71,13 +71,23 @@ const tailwindInput = path.join(__dirname, '..', 'src', 'renderer', 'tailwind.cs
 const tailwindOutput = path.join(outdir, 'tailwind-bundle.css');
 
 function tailwindArgs(extra = []) {
-  return ['@tailwindcss/cli', '-i', tailwindInput, '-o', tailwindOutput, ...extra];
+  return ['-i', tailwindInput, '-o', tailwindOutput, ...extra];
 }
 
 // One-shot Tailwind build; propagates a non-zero exit code on failure.
+// Run the Tailwind CLI's JS entry directly through the current node binary.
+// This sidesteps `npx` entirely: on Windows `npx` is `npx.cmd`, which spawn()
+// refuses without a shell (CVE-2024-27980 hardening), and shell:true would
+// break on paths containing spaces since argv is not re-quoted. The package
+// only exports package.json, so resolve the bin entry relative to it.
+const TAILWIND_CLI = path.join(
+  path.dirname(require.resolve('@tailwindcss/cli/package.json')),
+  'dist', 'index.mjs'
+);
+
 function buildTailwind() {
   const args = tailwindArgs(isDev ? [] : ['--minify']);
-  const result = spawnSync('npx', args, { stdio: 'inherit' });
+  const result = spawnSync(process.execPath, [TAILWIND_CLI, ...args], { stdio: 'inherit' });
   if (result.status !== 0) {
     console.error('Tailwind build failed');
     process.exit(result.status || 1);
@@ -89,7 +99,7 @@ function buildTailwind() {
 // otherwise exits on stdin EOF, e.g. when run detached / piped / in CI).
 // Killed when this process exits so no orphan watcher is left behind.
 function watchTailwind() {
-  const child = spawn('npx', tailwindArgs(['--watch=always']), { stdio: 'inherit' });
+  const child = spawn(process.execPath, [TAILWIND_CLI, ...tailwindArgs(['--watch=always'])], { stdio: 'inherit' });
   const cleanup = () => {
     if (!child.killed) child.kill();
   };
