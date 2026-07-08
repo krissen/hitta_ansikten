@@ -246,6 +246,87 @@ python -m benchmarks.run ~/.local/share/faceid/benchmark_staging \
 > `onnxscript` is only needed by newer torch's exporter; the CLI forces the
 > legacy TorchScript exporter (`dynamo=False`) so it also works without it.
 
+## YOLO-face detector + detection comparison (PR B6)
+
+SCRFD-10GF (buffalo_l's detector, 2021) trails newer YOLO-family face detectors
+on WIDERFACE Hard, and for crowded event/sports photos detection is likely a
+bigger lever than recognition. B6 adds a YOLO-face detector adapter and a
+detector-vs-detector comparison against the same DB ground truth.
+
+- **`models/yoloface.py`** — `YoloFaceDetector(Detector)`: an onnxruntime-only
+  adapter for a YOLOv8-face ONNX with **5-point landmarks** (the landmarks
+  `align_112`/`norm_crop` needs, in SCRFD order). Letterbox preprocessing,
+  box+landmark+score decode, greedy NMS, and coordinate mapping back to the
+  original image. Two ONNX layouts are auto-detected: the **raw YOLOv8-pose
+  head** `(1, 4+nc+3K, N)` (the adapter runs its own confidence filter + NMS)
+  and the **NMS-baked head** `(1, M, 6+3K)` (already suppressed; only
+  confidence-filtered). **No torch/ultralytics at runtime** — only onnxruntime.
+- **`models/download.py`** — B6 extends the B4 `ModelSpec` design minimally:
+  optional `url` (direct download, e.g. a GitHub release asset, bypassing the
+  HF resolve endpoint) and `kind` (`"detector"`) fields. `yolov8n-face` is
+  registered in `KNOWN_MODELS` and fetched checksum-verified into
+  `_data/models/<name>/`; its manifest entries (including the offline-produced
+  `yolov8n-face-raw`, with honest `null` hashes per the AdaFace precedent) live
+  in the committed `models_manifest.json`, and `update_manifest` now preserves
+  hand-maintained fields (`license_note`, `note`) on CLI rewrites.
+- **`detect_compare.py`** — runs two+ detectors over the same resolved images,
+  IoU-matches to the DB's stored boxes, and reports **detection recall**
+  (matched / (matched + detector_missed)) overall and per stratum (bbox-area
+  quartiles — small faces especially — and manual vs detected), plus **new faces
+  found** (detections overlapping no DB box; count-only, since they can't be
+  auto-scored against ground truth). Detection-only, so it's fast; detections
+  are cached per (image, detector) and shared with `run.py`.
+- **`run.py`** also gains `yolov8n-face` / `yolov8n-face-raw` model entries
+  (YOLO detector + buffalo_l recognition head — the mirror image of the
+  LVFace/AdaFace factories) so the full pipeline can run on YOLO detections too.
+
+```bash
+cd backend
+
+# Fetch the default YOLO-face ONNX (onnxruntime-only, checksum-verified):
+python -m benchmarks.models.download yolov8n-face
+
+# Compare SCRFD (buffalo_l) vs YOLOv8-face on the DB ground truth:
+python -m benchmarks.detect_compare ~/.local/share/faceid/benchmark_staging \
+    --detectors buffalo_l yolov8n-face
+```
+
+### Results on the current staging set (2026-07-08, restore still in progress)
+
+`detect_compare` over `~/.local/share/faceid/benchmark_staging/` (975 resolved
+images, **N = 1991** scored DB faces; 102 of those have no stored bbox and can
+never match — they penalize both detectors equally), both detectors at 640:
+
+| Metric | buffalo_l (SCRFD-10GF) | yolov8n-face |
+|---|---|---|
+| Overall detection recall | **94.6 %** (1884/1991) | 93.1 % (1853/1991) |
+| — excluding `no_bbox` | **99.7 %** (1884/1889) | 98.1 % (1853/1889) |
+| Q1 (smallest faces) | **99.2 %** (483/487) | 95.1 % (463/487) |
+| Q2 | **100.0 %** (559/559) | 98.9 % (553/559) |
+| Q3 | **99.8 %** (509/510) | 99.0 % (505/510) |
+| Q4 (largest) | **100.0 %** (333/333) | 99.7 % (332/333) |
+| New faces found (conf ≥ 0.5, count-only) | 2279 | 1871 |
+
+**Takeaway:** the *nano* YOLOv8-face does **not** beat SCRFD-10GF on this data —
+SCRFD leads everywhere, most clearly on the smallest faces (Q1: +4.1 pp). That
+is consistent with model class: yolov8**n** (~8 GFLOPs) vs SCRFD-**10GF**; the
+WIDERFACE-Hard advantage reported for YOLO-family detectors comes from the
+larger variants. The adapter + manifest make A/B-ing `yolov8l-face` /
+`yolov12*-face` (same release; needs a one-time raw-head export) a config
+change — tracked in ROADMAP (B6+).
+
+### Model + license
+
+The default `yolov8n-face` is a pre-exported ONNX (NMS baked in) from the
+[akanametov/yolo-face](https://github.com/akanametov/yolo-face) 1.0.0 release,
+trained on WIDERFACE, **AGPL-3.0** (ultralytics-derived). AGPL-3.0 is acceptable
+for this **local, non-shipped benchmark tooling** — the weights are never bundled
+into the distributed app; do not redistribute them inside a proprietary product.
+The optional `yolov8n-face-raw` (same weights, no baked NMS — exercises the
+adapter's own NMS path) is produced offline with a **one-time** ultralytics
+export in a scratch venv (never the project venv); the exact command is in the
+manifest's `note` field. Both are documented in `models_manifest.json`.
+
 ## Layout
 
 | File | Role |
@@ -257,12 +338,14 @@ python -m benchmarks.run ~/.local/share/faceid/benchmark_staging \
 | `cache.py` | 3-level on-disk cache (detections + embeddings) |
 | `dataset.py` | Detector run + IoU match → per-face dataset manifest |
 | `models/` | `Detector`/`RecognitionModel` protocols, alignment, buffalo + LVFace adapters |
-| `models/download.py` | CLI: fetch model weights from HF + committed `models_manifest.json` |
+| `models/download.py` | CLI: fetch model weights (HF or direct URL) + committed `models_manifest.json` |
 | `models/lvface.py` | LVFace ONNX recognition adapter (onnxruntime, verified preprocessing) |
 | `models/verify_lvface_parity.py` | CLI: parity gate (adapter vs reference pipeline, cosine > 0.999) |
 | `models/adaface.py` | AdaFace IR-101 ONNX recognition adapter (BGR no-swap, verified `to_input`) |
 | `models/export_adaface.py` | CLI (networked): checkpoint → ONNX export + torch-parity + manifest |
 | `models/_adaface_ir101_net.py` | Vendored IR-101 backbone (MIT, © Minchul Kim), export-time only |
+| `models/yoloface.py` | YOLO-face ONNX detector (letterbox, decode, NMS, 5-pt landmarks) |
+| `detect_compare.py` | CLI: SCRFD-vs-YOLO detection recall + new-faces-found |
 | `metrics.py` | Pure metric functions (closed/open-set, ROC, sweep, twins, det recall) |
 | `embeddings.py` | Matched rows → cached embeddings + blur score |
 | `report.py` | Strata assignment, markdown/CSV rendering, matplotlib plots |
@@ -275,8 +358,10 @@ python -m benchmarks.run ~/.local/share/faceid/benchmark_staging \
 
 Tests live in `backend/tests/test_benchmark_resolver.py`,
 `backend/tests/test_benchmark_models.py`, `test_benchmark_metrics.py`,
-`test_benchmark_report.py` and `test_benchmark_lvface.py`; they use synthetic
-tmp dirs, a fabricated mini-DB, hand-computable embeddings, fake models, and a
-tiny on-the-fly ONNX head (for the LVFace adapter) — the insightface- and
-real-weight-dependent tests are guarded by import/existence checks. They never
-touch the real database and never hit the network.
+`test_benchmark_report.py`, `test_benchmark_lvface.py` and
+`test_benchmark_yoloface.py`; they use synthetic tmp dirs, a fabricated
+mini-DB, hand-computable embeddings, fake models, a tiny on-the-fly ONNX head
+(for the LVFace adapter), and synthetic detector tensors (for the YOLO decode) —
+the insightface- and real-weight-dependent tests are guarded by
+import/existence checks. They never touch the real database and never hit the
+network.
