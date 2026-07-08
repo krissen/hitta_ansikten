@@ -24,7 +24,7 @@ Check backend status and component readiness.
 {
   "status": "ok",
   "service": "ansikten-backend",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "components": {
     "backend": { "state": "ready", "message": "Connected" },
     "database": { "state": "ready", "message": "42 persons" },
@@ -38,7 +38,7 @@ Check backend status and component readiness.
 {
   "status": "starting",
   "service": "ansikten-backend",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "components": {
     "backend": { "state": "ready", "message": "Connected" },
     "database": { "state": "loading", "message": "Läser in..." },

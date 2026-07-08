@@ -21,11 +21,11 @@ describe('StartupLanding', () => {
     const buttons = await screen.findAllByRole('button');
     expect(buttons.map((b) => b.textContent)).toEqual([
       // Workflow steps (unchanged order)
-      'Importera',
-      'Byt namn',
-      'Granska ansikten',
-      'Räkna spelare',
-      'Gallra spelare',
+      '1.Importera',
+      '2.Byt namn',
+      '3.Granska ansikten',
+      '4.Räkna spelare',
+      '5.Gallra spelare',
       // Tools (remaining views), appended
       'Databashantering',
       'Förfina ansikten',

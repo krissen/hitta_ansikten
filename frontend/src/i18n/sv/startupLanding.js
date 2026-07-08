@@ -1,7 +1,8 @@
 // Swedish catalog namespace: startupLanding
 module.exports = {
   "title": "Kom igång",
-  "subtitle": "Välj ett steg i arbetsflödet.",
+  "subtitle": "Följ stegen i ordning, eller öppna ett verktyg direkt.",
+  "workflow": "Arbetsflöde",
   "tools": "Verktyg",
   "importCardHint": "Sätt i ett minneskort för att importera"
 };
