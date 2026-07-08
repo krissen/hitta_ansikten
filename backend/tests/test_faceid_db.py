@@ -681,6 +681,36 @@ def test_restricted_unpickler_allows_whitelisted(db_dir):
     np.testing.assert_array_equal(out["Alice"][0], np.array([1.0, 2.0]))
 
 
+def test_restricted_unpickler_round_trips_numpy_arrays(db_dir):
+    # Regression: numpy 2.x reconstructs arrays via numpy._core.numeric._frombuffer
+    # rather than numpy.core.multiarray._reconstruct. The whitelist must cover it
+    # so encodings.pkl written under numpy 2.x still loads.
+    import io
+
+    original = {
+        "floats": np.arange(6, dtype=np.float64).reshape(2, 3),
+        "ints": np.array([1, 2, 3], dtype=np.int32),
+        "scalar": np.float64(1.5),
+        "count": 7,
+    }
+    payload = pickle.dumps(original)
+    out = faceid_db.safe_pickle_load(io.BytesIO(payload))
+
+    np.testing.assert_array_equal(out["floats"], original["floats"])
+    np.testing.assert_array_equal(out["ints"], original["ints"])
+    assert out["scalar"] == original["scalar"]
+    assert out["count"] == 7
+
+
+def test_restricted_unpickler_blocks_os_system(db_dir):
+    import io
+
+    # os.system is a classic RCE gadget and must stay forbidden.
+    payload = b"cos\nsystem\n(S'echo pwned'\ntR."
+    with pytest.raises(pickle.UnpicklingError, match="Forbidden class"):
+        faceid_db.safe_pickle_load(io.BytesIO(payload))
+
+
 def test_load_database_rejects_malicious_pickle(db_dir):
     # A forbidden class in encodings.pkl propagates the UnpicklingError.
     from datetime import datetime
