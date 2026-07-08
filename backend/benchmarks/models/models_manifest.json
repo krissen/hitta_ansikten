@@ -1,0 +1,44 @@
+{
+  "models": {
+    "lvface_base": {
+      "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-B_Glint360K/LVFace-B_Glint360K.onnx",
+      "repo": "bytedance-research/LVFace",
+      "path": "LVFace-B_Glint360K/LVFace-B_Glint360K.onnx",
+      "sha256": "9d834ed8e927fd35b9123b2bf97c40aad05785b1f9ecfb1c4c1f6242d38d1382",
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
+      "local_path": "_data/models/lvface_base/LVFace-B_Glint360K.onnx"
+    },
+    "lvface_large": {
+      "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-L_Glint360K/LVFace-L_Glint360K.onnx",
+      "repo": "bytedance-research/LVFace",
+      "path": "LVFace-L_Glint360K/LVFace-L_Glint360K.onnx",
+      "sha256": "49389036a4a5b69e0efcddfe34839ac72c7a71ce6b4dc1b6821e2ac368c87063",
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
+      "local_path": "_data/models/lvface_large/LVFace-L_Glint360K.onnx"
+    },
+    "lvface_small": {
+      "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-S_Glint360K/LVFace-S_Glint360K.onnx",
+      "repo": "bytedance-research/LVFace",
+      "path": "LVFace-S_Glint360K/LVFace-S_Glint360K.onnx",
+      "sha256": "cd09f27c82ce0a3633fb8b1966d779a7171b23aa4f14ca0de6edf9677573d119",
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
+      "local_path": "_data/models/lvface_small/LVFace-S_Glint360K.onnx"
+    },
+    "lvface_tiny": {
+      "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-T_Glint360K/LVFace-T_Glint360K.onnx",
+      "repo": "bytedance-research/LVFace",
+      "path": "LVFace-T_Glint360K/LVFace-T_Glint360K.onnx",
+      "sha256": "bf8da0e1e93c432d9a1d874a9ba0990f5859f970e8864b3990f2f33d11f9cdb3",
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
+      "local_path": "_data/models/lvface_tiny/LVFace-T_Glint360K.onnx"
+    }
+  }
+}
