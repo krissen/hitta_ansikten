@@ -2,7 +2,7 @@
 
 Covers:
 - ``normalize_det_size`` (int / [w,h] / invalid).
-- The ``DEFAULT_CONFIG`` default (1280 square).
+- The ``DEFAULT_CONFIG`` default (640 square).
 - The backend factory passing an effective det_size through to the backend
   (with the heavy InsightFace backend replaced by a lightweight stand-in).
 """
