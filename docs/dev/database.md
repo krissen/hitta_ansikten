@@ -189,7 +189,8 @@ User configuration overrides.
         "type": "insightface",
         "insightface": {
             "model_name": "buffalo_l",
-            "ctx_id": -1
+            "ctx_id": -1,
+            "det_size": [1280, 1280]
         }
     },
     "backend_thresholds": {
@@ -216,6 +217,7 @@ User configuration overrides.
 |-----|---------|-------------|
 | `detection_model` | `"hog"` | `"hog"` (fast) or `"cnn"` (accurate) |
 | `backend.type` | `"insightface"` | InsightFace (512-dim, cosine distance) |
+| `backend.insightface.det_size` | `[1280, 1280]` | Detection input size (letterbox target the whole image is resized to before SCRFD detection). Larger surfaces smaller faces (team/wide shots) at ~quadratic detection cost. Accepts `[w, h]` or a single int (square). Absent key = default applies. |
 | `backend_thresholds.<backend>.match_threshold` | `0.4` (insightface) | **Single source of truth** for the match distance. A name is auto-filled only below this cosine distance. |
 | `backend_thresholds.<backend>.ignore_distance` | `0.35` (insightface) | Distance below which a face is proposed as "ign". |
 | `backend_thresholds.<backend>.hard_negative_distance` | `0.32` (insightface) | Distance below which a confirmed hard negative suppresses a person. |
