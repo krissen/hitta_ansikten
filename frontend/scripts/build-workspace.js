@@ -75,9 +75,14 @@ function tailwindArgs(extra = []) {
 }
 
 // One-shot Tailwind build; propagates a non-zero exit code on failure.
+// Windows: `npx` is `npx.cmd`, which spawn/spawnSync only resolve through a
+// shell (Node refuses .cmd without one since the CVE-2024-27980 hardening).
+const NPX = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const SPAWN_OPTS = { stdio: 'inherit', shell: process.platform === 'win32' };
+
 function buildTailwind() {
   const args = tailwindArgs(isDev ? [] : ['--minify']);
-  const result = spawnSync('npx', args, { stdio: 'inherit' });
+  const result = spawnSync(NPX, args, SPAWN_OPTS);
   if (result.status !== 0) {
     console.error('Tailwind build failed');
     process.exit(result.status || 1);
@@ -89,7 +94,7 @@ function buildTailwind() {
 // otherwise exits on stdin EOF, e.g. when run detached / piped / in CI).
 // Killed when this process exits so no orphan watcher is left behind.
 function watchTailwind() {
-  const child = spawn('npx', tailwindArgs(['--watch=always']), { stdio: 'inherit' });
+  const child = spawn(NPX, tailwindArgs(['--watch=always']), SPAWN_OPTS);
   const cleanup = () => {
     if (!child.killed) child.kill();
   };
