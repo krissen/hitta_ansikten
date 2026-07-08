@@ -693,7 +693,10 @@ def test_restricted_unpickler_round_trips_numpy_arrays(db_dir):
         "scalar": np.float64(1.5),
         "count": 7,
     }
-    payload = pickle.dumps(original)
+    # Protocol 5 is required to exercise _frombuffer: at protocol <= 4 numpy
+    # serializes via the already-whitelisted _reconstruct path instead.
+    payload = pickle.dumps(original, protocol=5)
+    assert b"_frombuffer" in payload
     out = faceid_db.safe_pickle_load(io.BytesIO(payload))
 
     np.testing.assert_array_equal(out["floats"], original["floats"])
