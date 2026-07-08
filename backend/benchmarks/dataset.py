@@ -152,8 +152,12 @@ def build_dataset(
             continue
 
         path = paths[0]
-        img = load_bgr(path)
-        det = cache.get_or_compute_detections(sha1, detector, img, force=force)
+        # Decode the image lazily: when this (image, detector) pair is already
+        # cached, skip the (expensive, RAW-heavy) image decode entirely.
+        det = None if force else cache.load_detections(sha1, detector.name)
+        if det is None:
+            img = load_bgr(path)
+            det = cache.get_or_compute_detections(sha1, detector, img, force=force)
 
         for r in recs:
             db_box = r.bbox_xyxy
