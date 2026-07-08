@@ -83,6 +83,18 @@ deliverables, DoD) för en prestandarelease.
 
 ## Anteckningar
 
+### InsightFace-version
+
+Uppgraderad 0.7.3 → 1.0.1 (onnxruntime 1.27.0), grindad på embedding-stabilitet
+och verifierad identisk (cosinus 1,000000, bbox-IoU 1,0) — se CHANGELOG och den
+återkörbara grinden `backend/benchmarks/upgrade_compare.py`. **Fnotering om
+`det_size`:** 1.0.1:s `prepare(det_thresh=0.5, det_size=None)` har en "Auto"-default
+`det_size = [(128,128),(640,640)]` (dubbelskala med enad NMS). Auto är *inte* en
+liten-ansikts-spak — 128-skalan är en *nedskalning* (grövre/snabbare detektion),
+inte en uppskalning som skulle hitta fler små ansikten. Appen passerar avsiktligt
+explicit `det_size=(640,640)`; byt inte till Auto i tron att det förbättrar
+små-ansikts-recall.
+
 ### DEPRECATED: dlib backend
 
 dlib-backend är borttaget. InsightFace är det enda stödda backend.
