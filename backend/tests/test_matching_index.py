@@ -65,20 +65,33 @@ class NaiveMatcher:
     def __init__(self, backend):
         self.backend = backend
 
-    def match_encoding(self, known, encoding):
+    def _lenient_rows(self, entries):
+        rows = []
+        for entry in entries:
+            if isinstance(entry, dict):
+                enc = entry.get("encoding")
+                be = entry.get("backend", "dlib")
+            else:
+                enc = entry
+                be = "dlib"
+            if enc is not None and be == self.backend.backend_name:
+                rows.append(enc)
+        return rows
+
+    def _is_hard_negative(self, hardneg, name, encoding, threshold):
+        negs = self._lenient_rows(hardneg.get(name, [])) if hardneg else []
+        if not negs:
+            return False
+        d = self.backend.compute_distances(np.array(negs), encoding)
+        return float(np.min(d)) < threshold
+
+    def match_encoding(self, known, encoding, hardneg=None, hard_neg_thr=0.45):
         best_name = None
         best_distance = None
         for name, entries in known.items():
-            person = []
-            for entry in entries:
-                if isinstance(entry, dict):
-                    enc = entry.get("encoding")
-                    be = entry.get("backend", "dlib")
-                else:
-                    enc = entry
-                    be = "dlib"
-                if enc is not None and be == self.backend.backend_name:
-                    person.append(enc)
+            if self._is_hard_negative(hardneg or {}, name, encoding, hard_neg_thr):
+                continue
+            person = self._lenient_rows(entries)
             if person:
                 distances = self.backend.compute_distances(np.array(person), encoding)
                 md = float(np.min(distances))
@@ -119,9 +132,12 @@ class NaiveMatcher:
                 out.append(enc)
         return out
 
-    def alternatives(self, known, ignored, encoding, top_n=9):
+    def alternatives(self, known, ignored, encoding, top_n=9,
+                     hardneg=None, hard_neg_thr=0.45):
         all_matches = []
         for name, entries in known.items():
+            if self._is_hard_negative(hardneg or {}, name, encoding, hard_neg_thr):
+                continue
             rows = []
             for e in entries:
                 if isinstance(e, dict) and e.get("backend") == self.backend.backend_name:
@@ -201,16 +217,24 @@ def test_index_matches_naive_for_all_four_helpers(active):
             if enc is not None:
                 probes.append(np.asarray(enc, dtype=float))
 
+    # Hard-negative threshold the service resolves for this config/backend
+    # (FakeBackend has no distance_metric → euclidean default 0.45).
+    hard_neg_thr = svc._hard_negative_threshold()
+
     for probe in probes:
-        # 1. nearest-person
-        assert svc._match_encoding(probe) == naive.match_encoding(known, probe)
+        # 1. nearest-person (hard negatives skip a rejected person)
+        assert svc._match_encoding(probe) == naive.match_encoding(
+            known, probe, hardneg, hard_neg_thr
+        )
 
         # 2. ignored (index + distance)
         assert svc._match_ignored(probe) == naive.match_ignored(ignored, probe)
 
-        # 3. alternatives (full ordered list of dicts)
+        # 3. alternatives (full ordered list of dicts; hard negatives dropped)
         got = svc._match_encoding_alternatives(probe, top_n=9)
-        exp = naive.alternatives(known, ignored, probe, top_n=9)
+        exp = naive.alternatives(
+            known, ignored, probe, top_n=9, hardneg=hardneg, hard_neg_thr=hard_neg_thr
+        )
         assert got == exp
 
     # 4. person_match_encodings for every name (+ a missing one)

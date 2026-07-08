@@ -355,13 +355,37 @@ class DetectionService:
             self._matching_index = idx
         return idx
 
+    def _hard_negative_threshold(self) -> float:
+        """Distance below which a probe counts as one of a person's hard
+        negatives. Single source of truth shared with the CLI's ``best_matches``
+        (``backend_thresholds.<backend>.hard_negative_distance``)."""
+        thresholds = _get_backend_thresholds(self.config, self.backend)
+        return thresholds.get("hard_negative_distance", 0.45)
+
+    def _is_hard_negative(
+        self, name: str, encoding: np.ndarray, threshold: float
+    ) -> bool:
+        """True when the probe is closer than ``threshold`` to any of ``name``'s
+        hard negatives — i.e. the user explicitly rejected this identity for a
+        face like this, so it must not be suggested. Mirrors the CLI's per-person
+        skip in ``core.matching.best_matches``."""
+        hardneg = self._get_matching_index().hardneg_matrix(name)
+        if hardneg is None:
+            return False
+        neg_distances = self.backend.compute_distances(hardneg, encoding)
+        return float(np.min(neg_distances)) < threshold
+
     def _match_encoding(self, encoding: np.ndarray) -> Tuple[Optional[str], Optional[float]]:
         """Match encoding against known faces database"""
         # Precompiled per-person matrices from the version-invalidated index
         # (rebuilt only when the DB changes); distance computation runs here.
+        hard_neg_thr = self._hard_negative_threshold()
         best_name = None
         best_distance = None
         for name, matrix in self._get_matching_index().known_lenient_items():
+            # Skip a person the user has explicitly rejected for a face like this.
+            if self._is_hard_negative(name, encoding, hard_neg_thr):
+                continue
             distances = self.backend.compute_distances(matrix, encoding)
             min_distance = float(np.min(distances))
             if best_distance is None or min_distance < best_distance:
@@ -541,9 +565,15 @@ class DetectionService:
         # strictly on an explicit backend key (no dlib default) and 1-D
         # encodings — the index's "strict" set mirrors exactly that.
         candidates = self._get_matching_index().known_strict_items()
+        hard_neg_thr = self._hard_negative_threshold()
 
         # Match against known faces
         for name, encodings_matrix in candidates:
+            # Drop a person the user explicitly rejected for a face like this, so
+            # they are never offered as a candidate (and never enter the twin
+            # tie-break). Explicit rejection beats the suggestion heuristics.
+            if self._is_hard_negative(name, encoding, hard_neg_thr):
+                continue
             distances = self.backend.compute_distances(encodings_matrix, encoding)
             min_distance = float(np.min(distances))
 
