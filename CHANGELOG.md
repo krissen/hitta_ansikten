@@ -6,6 +6,14 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-07-08
+
+### Fixed
+- **Landningssidan: stegknapparna växte efter B7 och tvingade fram skroll.** `.startup-landing-step` har alltid deklarerat `font-size: var(--font-lg)` + tjock padding, men regeln var vilande — legacy `.btn-action` (theme.css, buntad efter modul-CSS) vann kaskaden. B7:s byte till delade `<Button>` flippade buntordningen och väckte regeln. Den vilande storleksregeln är borttagen; primitivens kompakta storlek gäller och allt ryms utan skroll.
+
+### Changed
+- **Landningssidan visar nu arbetsflödeslogiken.** De fem första posterna är arbetsflödets steg i ordning — nu under rubriken "Arbetsflöde", numrerade 1–5 och som primärknappar; stödvyerna ligger kvar under "Verktyg" som secondary. Undertexten uppdaterad ("Följ stegen i ordning, eller öppna ett verktyg direkt."). Ordinalen är dold för skärmläsare (knappnamnet förblir rent, t.ex. "Importera").
+
 ## [1.4.0] - 2026-07-08
 
 ### Fixed
