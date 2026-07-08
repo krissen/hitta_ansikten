@@ -18,7 +18,7 @@ else calls ``store.read()``/``snapshot()`` or an in-app mutation bumps the
 version. Acceptable for a single-process desktop app; documented deliberately
 (Nagelfar review of PR #150, issue-001).
 
-The index holds three structures for the service's active backend, each a
+The index holds four structures for the service's active backend, each a
 faithful precomputation of what one helper used to build inline:
 
 * ``known_lenient`` — ``{name: matrix}`` mirroring the old ``_known_candidates``
@@ -32,6 +32,14 @@ faithful precomputation of what one helper used to build inline:
 * ``ignored`` — a single stacked matrix mirroring ``_ignored_matrix`` (same
   lenient backend rule, 1-D encodings, original order preserved so
   ``_match_ignored``'s argmin index stays identical).
+* ``known_hardneg`` — ``{name: matrix}`` of a person's hard negatives (the
+  encodings the user explicitly rejected as *not* being that person), built
+  with the same lenient backend rule as ``known_lenient``. Lets the API match
+  path skip a person when the probe is too close to one of their hard
+  negatives — the accuracy fix that brings the GUI in line with the CLI's
+  ``best_matches``. Built inside the same ``store.read`` snapshot as the other
+  three so it shares the version tag (a hard-negative mutation bumps the store
+  version and rebuilds all four together).
 
 Thread-safety: matching runs in executor threads, so a rebuild is guarded by a
 lock with the double-checked pattern used by the service singletons — a version
@@ -63,6 +71,7 @@ class MatchingIndex:
         self._known_lenient: Dict[str, np.ndarray] = {}
         self._known_strict: List[Tuple[str, np.ndarray]] = []
         self._ignored: Optional[np.ndarray] = None
+        self._known_hardneg: Dict[str, np.ndarray] = {}
 
     # ----- lazy rebuild -------------------------------------------------
 
@@ -132,20 +141,42 @@ class MatchingIndex:
                         ignored_rows.append(arr)
             ignored_matrix = np.vstack(ignored_rows) if ignored_rows else None
 
-            return version, known_lenient, known_strict, ignored_matrix
+            # Hard negatives: same lenient backend rule as known_lenient, keyed
+            # by person name. These are the encodings the user rejected for that
+            # person; the match path uses them to skip the person entirely.
+            known_hardneg: Dict[str, np.ndarray] = {}
+            for name, entries in hardneg.items():
+                rows = []
+                for entry in entries:
+                    if isinstance(entry, dict):
+                        enc = entry.get("encoding")
+                        be = entry.get("backend", "dlib")
+                    else:
+                        enc = entry
+                        be = "dlib"
+                    if enc is not None and be == active:
+                        rows.append(enc)
+                if rows:
+                    known_hardneg[name] = np.array(rows)
 
-        version, known_lenient, known_strict, ignored_matrix = self._store.read(build)
+            return version, known_lenient, known_strict, ignored_matrix, known_hardneg
+
+        version, known_lenient, known_strict, ignored_matrix, known_hardneg = (
+            self._store.read(build)
+        )
         self._known_lenient = known_lenient
         self._known_strict = known_strict
         self._ignored = ignored_matrix
+        self._known_hardneg = known_hardneg
         self._version = version
         logger.debug(
             "[MatchingIndex] Rebuilt at version %d: %d known (lenient), "
-            "%d known (strict), %s ignored",
+            "%d known (strict), %s ignored, %d with hard negatives",
             version,
             len(known_lenient),
             len(known_strict),
             0 if ignored_matrix is None else len(ignored_matrix),
+            len(known_hardneg),
         )
 
     # ----- accessors (each ensures freshness) ---------------------------
@@ -172,3 +203,9 @@ class MatchingIndex:
         if matrix is None:
             return []
         return list(matrix)
+
+    def hardneg_matrix(self, name: str) -> Optional[np.ndarray]:
+        """Stacked hard-negative matrix for `name`, or ``None`` when the person
+        has no hard negatives for the active backend."""
+        self._ensure_current()
+        return self._known_hardneg.get(name)

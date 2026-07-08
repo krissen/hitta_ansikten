@@ -82,10 +82,14 @@ service keeping its own copy:
   CLI-vs-server concurrent writes remain last-writer-wins.
 
 **`MatchingIndex`** (`api/services/matching_index.py`) precomputes the
-per-backend stacked candidate matrices (lenient/strict known + ignored) once per
-store `version` and reuses them across every detected face until the DB changes.
-It is version-invalidated (rebuilt under `store.read` with double-checked
-locking) rather than restacked per match.
+per-backend stacked candidate matrices (lenient/strict known + ignored +
+per-person hard negatives) once per store `version` and reuses them across every
+detected face until the DB changes. It is version-invalidated (rebuilt under
+`store.read` with double-checked locking) rather than restacked per match. The
+hard-negative matrices let the API match path skip a person when the probe is
+closer than `hard_negative_distance` to one of their hard negatives — the same
+rejection rule the CLI's `best_matches` applies, so the GUI stops re-suggesting
+identities the user has explicitly corrected away.
 
 Services are reached through **lazy getters** (`get_detection_service()` etc.)
 that construct the singleton on first use with double-checked locking — no
