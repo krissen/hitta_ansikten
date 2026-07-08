@@ -135,7 +135,10 @@ DEFAULT_CONFIG = {
         "insightface": {
             "model_name": "buffalo_l",  # Model: buffalo_s (fast), buffalo_m, buffalo_l (accurate)
             "ctx_id": -1,  # -1 = CPU, 0+ = GPU device ID
-            "det_size": [640, 640]  # Detection input size
+            # Detection input size (letterbox target the whole image is resized to
+            # before SCRFD detection). Larger surfaces smaller faces (team/wide shots)
+            # at ~quadratic detection cost. Accepts [w, h] or a single int (square).
+            "det_size": [1280, 1280]
         }
     },
 

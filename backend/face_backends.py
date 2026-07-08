@@ -14,6 +14,23 @@ import numpy as np
 EPSILON_NORM = 1e-6  # Small value to avoid division by zero in normalization
 
 
+def normalize_det_size(value) -> tuple[int, int]:
+    """Normalize a det_size config value to a (width, height) tuple.
+
+    Accepts a single int (interpreted as a square N×N), or a [w, h] / (w, h)
+    pair. Returns a tuple of two ints. Raises ValueError on other shapes so
+    misconfigurations surface at backend construction rather than silently.
+    """
+    if isinstance(value, bool):
+        # bool is an int subclass; reject it explicitly to avoid True -> (1, 1).
+        raise ValueError(f"det_size must be an int or [w, h] pair (got {value!r})")
+    if isinstance(value, int):
+        return (value, value)
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        return (int(value[0]), int(value[1]))
+    raise ValueError(f"det_size must be an int or [w, h] pair (got {value!r})")
+
+
 class FaceBackend(ABC):
     """Abstract interface for face detection and recognition backends."""
 
@@ -418,8 +435,7 @@ def create_backend(config: dict) -> FaceBackend:
 
         elif backend_type == 'insightface':
             settings = backend_config.get('insightface', {})
-            det_size_list = settings.get('det_size', [640, 640])
-            det_size = tuple(det_size_list) if isinstance(det_size_list, list) else det_size_list
+            det_size = normalize_det_size(settings.get('det_size', [1280, 1280]))
             return backend_class(
                 model_name=settings.get('model_name', 'buffalo_l'),
                 ctx_id=settings.get('ctx_id', -1),
