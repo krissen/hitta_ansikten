@@ -554,7 +554,7 @@ class DetectionService:
         # match_threshold + ...) are left "unknown" here but still surface the
         # nearest person via match_alternatives (see _match_encoding_alternatives).
         thresholds = _get_backend_thresholds(self.config, self.backend)
-        name_thr = thresholds.get("match_threshold", 0.4)
+        name_thr = thresholds.get("match_threshold", 0.45)
         ignore_thr = thresholds.get("ignore_distance", 0.35)
         margin = self.config.get("prefer_name_margin", 0.15)
 

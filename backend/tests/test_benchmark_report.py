@@ -115,7 +115,7 @@ def test_render_markdown_smoke():
     assert "metrics report" in md
     assert "PARTIAL DATA" in md
     assert "Threshold sweep" in md
-    assert "0.40" in md  # app default marked
+    assert "match_threshold **0.45**" in md  # app default marked
 
 
 def _tiny_embeddings():

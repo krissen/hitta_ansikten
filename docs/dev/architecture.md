@@ -147,7 +147,7 @@ InsightFace is the only supported backend:
 
 | Backend | Encoding | Distance | Threshold |
 |---------|----------|----------|-----------|
-| **InsightFace** | 512-dim | Cosine | ~0.4 |
+| **InsightFace** | 512-dim | Cosine | ~0.45 |
 
 > **Note:** dlib was deprecated in January 2026. Existing dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 
@@ -293,7 +293,7 @@ Location: `~/.local/share/faceid/config.json`
   },
   "backend_thresholds": {
     "insightface": {
-      "match_threshold": 0.4,
+      "match_threshold": 0.45,
       "ignore_distance": 0.35,
       "hard_negative_distance": 0.32
     }
@@ -305,7 +305,9 @@ Location: `~/.local/share/faceid/config.json`
 
 > Match/ignore/hard-negative thresholds live only in `backend_thresholds.<backend>`
 > (single source of truth, per distance metric). Legacy top-level flat threshold keys
-> are migrated away on load (`config_version` → 2). See [Database](database.md#config).
+> are migrated away on load (`config_version` → 2), and an audit-era InsightFace
+> `match_threshold` of exactly 0.40 is raised to 0.45 (`config_version` → 3). See
+> [Database](database.md#config).
 
 ### Frontend Config
 

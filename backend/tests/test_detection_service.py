@@ -77,7 +77,7 @@ def _known_entry(vec, backend="insightface"):
 # --------------------------------------------------------------------------
 # Thresholds now come from the single source of truth shared with the CLI:
 # _get_backend_thresholds(config, backend). With an empty config the insightface
-# (cosine) backend yields the canonical defaults match_threshold=0.4,
+# (cosine) backend yields the canonical defaults match_threshold=0.45,
 # ignore_distance=0.35; prefer_name_margin defaults to 0.15.
 
 def _case(name_dist, ignore_dist, config=None):
@@ -89,10 +89,10 @@ def test_match_case_unknown_when_no_distances():
 
 
 def test_match_case_unknown_when_above_thresholds():
-    # A name match at 0.45 is beyond the cosine match_threshold (0.4) -> not a
-    # hit. This is the "uncertain band" [0.4, ...): no auto-fill here, but the
+    # A name match at 0.50 is beyond the cosine match_threshold (0.45) -> not a
+    # hit. This is the "uncertain band" [0.45, ...): no auto-fill here, but the
     # person still surfaces via match_alternatives.
-    assert _case(0.45, None) == "unknown"
+    assert _case(0.50, None) == "unknown"
 
 
 def test_match_case_name_only():
@@ -104,13 +104,13 @@ def test_match_case_ignore_only():
 
 
 def test_match_case_name_clearly_better():
-    # name hits (0.20 < 0.4); ignore misses (0.45 >= 0.35) -> confident name.
+    # name hits (0.20 < 0.45); ignore misses (0.45 >= 0.35) -> confident name.
     assert _case(0.20, 0.45) == "name"
 
 
 def test_match_case_ignore_clearly_better():
-    # name misses (0.45 >= 0.4); ignore hits (0.20 < 0.35) -> confident ign.
-    assert _case(0.45, 0.20) == "ign"
+    # name misses (0.50 >= 0.45); ignore hits (0.20 < 0.35) -> confident ign.
+    assert _case(0.50, 0.20) == "ign"
 
 
 def test_match_case_uncertain_name_when_close_and_name_nearer():
@@ -141,10 +141,10 @@ def test_match_case_honors_backend_thresholds():
 
 def test_match_case_ignores_legacy_flat_keys():
     # Stale euclidean-era flat keys must NOT loosen cosine matching: with only a
-    # flat match_threshold=0.6 set, a 0.45 name distance is still "unknown"
-    # because the canonical cosine default (0.4) governs.
+    # flat match_threshold=0.6 set, a 0.50 name distance is still "unknown"
+    # because the canonical cosine default (0.45) governs.
     cfg = {"match_threshold": 0.6, "ignore_distance": 0.5}
-    assert _case(0.45, None, cfg) == "unknown"
+    assert _case(0.50, None, cfg) == "unknown"
 
 
 # --------------------------------------------------------------------------

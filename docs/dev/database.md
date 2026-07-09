@@ -195,7 +195,7 @@ User configuration overrides.
     },
     "backend_thresholds": {
         "insightface": {
-            "match_threshold": 0.4,
+            "match_threshold": 0.45,
             "ignore_distance": 0.35,
             "hard_negative_distance": 0.32
         }
@@ -207,7 +207,7 @@ User configuration overrides.
     "max_fullres_px": 8000,
     "image_viewer_app": "Ansikten",
     "trash_retention_days": 30,
-    "config_version": 2
+    "config_version": 3
 }
 ```
 
@@ -218,7 +218,7 @@ User configuration overrides.
 | `detection_model` | `"hog"` | `"hog"` (fast) or `"cnn"` (accurate) |
 | `backend.type` | `"insightface"` | InsightFace (512-dim, cosine distance) |
 | `backend.insightface.det_size` | `[640, 640]` | Detection input size (letterbox target the whole image is resized to before SCRFD detection). Raising it is a supported knob that can surface smaller faces (team/wide shots) at ~quadratic detection cost — local measurement of 640 vs 1280 was recall-neutral, so the default stays 640 pending benchmark-track ground truth (B3). Accepts `[w, h]` or a single int (square). Absent key = default applies. |
-| `backend_thresholds.<backend>.match_threshold` | `0.4` (insightface) | **Single source of truth** for the match distance. A name is auto-filled only below this cosine distance. |
+| `backend_thresholds.<backend>.match_threshold` | `0.45` (insightface) | **Single source of truth** for the match distance. A name is auto-filled only below this cosine distance. Raised 0.40 → 0.45 in the face-recognition audit (2026-07): halves the "unknown" rate at zero measured false-accept cost. See the "alternatives band" note below. |
 | `backend_thresholds.<backend>.ignore_distance` | `0.35` (insightface) | Distance below which a face is proposed as "ign". |
 | `backend_thresholds.<backend>.hard_negative_distance` | `0.32` (insightface) | Distance below which a confirmed hard negative suppresses a person. |
 | `prefer_name_margin` | `0.15` | A name must beat "ign" by this margin to win automatically. |
@@ -227,17 +227,28 @@ User configuration overrides.
 | `trash_retention_days` | `30` | Auto-purge culling-trash files older than N days (`0` = keep forever). Editable under Preferences → Files → Trash (Gallra). |
 | `twin_margin` | `0.1` | When the top-2 candidates are a confirmed-distinct pair within this cosine distance, break the tie with a k-NN vote. |
 | `twin_knn_k` | `5` | Neighbours in the twin-disambiguation k-NN vote (effective `k = min(this, photos per person)`). |
-| `config_version` | `2` | Config schema version; bumped by migrations in `core/config._migrate_config`. |
+| `config_version` | `3` | Config schema version; bumped by migrations in `core/config._migrate_config`. v2 moved thresholds into `backend_thresholds`; v3 raised the InsightFace `match_threshold` 0.40 → 0.45 (only when it was exactly the audit-era 0.40 — a customized value is left untouched). |
 
 > **Thresholds — single source of truth.** Match/ignore/hard-negative distances live
 > **only** in `backend_thresholds.<backend>` (per backend, per distance metric). The legacy
 > top-level flat keys `match_threshold`/`ignore_distance`/`hard_negative_distance` were
 > euclidean-era (dlib) values and are no longer consulted — with InsightFace's cosine metric a
-> stale `0.6` would match almost anything. On load, a one-time migration (`config_version` → 2)
-> moves such legacy configs onto the canonical cosine thresholds and drops the flat keys; the
-> wrong-metric values are **not** carried forward. Faces in the "uncertain band" just above
-> `match_threshold` are not auto-assigned but still surface the nearest person in the review
-> alternatives list.
+> stale `0.6` would match almost anything. On load, a one-time migration moves such legacy
+> configs onto the canonical cosine thresholds and drops the flat keys (`config_version` → 2);
+> a follow-up step raises an audit-era `match_threshold` of exactly `0.40` to `0.45`
+> (`config_version` → 3). The wrong-metric values are **not** carried forward, and a
+> user-customized `match_threshold` (anything other than exactly `0.40`) is left untouched.
+>
+> **Alternatives band (cosine `0.45`–`0.50`).** Auto-fill of a name requires the nearest
+> encoding to be *strictly below* `match_threshold` (`0.45`). The review alternatives list
+> (`_match_encoding_alternatives`), however, is the top-N nearest people ranked by distance —
+> it is **not** gated by `match_threshold` (only confirmed hard negatives below
+> `hard_negative_distance` are dropped). So for a nearest distance in `[0.45, 0.50)` the face
+> is **not** auto-assigned (falls through `_determine_match_case` to `unknown`), yet the nearest
+> person still appears as a one-click review suggestion because its confidence
+> `(1 − distance)·100` is still at or above `min_confidence` (`0.5`, i.e. distance ≤ `0.50`).
+> Above `0.50` the nearest person's confidence drops below `min_confidence` and it is no longer
+> a credible suggestion. This band is where the reviewer, not the auto-filler, makes the call.
 
 > **Note:** dlib backend is deprecated since January 2026. Existing dlib encodings are left in place; remove them on demand with `scripts/archive/rensa_dlib.py` or the remove-dlib refinement endpoint.
 

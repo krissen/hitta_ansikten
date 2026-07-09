@@ -190,6 +190,11 @@ So the pair-level curve is the wrong operating curve. The right one is an
 
 ### App-level sweep (buffalo_l, nearest-person, rank-1 gated)
 
+> As of this report's generation, the sweep basis was **N = 2,920 cached
+> embeddings** (non-twin basis N = 2,815). The live cache has since grown to
+> 2,923 embeddings; the non-twin basis of 2,815 is stable, so the percentages
+> below are unchanged.
+
 Computed from the committed embeddings under `_data/emb/buffalo_l/` joined to
 `report.csv`; `correct` = nearest is the right person and within threshold
 (auto-fill), `false auto-fill` = nearest is the *wrong* person and within
