@@ -262,7 +262,7 @@ def test_mutation_invalidates_index_confirm_then_match():
     assert before_name != "Zoe"
 
     # Confirm the probe itself as a brand-new person via the real write path.
-    svc.encoding_cache["face_new"] = (probe, {"x": 0, "y": 0, "width": 1, "height": 1}, "hash")
+    svc.encoding_cache["face_new"] = (probe, {"x": 0, "y": 0, "width": 1, "height": 1}, "hash", None)
     version_before = svc.store.version
     svc._confirm_identity_nosave("face_new", "Zoe", "/tmp/img.jpg")
     assert svc.store.version > version_before  # mutation bumped the version

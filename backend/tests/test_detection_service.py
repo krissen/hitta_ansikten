@@ -280,7 +280,7 @@ def test_cached_detection_meta_missing_returns_empty(tmp_path, monkeypatch):
 def test_reload_database_clears_caches_and_reports_store_counts():
     svc = _service()
     svc.cache["k"] = {"faces": []}
-    svc.encoding_cache["face_0"] = (np.array([1.0]), {}, "h")
+    svc.encoding_cache["face_0"] = (np.array([1.0]), {}, "h", None)
     svc.image_cache["/img"] = (np.zeros((1, 1, 3)), 0.0)
 
     # Simulate the store having reloaded fresh data from disk.
@@ -308,11 +308,12 @@ def test_reload_database_clears_caches_and_reports_store_counts():
 def test_confirm_detected_face_writes_entry():
     svc = _service()
     encoding = np.array([1.0, 2.0, 3.0])
-    svc.encoding_cache["face_0"] = (encoding, {"x": 1, "y": 2, "width": 3, "height": 4}, "filehash123")
+    svc.encoding_cache["face_0"] = (encoding, {"x": 1, "y": 2, "width": 3, "height": 4}, "filehash123", None)
 
     out = svc._confirm_identity_nosave("face_0", "Alice", "/photos/a.NEF")
 
-    assert out == {"status": "success", "person_name": "Alice", "encodings_count": 1}
+    assert out == {"status": "success", "person_name": "Alice",
+                   "encodings_count": 1, "enrolled": True}
     entry = svc.known_faces["Alice"][0]
     assert entry["hash"] == "filehash123"  # cached file hash reused
     assert entry["file"] == "/photos/a.NEF"
@@ -328,7 +329,7 @@ def test_confirm_detected_face_writes_entry():
 def test_confirm_with_correction_records_hard_negative():
     svc = _service()
     encoding = np.array([1.0, 2.0])
-    svc.encoding_cache["face_0"] = (encoding, {"x": 0, "y": 0, "width": 1, "height": 1}, "h")
+    svc.encoding_cache["face_0"] = (encoding, {"x": 0, "y": 0, "width": 1, "height": 1}, "h", None)
 
     svc._confirm_identity_nosave("face_0", "Bob", "/photos/x.NEF", suggested_name="Alice")
 
@@ -344,7 +345,7 @@ def test_confirm_with_correction_records_hard_negative():
 def test_confirm_same_suggestion_no_hard_negative():
     svc = _service()
     encoding = np.array([1.0])
-    svc.encoding_cache["face_0"] = (encoding, {}, "h")
+    svc.encoding_cache["face_0"] = (encoding, {}, "h", None)
     svc._confirm_identity_nosave("face_0", "Alice", "/p.NEF", suggested_name="Alice")
     assert svc.hard_negatives == {}
 
@@ -388,8 +389,8 @@ async def test_batch_confirm_mutates_per_face_and_flushes_once():
     store = RecordingStore(svc)
     svc.store = store
     enc = np.array([1.0, 2.0])
-    svc.encoding_cache["face_0"] = (enc, {}, "h0")
-    svc.encoding_cache["face_1"] = (enc, {}, "h1")
+    svc.encoding_cache["face_0"] = (enc, {}, "h0", None)
+    svc.encoding_cache["face_1"] = (enc, {}, "h1", None)
 
     result = await svc.batch_confirm(
         confirmations=[
@@ -411,7 +412,7 @@ async def test_single_confirm_schedules_save_without_flush():
     store = RecordingStore(svc)
     svc.store = store
     enc = np.array([3.0, 4.0])
-    svc.encoding_cache["face_0"] = (enc, {"x": 0, "y": 0, "width": 1, "height": 1}, "h")
+    svc.encoding_cache["face_0"] = (enc, {"x": 0, "y": 0, "width": 1, "height": 1}, "h", None)
 
     out = await svc.confirm_identity("face_0", "Alice", "/a.NEF")
 
