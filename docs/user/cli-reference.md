@@ -280,7 +280,7 @@ Inställningar i `~/.local/share/faceid/config.json`:
   },
   "backend_thresholds": {
     "insightface": {
-      "match_threshold": 0.4,
+      "match_threshold": 0.45,
       "ignore_distance": 0.35,
       "hard_negative_distance": 0.32
     }
@@ -294,7 +294,7 @@ Inställningar i `~/.local/share/faceid/config.json`:
 |--------|----------|-------------|
 | `detection_model` | `"hog"` | `"hog"` (snabb) eller `"cnn"` (noggrann) |
 | `backend.type` | `"insightface"` | InsightFace (512-dim, cosine distance) |
-| `backend_thresholds.<backend>.match_threshold` | `0.4` (insightface) | Tröskel för matchning (lägre = striktare). Enda sanningskällan — de gamla platta nycklarna `match_threshold`/`ignore_distance` används inte längre (fel distansmetrik) och migreras bort vid laddning. |
+| `backend_thresholds.<backend>.match_threshold` | `0.45` (insightface) | Tröskel för matchning (lägre = striktare). Höjd 0,40 → 0,45 i ansiktsigenkänningsauditen (2026-07). Enda sanningskällan — de gamla platta nycklarna `match_threshold`/`ignore_distance` används inte längre (fel distansmetrik) och migreras bort vid laddning. |
 | `auto_ignore` | `false` | Auto-ignorera omatchade ansikten |
 | `image_viewer_app` | `"Ansikten"` | Extern app för förhandsvisning |
 
