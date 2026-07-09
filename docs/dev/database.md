@@ -206,6 +206,12 @@ User configuration overrides.
     "max_midsample_px": 4500,
     "max_fullres_px": 8000,
     "image_viewer_app": "Ansikten",
+    "enrollment_quality": {
+        "enabled": true,
+        "min_confidence": 0.60,
+        "min_crop_px": 60,
+        "min_sharpness": 15.0
+    },
     "trash_retention_days": 30,
     "config_version": 3
 }
@@ -227,6 +233,10 @@ User configuration overrides.
 | `trash_retention_days` | `30` | Auto-purge culling-trash files older than N days (`0` = keep forever). Editable under Preferences → Files → Trash (Gallra). |
 | `twin_margin` | `0.1` | When the top-2 candidates are a confirmed-distinct pair within this cosine distance, break the tie with a k-NN vote. |
 | `twin_knn_k` | `5` | Neighbours in the twin-disambiguation k-NN vote (effective `k = min(this, photos per person)`). |
+| `enrollment_quality.enabled` | `true` | Master switch for the enrollment-quality gate (FIQA proxy). When on, a clearly-bad face crop is confirmed but its encoding is withheld from the gallery. Loaded once at startup (no runtime toggle). |
+| `enrollment_quality.min_confidence` | `0.60` | Minimum InsightFace detector confidence (`det_score`) to enroll. **The load-bearing signal** — calibrated on the confirmed DB: `det_score < 0.60` gates 0.5% of enrollments, ~23% of which are rank-1 failures (23× enrichment). See [face-recognition-audit-2026-07.md](face-recognition-audit-2026-07.md). |
+| `enrollment_quality.min_crop_px` | `60` | Minimum shorter box side (full-res px) to enroll. A degenerate-crop floor set *below* the smallest confirmed face (~77 px), so it gates zero historical enrollments — it only guards against future junk (a tiny thumbnail, a bad manual box). |
+| `enrollment_quality.min_sharpness` | `15.0` | Minimum variance-of-Laplacian sharpness to enroll. A near-flat-crop floor set below the confirmed minimum (~18); did **not** predict recognition failure on the confirmed set, so it is a degenerate-crop guard only. |
 | `config_version` | `3` | Config schema version; bumped by migrations in `core/config._migrate_config`. v2 moved thresholds into `backend_thresholds`; v3 raised the InsightFace `match_threshold` 0.40 → 0.45 (only when it was exactly the audit-era 0.40 — a customized value is left untouched). |
 
 > **Thresholds — single source of truth.** Match/ignore/hard-negative distances live
