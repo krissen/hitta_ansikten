@@ -29,6 +29,7 @@ from core.config import load_config
 from core.db import BASE_DIR, get_file_hash
 from core.files import RAW_EXTENSIONS
 from core.matching import _get_backend_thresholds
+from core.quality import GateConfig, QualitySignals, crop_sharpness, evaluate
 from face_backends import create_backend
 
 from .db_store import get_db_store
@@ -82,8 +83,25 @@ class DetectionService:
         # cache is invalidated on the next detect so stale suggestions can't leak.
         self._cache_db_version = self.store.version
 
-        # Face encoding cache (keyed by face_id) — stores (encoding, bbox, file_hash)
-        self.encoding_cache: OrderedDict[str, Tuple[np.ndarray, Dict[str, int], Optional[str]]] = OrderedDict()
+        # Face encoding cache (keyed by face_id) — stores
+        # (encoding, bbox, file_hash, quality) where quality is a dict of the
+        # proxy quality signals captured at detection time (see core.quality).
+        self.encoding_cache: OrderedDict[
+            str, Tuple[np.ndarray, Dict[str, int], Optional[str], Optional[Dict[str, Any]]]
+        ] = OrderedDict()
+
+        # Enrollment-quality gate settings, resolved once at startup from config
+        # (no runtime toggle → no cache implications). Absent config key =
+        # conservative defaults.
+        self._gate_config = GateConfig.from_config(self.config)
+        logger.info(
+            "[DetectionService] Enrollment-quality gate: enabled=%s "
+            "min_confidence=%.2f min_crop_px=%d min_sharpness=%.1f",
+            self._gate_config.enabled,
+            self._gate_config.min_confidence,
+            self._gate_config.min_crop_px,
+            self._gate_config.min_sharpness,
+        )
 
         # Image cache (keyed by image path) — stores (rgb_array, timestamp)
         self.image_cache: OrderedDict[str, Tuple[np.ndarray, float]] = OrderedDict()
@@ -258,11 +276,18 @@ class DetectionService:
         detection_model = self.config.get('detection_model', 'hog')
         upsample = 0  # No upsampling for API (performance)
 
-        face_locations, face_encodings = self.backend.detect_faces(
-            rgb_resized,
-            model=detection_model,
-            upsample=upsample
-        )
+        scored = getattr(self.backend, "detect_faces_scored", None)
+        if callable(scored):
+            face_locations, face_encodings, face_scores = scored(
+                rgb_resized, model=detection_model, upsample=upsample
+            )
+        else:
+            # Backend without a detector-confidence method: fall back to plain
+            # detection with no det_score (the gate skips a missing signal).
+            face_locations, face_encodings = self.backend.detect_faces(
+                rgb_resized, model=detection_model, upsample=upsample
+            )
+            face_scores = [None] * len(face_locations)
         logger.info(f"[DetectionService] Detected {len(face_locations)} faces")
 
         if not face_locations:
@@ -283,6 +308,15 @@ class DetectionService:
                 "width": int((right - left) * scale_factor),
                 "height": int((bottom - top) * scale_factor)
             }
+
+            # Capture proxy quality signals for the enrollment gate while the
+            # pixels are in hand (see core.quality). det_score comes from the
+            # detector; crop_px is the shorter box side in full-res px; sharpness
+            # is variance-of-Laplacian on the detection-space crop.
+            det_score = face_scores[i] if i < len(face_scores) else None
+            quality = self._compute_quality_signals(
+                rgb_resized, location, bbox, det_score
+            )
 
             # Match against known faces
             best_match, best_distance = self._match_encoding(encoding)
@@ -312,8 +346,14 @@ class DetectionService:
             full_encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
             face_id = f"face_{i}_{full_encoding_hash[:16]}"
 
-            # Cache encoding for later confirm/ignore operations (includes file_hash to avoid rehashing)
-            self._lru_put(self.encoding_cache, face_id, (encoding, bbox, file_hash), MAX_ENCODING_CACHE)
+            # Cache encoding for later confirm/ignore operations (includes
+            # file_hash to avoid rehashing and quality signals for the gate)
+            self._lru_put(
+                self.encoding_cache,
+                face_id,
+                (encoding, bbox, file_hash, quality),
+                MAX_ENCODING_CACHE,
+            )
 
             # Calculate ignore confidence
             ignore_confidence = None
@@ -794,10 +834,52 @@ class DetectionService:
 
         return buffer.read()
 
+    def _compute_quality_signals(
+        self,
+        rgb_resized: np.ndarray,
+        location: Tuple[int, int, int, int],
+        bbox: Dict[str, int],
+        det_score: Optional[float],
+    ) -> Dict[str, Any]:
+        """Capture the proxy quality signals for one detected face.
+
+        ``location`` is ``(top, right, bottom, left)`` in ``rgb_resized`` (the
+        detection-space pixels); ``bbox`` is the same box mapped to full-res.
+        Returns a plain dict (JSON/pickle-friendly) so it can live in the
+        encoding cache. Sharpness is measured on the detection-space crop — its
+        absolute scale differs from the benchmark's aligned-112 crop, but the
+        gate only uses it as a near-flat-crop floor, which is scale-robust.
+        """
+        crop_px = int(min(bbox["width"], bbox["height"]))
+
+        sharpness = None
+        try:
+            top, right, bottom, left = location
+            h, w = rgb_resized.shape[:2]
+            y1, y2 = max(0, int(top)), min(h, int(bottom))
+            x1, x2 = max(0, int(left)), min(w, int(right))
+            if y2 > y1 and x2 > x1:
+                sharpness = crop_sharpness(rgb_resized[y1:y2, x1:x2])
+        except Exception as e:  # never let quality measurement break detection
+            logger.debug("[DetectionService] Sharpness computation failed: %s", e)
+
+        return QualitySignals(
+            det_score=det_score, crop_px=crop_px, sharpness=sharpness
+        ).to_dict()
+
+    def _enrollment_gate(self, quality: Optional[Dict[str, Any]]):
+        """Evaluate one face's cached quality against the enrollment gate."""
+        cfg = getattr(self, "_gate_config", None)
+        if cfg is None:
+            # Tests instantiate via __new__ without running __init__; resolve
+            # from config (or conservative defaults) on demand.
+            cfg = GateConfig.from_config(getattr(self, "config", None))
+        return evaluate(QualitySignals.from_dict(quality), cfg)
+
     async def confirm_identity(
-        self, 
-        face_id: str, 
-        person_name: str, 
+        self,
+        face_id: str,
+        person_name: str,
         image_path: str,
         suggested_name: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -857,7 +939,7 @@ class DetectionService:
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
 
-        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        encoding, bbox, cached_hash, quality = self.encoding_cache[face_id]
         self.encoding_cache.move_to_end(face_id)
 
         # Use cached hash if available, otherwise compute
@@ -898,31 +980,53 @@ class DetectionService:
                 "encoding_hash": encoding_hash
             }
 
+        # Enrollment-quality gate: on failure, the confirmation still succeeds
+        # (naming/attempt-log unaffected) but the positive encoding is NOT
+        # enrolled into the gallery. Hard negatives (match-side curation) and
+        # everything else are untouched.
+        gate = self._enrollment_gate(quality)
+
         def add_known(known, ignored, hardneg, processed):
-            if person_name not in known:
-                known[person_name] = []
-            known[person_name].append(entry)
+            if gate.passed:
+                if person_name not in known:
+                    known[person_name] = []
+                known[person_name].append(entry)
             if hard_neg_entry is not None:
                 if suggested_name not in hardneg:
                     hardneg[suggested_name] = []
                 hardneg[suggested_name].append(hard_neg_entry)
-            return len(known[person_name])
+            return len(known.get(person_name, []))
 
         # store.mutate schedules the debounced save (leading-coalesce) — the old
         # per-face _schedule_save cadence; no synchronous flush here.
-        # Touches known always; hardneg only when the user corrected a suggestion.
-        touches = {"known"} | ({"hardneg"} if hard_neg_entry is not None else set())
-        count = self.store.mutate(add_known, touches=touches)
+        # Touches known only when enrolled; hardneg only on a corrected suggestion.
+        touches = ({"known"} if gate.passed else set()) | (
+            {"hardneg"} if hard_neg_entry is not None else set()
+        )
+        count = self.store.mutate(add_known, touches=touches) if touches else self.store.read(
+            lambda known, ignored, hardneg, processed: len(known.get(person_name, []))
+        )
         if hard_neg_entry is not None:
             logger.info(f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})")
 
-        logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {count})")
+        if gate.passed:
+            logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {count})")
+        else:
+            logger.info(
+                "[DetectionService] Enrollment gated for %s (not enrolled): "
+                "failing=%s signals=%s",
+                person_name, ",".join(gate.failures), gate.signals.to_dict(),
+            )
 
-        return {
+        result = {
             "status": "success",
             "person_name": person_name,
-            "encodings_count": count
+            "encodings_count": count,
+            "enrolled": gate.passed,
         }
+        if not gate.passed:
+            result["quality_note"] = gate.note_sv()
+        return result
 
     async def ignore_face(self, face_id: str, image_path: str) -> Dict[str, Any]:
         """
@@ -952,7 +1056,7 @@ class DetectionService:
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
 
-        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        encoding, bbox, cached_hash, _quality = self.encoding_cache[face_id]
         self.encoding_cache.move_to_end(face_id)
 
         # Use cached hash if available, otherwise compute
@@ -1039,7 +1143,7 @@ class DetectionService:
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
 
-        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        encoding, bbox, cached_hash, quality = self.encoding_cache[face_id]
         self.encoding_cache.move_to_end(face_id)
         file_hash = cached_hash
         encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
@@ -1068,21 +1172,38 @@ class DetectionService:
                 "encoding_hash": encoding_hash
             }
 
+        # Enrollment-quality gate (same as confirm_identity): a gated face is
+        # confirmed but its positive encoding is not added to the gallery.
+        gate = self._enrollment_gate(quality)
+
         def add_known(known, ignored, hardneg, processed):
-            if person_name not in known:
-                known[person_name] = []
-            known[person_name].append(entry)
+            if gate.passed:
+                if person_name not in known:
+                    known[person_name] = []
+                known[person_name].append(entry)
             if hard_neg_entry is not None:
                 if suggested_name not in hardneg:
                     hardneg[suggested_name] = []
                 hardneg[suggested_name].append(hard_neg_entry)
-            return len(known[person_name])
+            return len(known.get(person_name, []))
 
-        # Touches known always; hardneg only when the user corrected a suggestion.
-        touches = {"known"} | ({"hardneg"} if hard_neg_entry is not None else set())
-        count = self.store.mutate(add_known, touches=touches)
-        return {"status": "success", "person_name": person_name,
-                "encodings_count": count}
+        touches = ({"known"} if gate.passed else set()) | (
+            {"hardneg"} if hard_neg_entry is not None else set()
+        )
+        count = self.store.mutate(add_known, touches=touches) if touches else self.store.read(
+            lambda known, ignored, hardneg, processed: len(known.get(person_name, []))
+        )
+        if not gate.passed:
+            logger.info(
+                "[DetectionService] Enrollment gated for %s (not enrolled): "
+                "failing=%s signals=%s",
+                person_name, ",".join(gate.failures), gate.signals.to_dict(),
+            )
+        result = {"status": "success", "person_name": person_name,
+                  "encodings_count": count, "enrolled": gate.passed}
+        if not gate.passed:
+            result["quality_note"] = gate.note_sv()
+        return result
 
     def _ignore_face_nosave(self, face_id: str, image_path: str) -> Dict[str, Any]:
         """In-memory ignore, scheduling the store's debounced save. Returns result dict."""
@@ -1095,7 +1216,7 @@ class DetectionService:
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
 
-        encoding, bbox, cached_hash = self.encoding_cache[face_id]
+        encoding, bbox, cached_hash, _quality = self.encoding_cache[face_id]
         self.encoding_cache.move_to_end(face_id)
         file_hash = cached_hash
         encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()

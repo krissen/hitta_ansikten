@@ -139,9 +139,24 @@ Confirm face identity and save to database.
 {
   "status": "success",
   "person_name": "Anna",
-  "encodings_count": 12
+  "encodings_count": 12,
+  "enrolled": true,
+  "quality_note": null
 }
 ```
+
+`enrolled` is `false` when the **enrollment-quality gate** (FIQA proxy) withheld
+the encoding from the gallery because the crop was clearly low quality (e.g. low
+detector confidence). The confirmation still succeeds — naming, file rename and
+the attempt log are unaffected, and the match path is never touched — but the
+encoding is not added to `encodings.pkl`. When gated, `quality_note` carries a
+Swedish string explaining why (e.g. "Namnet sparades, men ansiktet lades inte
+till i ansiktsbanken (låg detektionssäkerhet)."). Manual faces bypass the gate
+(they carry no encoding). Configured under `enrollment_quality` — see
+[database.md](database.md). `batch-confirm` applies the same gate but its
+response returns only aggregate counts (a gated face still counts as a
+successful confirmation); the per-face `enrolled`/`quality_note` are logged at
+INFO, not surfaced per item.
 
 ### `POST /api/v1/ignore-face`
 

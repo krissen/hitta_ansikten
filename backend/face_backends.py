@@ -69,6 +69,21 @@ class FaceBackend(ABC):
         """
         pass
 
+    def detect_faces_scored(
+        self, rgb_image: np.ndarray, model: str, upsample: int
+    ) -> tuple[list, list[np.ndarray], list]:
+        """Detect faces and also return a per-face detector confidence.
+
+        Returns ``(face_locations, face_encodings, det_scores)`` where
+        ``det_scores[i]`` is the detector's confidence for face ``i`` (used by
+        the enrollment-quality gate), or ``None`` when the backend does not
+        expose one. The default implementation wraps :meth:`detect_faces` with
+        ``None`` scores; backends that have a detector confidence (InsightFace)
+        override this and keep the ordering consistent with ``detect_faces``.
+        """
+        locations, encodings = self.detect_faces(rgb_image, model, upsample)
+        return locations, encodings, [None] * len(locations)
+
     @abstractmethod
     def compute_distance(self, encoding1: np.ndarray, encoding2: np.ndarray) -> float:
         """Compute distance between two encodings."""
@@ -302,6 +317,19 @@ class InsightFaceBackend(FaceBackend):
         Returns:
             (face_locations, face_encodings)
         """
+        locations, encodings, _ = self.detect_faces_scored(rgb_image, model, upsample)
+        return locations, encodings
+
+    def detect_faces_scored(
+        self, rgb_image: np.ndarray, model: str, upsample: int
+    ) -> tuple[list, list[np.ndarray], list]:
+        """Detect faces and also return each face's SCRFD detector confidence.
+
+        Returns ``(face_locations, face_encodings, det_scores)`` in the same
+        left-edge-sorted order as :meth:`detect_faces`. ``det_scores[i]`` is the
+        InsightFace ``det_score`` (a float in ~[0, 1]) used by the
+        enrollment-quality gate.
+        """
         # InsightFace expects BGR
         bgr_image = rgb_image[:, :, ::-1].copy()
 
@@ -314,11 +342,12 @@ class InsightFaceBackend(FaceBackend):
                 raise
             # Return empty results for recoverable errors
             logging.error(f"[InsightFaceBackend] Face detection failed: {e}")
-            return [], []
+            return [], [], []
 
         # Convert to dlib-compatible format
         locations = []
         encodings = []
+        det_scores = []
 
         for face in faces:
             # InsightFace bbox is [x1, y1, x2, y2]
@@ -331,14 +360,18 @@ class InsightFaceBackend(FaceBackend):
             embedding = face.normed_embedding
             encodings.append(embedding)
 
-        # Sort by left edge for consistency
-        if locations:
-            sorted_pairs = sorted(zip(locations, encodings), key=lambda p: p[0][3])
-            locations, encodings = zip(*sorted_pairs)
-            locations = list(locations)
-            encodings = list(encodings)
+            # Detector confidence (may be absent on exotic model builds)
+            score = getattr(face, "det_score", None)
+            det_scores.append(float(score) if score is not None else None)
 
-        return locations, encodings
+        # Sort by left edge for consistency (keep scores aligned with faces)
+        if locations:
+            sorted_triples = sorted(
+                zip(locations, encodings, det_scores), key=lambda p: p[0][3]
+            )
+            locations, encodings, det_scores = (list(t) for t in zip(*sorted_triples))
+
+        return locations, encodings, det_scores
 
     def compute_distance(self, encoding1: np.ndarray, encoding2: np.ndarray) -> float:
         """
