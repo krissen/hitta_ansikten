@@ -419,9 +419,17 @@ cached embeddings, not from the CSV alone.
 - **FIQA enrollment-gating (optional PR).** Gate enrollment on face-image
   quality so low-quality crops never enter the gallery — a cleaner lever than
   chasing the last recognition points.
-- **CoreML / GPU timing measurement (optional PR).** Current timings are
-  CPU-only and informational; measure the accelerated path before any
-  performance claims.
+- **CoreML / GPU timing measurement — DONE (2026-07-09).** Measured via
+  `backend/benchmarks/bench_providers.py` (CPU vs CoreML over 24 NEF / 78 faces).
+  Finding: insightface's `prepare(ctx_id=-1)` resets every session to CPU, so the
+  app **always ran on CPU** on macOS despite requesting CoreML — now surfaced by
+  actual-provider logging in `face_backends.py`. CoreML accelerates compute
+  (embed 14.5×, detect 1.9×) but RAW decode dominates (~14 % end-to-end) **and**
+  drifts recognition embeddings (min cosine 0.9954 < the 0.999 stability gate).
+  **Recommendation: stay on CPU/FP32.** Numbers + rationale in
+  [backend/benchmarks/README.md](../../backend/benchmarks/README.md) ("CoreML vs
+  CPU provider measurement"). Any SessionOptions / compute-unit tuning is a
+  separate future decision.
 - **Larger YOLO detector A/B (B6+).** Only if detection ever becomes the
   bottleneck — it is not at ~99.8% effective recall.
 - **Open-set false-accept sweep at the operating distance** — cheap follow-up if
