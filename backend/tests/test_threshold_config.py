@@ -164,6 +164,89 @@ def test_migration_noop_without_flat_keys():
 
 
 # --------------------------------------------------------------------------
+# _migrate_config — v3 match_threshold 0.40 -> 0.45 (face-recognition audit)
+# --------------------------------------------------------------------------
+
+def _audit_era_config():
+    # The owner's live v2 config: canonical block pinned to the audit-era 0.40.
+    return {
+        "backend_thresholds": {
+            "insightface": {
+                "match_threshold": 0.4,
+                "ignore_distance": 0.35,
+                "hard_negative_distance": 0.32,
+            }
+        },
+        "config_version": 2,
+    }
+
+
+def test_migration_v3_raises_audit_era_threshold():
+    raw, changed = _migrate_config(_audit_era_config())
+
+    assert changed is True
+    assert raw["backend_thresholds"]["insightface"]["match_threshold"] == 0.45
+    # Sibling thresholds are left untouched.
+    assert raw["backend_thresholds"]["insightface"]["ignore_distance"] == 0.35
+    assert raw["backend_thresholds"]["insightface"]["hard_negative_distance"] == 0.32
+    assert raw["config_version"] == CONFIG_VERSION
+
+
+def test_migration_v3_leaves_custom_threshold_untouched():
+    # A user-customized value (0.42) is NOT the audit-era default -> not lifted.
+    cfg = {
+        "backend_thresholds": {
+            "insightface": {
+                "match_threshold": 0.42,
+                "ignore_distance": 0.35,
+                "hard_negative_distance": 0.32,
+            }
+        },
+        "config_version": 2,
+    }
+    raw, changed = _migrate_config(dict(cfg))
+
+    assert changed is False
+    assert raw["backend_thresholds"]["insightface"]["match_threshold"] == 0.42
+
+
+def test_migration_v3_is_idempotent():
+    once, changed1 = _migrate_config(_audit_era_config())
+    twice, changed2 = _migrate_config(once)
+
+    assert changed1 is True
+    assert changed2 is False
+    assert twice["backend_thresholds"]["insightface"]["match_threshold"] == 0.45
+
+
+def test_migration_v3_noop_when_already_current():
+    # A config already at the current canonical 0.45 needs no migration.
+    cfg = {
+        "backend_thresholds": {
+            "insightface": dict(COSINE_DEFAULT_THRESHOLDS),
+        },
+        "config_version": CONFIG_VERSION,
+    }
+    raw, changed = _migrate_config(dict(cfg))
+
+    assert changed is False
+    assert raw["backend_thresholds"]["insightface"]["match_threshold"] == 0.45
+
+
+def test_load_config_fresh_default_already_at_045(tmp_path, monkeypatch):
+    # A fresh default config is written at 0.45 and needs no migration.
+    cfg_path = tmp_path / "config.json"
+    monkeypatch.setattr(config_mod, "CONFIG_PATH", cfg_path)
+    monkeypatch.setattr(config_mod, "BASE_DIR", tmp_path)
+
+    merged = load_config()
+
+    assert merged["backend_thresholds"]["insightface"]["match_threshold"] == 0.45
+    on_disk = json.loads(cfg_path.read_text(encoding="utf-8"))
+    assert on_disk["backend_thresholds"]["insightface"]["match_threshold"] == 0.45
+
+
+# --------------------------------------------------------------------------
 # load_config persistence
 # --------------------------------------------------------------------------
 

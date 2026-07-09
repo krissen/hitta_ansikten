@@ -44,7 +44,7 @@ MatchStatusResult = tuple[str, str]
 # one-time config migration in core/config.py, which rewrites them into a
 # backend_thresholds block with correct-metric values.
 COSINE_DEFAULT_THRESHOLDS: ThresholdsDict = {
-    'match_threshold': 0.4,
+    'match_threshold': 0.45,
     'ignore_distance': 0.35,
     'hard_negative_distance': 0.32,
 }

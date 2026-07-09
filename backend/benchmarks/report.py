@@ -220,14 +220,14 @@ def _render_model(r: ModelResult) -> list[str]:
         L.append(f"- Empirical F1 optimum at distance **{o.distance:.2f}** "
                  f"(precision {_pct(o.precision)}, recall {_pct(o.recall)}, "
                  f"FAR {_pct(o.far)}, FRR {_pct(o.frr)})")
-    L.append("- App defaults: match_threshold **0.40**, ignore_distance **0.35**")
+    L.append("- App defaults: match_threshold **0.45**, ignore_distance **0.35**")
     L.append("")
     L.append("| Distance | Precision | Recall | FAR | FRR |")
     L.append("|---:|---:|---:|---:|---:|")
     marks = {0.30, 0.35, 0.40, 0.45, 0.50, 0.60}
     for p in r.sweep:
         if round(p.distance, 2) in marks:
-            tag = " ⟵ app" if round(p.distance, 2) in (0.35, 0.40) else ""
+            tag = " ⟵ app" if round(p.distance, 2) in (0.35, 0.45) else ""
             L.append(f"| {p.distance:.2f}{tag} | {_pct(p.precision)} | {_pct(p.recall)} | "
                      f"{_pct(p.far)} | {_pct(p.frr)} |")
     L.append("")

@@ -56,8 +56,15 @@ WORKER_TERMINATE_TIMEOUT = 5  # seconds - timeout after terminate before kill
 
 # Config schema version. Incremented when a structural migration is added to
 # _migrate_config(). v2 moved match/ignore/hard-negative thresholds out of the
-# top-level flat keys into backend_thresholds.<backend>.
-CONFIG_VERSION = 2
+# top-level flat keys into backend_thresholds.<backend>. v3 raised the canonical
+# InsightFace match_threshold 0.40 -> 0.45 (face-recognition audit 2026-07) for
+# configs still pinned to the audit-era 0.40.
+CONFIG_VERSION = 3
+
+# Audit-era (v2) canonical InsightFace match_threshold. The v3 migration lifts
+# exactly this value to the current canonical default; any other (user-customized)
+# value is left untouched.
+_V2_INSIGHTFACE_MATCH_THRESHOLD = 0.4
 
 # Legacy euclidean-era (dlib) threshold keys that older configs kept at the top
 # level. They must not drive InsightFace (cosine) matching; _migrate_config()
@@ -158,7 +165,7 @@ DEFAULT_CONFIG = {
             "hard_negative_distance": 0.45
         },
         "insightface": {
-            "match_threshold": 0.4,  # Cosine distance threshold (typically lower)
+            "match_threshold": 0.45,  # Cosine distance threshold (typically lower)
             "ignore_distance": 0.35,
             "hard_negative_distance": 0.32
         }
@@ -224,7 +231,13 @@ def _migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     flat values (euclidean-era, e.g. match_threshold=0.6) are deliberately NOT
     copied forward — they are wrong-metric for InsightFace and would match far
     too loosely. A config that already has ``backend_thresholds.insightface`` is
-    left untouched, so re-running is a no-op.
+    left untouched by this step, so re-running is a no-op.
+
+    v3 threshold migration: if the config's
+    ``backend_thresholds.insightface.match_threshold`` is exactly the audit-era
+    0.40, raise it to the current canonical 0.45 (face-recognition audit 2026-07).
+    Only the exact 0.40 default is lifted — a user-customized value (e.g. 0.42) is
+    left untouched. Idempotent: a config already at 0.45 is a no-op.
 
     Args:
         raw: Config dict as read from disk (mutated in place).
@@ -250,14 +263,39 @@ def _migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         raw["config_version"] = CONFIG_VERSION
         changed = True
         logging.info(
-            "Config migration v%d: pinned canonical InsightFace cosine thresholds "
+            "Config migration: pinned canonical InsightFace cosine thresholds "
             "(match=%.2f ignore=%.2f hard_negative=%.2f) and removed legacy flat "
             "threshold keys.",
-            CONFIG_VERSION,
             canonical["match_threshold"],
             canonical["ignore_distance"],
             canonical["hard_negative_distance"],
         )
+    else:
+        # v3: lift an existing insightface block still pinned to the audit-era
+        # 0.40 default up to the new canonical 0.45. Runs only when the v2 step
+        # above did not (a v2 rewrite already writes the current 0.45 canonical).
+        insightface = (
+            backend_thresholds.get("insightface")
+            if isinstance(backend_thresholds, dict)
+            else None
+        )
+        if (
+            isinstance(insightface, dict)
+            and insightface.get("match_threshold") == _V2_INSIGHTFACE_MATCH_THRESHOLD
+        ):
+            new_threshold = DEFAULT_CONFIG["backend_thresholds"]["insightface"][
+                "match_threshold"
+            ]
+            insightface["match_threshold"] = new_threshold
+            raw["config_version"] = CONFIG_VERSION
+            changed = True
+            logging.info(
+                "Config migration v3: raised InsightFace match_threshold %.2f -> "
+                "%.2f (face-recognition audit 2026-07); a user-customized value "
+                "would have been left untouched.",
+                _V2_INSIGHTFACE_MATCH_THRESHOLD,
+                new_threshold,
+            )
 
     return raw, changed
 
