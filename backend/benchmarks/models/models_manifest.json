@@ -4,15 +4,15 @@
       "source_checkpoint_repo": "marcelo-victor/adaface_ir101_webface12m",
       "source_checkpoint_file": "adaface_weights.ckpt",
       "authoritative_source": "https://drive.google.com/file/d/1dswnavflETcnAuplZj1IOKKP0eM8ITgT/view (github.com/mk-minchul/AdaFace, adaface_ir101_webface12m.ckpt)",
-      "checkpoint_sha256": null,
-      "onnx_sha256": null,
+      "checkpoint_sha256": "0e7a3238d2a50f3fe3860782534928ac7cb2598977cf897f6869fd5ac2493fd0",
+      "onnx_sha256": "cd84ca152438d407206c65770191418c712828c1dc50ae3c5bf8cd8b9a9ab4a5",
       "onnx_opset": 17,
       "license": "MIT",
       "dim": 512,
       "preprocessing": "112x112 aligned crop; BGR (no swap); NCHW float32; (x-127.5)/127.5; embedding L2-normed by the net, caller re-L2-normalizes",
       "architecture": "IR-101 (vendored _adaface_ir101_net.py, MIT)",
       "local_path": "_data/models/adaface_ir101/adaface_ir101.onnx",
-      "note": "AdaFace has no official ONNX. Export locally with `python -m benchmarks.models.export_adaface` on a networked machine; that fills checkpoint_sha256 + onnx_sha256 here."
+      "note": "Exported locally from the PyTorch checkpoint; no official ONNX exists."
     },
     "lvface_base": {
       "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-B_Glint360K/LVFace-B_Glint360K.onnx",
