@@ -250,7 +250,15 @@ class InsightFaceBackend(FaceBackend):
             self.ctx_id = ctx_id
             self.det_size = det_size
 
-            logging.info(f"[InsightFaceBackend] Initialized successfully with providers: {providers}")
+            logging.info(f"[InsightFaceBackend] Initialized successfully with requested providers: {providers}")
+
+            # Log the providers ACTUALLY bound to each ONNX session. This can
+            # differ from the requested list: insightface's own prepare(ctx_id<0)
+            # resets every session to CPU-only, and onnxruntime silently drops a
+            # provider whose EP fails to initialize. Logging the real binding
+            # makes silent CPU-fallback visible in every run instead of hidden
+            # behind the requested list. See docs/dev/face-recognition-audit-2026-07.md.
+            self._log_actual_providers()
 
         except ImportError as e:
             # Dump captured output to help diagnose import failures
@@ -374,6 +382,37 @@ class InsightFaceBackend(FaceBackend):
         # Return zero vector as-is (edge case: all-zero encoding)
         logging.warning("[InsightFaceBackend] Encoding has zero norm, returning as-is")
         return encoding
+
+    def _actual_providers(self) -> dict[str, list[str]]:
+        """Return the onnxruntime providers actually bound to each model session.
+
+        InsightFace loads one ONNX model per task (``detection``,
+        ``recognition``, ...) under ``self.app.models``; each exposes its
+        ``onnxruntime.InferenceSession`` as ``.session``. ``get_providers()``
+        reports the execution providers that were successfully registered, in
+        priority order — which is the ground truth for whether CoreML/GPU is in
+        use or the run silently fell back to CPU. Best-effort: any model whose
+        session is unavailable is reported as ``["unknown"]`` rather than raising.
+        """
+        actual: dict[str, list[str]] = {}
+        models = getattr(getattr(self, "app", None), "models", None) or {}
+        for task_name, model in models.items():
+            session = getattr(model, "session", None)
+            try:
+                actual[task_name] = list(session.get_providers()) if session is not None else ["unknown"]
+            except Exception:  # pragma: no cover - defensive, never fail init on this
+                actual[task_name] = ["unknown"]
+        return actual
+
+    def _log_actual_providers(self) -> None:
+        """Log the providers actually bound to each model session at INFO.
+
+        Surfaces silent CPU-fallback (see :meth:`_actual_providers`): on macOS
+        the requested CoreML list is reset to CPU by insightface's own
+        ``prepare(ctx_id<0)``, so the requested list alone is misleading.
+        """
+        for task_name, actual in self._actual_providers().items():
+            logging.info(f"[InsightFaceBackend] Actual bound providers [{task_name}]: {actual}")
 
     def get_model_info(self) -> dict:
         """Return InsightFace model metadata."""
