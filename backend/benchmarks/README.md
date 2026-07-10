@@ -376,6 +376,82 @@ with the audit decision report. The end-to-end report lives in
 `_data/report_yolo.md` (gitignored); the full `detect_compare` printout is in
 `_data/b6plus_runs.log`.
 
+## CoreML vs CPU provider measurement (audit follow-up)
+
+Closes the audit's *"CoreML requested but unmeasured"* finding
+([docs/dev/face-recognition-audit-2026-07.md](../../docs/dev/face-recognition-audit-2026-07.md)).
+**Measurement only — no provider/SessionOptions changes to the app.**
+
+- **`bench_providers.py`** — runs the real detect+recognize pipeline over a
+  deterministic NEF sample from `~/.local/share/faceid/benchmark_staging/` in two
+  modes: **cpu** (`['CPUExecutionProvider']`) and **coreml**
+  (`['CoreMLExecutionProvider','CPUExecutionProvider']`). It reports per-stage
+  wall time (decode / detect / embed, warm-up excluded), the providers
+  **actually bound** in each mode, embedding drift (cosine of the CPU vs CoreML
+  embedding for the *same* CPU-aligned crops — the accuracy gate), and bbox
+  parity (IoU-matched detections between modes). Selection: all `*.NEF` under the
+  root are sorted by path, then `random.Random(seed).sample` picks `--num`; seed
+  and N are recorded in the report header.
+
+```bash
+cd backend
+python -m benchmarks.bench_providers \
+    ~/.local/share/faceid/benchmark_staging --num 24 --seed 1337 \
+    --json _data/bench_providers.json
+```
+
+### The silent CPU-fallback (root cause)
+
+On macOS `face_backends.InsightFaceBackend` **requests**
+`['CoreMLExecutionProvider','CPUExecutionProvider']`, but insightface's own
+`model.prepare(ctx_id=-1, ...)` unconditionally calls
+`session.set_providers(['CPUExecutionProvider'])` for every model when `ctx_id<0`
+(`insightface/model_zoo/scrfd.py`, `arcface_onnx.py`). **The shipped app
+therefore always runs on CPU on macOS; CoreML is never bound** despite the
+requested list. The app now logs the *actual* bound providers per model at INFO
+so this is visible in every run; `bench_providers` re-pins the sessions after
+`prepare` to exercise CoreML through the otherwise-identical pipeline.
+
+### Results (2026-07-09, Apple Silicon arm64, macOS 26.5)
+
+`bench_providers --num 24 --seed 1337` over `benchmark_staging/` (24 NEF,
+**78 faces**, `det_size=640`, insightface 1.0.1 / onnxruntime 1.27.0):
+
+| Stage | CPU | CoreML | Speedup (cpu/coreml) |
+|---|---|---|---|
+| Detect (per image) | 93.7 ms | 50.3 ms | **1.86×** |
+| Embed (per face) | 51.9 ms | 3.6 ms | **14.5×** |
+| Detect total (24 img) | 2.25 s | 1.21 s | 1.86× |
+| Embed total (78 faces) | 4.05 s | 0.28 s | 14.5× |
+| RAW decode (shared, provider-independent) | 33.22 s | 33.22 s | — |
+| **End-to-end (decode + compute)** | **39.5 s** | **34.7 s** | **1.14×** |
+
+Actual bound providers — cpu: `det/rec = ['CPUExecutionProvider']`; coreml:
+`det/rec = ['CoreMLExecutionProvider','CPUExecutionProvider']` (CoreML genuinely
+bound, verified via `session.get_providers()`).
+
+**Embedding drift (CoreML vs CPU, same crops), cosine over 78 faces:**
+`min = 0.9954`, `mean = 0.9993`, `median = 0.9996`.
+**Bbox parity:** IoU `min = mean = 1.0000` over all 78 matched faces (detection
+is bit-stable between modes; drift is purely in the recognition head).
+
+### Recommendation: stay on CPU/FP32 — do not enable or tune CoreML
+
+CoreML accelerates the *compute* substantially (embed 14.5×, detect 1.9×), but
+**RAW decode dominates wall time** (33 s of ~39 s), so the realistic end-to-end
+gain is only ~14 %. More decisively, CoreML introduces **real embedding drift**:
+worst-case cosine 0.9954 vs the stored FP32 vectors — below the 0.999 stability
+gate this project uses for embedding changes (`upgrade_compare.py`), the
+signature of silent FP16 conversion in the CoreML EP. Per the owner's rule
+(*accuracy first; if CoreML drifts recognition embeddings, choose CPU/FP32
+regardless of speed*) and given the modest end-to-end payoff, **the app should
+stay on CPU/FP32**. The current effective behaviour (insightface's `ctx_id=-1`
+CPU reset) already lands there; the new logging just makes it explicit. Any
+future CoreML enablement (SessionOptions / compute-unit pinning, FP32-forced
+CoreML, decode-side acceleration to move the real bottleneck) is a **separate**
+decision that would require re-enrolling the gallery on the same provider — out
+of scope here.
+
 ## Layout
 
 | File | Role |
@@ -395,6 +471,7 @@ with the audit decision report. The end-to-end report lives in
 | `models/_adaface_ir101_net.py` | Vendored IR-101 backbone (MIT, © Minchul Kim), export-time only |
 | `models/yoloface.py` | YOLO-face ONNX detector (letterbox, decode, NMS, 5-pt landmarks) |
 | `detect_compare.py` | CLI: SCRFD-vs-YOLO detection recall + new-faces-found |
+| `bench_providers.py` | CLI: CPU-vs-CoreML pipeline timing + embedding drift + bbox parity |
 | `metrics.py` | Pure metric functions (closed/open-set, ROC, sweep, twins, det recall) |
 | `embeddings.py` | Matched rows → cached embeddings + blur score |
 | `report.py` | Strata assignment, markdown/CSV rendering, matplotlib plots |

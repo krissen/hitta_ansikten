@@ -171,6 +171,24 @@ DEFAULT_CONFIG = {
         }
     },
 
+    # === Enrollment-quality gate (FIQA proxy) ===
+    # Keeps clearly-bad face crops out of the gallery (encodings.pkl) so a poor
+    # embedding can't poison future matching. Applies ONLY to enrollment — the
+    # match path is never affected. Loaded once at startup (no runtime toggle).
+    # Defaults are calibrated on the owner's confirmed DB (see
+    # docs/dev/face-recognition-audit-2026-07.md): det_score<0.60 is the
+    # load-bearing signal; crop/sharpness floors sit below anything observed and
+    # only guard against degenerate crops. All-must-pass.
+    "enrollment_quality": {
+        "enabled": True,
+        # Minimum detector confidence (InsightFace det_score). Calibrated.
+        "min_confidence": 0.60,
+        # Minimum shorter box side in full-res px (degenerate-crop floor).
+        "min_crop_px": 60,
+        # Minimum variance-of-Laplacian sharpness (near-flat-crop floor).
+        "min_sharpness": 15.0,
+    },
+
     # === App trash (Gallra) ===
     # Auto-purge trashed files older than this many days. 0 = keep forever.
     "trash_retention_days": 30,

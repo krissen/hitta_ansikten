@@ -102,7 +102,7 @@ async def test_detection_confirm_is_immediately_visible_to_management(db_dir):
     # Confirm a detected face through DetectionService.
     enc = np.array([5.0, 6.0])
     det.encoding_cache = OrderedDict()
-    det.encoding_cache["face_0"] = (enc, {"x": 0, "y": 0, "width": 1, "height": 1}, "h")
+    det.encoding_cache["face_0"] = (enc, {"x": 0, "y": 0, "width": 1, "height": 1}, "h", None)
     await det.confirm_identity("face_0", "Alice", "/a.NEF")
 
     # Management sees the new person immediately via the shared store.
