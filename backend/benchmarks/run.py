@@ -106,6 +106,11 @@ MODEL_FACTORIES = {
     "adaface_ir101": _make_adaface,
     "yolov8n-face": _make_yolo("yolov8n-face"),
     "yolov8n-face-raw": _make_yolo("yolov8n-face-raw"),
+    # NOTE: the *large* YOLO face variants (yolov8l-face / yolov12l-face) are
+    # deliberately absent here. The akanametov large weights are plain detectors
+    # with no 5-point landmark head, so their faces cannot be aligned for the
+    # shared recognition head — they run in detect_compare.py (detection A/B)
+    # only. See ROADMAP B6+ and docs/dev/face-recognition-audit-2026-07.md.
 }
 
 

@@ -140,6 +140,26 @@ KNOWN_MODELS: dict[str, ModelSpec] = {
         url="https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov8n-face.onnx",
         kind="detector",
     ),
+    # YOLOv12-large face detector (same akanametov 1.0.0 release, AGPL-3.0). Unlike
+    # the nano/small variants, the *large* akanametov face models are plain
+    # detectors (not pose models): the released ONNX emits (1, M, 6) with **no
+    # landmarks**, so it drives the detection A/B only, never recognition. Same
+    # local-benchmark-only license terms as the nano weights.
+    "yolov12l-face": ModelSpec(
+        name="yolov12l-face",
+        repo="",
+        path="yolov12l-face.onnx",
+        sha256="d55f67bcddf5622cfc90306c6cb2f7d478e5ed4202a35dc2f833003c837243da",
+        license="AGPL-3.0",
+        dim=0,
+        preprocessing=(
+            "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; "
+            "NMS-baked detection output (1, M, 6): [x1,y1,x2,y2,score,class] "
+            "(no landmarks — detection A/B only)"
+        ),
+        url="https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov12l-face.onnx",
+        kind="detector",
+    ),
 }
 
 
