@@ -9,13 +9,11 @@ from __future__ import annotations
 import hashlib
 import json
 
-import pytest
-
 from benchmarks.db_access import (
     FaceRecord,
     face_counts,
-    records_from_db,
     recorded_hash_map,
+    records_from_db,
 )
 from benchmarks.resolver import SourceIndex, resolve_hashes, sha1_file
 from benchmarks.strata import (

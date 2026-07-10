@@ -10,9 +10,8 @@ Covers:
 import pytest
 
 import face_backends
-from face_backends import create_backend, normalize_det_size
 from core.config import DEFAULT_CONFIG
-
+from face_backends import create_backend, normalize_det_size
 
 # --------------------------------------------------------------------------
 # normalize_det_size

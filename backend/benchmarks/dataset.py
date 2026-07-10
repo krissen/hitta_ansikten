@@ -26,7 +26,8 @@ from pathlib import Path
 
 import numpy as np
 
-from . import cache, config as cfg
+from . import cache
+from . import config as cfg
 from .db_access import DEFAULT_DB_PATH, FaceRecord, load_db_records
 from .resolver import SourceIndex, sha1_file  # noqa: F401  (sha1_file handy for callers)
 
@@ -127,9 +128,10 @@ def build_dataset(
     rows: list[DatasetFace] = []
     for sha1, recs in by_hash.items():
         paths = h2p.get(sha1, [])
-        db_id_for = lambda r: r.encoding_hash or cache.deterministic_face_id(
-            sha1, r.bbox_xyxy or (0, 0, 0, 0)
-        )
+        def db_id_for(r):
+            return r.encoding_hash or cache.deterministic_face_id(
+                sha1, r.bbox_xyxy or (0, 0, 0, 0)
+            )
 
         if not paths:
             for r in recs:
@@ -218,7 +220,7 @@ def main(argv=None) -> int:
     import argparse
     import sys
 
-    from .models.buffalo import BuffaloDetector, DEFAULT_DET_SIZE
+    from .models.buffalo import DEFAULT_DET_SIZE, BuffaloDetector
     from .resolve import build_index
 
     ap = argparse.ArgumentParser(description=__doc__)
