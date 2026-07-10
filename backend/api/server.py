@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Ansikten Backend API",
     description="Face detection and annotation API for Ansikten image viewer",
-    version="1.4.1",
+    version="1.5.0",
     lifespan=lifespan
 )
 

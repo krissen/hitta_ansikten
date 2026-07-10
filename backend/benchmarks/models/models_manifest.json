@@ -1,0 +1,110 @@
+{
+  "models": {
+    "adaface_ir101": {
+      "source_checkpoint_repo": "marcelo-victor/adaface_ir101_webface12m",
+      "source_checkpoint_file": "adaface_weights.ckpt",
+      "authoritative_source": "https://drive.google.com/file/d/1dswnavflETcnAuplZj1IOKKP0eM8ITgT/view (github.com/mk-minchul/AdaFace, adaface_ir101_webface12m.ckpt)",
+      "checkpoint_sha256": "0e7a3238d2a50f3fe3860782534928ac7cb2598977cf897f6869fd5ac2493fd0",
+      "onnx_sha256": "cd84ca152438d407206c65770191418c712828c1dc50ae3c5bf8cd8b9a9ab4a5",
+      "onnx_opset": 17,
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR (no swap); NCHW float32; (x-127.5)/127.5; embedding L2-normed by the net, caller re-L2-normalizes",
+      "architecture": "IR-101 (vendored _adaface_ir101_net.py, MIT)",
+      "local_path": "_data/models/adaface_ir101/adaface_ir101.onnx",
+      "note": "Exported locally from the PyTorch checkpoint; no official ONNX exists."
+    },
+    "lvface_base": {
+      "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-B_Glint360K/LVFace-B_Glint360K.onnx",
+      "repo": "bytedance-research/LVFace",
+      "path": "LVFace-B_Glint360K/LVFace-B_Glint360K.onnx",
+      "sha256": "9d834ed8e927fd35b9123b2bf97c40aad05785b1f9ecfb1c4c1f6242d38d1382",
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
+      "local_path": "_data/models/lvface_base/LVFace-B_Glint360K.onnx"
+    },
+    "lvface_large": {
+      "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-L_Glint360K/LVFace-L_Glint360K.onnx",
+      "repo": "bytedance-research/LVFace",
+      "path": "LVFace-L_Glint360K/LVFace-L_Glint360K.onnx",
+      "sha256": "49389036a4a5b69e0efcddfe34839ac72c7a71ce6b4dc1b6821e2ac368c87063",
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
+      "local_path": "_data/models/lvface_large/LVFace-L_Glint360K.onnx"
+    },
+    "lvface_small": {
+      "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-S_Glint360K/LVFace-S_Glint360K.onnx",
+      "repo": "bytedance-research/LVFace",
+      "path": "LVFace-S_Glint360K/LVFace-S_Glint360K.onnx",
+      "sha256": "cd09f27c82ce0a3633fb8b1966d779a7171b23aa4f14ca0de6edf9677573d119",
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
+      "local_path": "_data/models/lvface_small/LVFace-S_Glint360K.onnx"
+    },
+    "lvface_tiny": {
+      "source_url": "https://huggingface.co/bytedance-research/LVFace/resolve/main/LVFace-T_Glint360K/LVFace-T_Glint360K.onnx",
+      "repo": "bytedance-research/LVFace",
+      "path": "LVFace-T_Glint360K/LVFace-T_Glint360K.onnx",
+      "sha256": "bf8da0e1e93c432d9a1d874a9ba0990f5859f970e8864b3990f2f33d11f9cdb3",
+      "license": "MIT",
+      "dim": 512,
+      "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
+      "local_path": "_data/models/lvface_tiny/LVFace-T_Glint360K.onnx"
+    },
+    "yolov12l-face": {
+      "source_url": "https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov12l-face.onnx",
+      "repo": "",
+      "path": "yolov12l-face.onnx",
+      "sha256": "d55f67bcddf5622cfc90306c6cb2f7d478e5ed4202a35dc2f833003c837243da",
+      "license": "AGPL-3.0",
+      "dim": 0,
+      "preprocessing": "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; NMS-baked detection output (1, M, 6): [x1,y1,x2,y2,score,class] (no landmarks — detection A/B only)",
+      "local_path": "_data/models/yolov12l-face/yolov12l-face.onnx",
+      "kind": "detector",
+      "license_note": "Same akanametov/yolo-face 1.0.0 release + AGPL-3.0 terms as yolov8n-face; LOCAL benchmark tooling only, never bundled into the distributed app.",
+      "note": "Pre-exported ONNX downloaded directly from the release (checksum-verified). The akanametov *large* face variants are plain detect models, not pose models, so this head emits (1, M, 6) with NO landmark columns; the adapter (yoloface.py) auto-detects the K=0 layout and emits NaN landmarks, so it drives detection recall (detect_compare.py) only — it cannot feed the alignment/recognition path."
+    },
+    "yolov8l-face": {
+      "source_url": null,
+      "repo": "",
+      "path": "yolov8l-face.onnx",
+      "sha256": "e4e1bd1943084c7e815009a14426d997abfc95dcea8a85e3e525c013c3bc3eb7",
+      "license": "AGPL-3.0",
+      "dim": 0,
+      "preprocessing": "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; NMS-baked detection output (1, M, 6): [x1,y1,x2,y2,score,class] (no landmarks — detection A/B only)",
+      "local_path": "_data/models/yolov8l-face/yolov8l-face.onnx",
+      "kind": "detector",
+      "license_note": "Same weights family/license as yolov8n-face (akanametov/yolo-face 1.0.0, AGPL-3.0); LOCAL benchmark tooling only, never bundled into the distributed app.",
+      "note": "The release ships yolov8l-face only as a .pt (no pre-exported .onnx), and it is a plain detect model with no landmark head. One-time export in a SCRATCH venv (never the project venv): pip install ultralytics onnxslim; python -c \"from ultralytics import YOLO; YOLO('yolov8l-face.pt').export(format='onnx', opset=12, imgsz=640, nms=True, simplify=True)\" then place the .onnx at the local_path above. The .pt is the akanametov 1.0.0 release asset yolov8l-face.pt (164.8 GFLOPs). Output is (1, M, 6) with NO landmarks; drives detection recall (detect_compare.py) only, not recognition."
+    },
+    "yolov8n-face": {
+      "source_url": "https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov8n-face.onnx",
+      "repo": "",
+      "path": "yolov8n-face.onnx",
+      "sha256": "06b941fd5792be624ad18f2df9ede0a021c4df165dd418204d978c20fd555928",
+      "license": "AGPL-3.0",
+      "dim": 0,
+      "preprocessing": "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; NMS-baked output (1, M, 6+3K): [x1,y1,x2,y2,score,class,(x,y,vis)*5]",
+      "local_path": "_data/models/yolov8n-face/yolov8n-face.onnx",
+      "kind": "detector",
+      "license_note": "Ultralytics-derived YOLOv8 weights trained on WIDERFACE (akanametov/yolo-face 1.0.0 release). AGPL-3.0 is acceptable for this LOCAL, non-shipped benchmark tooling only; the weights are NOT bundled into the distributed app. Do not redistribute inside a proprietary product.",
+      "note": "Pre-exported ONNX with NMS baked in; onnxruntime-only, no torch. The adapter (yoloface.py) auto-detects this layout and only confidence-filters (NMS already applied). Emits 5-point facial landmarks in SCRFD order (norm_crop-compatible)."
+    },
+    "yolov8n-face-raw": {
+      "source_url": null,
+      "repo": "",
+      "path": "yolov8n-face-raw.onnx",
+      "sha256": null,
+      "license": "AGPL-3.0",
+      "dim": 0,
+      "preprocessing": "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; raw YOLOv8-pose head (1, 4+nc+3K, N), pre-NMS",
+      "local_path": "_data/models/yolov8n-face-raw/yolov8n-face-raw.onnx",
+      "kind": "detector",
+      "license_note": "Same weights/license as yolov8n-face; differs only in the ONNX export (no baked NMS).",
+      "note": "Produced offline (exercises the adapter's own NMS path); not auto-downloadable. One-time export in a SCRATCH venv (never the project venv): pip install ultralytics; python -c \"from ultralytics import YOLO; YOLO('yolov8n-face.pt').export(format='onnx', opset=12, imgsz=640, nms=False, simplify=True)\" then place the .onnx at the local_path above. The .pt is the akanametov 1.0.0 release asset yolov8n-face.pt."
+    }
+  }
+}

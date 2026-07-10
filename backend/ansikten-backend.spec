@@ -107,6 +107,9 @@ a = Analysis(
         'pip',
         'wheel',
 
+        # Developer/evaluation-only benchmark tooling (never imported by the app)
+        'benchmarks',
+
         # Unused ML frameworks (insightface uses onnxruntime only)
         'tensorflow',
         'tensorboard',

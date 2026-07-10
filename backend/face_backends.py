@@ -14,6 +14,23 @@ import numpy as np
 EPSILON_NORM = 1e-6  # Small value to avoid division by zero in normalization
 
 
+def normalize_det_size(value) -> tuple[int, int]:
+    """Normalize a det_size config value to a (width, height) tuple.
+
+    Accepts a single int (interpreted as a square N×N), or a [w, h] / (w, h)
+    pair. Returns a tuple of two ints. Raises ValueError on other shapes so
+    misconfigurations surface at backend construction rather than silently.
+    """
+    if isinstance(value, bool):
+        # bool is an int subclass; reject it explicitly to avoid True -> (1, 1).
+        raise ValueError(f"det_size must be an int or [w, h] pair (got {value!r})")
+    if isinstance(value, int):
+        return (value, value)
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        return (int(value[0]), int(value[1]))
+    raise ValueError(f"det_size must be an int or [w, h] pair (got {value!r})")
+
+
 class FaceBackend(ABC):
     """Abstract interface for face detection and recognition backends."""
 
@@ -51,6 +68,21 @@ class FaceBackend(ABC):
             face_encodings: List of encoding vectors
         """
         pass
+
+    def detect_faces_scored(
+        self, rgb_image: np.ndarray, model: str, upsample: int
+    ) -> tuple[list, list[np.ndarray], list]:
+        """Detect faces and also return a per-face detector confidence.
+
+        Returns ``(face_locations, face_encodings, det_scores)`` where
+        ``det_scores[i]`` is the detector's confidence for face ``i`` (used by
+        the enrollment-quality gate), or ``None`` when the backend does not
+        expose one. The default implementation wraps :meth:`detect_faces` with
+        ``None`` scores; backends that have a detector confidence (InsightFace)
+        override this and keep the ordering consistent with ``detect_faces``.
+        """
+        locations, encodings = self.detect_faces(rgb_image, model, upsample)
+        return locations, encodings, [None] * len(locations)
 
     @abstractmethod
     def compute_distance(self, encoding1: np.ndarray, encoding2: np.ndarray) -> float:
@@ -233,7 +265,15 @@ class InsightFaceBackend(FaceBackend):
             self.ctx_id = ctx_id
             self.det_size = det_size
 
-            logging.info(f"[InsightFaceBackend] Initialized successfully with providers: {providers}")
+            logging.info(f"[InsightFaceBackend] Initialized successfully with requested providers: {providers}")
+
+            # Log the providers ACTUALLY bound to each ONNX session. This can
+            # differ from the requested list: insightface's own prepare(ctx_id<0)
+            # resets every session to CPU-only, and onnxruntime silently drops a
+            # provider whose EP fails to initialize. Logging the real binding
+            # makes silent CPU-fallback visible in every run instead of hidden
+            # behind the requested list. See docs/dev/face-recognition-audit-2026-07.md.
+            self._log_actual_providers()
 
         except ImportError as e:
             # Dump captured output to help diagnose import failures
@@ -277,6 +317,19 @@ class InsightFaceBackend(FaceBackend):
         Returns:
             (face_locations, face_encodings)
         """
+        locations, encodings, _ = self.detect_faces_scored(rgb_image, model, upsample)
+        return locations, encodings
+
+    def detect_faces_scored(
+        self, rgb_image: np.ndarray, model: str, upsample: int
+    ) -> tuple[list, list[np.ndarray], list]:
+        """Detect faces and also return each face's SCRFD detector confidence.
+
+        Returns ``(face_locations, face_encodings, det_scores)`` in the same
+        left-edge-sorted order as :meth:`detect_faces`. ``det_scores[i]`` is the
+        InsightFace ``det_score`` (a float in ~[0, 1]) used by the
+        enrollment-quality gate.
+        """
         # InsightFace expects BGR
         bgr_image = rgb_image[:, :, ::-1].copy()
 
@@ -289,11 +342,12 @@ class InsightFaceBackend(FaceBackend):
                 raise
             # Return empty results for recoverable errors
             logging.error(f"[InsightFaceBackend] Face detection failed: {e}")
-            return [], []
+            return [], [], []
 
         # Convert to dlib-compatible format
         locations = []
         encodings = []
+        det_scores = []
 
         for face in faces:
             # InsightFace bbox is [x1, y1, x2, y2]
@@ -306,14 +360,18 @@ class InsightFaceBackend(FaceBackend):
             embedding = face.normed_embedding
             encodings.append(embedding)
 
-        # Sort by left edge for consistency
-        if locations:
-            sorted_pairs = sorted(zip(locations, encodings), key=lambda p: p[0][3])
-            locations, encodings = zip(*sorted_pairs)
-            locations = list(locations)
-            encodings = list(encodings)
+            # Detector confidence (may be absent on exotic model builds)
+            score = getattr(face, "det_score", None)
+            det_scores.append(float(score) if score is not None else None)
 
-        return locations, encodings
+        # Sort by left edge for consistency (keep scores aligned with faces)
+        if locations:
+            sorted_triples = sorted(
+                zip(locations, encodings, det_scores), key=lambda p: p[0][3]
+            )
+            locations, encodings, det_scores = (list(t) for t in zip(*sorted_triples))
+
+        return locations, encodings, det_scores
 
     def compute_distance(self, encoding1: np.ndarray, encoding2: np.ndarray) -> float:
         """
@@ -357,6 +415,37 @@ class InsightFaceBackend(FaceBackend):
         # Return zero vector as-is (edge case: all-zero encoding)
         logging.warning("[InsightFaceBackend] Encoding has zero norm, returning as-is")
         return encoding
+
+    def _actual_providers(self) -> dict[str, list[str]]:
+        """Return the onnxruntime providers actually bound to each model session.
+
+        InsightFace loads one ONNX model per task (``detection``,
+        ``recognition``, ...) under ``self.app.models``; each exposes its
+        ``onnxruntime.InferenceSession`` as ``.session``. ``get_providers()``
+        reports the execution providers that were successfully registered, in
+        priority order — which is the ground truth for whether CoreML/GPU is in
+        use or the run silently fell back to CPU. Best-effort: any model whose
+        session is unavailable is reported as ``["unknown"]`` rather than raising.
+        """
+        actual: dict[str, list[str]] = {}
+        models = getattr(getattr(self, "app", None), "models", None) or {}
+        for task_name, model in models.items():
+            session = getattr(model, "session", None)
+            try:
+                actual[task_name] = list(session.get_providers()) if session is not None else ["unknown"]
+            except Exception:  # pragma: no cover - defensive, never fail init on this
+                actual[task_name] = ["unknown"]
+        return actual
+
+    def _log_actual_providers(self) -> None:
+        """Log the providers actually bound to each model session at INFO.
+
+        Surfaces silent CPU-fallback (see :meth:`_actual_providers`): on macOS
+        the requested CoreML list is reset to CPU by insightface's own
+        ``prepare(ctx_id<0)``, so the requested list alone is misleading.
+        """
+        for task_name, actual in self._actual_providers().items():
+            logging.info(f"[InsightFaceBackend] Actual bound providers [{task_name}]: {actual}")
 
     def get_model_info(self) -> dict:
         """Return InsightFace model metadata."""
@@ -418,8 +507,7 @@ def create_backend(config: dict) -> FaceBackend:
 
         elif backend_type == 'insightface':
             settings = backend_config.get('insightface', {})
-            det_size_list = settings.get('det_size', [640, 640])
-            det_size = tuple(det_size_list) if isinstance(det_size_list, list) else det_size_list
+            det_size = normalize_det_size(settings.get('det_size', [640, 640]))
             return backend_class(
                 model_name=settings.get('model_name', 'buffalo_l'),
                 ctx_id=settings.get('ctx_id', -1),

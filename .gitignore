@@ -3,3 +3,6 @@ __pycache__
 SESSION_SUMMARY.md
 tmp
 node_modules/
+
+# Benchmark data — never committed (source index cache, reports, staging lists)
+backend/benchmarks/_data/

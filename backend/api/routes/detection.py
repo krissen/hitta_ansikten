@@ -72,6 +72,11 @@ class ConfirmIdentityResponse(BaseModel):
     status: str
     person_name: str
     encodings_count: int
+    # Enrollment-quality gate: False when the face was confirmed but its
+    # encoding was withheld from the gallery due to low crop quality.
+    enrolled: bool = True
+    # Swedish note shown to the user when a face was confirmed-but-not-enrolled.
+    quality_note: Optional[str] = None
 
 class IgnoreFaceResponse(BaseModel):
     status: str

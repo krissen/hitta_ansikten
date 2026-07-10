@@ -31,6 +31,9 @@ class RestrictedUnpickler(pickle.Unpickler):
         ('numpy.core.multiarray', 'scalar'),
         ('numpy._core.multiarray', '_reconstruct'),  # numpy >= 1.20
         ('numpy._core.multiarray', 'scalar'),        # numpy >= 1.20
+        # numpy 2.x reconstructs arrays via _frombuffer instead of _reconstruct
+        ('numpy.core.numeric', '_frombuffer'),
+        ('numpy._core.numeric', '_frombuffer'),
         ('builtins', 'dict'),
         ('builtins', 'list'),
         ('builtins', 'tuple'),

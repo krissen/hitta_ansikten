@@ -192,7 +192,7 @@ api.ws.on('progress', callback);
 
 | Backend | Encoding | Threshold | Status |
 |---------|----------|-----------|--------|
-| InsightFace | 512-dim | ~0.4 | Only supported backend |
+| InsightFace | 512-dim | ~0.45 | Only supported backend |
 
 > **dlib is deprecated.** InsightFace is the sole active backend. Legacy dlib
 > encodings are left untouched at startup — there is no boot-time scan. The CLI

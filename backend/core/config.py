@@ -54,6 +54,28 @@ WORKER_JOIN_TIMEOUT = 30  # seconds - timeout for worker process join
 WORKER_TERMINATE_TIMEOUT = 5  # seconds - timeout after terminate before kill
 
 
+# Config schema version. Incremented when a structural migration is added to
+# _migrate_config(). v2 moved match/ignore/hard-negative thresholds out of the
+# top-level flat keys into backend_thresholds.<backend>. v3 raised the canonical
+# InsightFace match_threshold 0.40 -> 0.45 (face-recognition audit 2026-07) for
+# configs still pinned to the audit-era 0.40.
+CONFIG_VERSION = 3
+
+# Audit-era (v2) canonical InsightFace match_threshold. The v3 migration lifts
+# exactly this value to the current canonical default; any other (user-customized)
+# value is left untouched.
+_V2_INSIGHTFACE_MATCH_THRESHOLD = 0.4
+
+# Legacy euclidean-era (dlib) threshold keys that older configs kept at the top
+# level. They must not drive InsightFace (cosine) matching; _migrate_config()
+# rewrites them into a correct-metric backend_thresholds block and drops them.
+_LEGACY_FLAT_THRESHOLD_KEYS = (
+    "match_threshold",
+    "ignore_distance",
+    "hard_negative_distance",
+)
+
+
 # === Default Configuration ===
 DEFAULT_CONFIG = {
     # === Automatiska åtgärder & flöden ===
@@ -95,12 +117,12 @@ DEFAULT_CONFIG = {
     "rectangle_thickness": 6,
 
     # === Matchningsparametrar (justera för träffsäkerhet) ===
-    # Max-avstånd för att godkänna namn-match (lägre = striktare)
-    "match_threshold": 0.54,
+    # Match/ignore/hard-negative-trösklarna bor i backend_thresholds nedan
+    # (en källa till sanning, per backend och distansmetrik). De gamla platta
+    # nycklarna match_threshold/ignore_distance har tagits bort — de var
+    # euklidiska (dlib) värden som inte gäller InsightFace cosinus-distans.
     # Minsta "confidence" för att visa namn (0.0–1.0, högre = striktare)
     "min_confidence": 0.5,
-    # Max-avstånd för att automatiskt föreslå ignorering ("ign")
-    "ignore_distance": 0.48,
     # Namn måste vara så här mycket bättre än ignore för att vinna automatiskt
     "prefer_name_margin": 0.15,
 
@@ -120,7 +142,14 @@ DEFAULT_CONFIG = {
         "insightface": {
             "model_name": "buffalo_l",  # Model: buffalo_s (fast), buffalo_m, buffalo_l (accurate)
             "ctx_id": -1,  # -1 = CPU, 0+ = GPU device ID
-            "det_size": [640, 640]  # Detection input size
+            # Detection input size (letterbox target the whole image is resized to
+            # before SCRFD detection). Larger can surface smaller faces (team/wide
+            # shots) at ~quadratic detection cost — a supported knob. Measured
+            # locally (7 full-frame event photos), 640 vs 1280 was recall-neutral
+            # at 1.2-1.75x wall time, so the default stays 640 until the benchmark
+            # track (B3) provides ground truth. Accepts [w, h] or a single int
+            # (square).
+            "det_size": [640, 640]
         }
     },
 
@@ -136,15 +165,37 @@ DEFAULT_CONFIG = {
             "hard_negative_distance": 0.45
         },
         "insightface": {
-            "match_threshold": 0.4,  # Cosine distance threshold (typically lower)
+            "match_threshold": 0.45,  # Cosine distance threshold (typically lower)
             "ignore_distance": 0.35,
             "hard_negative_distance": 0.32
         }
     },
 
+    # === Enrollment-quality gate (FIQA proxy) ===
+    # Keeps clearly-bad face crops out of the gallery (encodings.pkl) so a poor
+    # embedding can't poison future matching. Applies ONLY to enrollment — the
+    # match path is never affected. Loaded once at startup (no runtime toggle).
+    # Defaults are calibrated on the owner's confirmed DB (see
+    # docs/dev/face-recognition-audit-2026-07.md): det_score<0.60 is the
+    # load-bearing signal; crop/sharpness floors sit below anything observed and
+    # only guard against degenerate crops. All-must-pass.
+    "enrollment_quality": {
+        "enabled": True,
+        # Minimum detector confidence (InsightFace det_score). Calibrated.
+        "min_confidence": 0.60,
+        # Minimum shorter box side in full-res px (degenerate-crop floor).
+        "min_crop_px": 60,
+        # Minimum variance-of-Laplacian sharpness (near-flat-crop floor).
+        "min_sharpness": 15.0,
+    },
+
     # === App trash (Gallra) ===
     # Auto-purge trashed files older than this many days. 0 = keep forever.
     "trash_retention_days": 30,
+
+    # Schema version. Bumped by migrations in _migrate_config(); a fresh config
+    # is written at the current version and never needs migrating.
+    "config_version": CONFIG_VERSION,
 }
 
 
@@ -189,15 +240,106 @@ def init_logging(
         logger.addHandler(handler)
 
 
+def _migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """Apply one-time, idempotent migrations to a persisted config dict.
+
+    v2 threshold migration: if the config still carries legacy top-level flat
+    threshold keys but has no ``backend_thresholds.insightface`` block, pin the
+    canonical InsightFace cosine thresholds and drop the flat keys. The stale
+    flat values (euclidean-era, e.g. match_threshold=0.6) are deliberately NOT
+    copied forward — they are wrong-metric for InsightFace and would match far
+    too loosely. A config that already has ``backend_thresholds.insightface`` is
+    left untouched by this step, so re-running is a no-op.
+
+    v3 threshold migration: if the config's
+    ``backend_thresholds.insightface.match_threshold`` is exactly the audit-era
+    0.40, raise it to the current canonical 0.45 (face-recognition audit 2026-07).
+    Only the exact 0.40 default is lifted — a user-customized value (e.g. 0.42) is
+    left untouched. Idempotent: a config already at 0.45 is a no-op.
+
+    Args:
+        raw: Config dict as read from disk (mutated in place).
+
+    Returns:
+        (config, changed) — ``changed`` is True when a migration ran.
+    """
+    changed = False
+
+    backend_thresholds = raw.get("backend_thresholds")
+    has_insightface_block = (
+        isinstance(backend_thresholds, dict) and "insightface" in backend_thresholds
+    )
+    has_flat_keys = any(k in raw for k in _LEGACY_FLAT_THRESHOLD_KEYS)
+
+    if has_flat_keys and not has_insightface_block:
+        canonical = dict(DEFAULT_CONFIG["backend_thresholds"]["insightface"])
+        merged = dict(backend_thresholds) if isinstance(backend_thresholds, dict) else {}
+        merged["insightface"] = canonical
+        raw["backend_thresholds"] = merged
+        for key in _LEGACY_FLAT_THRESHOLD_KEYS:
+            raw.pop(key, None)
+        raw["config_version"] = CONFIG_VERSION
+        changed = True
+        logging.info(
+            "Config migration: pinned canonical InsightFace cosine thresholds "
+            "(match=%.2f ignore=%.2f hard_negative=%.2f) and removed legacy flat "
+            "threshold keys.",
+            canonical["match_threshold"],
+            canonical["ignore_distance"],
+            canonical["hard_negative_distance"],
+        )
+    else:
+        # v3: lift an existing insightface block still pinned to the audit-era
+        # 0.40 default up to the new canonical 0.45. Runs only when the v2 step
+        # above did not (a v2 rewrite already writes the current 0.45 canonical).
+        insightface = (
+            backend_thresholds.get("insightface")
+            if isinstance(backend_thresholds, dict)
+            else None
+        )
+        if (
+            isinstance(insightface, dict)
+            and insightface.get("match_threshold") == _V2_INSIGHTFACE_MATCH_THRESHOLD
+        ):
+            new_threshold = DEFAULT_CONFIG["backend_thresholds"]["insightface"][
+                "match_threshold"
+            ]
+            insightface["match_threshold"] = new_threshold
+            raw["config_version"] = CONFIG_VERSION
+            changed = True
+            logging.info(
+                "Config migration v3: raised InsightFace match_threshold %.2f -> "
+                "%.2f (face-recognition audit 2026-07); a user-customized value "
+                "would have been left untouched.",
+                _V2_INSIGHTFACE_MATCH_THRESHOLD,
+                new_threshold,
+            )
+
+    return raw, changed
+
+
 def load_config() -> dict[str, Any]:
-    """Load configuration from file or create default."""
+    """Load configuration from file or create default.
+
+    Runs one-time migrations (see _migrate_config) and persists them back to
+    disk before merging over DEFAULT_CONFIG.
+    """
     BASE_DIR.mkdir(parents=True, exist_ok=True)
     if CONFIG_PATH.exists():
         try:
             with open(CONFIG_PATH, "r") as f:
-                return {**DEFAULT_CONFIG, **json.load(f)}
+                raw = json.load(f)
         except Exception:
-            pass  # Invalid JSON or read error; fall through to create default
+            raw = None  # Invalid JSON or read error; fall through to create default
+        if raw is not None:
+            migrated, changed = _migrate_config(raw)
+            if changed:
+                try:
+                    with open(CONFIG_PATH, "w") as f:
+                        json.dump(migrated, f, indent=2)
+                except Exception:
+                    logging.warning("Failed to persist migrated config; continuing in memory")
+            return {**DEFAULT_CONFIG, **migrated}
     with open(CONFIG_PATH, "w") as f:
         json.dump(DEFAULT_CONFIG, f, indent=2)
     return DEFAULT_CONFIG

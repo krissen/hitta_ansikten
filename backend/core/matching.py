@@ -34,9 +34,37 @@ MatchResult = tuple[tuple[str | None, float | None], tuple[int | None, float | N
 MatchStatusResult = tuple[str, str]
 
 
+# Canonical, metric-appropriate default thresholds. These are the single source
+# of truth for match/ignore/hard-negative distances when no backend-specific
+# block is configured. Legacy top-level flat keys
+# (match_threshold/ignore_distance/hard_negative_distance) are euclidean-era
+# (dlib) values and are deliberately NOT consulted here — InsightFace uses cosine
+# distance, so a stale flat key like match_threshold=0.6 would match at cosine
+# similarity 0.4 (extremely loose). Legacy flat keys are honored only via the
+# one-time config migration in core/config.py, which rewrites them into a
+# backend_thresholds block with correct-metric values.
+COSINE_DEFAULT_THRESHOLDS: ThresholdsDict = {
+    'match_threshold': 0.45,
+    'ignore_distance': 0.35,
+    'hard_negative_distance': 0.32,
+}
+EUCLIDEAN_DEFAULT_THRESHOLDS: ThresholdsDict = {
+    'match_threshold': 0.6,
+    'ignore_distance': 0.5,
+    'hard_negative_distance': 0.45,
+}
+
+
 def _get_backend_thresholds(config: ConfigDict, backend: FaceBackend) -> ThresholdsDict:
     """
-    Get appropriate thresholds for current backend.
+    Get appropriate match/ignore/hard-negative thresholds for the active backend.
+
+    ``backend_thresholds.<backend_name>`` is the single source of truth. When a
+    block is configured for the backend it is returned verbatim; otherwise
+    canonical defaults are chosen by the backend's distance metric (cosine vs
+    euclidean). Top-level flat threshold keys are never consulted — they are
+    wrong-metric legacy values (see module-level constants and the config
+    migration).
 
     Args:
         config: Full config dict
@@ -45,51 +73,24 @@ def _get_backend_thresholds(config: ConfigDict, backend: FaceBackend) -> Thresho
     Returns:
         Dict with 'match_threshold', 'ignore_distance', 'hard_negative_distance'
     """
-    threshold_mode = config.get('threshold_mode', 'auto')
+    backend_thresholds = config.get('backend_thresholds', {})
+    backend_specific = backend_thresholds.get(backend.backend_name)
+    if backend_specific is not None:
+        return backend_specific
 
-    if threshold_mode == 'manual':
-        # Use backend-specific thresholds when available
-        backend_thresholds = config.get('backend_thresholds', {})
-        if backend.backend_name in backend_thresholds:
-            return backend_thresholds[backend.backend_name]
+    # No backend-specific block: fall back to canonical defaults for the
+    # backend's distance metric. Flat top-level keys are intentionally ignored.
+    distance_metric = getattr(backend, 'distance_metric', 'euclidean')
+    is_cosine = isinstance(distance_metric, str) and 'cos' in distance_metric.lower()
 
-        # Fallback: log warning and use top-level config values
+    if config.get('threshold_mode') == 'manual':
         logging.warning(
-            f"Manual threshold mode: no thresholds configured for backend '{backend.backend_name}'; "
-            f"falling back to top-level threshold values which may not match this "
-            f"backend's distance metric."
+            f"Manual threshold mode: no thresholds configured for backend "
+            f"'{backend.backend_name}'; falling back to canonical "
+            f"{'cosine' if is_cosine else 'euclidean'} defaults."
         )
-        return {
-            'match_threshold': config.get('match_threshold', 0.6),
-            'ignore_distance': config.get('ignore_distance', 0.5),
-            'hard_negative_distance': config.get('hard_negative_distance', 0.45)
-        }
-    else:
-        # Auto mode: prefer backend-specific thresholds, then adjust by distance metric
-        backend_thresholds = config.get('backend_thresholds', {})
-        backend_specific = backend_thresholds.get(backend.backend_name)
-        if backend_specific is not None:
-            return backend_specific
 
-        # Fallback based on backend distance metric
-        distance_metric = getattr(backend, 'distance_metric', 'euclidean')
-
-        # Default thresholds for Euclidean-like metrics (preserves existing behavior)
-        default_match = 0.6
-        default_ignore = 0.5
-        default_hard_negative = 0.45
-
-        # For cosine distance, typical thresholds are lower (e.g. ~0.4)
-        if isinstance(distance_metric, str) and 'cos' in distance_metric.lower():
-            default_match = 0.4
-            default_ignore = 0.35
-            default_hard_negative = 0.32
-
-        return {
-            'match_threshold': config.get('match_threshold', default_match),
-            'ignore_distance': config.get('ignore_distance', default_ignore),
-            'hard_negative_distance': config.get('hard_negative_distance', default_hard_negative)
-        }
+    return dict(COSINE_DEFAULT_THRESHOLDS if is_cosine else EUCLIDEAN_DEFAULT_THRESHOLDS)
 
 
 def validate_encoding_dimension(

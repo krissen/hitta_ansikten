@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ansikten-backend"
-version = "1.4.1"
+version = "1.5.0"
 description = "Face recognition backend for event photography"
 requires-python = ">=3.11"
 dependencies = [
@@ -16,9 +16,12 @@ dependencies = [
     "rich",
     "pyxdg",
     "matplotlib",
-    # InsightFace backend
-    "insightface>=0.7",
-    "onnxruntime>=1.15",
+    # InsightFace backend. Pinned exactly: embeddings are the load-bearing
+    # artifact (encodings.pkl stores 512-dim vectors from a specific release),
+    # so the version is gated on embedding stability, not floated. See
+    # benchmarks/upgrade_compare.py for the re-runnable stability gate.
+    "insightface==1.0.1",
+    "onnxruntime==1.27.0",
     # FastAPI server
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.23.0",
