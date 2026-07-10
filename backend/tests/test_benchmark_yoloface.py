@@ -6,8 +6,6 @@ integration test that needs a downloaded ONNX is guarded by a file check.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 

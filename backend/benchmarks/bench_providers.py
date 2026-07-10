@@ -169,9 +169,9 @@ def run(root: Path, num: int, seed: int) -> dict:
 
     coreml_available = "CoreMLExecutionProvider" in _available_providers()
 
-    print(f"Building CPU pipeline ...", file=sys.stderr)
+    print("Building CPU pipeline ...", file=sys.stderr)
     cpu = Pipeline(CPU_PROVIDERS)
-    print(f"Building CoreML pipeline ...", file=sys.stderr)
+    print("Building CoreML pipeline ...", file=sys.stderr)
     coreml = Pipeline(COREML_PROVIDERS)
 
     # --- warm-up (excluded from timing): first CoreML run compiles the model ---

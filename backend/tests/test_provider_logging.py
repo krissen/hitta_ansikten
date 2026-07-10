@@ -14,7 +14,6 @@ import platform
 
 import pytest
 
-import face_backends
 from face_backends import InsightFaceBackend
 
 

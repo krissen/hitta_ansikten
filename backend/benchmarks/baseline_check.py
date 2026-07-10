@@ -26,7 +26,8 @@ import sys
 
 import numpy as np
 
-from . import cache, config as cfg
+from . import cache
+from . import config as cfg
 from .dataset import MATCHED, build_dataset, load_bgr
 from .db_access import DEFAULT_DB_PATH, load_db_records
 
@@ -96,7 +97,7 @@ def run(records, index, detector, recognition, *, force=False):
 
 
 def main(argv=None) -> int:
-    from .models.buffalo import BuffaloDetector, BuffaloRecognition, DEFAULT_DET_SIZE
+    from .models.buffalo import DEFAULT_DET_SIZE, BuffaloDetector, BuffaloRecognition
     from .resolve import build_index
 
     ap = argparse.ArgumentParser(description=__doc__)
