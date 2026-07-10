@@ -150,6 +150,26 @@ def test_decode_nms_baked_filters_padding():
     assert np.allclose(kout[0], kps)
 
 
+def test_nms_baked_kpt_count_detects_layouts():
+    # pose head (K=5), landmark-less detection head (K=0), and a non-match.
+    assert yf.nms_baked_kpt_count(np.zeros((1, 300, 21), dtype=np.float32)) == 5
+    assert yf.nms_baked_kpt_count(np.zeros((1, 300, 6), dtype=np.float32)) == 0
+    assert yf.nms_baked_kpt_count(np.zeros((1, 20, 8400), dtype=np.float32)) is None
+    assert yf.nms_baked_kpt_count(np.zeros((300, 6), dtype=np.float32)) is None  # not (1, M, C)
+
+
+def test_decode_nms_baked_landmarkless_detection_head():
+    # (1, M, 6): [x1, y1, x2, y2, score, class] — the akanametov large variants.
+    real = [10.0, 20.0, 30.0, 50.0, 0.8, 0.0]
+    pad = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # below conf floor
+    arr = np.array([[real, pad]], dtype=np.float32)  # (1, 2, 6)
+    xyxy, scores, kout = yf.decode_nms_baked(arr, conf_thresh=0.25, num_kpts=0)
+    assert xyxy.shape == (1, 4)
+    assert np.allclose(xyxy[0], [10, 20, 30, 50])
+    assert scores[0] == pytest.approx(0.8)
+    assert kout.shape == (1, 0, 2)  # no landmark columns
+
+
 # --------------------------------------------------------------------------
 # integration (needs a downloaded ONNX)
 # --------------------------------------------------------------------------
@@ -178,3 +198,20 @@ def test_detector_runs_on_synthetic_image():
         assert isinstance(f, Face)
         assert f.bbox.shape == (4,)
         assert f.kps.shape == (5, 2)
+
+
+@pytest.mark.skipif(
+    not yf.default_model_path("yolov8l-face").exists(),
+    reason="yolov8l-face.onnx not exported (see models_manifest.json note)",
+)
+def test_landmarkless_detector_emits_nan_kps():
+    # The large akanametov variants are plain detectors: valid boxes, NaN kps.
+    det = yf.YoloFaceDetector(model_name="yolov8l-face")
+    img = np.full((480, 640, 3), 127, dtype=np.uint8)
+    faces = det.detect(img)
+    assert isinstance(faces, list)
+    for f in faces:
+        assert isinstance(f, Face)
+        assert f.bbox.shape == (4,)
+        assert f.kps.shape == (5, 2)
+        assert np.isnan(f.kps).all()  # no landmark head

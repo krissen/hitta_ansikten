@@ -68,6 +68,10 @@ DETECTOR_FACTORIES = {
     "buffalo_l": _make_buffalo,
     "yolov8n-face": _make_yolo("yolov8n-face"),
     "yolov8n-face-raw": _make_yolo("yolov8n-face-raw"),
+    # Large variants: detection-only (no landmark head), so they belong here (a
+    # detection A/B) but NOT in run.py's recognition pipeline — see run.py.
+    "yolov8l-face": _make_yolo("yolov8l-face"),
+    "yolov12l-face": _make_yolo("yolov12l-face"),
 }
 
 

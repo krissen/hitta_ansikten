@@ -10,19 +10,27 @@ against SCRFD (buffalo_l) on the exact same DB ground truth.
 ``numpy`` are imported (lazily). The ONNX model is produced offline (see
 ``download.py``); this module just runs and decodes it.
 
-Two ONNX output layouts are supported and auto-detected:
+Three ONNX output layouts are supported and auto-detected:
 
 * **raw YOLOv8-pose head** ``(1, 4 + nc + 3K, N)`` — box ``(cx, cy, w, h)`` +
   per-class scores + ``K`` landmarks ``(x, y, visibility)`` over ``N`` anchor
   points, *before* NMS. The adapter applies confidence filtering and NMS.
-* **NMS-baked head** ``(1, M, 6 + 3K)`` — one row per kept detection
+* **NMS-baked pose head** ``(1, M, 6 + 3K)`` — one row per kept detection
   ``[x1, y1, x2, y2, score, class, (x, y, vis) * K]`` (ultralytics ``nms=True``
   export). NMS is already applied; the adapter only confidence-filters.
+* **NMS-baked detection head** ``(1, M, 6)`` — the ``K = 0`` special case of the
+  above: ``[x1, y1, x2, y2, score, class]`` with **no landmarks**. The
+  akanametov *large* face variants (``yolov8l-face`` / ``yolov12l-face``) ship
+  as plain detectors, not pose models, so they carry no 5-point head. The
+  adapter still decodes their boxes (all this comparison's detection-recall
+  metrics need) and emits ``NaN`` landmarks — usable for the detection A/B but
+  not for the alignment/recognition path (which requires the 5 points).
 
-Both layouts carry coordinates in the letterboxed input space; the adapter maps
+All layouts carry coordinates in the letterboxed input space; the adapter maps
 them back to original-image pixels. The pure pieces (``letterbox``,
-``decode_raw``, ``decode_nms_baked``, ``nms``) are import-light and unit-tested
-against synthetic tensors without onnxruntime or a real model.
+``decode_raw``, ``decode_nms_baked``, ``nms_baked_kpt_count``, ``nms``) are
+import-light and unit-tested against synthetic tensors without onnxruntime or a
+real model.
 """
 
 from __future__ import annotations
@@ -102,6 +110,33 @@ def is_nms_baked(output: np.ndarray, num_kpts: int = NUM_KPTS) -> bool:
     return arr.ndim == 3 and arr.shape[-1] == 6 + 3 * num_kpts
 
 
+def nms_baked_kpt_count(output: np.ndarray) -> int | None:
+    """Landmark count ``K`` for an NMS-baked head ``(1, M, 6 + 3K)``, else ``None``.
+
+    A per-detection head packs six box/score/class columns plus ``3K`` landmark
+    columns, so a trailing width of ``6 + 3K`` uniquely identifies ``K``. ``K = 0``
+    is a **landmark-less detector** (``(1, M, 6)`` — the akanametov *large* face
+    variants, which are plain detect models, not pose models). Returns ``None``
+    for any shape that is not a valid NMS-baked head (e.g. the raw pose head,
+    ``(1, 4 + nc + 3K, N)``, whose ``N`` anchor axis is last and huge), which the
+    caller routes to :func:`decode_raw` instead.
+
+    The NMS-baked head carries one row per detection (``M``, typically padded to
+    a few hundred) and a small feature width in the last axis, so ``M >= C``; the
+    raw head is the transpose (small feature axis, thousands of anchors last), so
+    ``C > M``. That rows-dominate check keeps a raw head's anchor count from
+    masquerading as a huge landmark count.
+    """
+    arr = np.asarray(output)
+    if arr.ndim != 3:
+        return None
+    rows, cols = arr.shape[1], arr.shape[2]
+    extra = cols - 6
+    if extra < 0 or extra % 3 != 0 or rows < cols:
+        return None
+    return extra // 3
+
+
 def decode_raw(
     output: np.ndarray, conf_thresh: float, num_kpts: int = NUM_KPTS
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -138,7 +173,8 @@ def decode_nms_baked(
 
     Row layout: ``[x1, y1, x2, y2, score, class, (x, y, vis) * K]``. Returns
     ``(xyxy, scores, kps)`` in letterboxed-input coordinates; ``kps`` is
-    ``(n, K, 2)``. Zero-padding rows (score 0) fall below ``conf_thresh``.
+    ``(n, K, 2)`` (``K`` may be 0 for a landmark-less detection head). Zero-padding
+    rows (score 0) fall below ``conf_thresh``.
     """
     arr = np.asarray(output, dtype=np.float32)
     if arr.ndim == 3:
@@ -147,7 +183,12 @@ def decode_nms_baked(
     keep = scores >= conf_thresh
     kept = arr[keep]
     xyxy = kept[:, 0:4]
-    kps = kept[:, 6 : 6 + 3 * num_kpts].reshape(-1, num_kpts, 3)[:, :, :2]
+    # reshape(-1, 0, 3) can't infer the row count when K == 0, so build the empty
+    # landmark array explicitly for a landmark-less detection head.
+    if num_kpts == 0:
+        kps = np.empty((kept.shape[0], 0, 2), dtype=np.float32)
+    else:
+        kps = kept[:, 6 : 6 + 3 * num_kpts].reshape(-1, num_kpts, 3)[:, :, :2]
     return xyxy.astype(np.float32), scores[keep].astype(np.float32), kps.astype(np.float32)
 
 
@@ -258,22 +299,32 @@ class YoloFaceDetector:
         blob = preprocess(canvas)
         output = session.run(None, {self._input_name: blob})[0]
 
-        if is_nms_baked(output, self.num_kpts):
-            xyxy, scores, kps = decode_nms_baked(output, self.conf_thresh, self.num_kpts)
+        baked_kpts = nms_baked_kpt_count(output)
+        if baked_kpts is not None:
+            # NMS already applied; decode however many landmarks the head carries
+            # (``baked_kpts`` may be 0 for the landmark-less large detectors).
+            xyxy, scores, kps = decode_nms_baked(output, self.conf_thresh, baked_kpts)
+            n_kpts = baked_kpts
         else:
             xyxy, scores, kps = decode_raw(output, self.conf_thresh, self.num_kpts)
             keep = nms(xyxy, scores, self.iou_thresh)
             xyxy, scores, kps = xyxy[keep], scores[keep], kps[keep]
+            n_kpts = self.num_kpts
 
         boxes_orig = unmap_points(xyxy.reshape(-1, 2, 2), ratio, pad_left, pad_top)
         kps_orig = unmap_points(kps, ratio, pad_left, pad_top)
+        # A landmark-less detector (K < 5) still yields boxes for the detection
+        # A/B; its Face landmarks are NaN so a downstream alignment attempt fails
+        # loudly rather than silently aligning on garbage.
+        nan_kps = np.full((NUM_KPTS, 2), np.nan, dtype=np.float32)
 
         faces: list[Face] = []
         for i in range(xyxy.shape[0]):
+            kp = kps_orig[i, :NUM_KPTS] if n_kpts >= NUM_KPTS else nan_kps
             faces.append(
                 Face(
                     bbox=boxes_orig[i].reshape(4),
-                    kps=kps_orig[i],
+                    kps=kp,
                     score=float(scores[i]),
                 )
             )

@@ -54,6 +54,32 @@
       "preprocessing": "112x112 aligned crop; BGR->RGB; NCHW float32; (x-127.5)/127.5; raw embedding, caller L2-normalizes",
       "local_path": "_data/models/lvface_tiny/LVFace-T_Glint360K.onnx"
     },
+    "yolov12l-face": {
+      "source_url": "https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov12l-face.onnx",
+      "repo": "",
+      "path": "yolov12l-face.onnx",
+      "sha256": "d55f67bcddf5622cfc90306c6cb2f7d478e5ed4202a35dc2f833003c837243da",
+      "license": "AGPL-3.0",
+      "dim": 0,
+      "preprocessing": "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; NMS-baked detection output (1, M, 6): [x1,y1,x2,y2,score,class] (no landmarks — detection A/B only)",
+      "local_path": "_data/models/yolov12l-face/yolov12l-face.onnx",
+      "kind": "detector",
+      "license_note": "Same akanametov/yolo-face 1.0.0 release + AGPL-3.0 terms as yolov8n-face; LOCAL benchmark tooling only, never bundled into the distributed app.",
+      "note": "Pre-exported ONNX downloaded directly from the release (checksum-verified). The akanametov *large* face variants are plain detect models, not pose models, so this head emits (1, M, 6) with NO landmark columns; the adapter (yoloface.py) auto-detects the K=0 layout and emits NaN landmarks, so it drives detection recall (detect_compare.py) only — it cannot feed the alignment/recognition path."
+    },
+    "yolov8l-face": {
+      "source_url": null,
+      "repo": "",
+      "path": "yolov8l-face.onnx",
+      "sha256": "e4e1bd1943084c7e815009a14426d997abfc95dcea8a85e3e525c013c3bc3eb7",
+      "license": "AGPL-3.0",
+      "dim": 0,
+      "preprocessing": "letterbox to 640x640; BGR->RGB; NCHW float32 in [0,1]; NMS-baked detection output (1, M, 6): [x1,y1,x2,y2,score,class] (no landmarks — detection A/B only)",
+      "local_path": "_data/models/yolov8l-face/yolov8l-face.onnx",
+      "kind": "detector",
+      "license_note": "Same weights family/license as yolov8n-face (akanametov/yolo-face 1.0.0, AGPL-3.0); LOCAL benchmark tooling only, never bundled into the distributed app.",
+      "note": "The release ships yolov8l-face only as a .pt (no pre-exported .onnx), and it is a plain detect model with no landmark head. One-time export in a SCRATCH venv (never the project venv): pip install ultralytics onnxslim; python -c \"from ultralytics import YOLO; YOLO('yolov8l-face.pt').export(format='onnx', opset=12, imgsz=640, nms=True, simplify=True)\" then place the .onnx at the local_path above. The .pt is the akanametov 1.0.0 release asset yolov8l-face.pt (164.8 GFLOPs). Output is (1, M, 6) with NO landmarks; drives detection recall (detect_compare.py) only, not recognition."
+    },
     "yolov8n-face": {
       "source_url": "https://github.com/akanametov/yolo-face/releases/download/1.0.0/yolov8n-face.onnx",
       "repo": "",
