@@ -280,6 +280,14 @@ for YOLO-family detectors belongs to the larger variants (a config-change A/B,
 tracked as B6+, only worth doing if detection becomes the bottleneck — it is
 not).
 
+**Update (2026-07-10, B6+ run):** the large-variant A/B was executed on the full
+restore. `yolov8l-face` / `yolov12l-face` close the nano gap but do **not** beat
+SCRFD anywhere (Q1 99.4 % SCRFD vs 99.1 % for both large variants; SCRFD leads or
+ties every quartile), and the large akanametov weights are landmark-less (plain
+detectors, no 5-point head) so they cannot drive alignment/recognition. The
+detector verdict is unchanged — SCRFD stays. Numbers in
+`backend/benchmarks/README.md`.
+
 ### Is `det_size=640` and single-pass detection enough?
 
 From the full-dataset detector recall (2,923 matched + 107 missed):

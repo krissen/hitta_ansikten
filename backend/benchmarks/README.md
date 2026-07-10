@@ -327,6 +327,55 @@ adapter's own NMS path) is produced offline with a **one-time** ultralytics
 export in a scratch venv (never the project venv); the exact command is in the
 manifest's `note` field. Both are documented in `models_manifest.json`.
 
+### Large-variant A/B + end-to-end YOLO pipeline (2026-07-10, full restore)
+
+B6 left one question open (ROADMAP B6+): the *nano* YOLO lost to SCRFD, but does
+a **large** YOLO-face variant close — or beat — that gap where model class
+plausibly explains nano's loss? The large `yolov8l-face` / `yolov12l-face`
+weights (same akanametov release, one-time raw-head export) were A/B'd against
+SCRFD on the full restore, and the nano end-to-end pipeline was run through the
+buffalo_l recognition head.
+
+`detect_compare` over the full-restore staging (2014 images, **N = 3030** scored
+DB faces; 102 have no stored bbox and can never match — they penalize every
+detector equally), all detectors at `det_size=640`, new-face conf ≥ 0.5:
+
+| Metric | buffalo_l (SCRFD-10GF) | yolov8n-face | yolov8l-face | yolov12l-face |
+|---|---:|---:|---:|---:|
+| Overall recall | **96.5 %** (2923/3030) | 95.3 % (2888/3030) | 96.4 % (2920/3030) | 96.3 % (2918/3030) |
+| Q1 (smallest faces) | **99.4 %** (648/652) | 96.0 % (626/652) | 99.1 % (646/652) | 99.1 % (646/652) |
+| Q2 | **100.0 %** | 99.0 % | **100.0 %** | 99.9 % |
+| Q3 | **99.9 %** | 99.4 % | **99.9 %** | 99.7 % |
+| Q4 (largest) | **100.0 %** | 99.9 % | 99.9 % | 99.9 % |
+| New faces found (count-only) | 4099 | 3527 | 4338 | 4342 |
+
+**Takeaways:**
+
+1. **The large variants close the nano gap but beat SCRFD nowhere.** `yolov8l` /
+   `yolov12l` recover almost all of nano's deficit (Q1 96.0 % → 99.1 %), but
+   SCRFD still leads or ties every quartile — most clearly on the smallest faces
+   (Q1: SCRFD 99.4 % vs 99.1 %). There is no stratum where a larger YOLO wins.
+2. **The large akanametov weights are landmark-less.** They are plain
+   *detectors* with no 5-point landmark head, so they **cannot** feed
+   `align_112`/`norm_crop` (alignment needs the 5 points) and therefore cannot
+   drive the recognition path — see the `models_manifest.json` note. Only the
+   nano weights carry landmarks, so end-to-end was run with nano alone.
+3. **End-to-end nano → buffalo_l is recognition-equivalent** on commonly-detected
+   faces. Feeding `yolov8n-face` detections into the buffalo_l head embeds 2888
+   faces / 96 identities (vs 2923 / 97 for the SCRFD path); rank-1 max-sim
+   **98.8 % vs 98.7 %**, rank-5 99.7 % vs 99.8 %, twin rank-1 80.4 % vs 79.6 %,
+   open-set DIR@FAR≤0.01 86.0 % vs 86.4 %, and the threshold sweep reproduces the
+   app defaults (0.45 / 0.35). On the faces both detectors find, recognition is a
+   wash — the detector swap changes nothing downstream; SCRFD's higher recall
+   simply means **more faces embedded**.
+
+**Verdict:** B6+ closes the detector question. No YOLO variant beats SCRFD on
+recall, the large ones can't drive recognition, and nano is recognition-equivalent
+only on faces SCRFD already detects. **SCRFD (buffalo_l) is retained** — consistent
+with the audit decision report. The end-to-end report lives in
+`_data/report_yolo.md` (gitignored); the full `detect_compare` printout is in
+`_data/b6plus_runs.log`.
+
 ## Layout
 
 | File | Role |
