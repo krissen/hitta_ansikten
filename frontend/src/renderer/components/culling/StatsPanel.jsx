@@ -13,8 +13,10 @@ const EXCLUDED_KEYS = ['tranare', 'grupp', 'publik', 'below_threshold'];
 
 /** Collapsible groups for names the count excludes (coaches, group photos,
  *  audience, below-threshold) — visible but separated from the live counts,
- *  matching the Räkna spelare page. */
-function CullingExcluded({ excluded }) {
+ *  matching the Räkna spelare page. Items are clickable (filter/highlight the
+ *  person, same hand-off as the player rows) and right-clickable
+ *  (session/permanent reclassification menu) when the callbacks are given. */
+function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
   if (!excluded) return null;
   const groups = EXCLUDED_KEYS.filter(
     (key) => excluded[key] && excluded[key].length > 0
@@ -27,7 +29,23 @@ function CullingExcluded({ excluded }) {
           <summary>{t('culling.stats.groupSummary', { label: t(`culling.stats.excludedLabels.${key}`), count: excluded[key].length })}</summary>
           <ul>
             {excluded[key].map((e) => (
-              <li key={e.name}>{t('culling.stats.excludedItem', { name: e.name, count: e.count, pct: e.pct })}</li>
+              <li
+                key={e.name}
+                className={onSelect ? 'clickable' : undefined}
+                onClick={onSelect ? () => onSelect(e.name) : undefined}
+                onContextMenu={onNameContextMenu ? (ev) => onNameContextMenu(ev, e.name, key) : undefined}
+                role={onSelect ? 'button' : undefined}
+                tabIndex={onSelect ? 0 : undefined}
+                onKeyDown={onSelect ? (ev) => {
+                  if (ev.key === 'Enter' || ev.key === ' ') {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    onSelect(e.name);
+                  }
+                } : undefined}
+              >
+                {t('culling.stats.excludedItem', { name: e.name, count: e.count, pct: e.pct })}
+              </li>
             ))}
           </ul>
         </details>
@@ -53,7 +71,7 @@ function CullingExcluded({ excluded }) {
  * capture-phase Enter/Esc handler yields to a focused role="button" so a keyed
  * Enter here filters instead of starting a rename.
  */
-export function CullingStats({ stats, selected, onSelect, onActivate, mode, width }) {
+export function CullingStats({ stats, selected, onSelect, onActivate, mode, width, onNameContextMenu }) {
   const players = stats?.players || [];
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const clickTimerRef = useRef(null);
@@ -137,6 +155,7 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
                       activate?.();
                     }
                   } : undefined}
+                  onContextMenu={onNameContextMenu ? (e) => onNameContextMenu(e, p.name, 'players') : undefined}
                   title={title}
                 >
                   <td className="culling-stat-name">{p.name}</td>
@@ -159,7 +178,11 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
             </tbody>
           </table>
           )}
-          <CullingExcluded excluded={excluded} />
+          <CullingExcluded
+            excluded={excluded}
+            onSelect={onSelect ? (name) => handleRowClick(name === selected ? '' : name) : undefined}
+            onNameContextMenu={onNameContextMenu}
+          />
         </div>
       )}
     </div>

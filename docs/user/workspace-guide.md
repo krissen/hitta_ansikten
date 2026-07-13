@@ -283,6 +283,18 @@ antal.
    > sparningen kanske inte får effekt. Motsvarar CLI:ns
    > `--gap-minutes`/`--baseline`/`--min-images` och `--tranare`/`--publik` samt
    > config-nycklarna `always_grupp`/`always_publik`.
+
+   > **Högerklicka ett namn** i spelartabellen eller i de exkluderade
+   > sektionerna för en meny som flyttar namnet mellan kategorierna **för den
+   > aktuella sessionen** — t.ex. gör en publik-/gruppmarkerad person till
+   > spelare (räknas då även om den har färre än **Min bilder**), eller flytta
+   > en spelare som bara spelade kort tid till publik. Sessionflyttarna delas
+   > med Gallra spelare-vyns räknekolumn (samma meny finns där), överlever
+   > omladdning men nollas när appen startas om, och sparas aldrig:
+   > **Återställ** rensar dem och **Spara som standard** tar inte med dem.
+   > Tillfälliga spelare visas som chips under **Uteslutna** (ta bort chipet =
+   > ångra). Menyvalet **Gör publik permanent** skriver däremot namnet direkt
+   > till publik-listan i config (utan att spara övriga osparade ändringar).
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
    (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
    spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken. Välj filtyp
@@ -300,7 +312,11 @@ antal.
    genvägshjälpen (`?`).
    Längst till vänster visas en **levande spelarräkning** för det aktuella
    urvalet som uppdateras direkt när du gallrar — så du ser hur varje spelares
-   antal förändras. Tryck `x` (eller `Delete`) för att flytta bilden till
+   antal förändras. Även de **exkluderade grupperna** (tränare/gruppbilder/
+   publik/under tröskeln) är klickbara där för att filtrera/markera personen,
+   och **högerklick på ett namn** (spelare eller exkluderad) ger samma
+   session-/permanent-meny som i Räkna spelare — flytta t.ex. en
+   publikmarkerad person till spelare för sessionen, direkt medan du gallrar. Tryck `x` (eller `Delete`) för att flytta bilden till
    papperskorgen och gå vidare (`Cmd+⌫` fungerar också, à la Finder). `Cmd+Z`
    ångrar.
    - **Byt namn på en fil:** tryck `Enter` på markerad fil (eller dubbelklicka)

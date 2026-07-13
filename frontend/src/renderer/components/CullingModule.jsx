@@ -31,6 +31,14 @@ import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
 import { CullingContextMenu } from './culling/ContextMenu.jsx';
 import { CullingFilterBar } from './culling/FilterBar.jsx';
+import { ContextMenu } from './shared';
+import { useContextMenu } from '../hooks/useContextMenu.js';
+import {
+  playerSessionParams,
+  subscribePlayerSession,
+  buildPlayerMenuItems,
+  persistPublikPermanent,
+} from '../shared/playerSession.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -253,7 +261,12 @@ export function CullingModule({ node }) {
       if (!scope) return;
       const seq = ++statsSeqRef.current;
       try {
-        const data = await api.post('/api/v1/players/count', scope);
+        // Carry the shared session-only right-click moves (read fresh per
+        // request) so the live column agrees with Räkna spelare.
+        const data = await api.post('/api/v1/players/count', {
+          ...scope,
+          ...playerSessionParams(),
+        });
         if (seq !== statsSeqRef.current) return;
         setStats(data);
       } catch {
@@ -271,6 +284,35 @@ export function CullingModule({ node }) {
       loadStats(statsScopeFromQuery(lastQueryRef.current));
     }, REFRESH_DEBOUNCE_MS);
   }, [loadStats]);
+
+  // Refresh the stats column when the shared session moves change (from the
+  // name context menu here or in Räkna spelare).
+  useEffect(
+    () =>
+      subscribePlayerSession(() => {
+        if (lastQueryRef.current) loadStats(statsScopeFromQuery(lastQueryRef.current));
+      }),
+    [loadStats]
+  );
+
+  // Right-click on a name in the stats column: session bucket moves +
+  // permanent publik (shared semantics with Räkna spelare).
+  const { menu: nameMenu, openMenu: openNameMenu, closeMenu: closeNameMenu } = useContextMenu();
+  const handleNameContextMenu = useCallback(
+    (e, name, bucket) => openNameMenu(e, { name, bucket }),
+    [openNameMenu]
+  );
+  const makePublikPermanent = useCallback(
+    async (name) => {
+      try {
+        await persistPublikPermanent(api, name);
+      } catch (err) {
+        setError(err.message || String(err));
+      }
+    },
+    [api]
+  );
+  const nameMenuItems = nameMenu ? buildPlayerMenuItems(nameMenu.bucket, makePublikPermanent) : [];
 
   const runFilter = useCallback((overrides = {}) => {
     const query = buildQuery(overrides);
@@ -638,10 +680,11 @@ export function CullingModule({ node }) {
   const [confirmNav, setConfirmNav] = useState(null);
   const confirmNavRef = useRef(null);
   confirmNavRef.current = confirmNav;
-  // Mirror the context-menu state so the capture-phase key handler can bail
-  // while the menu is open (its own Esc handler closes it).
+  // Mirror the context-menu states (file menu + stats-column name menu) so the
+  // capture-phase key handler can bail while either is open (each menu's own
+  // Esc handler closes it).
   const menuRef = useRef(null);
-  menuRef.current = menu;
+  menuRef.current = menu || nameMenu;
 
   // Run a navigation, but defer it behind the confirm dialog when the current
   // file has unsaved name toggles.
@@ -1137,6 +1180,7 @@ export function CullingModule({ node }) {
             mode={viewMode}
             selected={viewMode === 'grid' ? highlightPlayer : player}
             width={statsWidth}
+            onNameContextMenu={handleNameContextMenu}
             onSelect={(name) => {
               if (viewMode === 'grid') {
                 // Grid: single-click highlights the player's thumbnails (no
@@ -1295,6 +1339,10 @@ export function CullingModule({ node }) {
         undoTrash={undoTrash}
         openRawInLightroom={openRawInLightroom}
       />
+
+      {/* Right-click menu on a name in the stats column (session moves +
+          permanent publik, shared with Räkna spelare). */}
+      <ContextMenu menu={nameMenu} items={nameMenuItems} onClose={closeNameMenu} />
 
       {/* Unsaved name-change confirm dialog. Built on the shared Modal base for
           top-layer rendering + backdrop; its bespoke keyboard semantics (⌘↵ save,

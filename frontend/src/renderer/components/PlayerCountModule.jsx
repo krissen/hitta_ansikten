@@ -11,9 +11,20 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleAPI } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
-import { Button, Alert } from './shared';
+import { Button, Alert, ContextMenu } from './shared';
+import { useContextMenu } from '../hooks/useContextMenu.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
 import { getWorkingFolder } from '../shared/workingFolder.js';
+import {
+  getPlayerSession,
+  playerSessionParams,
+  movePlayerSession,
+  removePlayerSession,
+  clearPlayerSession,
+  subscribePlayerSession,
+  buildPlayerMenuItems,
+  persistPublikPermanent,
+} from '../shared/playerSession.js';
 import { t } from '../../i18n/index.js';
 import './PlayerCountModule.css';
 
@@ -25,7 +36,9 @@ export const DEFAULT_OPTIONS = { gapMinutes: 30, baseline: 'median', minImages: 
 // Build the /players/count request body. Pure + exported for unit tests.
 // `exclOverride` is { tranare, publik } to override the config/env exclusion
 // lists, or null/undefined to keep the backend defaults (config/env).
-export function buildCountParams(inp, options, includePerMatch, exclOverride) {
+// `session` is a playerSessionParams() object (session-only right-click pins),
+// or null/undefined for none.
+export function buildCountParams(inp, options, includePerMatch, exclOverride, session) {
   const opts = options || DEFAULT_OPTIONS;
   return {
     roots: inp.roots,
@@ -40,6 +53,10 @@ export function buildCountParams(inp, options, includePerMatch, exclOverride) {
     per_match: includePerMatch,
     tranare: exclOverride ? exclOverride.tranare : null,
     publik: exclOverride ? exclOverride.publik : null,
+    spelare: session?.spelare ?? null,
+    session_tranare: session?.session_tranare ?? null,
+    session_publik: session?.session_publik ?? null,
+    session_grupp: session?.session_grupp ?? null,
   };
 }
 
@@ -66,6 +83,11 @@ export function PlayerCountModule() {
   const [alwaysPublik, setAlwaysPublik] = useState([]);
   const [envKeys, setEnvKeys] = useState([]); // RAKNA_* env vars shadowing config
   const [exclusionsDirty, setExclusionsDirty] = useState(false); // tranare/publik (per-request)
+  // Session-only right-click moves, shared with the culling stats column
+  // (sessionStorage-backed store). Kept out of `exclusions` entirely so
+  // "Spara som standard" can never persist a session move.
+  const [session, setSession] = useState(getPlayerSession());
+  useEffect(() => subscribePlayerSession(setSession), []);
   const [configDirty, setConfigDirty] = useState(false); // grupp/always (needs save)
   const [savingDefaults, setSavingDefaults] = useState(false);
 
@@ -79,7 +101,9 @@ export function PlayerCountModule() {
 
   const buildParams = useCallback(
     (inp, includePerMatch, opts, exclOverride) =>
-      buildCountParams(inp, opts, includePerMatch, exclOverride),
+      // Session pins are read fresh at call time, so every recount path
+      // (submit, option change, auto-refresh resubmit) carries them.
+      buildCountParams(inp, opts, includePerMatch, exclOverride, playerSessionParams()),
     []
   );
 
@@ -155,6 +179,16 @@ export function PlayerCountModule() {
     },
     [buildParams, runCount, updateWatches, watchDirsFor, options, exclusions, exclusionsDirty]
   );
+
+  // Re-run the count when the shared session moves change (from this module's
+  // context menu, its chips, or the culling stats column). Skips the initial
+  // subscription value and counts that haven't run yet.
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    if (sessionRef.current === session) return;
+    sessionRef.current = session;
+    if (lastParamsRef.current) submitWith(input, perMatch);
+  }, [session, submitWith, input, perMatch]);
 
   const handleSubmit = useCallback(
     () => submitWith(input, perMatch),
@@ -260,7 +294,10 @@ export function PlayerCountModule() {
     (kind, name) => {
       const clean = name.trim();
       if (!clean) return;
-      if (kind === 'tranare' || kind === 'publik') {
+      if (kind === 'spelare') {
+        // Session-only force-include (shared store; recount via subscription).
+        movePlayerSession(clean, 'spelare');
+      } else if (kind === 'tranare' || kind === 'publik') {
         if (exclusions[kind].includes(clean)) return;
         applyExclusions({ ...exclusions, [kind]: [...exclusions[kind], clean] });
       } else {
@@ -274,7 +311,9 @@ export function PlayerCountModule() {
 
   const removeExcluded = useCallback(
     (kind, name) => {
-      if (kind === 'tranare' || kind === 'publik') {
+      if (kind === 'spelare') {
+        removePlayerSession(name);
+      } else if (kind === 'tranare' || kind === 'publik') {
         applyExclusions({ ...exclusions, [kind]: exclusions[kind].filter((n) => n !== name) });
       } else {
         const list = kind === 'grupp' ? grupp : alwaysPublik;
@@ -315,8 +354,35 @@ export function PlayerCountModule() {
     await loadExclusions();
     setExclusionsDirty(false);
     setConfigDirty(false);
+    // Återställ also clears the session-only right-click moves.
+    clearPlayerSession();
     if (lastParamsRef.current) submitWith(input, perMatch, options, null);
   }, [loadExclusions, submitWith, input, perMatch, options]);
+
+  // Targeted permanent publik (shared helper: raw-config save + session pin);
+  // refresh the editor lists unless that would clobber unsaved edits — in that
+  // case merge just the new name into the local publik list instead, so a
+  // later "Spara som standard" can't post a list that lacks it (which would
+  // silently un-persist the permanent move).
+  const makePublikPermanent = useCallback(
+    async (name) => {
+      const clean = name.trim();
+      if (!clean) return;
+      try {
+        await persistPublikPermanent(api, clean);
+        if (!exclusionsDirty && !configDirty) {
+          await loadExclusions();
+        } else {
+          setExclusions((prev) =>
+            prev.publik.includes(clean) ? prev : { ...prev, publik: [...prev.publik, clean] }
+          );
+        }
+      } catch (err) {
+        setError(err.message || String(err));
+      }
+    },
+    [api, exclusionsDirty, configDirty, loadExclusions]
+  );
 
   // Open the culling workspace filtered to a player (from the stats table).
   const openCullForPlayer = useCallback(
@@ -360,6 +426,15 @@ export function PlayerCountModule() {
     };
   }, [runCount]);
 
+  // Right-click on a name (player table / excluded sections): session moves
+  // between the buckets + permanent publik.
+  const { menu, openMenu, closeMenu } = useContextMenu();
+  const handleNameContextMenu = useCallback(
+    (e, name, bucket) => openMenu(e, { name, bucket }),
+    [openMenu]
+  );
+  const menuItems = menu ? buildPlayerMenuItems(menu.bucket, makePublikPermanent) : [];
+
   const totalImages = result?.total_images ?? 0;
 
   return (
@@ -396,6 +471,7 @@ export function PlayerCountModule() {
         onOptionsChange={applyOptions}
         onOptionsPreview={setOptions}
         exclusions={exclusions}
+        sessionSpelare={session.spelare}
         grupp={grupp}
         alwaysPublik={alwaysPublik}
         envKeys={envKeys}
@@ -428,16 +504,18 @@ export function PlayerCountModule() {
               <div className="empty-state">{t('playerCount.noMatches')}</div>
             ) : (
               <>
-                <PlayerTable players={result.players} baseline={result.baseline} timeRange={result.time_range} onPlayerClick={openCullForPlayer} />
-                <ExcludedSections excluded={result.excluded} />
+                <PlayerTable players={result.players} baseline={result.baseline} timeRange={result.time_range} onPlayerClick={openCullForPlayer} onNameContextMenu={handleNameContextMenu} />
+                <ExcludedSections excluded={result.excluded} onNameContextMenu={handleNameContextMenu} />
                 {perMatch && result.matches?.length > 0 && (
-                  <MatchSections matches={result.matches} onPlayerClick={openCullForPlayer} />
+                  <MatchSections matches={result.matches} onPlayerClick={openCullForPlayer} onNameContextMenu={handleNameContextMenu} />
                 )}
               </>
             )}
           </>
         )}
       </div>
+
+      <ContextMenu menu={menu} items={menuItems} onClose={closeMenu} />
     </div>
   );
 }
@@ -469,6 +547,7 @@ export function CountOptions({
   onOptionsChange,
   onOptionsPreview,
   exclusions,
+  sessionSpelare,
   grupp,
   alwaysPublik,
   envKeys,
@@ -494,6 +573,7 @@ export function CountOptions({
   const total =
     exclusions.tranare.length +
     exclusions.publik.length +
+    (sessionSpelare?.length || 0) +
     (grupp?.length || 0) +
     (alwaysPublik?.length || 0);
 
@@ -553,6 +633,18 @@ export function CountOptions({
 
       {open && (
         <div className="player-count-exclusions">
+          {/* Session-only force-includes (context menu "gör till spelare"):
+              removable chips = undo; never persisted by Spara som standard. */}
+          {sessionSpelare?.length > 0 && (
+            <ExclusionList
+              title={t('playerCount.exclusions.spelare')}
+              kind="spelare"
+              names={sessionSpelare}
+              onAdd={onAddExcluded}
+              onRemove={onRemoveExcluded}
+              busy={busy}
+            />
+          )}
           <ExclusionList
             title={t('playerCount.exclusions.tranare')}
             kind="tranare"
@@ -714,7 +806,7 @@ function Spark({ timestamps, start, end, bins = 24 }) {
 // `timeRange` is { start, end } (the session window, or a match's window) used
 // for the spark; `baseline` anchors the distribution bar at 50% of the track,
 // mirroring the CLI's baseline-relative bar (at-baseline = half-full, 2× = full).
-function PlayerTable({ players, baseline, timeRange, onPlayerClick }) {
+function PlayerTable({ players, baseline, timeRange, onPlayerClick, onNameContextMenu }) {
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const ref = baseline > 0 ? baseline : maxCount; // bar reference (baseline → 50%)
   return (
@@ -748,6 +840,7 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick }) {
                 onPlayerClick(p.name);
               }
             } : undefined}
+            onContextMenu={onNameContextMenu ? (e) => onNameContextMenu(e, p.name, 'players') : undefined}
             title={rowTitle}
           >
             <td>{p.name}</td>
@@ -784,7 +877,7 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick }) {
 // the two never drift.
 const EXCLUDED_KEYS = ['tranare', 'grupp', 'publik', 'below_threshold'];
 
-function ExcludedSections({ excluded }) {
+function ExcludedSections({ excluded, onNameContextMenu }) {
   if (!excluded) return null;
   const groups = EXCLUDED_KEYS.filter(
     (key) => excluded[key] && excluded[key].length > 0
@@ -798,7 +891,12 @@ function ExcludedSections({ excluded }) {
           <summary>{t(`playerCount.excludedLabels.${key}`)} ({excluded[key].length})</summary>
           <ul>
             {excluded[key].map((e) => (
-              <li key={e.name}>{e.name}: {e.count} ({e.pct}%)</li>
+              <li
+                key={e.name}
+                onContextMenu={onNameContextMenu ? (ev) => onNameContextMenu(ev, e.name, key) : undefined}
+              >
+                {e.name}: {e.count} ({e.pct}%)
+              </li>
             ))}
           </ul>
         </details>
@@ -835,7 +933,7 @@ function MatchInfoRow({ match }) {
   );
 }
 
-export function MatchSections({ matches, onPlayerClick }) {
+export function MatchSections({ matches, onPlayerClick, onNameContextMenu }) {
   return (
     <div className="player-count-matches">
       {matches.map((m) => (
@@ -851,11 +949,11 @@ export function MatchSections({ matches, onPlayerClick }) {
           </summary>
           <MatchInfoRow match={m} />
           {m.players.length > 0 ? (
-            <PlayerTable players={m.players} baseline={m.baseline} timeRange={{ start: m.start, end: m.end }} onPlayerClick={onPlayerClick} />
+            <PlayerTable players={m.players} baseline={m.baseline} timeRange={{ start: m.start, end: m.end }} onPlayerClick={onPlayerClick} onNameContextMenu={onNameContextMenu} />
           ) : (
             <div className="empty-state compact">{t('playerCount.match.noPlayers')}</div>
           )}
-          <ExcludedSections excluded={m.excluded} />
+          <ExcludedSections excluded={m.excluded} onNameContextMenu={onNameContextMenu} />
         </details>
       ))}
     </div>

@@ -14,3 +14,4 @@ export { ConfirmDialog } from './ConfirmDialog.jsx';
 export { Alert } from './Alert.jsx';
 export { ProgressBar, LoadingSpinner, LoadingOverlay } from './ProgressBar.jsx';
 export { EmptyState } from './EmptyState.jsx';
+export { ContextMenu } from './ContextMenu.jsx';

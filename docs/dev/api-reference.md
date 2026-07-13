@@ -831,7 +831,12 @@ median-baseline over/under-representation statistics.
   "min_images": 3,
   "per_match": false,
   "tranare": null,
-  "publik": null
+  "publik": null,
+  "grupp": null,
+  "spelare": null,
+  "session_tranare": null,
+  "session_publik": null,
+  "session_grupp": null
 }
 ```
 
@@ -863,10 +868,17 @@ At least one of `roots`/`globs` is required.
 is populated only when `per_match` is true.
 
 `gap_minutes` (match split), `baseline` (`median`/`mean`) and `min_images` map to
-the CLI's `--gap-minutes`/`--baseline`/`--min-images`. `tranare`/`publik` override
-the coach/audience exclusion lists for this request only (`null` keeps the
-config/env defaults); the built-in always-markers (`Laget`/`FBK` group, `Klacken`
-audience) are merged in regardless and can't be overridden.
+the CLI's `--gap-minutes`/`--baseline`/`--min-images`. `tranare`/`publik`/`grupp`
+override the coach/audience/group exclusion lists for this request only (`null`
+keeps the config/env defaults); the configured always-markers (default `Laget`/
+`FBK` group, `Klacken` audience) are merged in regardless.
+
+`spelare`/`session_tranare`/`session_publik`/`session_grupp` are per-request
+**pins** that win over everything (config, env, overrides, even always-markers):
+a pinned name is removed from all exclusion sets and lands only in its pinned
+bucket. `spelare` pins to the players bucket and also bypasses `min_images`.
+They back the GUI's session-only right-click moves (Räkna spelare + the culling
+stats column) and are never persisted.
 
 ### `GET /api/v1/players/exclusions`
 
@@ -880,6 +892,7 @@ always-markers), so the GUI can pre-fill its editor.
   "publik": ["Klacken"],
   "grupp": ["FBK", "Laget"],
   "always": { "publik": ["Klacken"], "grupp": ["FBK", "Laget"] },
+  "config": { "tranare": ["Coach"], "publik": [], "grupp": [] },
   "env_active": false,
   "env_keys": []
 }
@@ -887,9 +900,11 @@ always-markers), so the GUI can pre-fill its editor.
 
 `always` is the **configured** always-excluded set (grupp/publik), defaulting to
 the built-ins `Laget`/`FBK` and `Klacken` when the config doesn't override them —
-it's now editable, not a fixed built-in. `env_active`/`env_keys` report which
-`RAKNA_*` env vars are shadowing the config (so the GUI can warn that "save as
-default" won't take effect).
+it's now editable, not a fixed built-in. `config` mirrors the **raw persisted**
+lists (no env values, no always-markers) — targeted saves (the GUI's "Gör publik
+permanent") build on it so transient `RAKNA_*` env lists are never echoed into
+the file. `env_active`/`env_keys` report which `RAKNA_*` env vars are shadowing
+the config (so the GUI can warn that "save as default" won't take effect).
 
 ### `POST /api/v1/players/exclusions`
 
