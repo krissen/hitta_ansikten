@@ -606,6 +606,17 @@ export function FlexLayoutWorkspace() {
     };
     const offOpenImport = window.ansiktenAPI.on('open-import', handleOpenImport);
 
+    // In-app hand-off from Import → Rename-NEF ("Döp om filer…"). Unlike the
+    // CLI hand-offs above this is a renderer moduleAPI event (no IPC): open/focus
+    // the rename-nef module, then pass it the just-imported folder once it has
+    // subscribed. waitForListeners guards the cold-start race on first open.
+    const handleOpenRenameNef = async ({ roots }) => {
+      openModule('rename-nef');
+      await moduleAPI.waitForListeners('rename-nef-load', 2000);
+      moduleAPI.emit('rename-nef-load', { roots });
+    };
+    const offOpenRenameNef = moduleAPI.on('open-rename-nef', handleOpenRenameNef);
+
     // Track which files have unsaved Review changes so the culling hand-off
     // above won't close Review and discard them.
     const offReviewDirty = moduleAPI.on('review-dirty', ({ imagePath, dirty }) => {
@@ -626,6 +637,7 @@ export function FlexLayoutWorkspace() {
       offMenuCommand?.();
       offOpenCulling?.();
       offOpenImport?.();
+      offOpenRenameNef?.();
       offReviewDirty?.();
     };
   }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, moduleAPI, moveToNewTabset]);

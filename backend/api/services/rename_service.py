@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from api.services.db_store import get_db_store
+from core.exiftool import find_exiftool
 from core.files import SUPPORTED_EXTENSIONS
 from core.naming import normalize_name
 from faceid_db import (
@@ -114,7 +115,7 @@ def extract_exif_datetime(file_path: Path) -> Optional[datetime]:
         try:
             import subprocess
             result = subprocess.run(
-                ['exiftool', '-DateTimeOriginal', '-s', '-s', '-s', str(file_path)],
+                [find_exiftool(), '-DateTimeOriginal', '-s', '-s', '-s', str(file_path)],
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0 and result.stdout.strip():

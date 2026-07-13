@@ -20,6 +20,28 @@ const { t } = require('../i18n');
 // Verbose backend logging is opt-in via ANSIKTEN_DEBUG=1 (off in production).
 const DEBUG = process.env.ANSIKTEN_DEBUG === '1';
 
+// Homebrew bin directories that hold CLI tools the backend shells out to
+// (notably exiftool). A GUI-launched app inherits a minimal PATH that usually
+// omits these, so a bare `exiftool` would fail with ENOENT.
+const EXTRA_BIN_PATHS = ['/opt/homebrew/bin', '/usr/local/bin'];
+
+/**
+ * Append well-known Homebrew bin dirs to a PATH string on macOS/Linux, without
+ * overriding entries that are already present. Windows PATH is returned as-is.
+ * @param {string} basePath - The PATH value to augment (may be undefined).
+ * @returns {string} The augmented PATH.
+ */
+function augmentPath(basePath) {
+  const original = basePath || '';
+  if (process.platform === 'win32') return original;
+
+  const existing = original.split(path.delimiter).filter(Boolean);
+  const missing = EXTRA_BIN_PATHS.filter((p) => !existing.includes(p));
+  if (missing.length === 0) return original;
+
+  return [...existing, ...missing].join(path.delimiter);
+}
+
 class BackendService {
   constructor() {
     this.process = null;
@@ -83,6 +105,7 @@ class BackendService {
         cwd: backendDir,
         env: {
           ...process.env,
+          PATH: augmentPath(process.env.PATH),
           ANSIKTEN_PORT: this.port.toString()
         }
       };
@@ -142,6 +165,7 @@ class BackendService {
         cwd: backendDir,
         env: {
           ...process.env,
+          PATH: augmentPath(process.env.PATH),
           PYTHONPATH: backendDir,
           ANSIKTEN_PORT: this.port.toString(),
           ANSIKTEN_LOG_LEVEL: logLevel
