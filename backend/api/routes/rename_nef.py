@@ -27,7 +27,7 @@ class RenameNefRequest(BaseModel):
 async def preview(request: RenameNefRequest):
     """Dry-run: show the EXIF-derived rename mapping."""
     try:
-        return get_rename_nef_service().preview(
+        return await get_rename_nef_service().preview(
             roots=request.roots, globs=request.globs, recursive=request.recursive,
         )
     except ValueError as e:
@@ -41,7 +41,7 @@ async def preview(request: RenameNefRequest):
 async def execute(request: RenameNefRequest):
     """Rename the NEFs (+ sidecars) from EXIF CreateDate."""
     try:
-        return get_rename_nef_service().execute(
+        return await get_rename_nef_service().execute(
             roots=request.roots, globs=request.globs, recursive=request.recursive,
         )
     except ValueError as e:

@@ -10,8 +10,9 @@ import React, { useState, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { useWebSocket } from '../hooks/useWebSocket.js';
 import { preferences } from '../workspace/preferences.js';
-import { Button, IconButton, Alert, EmptyState } from './shared';
+import { Button, IconButton, Alert, EmptyState, ProgressBar } from './shared';
 import { t } from '../../i18n/index.js';
 import './RenameNefModule.css';
 
@@ -31,6 +32,14 @@ export function RenameNefModule() {
   const [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // Latest rename-nef-progress event (null until the first arrives → the bar
+  // shows an indeterminate "preparing" state rather than looking frozen).
+  const [progress, setProgress] = useState(null);
+
+  const onProgress = useCallback((data) => {
+    if (data) setProgress(data);
+  }, []);
+  useWebSocket('rename-nef-progress', onProgress);
 
   const params = useCallback(() => ({
     roots,
@@ -72,6 +81,7 @@ export function RenameNefModule() {
     setBusy(true);
     setError(null);
     setResult(null);
+    setProgress(null);
     try {
       const data = await api.post('/api/v1/rename-nef/preview', params());
       setPreview(data);
@@ -85,6 +95,7 @@ export function RenameNefModule() {
   const doExecute = useCallback(async () => {
     setBusy(true);
     setError(null);
+    setProgress(null);
     try {
       const data = await api.post('/api/v1/rename-nef/execute', params());
       setResult(data);
@@ -142,6 +153,21 @@ export function RenameNefModule() {
               />
             </span>
           ))}
+        </div>
+      )}
+
+      {busy && (
+        <div className="rename-nef-progress">
+          <ProgressBar
+            value={progress ? progress.percent : null}
+            size="md"
+            showPercent
+          />
+          <span className="rename-nef-progress-label">
+            {progress
+              ? t('renameNef.progressLabel', { current: progress.current, total: progress.total })
+              : t('renameNef.progressPreparing')}
+          </span>
         </div>
       )}
 
