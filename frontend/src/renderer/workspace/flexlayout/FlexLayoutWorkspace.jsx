@@ -657,6 +657,11 @@ export function FlexLayoutWorkspace() {
     // emit is lost with it. Only loadLayout when there is no queue listener to
     // race against; when the queue is present its live listener gets the emit.
     const ensureQueueMounted = () => {
+      // Dismiss the startup landing explicitly. Normally a loaded image does this
+      // (via 'image-loaded'), but a `queue-files` payload without startQueue just
+      // fills the queue — no image loads — so nothing else would hide the landing
+      // and the populated queue would sit behind the startup screen.
+      setShowLanding(false);
       if (!hasModuleTab('file-queue') && reviewDirtyRef.current.size === 0) {
         loadLayout('queue-review');
       } else {

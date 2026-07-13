@@ -325,6 +325,19 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef', '/b.nef'], startQueue: true, clear: false });
   });
 
+  it('queue-files IPC dismisses the startup landing even without startQueue (no image loads)', async () => {
+    // launchIntent is null in this harness → the landing overlay is up at mount.
+    expect(document.querySelector('[data-testid="mock-landing"]')).toBeTruthy();
+
+    const handler = ipcHandler('queue-files');
+    // No startQueue: the queue fills but no image loads, so nothing else would
+    // hide the landing — ensureQueueMounted must dismiss it.
+    await act(async () => { await handler({ files: ['/a.nef'], startQueue: false }); });
+
+    expect(document.querySelector('[data-testid="mock-landing"]')).toBeNull();
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef'], startQueue: false });
+  });
+
   it('ensureReviewSurface switches a queue-only layout to the pipeline layout (Review becomes visible)', async () => {
     // Build a queue-only layout: the database preset has no Review/Viewer; add a
     // File Queue tab so neither review surface exists but the queue does.
