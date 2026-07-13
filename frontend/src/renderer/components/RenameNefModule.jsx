@@ -12,6 +12,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { preferences } from '../workspace/preferences.js';
+import { getWorkingFolder, setWorkingFolder } from '../shared/workingFolder.js';
 import { Button, IconButton, Alert, EmptyState, ProgressBar } from './shared';
 import { t } from '../../i18n/index.js';
 import './RenameNefModule.css';
@@ -20,10 +21,13 @@ export function RenameNefModule() {
   const { api } = useBackend();
   const showToast = useToast();
 
-  // Pre-fill with the import destination so the common "import then rename"
-  // flow starts pointed at the right folder. Backend file_resolver expands ~,
-  // so a stored ~-path is fine to pass through. Missing preference → empty.
+  // Pre-fill so the common "import then rename" flow starts pointed at the
+  // right folder. Prefer the working-folder anchor (set by the just-run import),
+  // then fall back to the import.destination preference, then empty. Backend
+  // file_resolver expands ~, so a stored ~-path is fine to pass through.
   const [roots, setRoots] = useState(() => {
+    const anchored = getWorkingFolder()?.roots;
+    if (anchored && anchored.length) return [...anchored];
     const dest = preferences.get('import.destination');
     return dest ? [dest] : [];
   });
@@ -58,6 +62,9 @@ export function RenameNefModule() {
     if (incoming.length) {
       setRoots(Array.from(new Set(incoming)));
       setGlob('');
+      // The import hand-off is authoritative about the event folder; keep the
+      // anchor in step with it (still tagged 'import' — rename hasn't run yet).
+      setWorkingFolder({ roots: incoming, step: 'import' });
     }
     setPreview(null);
     setResult(null);
@@ -100,6 +107,9 @@ export function RenameNefModule() {
       const data = await api.post('/api/v1/rename-nef/execute', params());
       setResult(data);
       setPreview(null);
+      // Rename finished on these folders — advance the anchor to 'rename' so the
+      // next step (review/count) can pre-fill from the same event folder.
+      if (roots.length) setWorkingFolder({ roots, step: 'rename' });
       // Transient receipt; the result panel keeps the persistent breakdown.
       const count = data.renamed?.length ?? 0;
       showToast(t('renameNef.doneToast', { count }), {
@@ -110,7 +120,7 @@ export function RenameNefModule() {
     } finally {
       setBusy(false);
     }
-  }, [api, params, showToast]);
+  }, [api, params, roots, showToast]);
 
   const canPreview = !busy && (roots.length > 0 || glob.trim() !== '');
   const canExecute = !busy && preview && preview.to_rename > 0;
