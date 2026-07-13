@@ -260,6 +260,169 @@ describe('FlexLayoutWorkspace — menu-command dispatch (characterization)', () 
   });
 });
 
+describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-files)', () => {
+  // moduleAPI.on records (event, handler). The setup effect re-registers on every
+  // model change (a layout reload), so return the LATEST registration — it closes
+  // over the current model; an earlier one closes over a stale (pre-reload) model.
+  function moduleApiHandler(evt) {
+    const reg = h.on.mock.calls.findLast(([e]) => e === evt);
+    return reg ? reg[1] : null;
+  }
+  // IPC listeners are captured on the fresh window.ansiktenAPI.on mock (latest).
+  function ipcHandler(evt) {
+    const reg = window.ansiktenAPI.on.mock.calls.findLast(([e]) => e === evt);
+    return reg ? reg[1] : null;
+  }
+  function tabId(model, component) {
+    let id = null;
+    model.visitNodes((n) => {
+      if (n.getType() === 'tab' && n.getComponent() === component) id = n.getId();
+    });
+    return id;
+  }
+  const reviewTabId = (model) => tabId(model, 'review-module');
+
+  beforeEach(mountWorkspace);
+
+  it('open-review-queue (no unsaved edits) loads the queue-review layout and hands roots to the queue', async () => {
+    expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
+    const handler = moduleApiHandler('open-review-queue');
+    await act(async () => { await handler({ roots: ['/events/cupen'] }); });
+
+    expect(tabComponents(window.workspace.model).sort()).toEqual([
+      'file-queue',
+      'image-viewer',
+      'review-module',
+    ]);
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { roots: ['/events/cupen'] });
+    expect(h.moduleAPI.waitForListeners).toHaveBeenCalledWith('file-queue-load', 2000);
+  });
+
+  it('open-review-queue with unsaved Review edits keeps the existing Review tab (no layout reload)', async () => {
+    const before = reviewTabId(window.workspace.model);
+    expect(before).toBeTruthy();
+    // Mark a file dirty so the guard must preserve Review state.
+    const dirty = moduleApiHandler('review-dirty');
+    await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
+
+    const handler = moduleApiHandler('open-review-queue');
+    await act(async () => { await handler({ roots: ['/events/cupen'] }); });
+
+    // Same node id → the layout was NOT rebuilt (which would discard Review).
+    expect(reviewTabId(window.workspace.model)).toBe(before);
+    // Queue still brought up and roots still handed off.
+    expect(tabComponents(window.workspace.model)).toContain('file-queue');
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { roots: ['/events/cupen'] });
+  });
+
+  it('queue-files IPC mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
+    expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
+    const handler = ipcHandler('queue-files');
+    expect(handler).toBeTypeOf('function');
+    await act(async () => { await handler({ files: ['/a.nef', '/b.nef'], startQueue: true, clear: false }); });
+
+    expect(tabComponents(window.workspace.model)).toContain('file-queue');
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef', '/b.nef'], startQueue: true, clear: false });
+  });
+
+  it('queue-files IPC dismisses the startup landing even without startQueue (no image loads)', async () => {
+    // launchIntent is null in this harness → the landing overlay is up at mount.
+    expect(document.querySelector('[data-testid="mock-landing"]')).toBeTruthy();
+
+    const handler = ipcHandler('queue-files');
+    // No startQueue: the queue fills but no image loads, so nothing else would
+    // hide the landing — ensureQueueMounted must dismiss it.
+    await act(async () => { await handler({ files: ['/a.nef'], startQueue: false }); });
+
+    expect(document.querySelector('[data-testid="mock-landing"]')).toBeNull();
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef'], startQueue: false });
+  });
+
+  it('ensureReviewSurface docks Review+Viewer beside an existing queue WITHOUT remounting it', async () => {
+    // Build a queue-only layout: the database preset has no Review/Viewer; add a
+    // File Queue tab so neither review surface exists but the queue does.
+    await dispatch('layout-database');
+    await act(async () => { window.workspace.openModule('file-queue'); });
+    const queueIdBefore = tabId(window.workspace.model, 'file-queue');
+    expect(queueIdBefore).toBeTruthy();
+    expect(tabComponents(window.workspace.model)).not.toContain('review-module');
+    expect(tabComponents(window.workspace.model)).not.toContain('image-viewer');
+
+    // loadFile calls this. Replacing the model would unmount the live FileQueue
+    // (dropping currentFileRef/currentIndex mid-loadFile), so it must add the
+    // review surface beside the queue instead — same queue node afterwards.
+    await act(async () => { window.workspace.ensureReviewSurface(); });
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+  });
+
+  it('ensureReviewSurface docks the MISSING Review beside an existing Viewer (queue kept)', async () => {
+    // A partial surface: queue + viewer, Review closed. The comparison preset has
+    // image-viewer (+ original-view) but no review/queue; add a queue.
+    await dispatch('layout-comparison');
+    await act(async () => { window.workspace.openModule('file-queue'); });
+    const queueIdBefore = tabId(window.workspace.model, 'file-queue');
+    expect(queueIdBefore).toBeTruthy();
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+    expect(tabComponents(window.workspace.model)).not.toContain('review-module');
+
+    await act(async () => { window.workspace.ensureReviewSurface(); });
+    // Queue not remounted; Review added; Viewer still there.
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+  });
+
+  it('ensureReviewSurface docks the MISSING Viewer beside an existing Review (queue kept)', async () => {
+    // A partial surface: queue + review, Viewer closed. Build it from the
+    // database preset (no review/viewer/queue), adding queue then review.
+    await dispatch('layout-database');
+    await act(async () => { window.workspace.openModule('file-queue'); });
+    await act(async () => { window.workspace.openModule('review-module'); });
+    const queueIdBefore = tabId(window.workspace.model, 'file-queue');
+    expect(queueIdBefore).toBeTruthy();
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+    expect(tabComponents(window.workspace.model)).not.toContain('image-viewer');
+
+    await act(async () => { window.workspace.ensureReviewSurface(); });
+    // Queue not remounted; Viewer added; Review still there.
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+  });
+
+  it('ensureReviewSurface loads the pipeline layout only when the queue is absent (blank start)', async () => {
+    // Database preset: no queue, no review surface. Nothing to lose → loadLayout.
+    await dispatch('layout-database');
+    expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
+    await act(async () => { window.workspace.ensureReviewSurface(); });
+    expect(tabComponents(window.workspace.model).sort()).toEqual([
+      'file-queue',
+      'image-viewer',
+      'review-module',
+    ]);
+  });
+
+  it('open-review-queue does not reload the layout when a File Queue tab already exists (emit reaches the live queue)', async () => {
+    // First hand-off loads the pipeline layout (queue absent → loadLayout).
+    const handler = moduleApiHandler('open-review-queue');
+    await act(async () => { await handler({ roots: ['/a'] }); });
+    const queueIdBefore = tabId(window.workspace.model, 'file-queue');
+    expect(queueIdBefore).toBeTruthy();
+
+    h.emit.mockClear();
+    // Second hand-off with the queue already mounted: must NOT rebuild the layout
+    // (which would drop the emit against the dying listener) — same node id — and
+    // the emit must still reach the live queue. Re-fetch the handler: the first
+    // reload re-registered it against the now-current model.
+    const handler2 = moduleApiHandler('open-review-queue');
+    await act(async () => { await handler2({ roots: ['/b'] }); });
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { roots: ['/b'] });
+  });
+});
+
 describe('applyUIPreferences', () => {
   beforeEach(() => {
     document.body.innerHTML = '';

@@ -206,15 +206,20 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 
 ### 0b. Byt namn på NEF (valfritt)
 
-1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`). Målmappen förväljs från senaste importdestination.
+1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`). Målmappen förväljs från den senast använda eventmappen (importsteget) och faller annars tillbaka på senaste importdestination.
 2. **Förhandsgranska** visar `DSC… → YYMMDD_HHMMSS.NEF` (dubbletter får `-NN`; filer utan CreateDate hoppas över).
 3. **Byt namn** utför; befintliga målnamn skrivs aldrig över.
+4. När namnbytet är klart visas knappen **"Granska ansikten…"** i resultatet — den öppnar granskningsvyn (Filkö + Granska ansikten + Bildvisare) med den namnbytta mappen redan laddad i kön (nästa steg).
 
 ### 1. Lägg till filer
 
 1. Klicka `+` i Filkö eller `Cmd+O`
 2. Välj en eller flera NEF-filer
 3. Filer läggs till i kön
+
+Är kön tom och du nyss importerat eller bytt namn i ett event visar tomläget
+en genväg **"Ladda {mapp}?"** som fyller kön med den senast använda
+eventmappen med ett klick.
 
 ### 2. Granska ansikten
 

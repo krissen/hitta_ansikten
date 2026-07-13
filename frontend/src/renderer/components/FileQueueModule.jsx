@@ -17,6 +17,7 @@ import { useConfirm } from '../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { scrollBehavior } from '../shared/motion.js';
+import { getWorkingFolder } from '../shared/workingFolder.js';
 import { PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { Button, IconButton, EmptyState } from './shared';
@@ -801,8 +802,19 @@ export function FileQueueModule({ node }) {
       return;
     }
 
-    // Ensure image viewer tab is visible/focused
-    if (window.workspace?.openModule) {
+    // Ensure the review surface (Review + Image Viewer) is mounted/visible before
+    // the image loads: Review consumes `image-loaded` (emitted by ImageViewer
+    // right after the load) to run detection, so it must be listening before that
+    // fires. The workspace owns the decision — in a saved queue-only layout it
+    // switches to the pipeline layout rather than stacking Review behind the
+    // viewer in the queue's tabset; otherwise it just focuses both. Review's
+    // late-mount recovery (request-current-image on mount) still covers layouts
+    // that gain a Review panel after an image was already loaded.
+    if (window.workspace?.ensureReviewSurface) {
+      window.workspace.ensureReviewSurface();
+    } else if (window.workspace?.openModule) {
+      // Fallback for an older workspace without the helper: focus both, viewer last.
+      window.workspace.openModule('review-module');
       window.workspace.openModule('image-viewer');
     }
 
@@ -1287,23 +1299,52 @@ export function FileQueueModule({ node }) {
     }
   }, [addFiles, queue.length, startNextEligible, showToast]);
 
-  useEffect(() => {
-    const handleQueueFiles = ({ files, position, startQueue, clear }) => {
-      debug('FileQueue', `Received ${files.length} files from main process (position: ${position}, clear: ${clear})`);
-      // --clear empties the queue first; alone (no files) it just empties.
-      if (clear) {
-        clearQueue();
-        if (files.length === 0) return;
-      }
-      addFiles(files, position || 'default');
-      if (startQueue && files.length > 0) {
-        setTimeout(() => startNextEligible(), 100);
-      }
-    };
+  // Load one or more folders into the queue: expand each to its supported
+  // image files (main process, non-recursive) and queue them. Empty result →
+  // a toast rather than a silently unchanged queue. Shared by the folder
+  // hand-off (file-queue-load {roots}) and the empty-state "load this folder"
+  // offer backed by the working-folder anchor.
+  const loadFolder = useCallback(async (roots, { position = 'default', startQueue = false, clear = false } = {}) => {
+    const dirs = (roots || []).filter(Boolean);
+    if (dirs.length === 0) return;
+    let files = [];
+    try {
+      files = await window.ansiktenAPI?.invoke('expand-folders', dirs) || [];
+    } catch (err) {
+      debugError('FileQueue', 'expand-folders failed', err);
+    }
+    if (files.length === 0) {
+      showToast(t('fileQueue.toasts.noSupportedFound'), 'warning');
+      return;
+    }
+    if (clear) clearQueue();
+    addFiles(files, position);
+    if (startQueue) setTimeout(() => startNextEligible(), 100);
+  }, [addFiles, clearQueue, startNextEligible, showToast]);
 
-    const off = window.ansiktenAPI?.on('queue-files', handleQueueFiles);
-    return () => off?.();
-  }, [addFiles, startNextEligible, clearQueue]);
+  // Unified queue-load entry point (renderer event, replacing the old direct
+  // `queue-files` IPC listener — the workspace now marshals the CLI payload
+  // here after ensuring the queue is mounted, so a blank saved layout can't
+  // swallow it). Accepts EITHER a folder hand-off ({roots}) OR an explicit file
+  // payload ({files, position, startQueue, clear}) — the CLI/`ansikten -q` form.
+  useModuleEvent('file-queue-load', useCallback((data = {}) => {
+    if (Array.isArray(data.roots) && data.roots.length) {
+      loadFolder(data.roots, { position: data.position, startQueue: data.startQueue, clear: data.clear });
+      return;
+    }
+    const { files = [], position, startQueue, clear } = data;
+    debug('FileQueue', `file-queue-load: ${files.length} files (position: ${position}, clear: ${clear})`);
+    // --clear empties the queue first; alone (no files) it just empties.
+    if (clear) {
+      clearQueue();
+      if (files.length === 0) return;
+    }
+    if (files.length === 0) return;
+    addFiles(files, position || 'default');
+    if (startQueue && files.length > 0) {
+      setTimeout(() => startNextEligible(), 100);
+    }
+  }, [loadFolder, addFiles, startNextEligible, clearQueue]));
 
   // Expose fileQueue API globally for programmatic access
   useEffect(() => {
@@ -1477,6 +1518,19 @@ export function FileQueueModule({ node }) {
 
   const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
 
+  // Empty-queue offer: if the working-folder anchor points somewhere (an earlier
+  // pipeline step set it), surface a one-click "load this folder" button in the
+  // empty state. Opt-in — the anchor is never auto-loaded. Recomputed when the
+  // queue empties; the anchor isn't reactive, which is fine for a mount-time offer.
+  const emptyFolderOffer = useMemo(() => {
+    if (queue.length > 0) return null;
+    const roots = getWorkingFolder()?.roots;
+    if (!roots || roots.length === 0) return null;
+    const first = String(roots[0]).replace(/\/+$/, '');
+    const name = first.split('/').pop() || first;
+    return { roots, name };
+  }, [queue.length]);
+
   // Roving tabindex target (accessibility.md §2a): the single row that is
   // keyboard-tabbable. Prefer the clicked/focused row, then the active file,
   // else the first row shown — so Tab always lands somewhere sensible and the
@@ -1648,6 +1702,11 @@ export function FileQueueModule({ node }) {
           <EmptyState
             title={t('fileQueue.emptyStates.noFiles')}
             description={t('fileQueue.emptyStates.addHint')}
+            action={emptyFolderOffer && (
+              <Button variant="secondary" onClick={() => loadFolder(emptyFolderOffer.roots)}>
+                {t('fileQueue.emptyStates.loadFolderOffer', { name: emptyFolderOffer.name })}
+              </Button>
+            )}
           />
         ) : (
           displayOrder.map(({ item, originalIndex }) => (

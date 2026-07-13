@@ -829,6 +829,11 @@ export function ImageViewer() {
     }
   });
 
+  // Re-emit the current image on request (Review's late-mount recovery asks for
+  // this). The deps array is REQUIRED: without it useModuleEvent subscribes once
+  // at mount and the handler keeps the mount closure (imagePath = null), so a
+  // later-loaded image would never be re-emitted. Re-subscribe when the loaded
+  // image changes so the handler always sees the current one.
   useModuleEvent('request-current-image', () => {
     if (imagePath) {
       emit('image-loaded', {
@@ -837,7 +842,7 @@ export function ImageViewer() {
         skipAutoDetect: lastSkipAutoDetectRef.current
       });
     }
-  });
+  }, [imagePath, originalImagePath, image]);
 
   // Menu command events
   useModuleEvent('toggle-single-all-boxes', toggleSingleAll); // Legacy support
