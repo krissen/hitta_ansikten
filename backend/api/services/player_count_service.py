@@ -42,6 +42,7 @@ class PlayerCountService:
         self,
         tranare: list[str] | None,
         publik: list[str] | None,
+        grupp: list[str] | None = None,
     ) -> tuple[set[str], set[str], set[str]]:
         """Resolve coach/audience/group sets.
 
@@ -50,7 +51,7 @@ class PlayerCountService:
         built-in ALWAYS markers (Laget/FBK group photos, Klacken audience)
         always merged in.
         """
-        return resolve_exclusion_sets(tranare=tranare, publik=publik)
+        return resolve_exclusion_sets(tranare=tranare, publik=publik, grupp=grupp)
 
     def get_exclusions(self) -> dict:
         """Return the currently resolved exclusion lists for the GUI editor.
@@ -112,8 +113,13 @@ class PlayerCountService:
         per_match: bool = False,
         tranare: list[str] | None = None,
         publik: list[str] | None = None,
+        grupp: list[str] | None = None,
+        spelare: list[str] | None = None,
     ) -> dict:
         """Resolve files and compute player statistics.
+
+        ``spelare`` is a per-request force-include list: those names are removed
+        from all exclusion sets (even always-markers), so they count as players.
 
         Returns the dict from ``compute_player_stats`` plus ``files_resolved``.
         Raises ValueError when no folder/glob input is given.
@@ -135,7 +141,13 @@ class PlayerCountService:
             date_to=date_to,
         )
 
-        tranare_set, publik_set, grupp_set = self._exclusion_sets(tranare, publik)
+        tranare_set, publik_set, grupp_set = self._exclusion_sets(tranare, publik, grupp)
+
+        if spelare:
+            force = {n.strip() for n in spelare if n.strip()}
+            tranare_set -= force
+            publik_set -= force
+            grupp_set -= force
 
         stats = compute_player_stats(
             files,

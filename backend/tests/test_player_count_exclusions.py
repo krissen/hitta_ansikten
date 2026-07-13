@@ -111,6 +111,41 @@ def test_post_partial_payload_rejected_without_wiping(config):
     assert load_exclusion_config() == {"tranare": ["Bo"], "publik": [], "grupp": []}
 
 
+# --- Per-request force-include (spelare) -----------------------------------
+
+
+def test_count_spelare_force_include_beats_always_markers(config, tmp_path):
+    # "Klacken" is an always-publik marker; a per-request spelare override must
+    # still move it into the players bucket (session-only reclassify).
+    photos = tmp_path / "photos"
+    photos.mkdir()
+    for ts in ("120000", "120100", "120200"):
+        (photos / f"260601_{ts}_Klacken.jpg").touch()
+
+    service = PlayerCountService()
+
+    baseline = service.count(roots=[str(photos)])
+    assert "Klacken" in {e["name"] for e in baseline["excluded"]["publik"]}
+
+    forced = service.count(roots=[str(photos)], spelare=["Klacken"])
+    assert "Klacken" in {p["name"] for p in forced["players"]}
+    assert "Klacken" not in {e["name"] for e in forced["excluded"]["publik"]}
+
+
+def test_count_grupp_request_override(config, tmp_path):
+    # A per-request grupp override moves a would-be player into the grupp
+    # bucket without touching the persisted config.
+    photos = tmp_path / "photos"
+    photos.mkdir()
+    for ts in ("120000", "120100", "120200"):
+        (photos / f"260601_{ts}_Anna.jpg").touch()
+
+    stats = PlayerCountService().count(roots=[str(photos)], grupp=["Anna"])
+    assert "Anna" in {e["name"] for e in stats["excluded"]["grupp"]}
+    assert "Anna" not in {p["name"] for p in stats["players"]}
+    assert load_exclusion_config()["grupp"] == []  # config untouched
+
+
 # --- Config-driven always-markers -----------------------------------------
 
 

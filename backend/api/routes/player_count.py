@@ -33,6 +33,8 @@ class PlayerCountRequest(BaseModel):
     per_match: bool = False
     tranare: Optional[List[str]] = None  # override coach exclusion list
     publik: Optional[List[str]] = None  # override audience exclusion list
+    grupp: Optional[List[str]] = None  # override group-photo exclusion list
+    spelare: Optional[List[str]] = None  # force-include: never excluded this request
 
 
 class ExclusionConfigRequest(BaseModel):
@@ -92,6 +94,8 @@ async def count_players(request: PlayerCountRequest):
             per_match=request.per_match,
             tranare=request.tranare,
             publik=request.publik,
+            grupp=request.grupp,
+            spelare=request.spelare,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
