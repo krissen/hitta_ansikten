@@ -263,15 +263,26 @@ def bucket_counter(
     tranare_set: set[str],
     publik_set: set[str],
     grupp_set: set[str],
+    force_players: set[str] | None = None,
 ) -> dict[str, dict[str, int]]:
     """Split a name->count Counter into the five output buckets.
 
     Returns dict with keys: players, below_threshold, tranare, publik, grupp.
+    ``force_players`` names always land in players — they bypass both the
+    exclusion sets and the ``min_images`` threshold (session-only "make this
+    name a player" from the GUI).
     """
-    excluded = tranare_set | publik_set | grupp_set
+    force = force_players or set()
+    excluded = (tranare_set | publik_set | grupp_set) - force
     return {
-        "players": {n: c for n, c in counter.items() if n not in excluded and c >= min_images},
-        "below_threshold": {n: c for n, c in counter.items() if n not in excluded and c < min_images},
+        "players": {
+            n: c for n, c in counter.items()
+            if n not in excluded and (c >= min_images or n in force)
+        },
+        "below_threshold": {
+            n: c for n, c in counter.items()
+            if n not in excluded and c < min_images and n not in force
+        },
         "tranare": {n: c for n, c in counter.items() if n in tranare_set},
         "publik": {n: c for n, c in counter.items() if n in publik_set},
         "grupp": {n: c for n, c in counter.items() if n in grupp_set},
@@ -300,13 +311,16 @@ def summarize_counter(
     tranare_set: set[str],
     publik_set: set[str],
     grupp_set: set[str],
+    force_players: set[str] | None = None,
 ) -> dict:
     """Produce a JSON-serializable summary for one counter (total or per match).
 
     Players are sorted by (count - baseline) descending, same as the CLI table.
     Excluded groups (tranare/publik/grupp/below_threshold) are sorted by count.
     """
-    buckets = bucket_counter(counter, min_images, tranare_set, publik_set, grupp_set)
+    buckets = bucket_counter(
+        counter, min_images, tranare_set, publik_set, grupp_set, force_players
+    )
     players_counts = buckets["players"]
     baseline = compute_baseline(list(players_counts.values()), baseline_method) if players_counts else 0
 
@@ -361,6 +375,7 @@ def compute_player_stats(
     publik_set: set[str] | None = None,
     grupp_set: set[str] | None = None,
     per_match: bool = False,
+    force_players: set[str] | None = None,
 ) -> dict:
     """Top-level counting core: files -> JSON-serializable statistics.
 
@@ -400,7 +415,7 @@ def compute_player_stats(
 
     summary = summarize_counter(
         total_counter, total_timestamps, total_images, min_images, baseline_method,
-        tranare_set, publik_set, grupp_set,
+        tranare_set, publik_set, grupp_set, force_players,
     )
 
     match_summaries: list[dict] = []
@@ -417,7 +432,7 @@ def compute_player_stats(
             m_end = entries[idx_list[-1]][0]
             m_summary = summarize_counter(
                 c, ts_map, len(idx_list), min_images, baseline_method,
-                tranare_set, publik_set, grupp_set,
+                tranare_set, publik_set, grupp_set, force_players,
             )
             match_summaries.append({
                 "index": match_idx,

@@ -74,6 +74,13 @@ class PlayerCountService:
                 "publik": sorted(always_publik),
                 "grupp": sorted(always_grupp),
             },
+            # Raw persisted lists (no env, no always-markers) — for targeted
+            # saves that must not echo transient env values back into config.
+            "config": {
+                "tranare": sorted(config.get("tranare", [])),
+                "publik": sorted(config.get("publik", [])),
+                "grupp": sorted(config.get("grupp", [])),
+            },
             "env_active": bool(env_keys),
             "env_keys": env_keys,
         }
@@ -115,11 +122,18 @@ class PlayerCountService:
         publik: list[str] | None = None,
         grupp: list[str] | None = None,
         spelare: list[str] | None = None,
+        session_tranare: list[str] | None = None,
+        session_publik: list[str] | None = None,
+        session_grupp: list[str] | None = None,
     ) -> dict:
         """Resolve files and compute player statistics.
 
-        ``spelare`` is a per-request force-include list: those names are removed
-        from all exclusion sets (even always-markers), so they count as players.
+        The ``session_*`` lists and ``spelare`` are per-request pins that win
+        over everything (config/env/overrides, even always-markers): a pinned
+        name is removed from all exclusion sets and added only to its pinned
+        bucket. ``spelare`` pins to the players bucket and also bypasses the
+        ``min_images`` threshold. They back the GUI's session-only right-click
+        moves and are never persisted.
 
         Returns the dict from ``compute_player_stats`` plus ``files_resolved``.
         Raises ValueError when no folder/glob input is given.
@@ -143,11 +157,18 @@ class PlayerCountService:
 
         tranare_set, publik_set, grupp_set = self._exclusion_sets(tranare, publik, grupp)
 
-        if spelare:
-            force = {n.strip() for n in spelare if n.strip()}
-            tranare_set -= force
-            publik_set -= force
-            grupp_set -= force
+        def _clean(names: list[str] | None) -> set[str]:
+            return {n.strip() for n in (names or []) if n.strip()}
+
+        force = _clean(spelare)
+        pin_tranare = _clean(session_tranare)
+        pin_publik = _clean(session_publik)
+        pin_grupp = _clean(session_grupp)
+        pinned = force | pin_tranare | pin_publik | pin_grupp
+        if pinned:
+            tranare_set = (tranare_set - pinned) | pin_tranare
+            publik_set = (publik_set - pinned) | pin_publik
+            grupp_set = (grupp_set - pinned) | pin_grupp
 
         stats = compute_player_stats(
             files,
@@ -158,6 +179,7 @@ class PlayerCountService:
             publik_set=publik_set,
             grupp_set=grupp_set,
             per_match=per_match,
+            force_players=force or None,
         )
         stats["files_resolved"] = len(files)
         return stats

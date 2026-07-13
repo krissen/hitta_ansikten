@@ -34,7 +34,13 @@ class PlayerCountRequest(BaseModel):
     tranare: Optional[List[str]] = None  # override coach exclusion list
     publik: Optional[List[str]] = None  # override audience exclusion list
     grupp: Optional[List[str]] = None  # override group-photo exclusion list
-    spelare: Optional[List[str]] = None  # force-include: never excluded this request
+    # Session-only pins (GUI right-click moves): a pinned name is removed from
+    # all exclusion sets and lands only in its pinned bucket. `spelare` also
+    # bypasses min_images. Never persisted.
+    spelare: Optional[List[str]] = None
+    session_tranare: Optional[List[str]] = None
+    session_publik: Optional[List[str]] = None
+    session_grupp: Optional[List[str]] = None
 
 
 class ExclusionConfigRequest(BaseModel):
@@ -96,6 +102,9 @@ async def count_players(request: PlayerCountRequest):
             publik=request.publik,
             grupp=request.grupp,
             spelare=request.spelare,
+            session_tranare=request.session_tranare,
+            session_publik=request.session_publik,
+            session_grupp=request.session_grupp,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
