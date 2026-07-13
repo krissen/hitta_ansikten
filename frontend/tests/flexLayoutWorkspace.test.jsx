@@ -261,23 +261,26 @@ describe('FlexLayoutWorkspace — menu-command dispatch (characterization)', () 
 });
 
 describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-files)', () => {
-  // moduleAPI.on records (event, handler); retrieve the registered handler.
+  // moduleAPI.on records (event, handler). The setup effect re-registers on every
+  // model change (a layout reload), so return the LATEST registration — it closes
+  // over the current model; an earlier one closes over a stale (pre-reload) model.
   function moduleApiHandler(evt) {
-    const reg = h.on.mock.calls.find(([e]) => e === evt);
+    const reg = h.on.mock.calls.findLast(([e]) => e === evt);
     return reg ? reg[1] : null;
   }
-  // IPC listeners are captured on the fresh window.ansiktenAPI.on mock.
+  // IPC listeners are captured on the fresh window.ansiktenAPI.on mock (latest).
   function ipcHandler(evt) {
-    const reg = window.ansiktenAPI.on.mock.calls.find(([e]) => e === evt);
+    const reg = window.ansiktenAPI.on.mock.calls.findLast(([e]) => e === evt);
     return reg ? reg[1] : null;
   }
-  function reviewTabId(model) {
+  function tabId(model, component) {
     let id = null;
     model.visitNodes((n) => {
-      if (n.getType() === 'tab' && n.getComponent() === 'review-module') id = n.getId();
+      if (n.getType() === 'tab' && n.getComponent() === component) id = n.getId();
     });
     return id;
   }
+  const reviewTabId = (model) => tabId(model, 'review-module');
 
   beforeEach(mountWorkspace);
 
@@ -320,6 +323,43 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
 
     expect(tabComponents(window.workspace.model)).toContain('file-queue');
     expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef', '/b.nef'], startQueue: true, clear: false });
+  });
+
+  it('ensureReviewSurface switches a queue-only layout to the pipeline layout (Review becomes visible)', async () => {
+    // Build a queue-only layout: the database preset has no Review/Viewer; add a
+    // File Queue tab so neither review surface exists but the queue does.
+    await dispatch('layout-database');
+    await act(async () => { window.workspace.openModule('file-queue'); });
+    expect(tabComponents(window.workspace.model)).toContain('file-queue');
+    expect(tabComponents(window.workspace.model)).not.toContain('review-module');
+    expect(tabComponents(window.workspace.model)).not.toContain('image-viewer');
+
+    // loadFile calls this; from a queue-only layout it must switch to the
+    // pipeline layout rather than stack Review behind the viewer in one tabset.
+    await act(async () => { window.workspace.ensureReviewSurface(); });
+    expect(tabComponents(window.workspace.model).sort()).toEqual([
+      'file-queue',
+      'image-viewer',
+      'review-module',
+    ]);
+  });
+
+  it('open-review-queue does not reload the layout when a File Queue tab already exists (emit reaches the live queue)', async () => {
+    // First hand-off loads the pipeline layout (queue absent → loadLayout).
+    const handler = moduleApiHandler('open-review-queue');
+    await act(async () => { await handler({ roots: ['/a'] }); });
+    const queueIdBefore = tabId(window.workspace.model, 'file-queue');
+    expect(queueIdBefore).toBeTruthy();
+
+    h.emit.mockClear();
+    // Second hand-off with the queue already mounted: must NOT rebuild the layout
+    // (which would drop the emit against the dying listener) — same node id — and
+    // the emit must still reach the live queue. Re-fetch the handler: the first
+    // reload re-registered it against the now-current model.
+    const handler2 = moduleApiHandler('open-review-queue');
+    await act(async () => { await handler2({ roots: ['/b'] }); });
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { roots: ['/b'] });
   });
 });
 
