@@ -9,6 +9,9 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 ### Added
 - **Direkt hand-off Importera → Byt namn.** Efter en klar import visar importpanelen en knapp **"Döp om filer…"** som öppnar namnbytesmodulen med den importerade målmappen förvald. Namnbytesmodulen förväljer också målmappen från senast använda importdestination vid öppning. Ingen automatisk växling — allt är opt-in.
 
+### Changed
+- **Progressindikator vid NEF-namnbyte.** Både **Förhandsgranska** och **Byt namn** visar nu en förloppsindikator ("Läser EXIF… {klart}/{totalt}") medan EXIF läses, i stället för enbart disablade knappar. EXIF-läsningen delas upp i batchar så förloppet kan rapporteras löpande över WebSocket i stället för en enda lång paus; batcharna slås ihop och sorteras om deterministiskt så suffixen (-NN) för dubbletter av tidsstämplar blir oförändrade.
+
 ### Fixed
 - **Robust exiftool-upplösning.** NEF-namnbyte och EXIF-baserade steg hittar nu `exiftool` även när appen startats från GUI (Electron på macOS ärver en PATH utan `/opt/homebrew/bin`). `exiftool` slås upp via PATH med fallback till Homebrew-katalogerna, och backend-processen får dessa kataloger i PATH.
 - **Tydligare felmeddelanden från backend.** HTTP-fel visar nu FastAPI:s `detail`-text (t.ex. "exiftool krävs men hittades inte i PATH") i stället för en naken statustext.
