@@ -13,6 +13,7 @@ import { useModuleAPI } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
 import { Button, Alert } from './shared';
 import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
+import { getWorkingFolder } from '../shared/workingFolder.js';
 import { t } from '../../i18n/index.js';
 import './PlayerCountModule.css';
 
@@ -167,7 +168,17 @@ export function PlayerCountModule() {
   useEffect(() => {
     if (lastParamsRef.current) return;
     const s = getScanScope();
-    if (!scanScopeHasSelection(s)) return;
+    if (!scanScopeHasSelection(s)) {
+      // No shared scan scope to adopt. Fall back to the pipeline working-folder
+      // anchor (set by an earlier import/rename) as a PREFILL of the roots field
+      // only — never auto-run a count (explicit user requirement). The user still
+      // presses the query control; scanScope, if it later appears, always wins.
+      const anchorRoots = getWorkingFolder()?.roots;
+      if (Array.isArray(anchorRoots) && anchorRoots.length > 0) {
+        setInput((prev) => ({ ...prev, roots: [...anchorRoots] }));
+      }
+      return;
+    }
     const adopted = {
       roots: s.roots || [],
       glob: (s.globs && s.globs[0]) || '',

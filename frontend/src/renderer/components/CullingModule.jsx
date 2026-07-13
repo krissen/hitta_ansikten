@@ -23,6 +23,7 @@ import { gridThumbnailCache } from '../shared/grid-thumbnail-cache.js';
 import { gridNavTarget } from './culling-grid-nav.js';
 import { preferences } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
+import { getWorkingFolder } from '../shared/workingFolder.js';
 import { isTabsetActive } from '../hooks/useActiveTabset.js';
 import { extOf } from '../shared/fileExts.js';
 import { statsScopeFromQuery, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
@@ -466,7 +467,17 @@ export function CullingModule({ node }) {
     // folder isn't scanned twice and the unfiltered list doesn't flash.
     if (takeExternalLoad()) return;
     const s = getScanScope();
-    if (!scanScopeHasSelection(s)) return;
+    if (!scanScopeHasSelection(s)) {
+      // No shared scan scope to adopt. Fall back to the pipeline working-folder
+      // anchor (set by an earlier import/rename) as a PREFILL of the roots field
+      // only — never auto-scan (explicit user requirement). The user still has to
+      // press the scan control; scanScope, if it later appears, always wins.
+      const anchorRoots = getWorkingFolder()?.roots;
+      if (Array.isArray(anchorRoots) && anchorRoots.length > 0) {
+        setRoots([...anchorRoots]);
+      }
+      return;
+    }
     // Culling's file-type control only knows jpg/nef/raw; Räkna also offers
     // images/all. Map a preset culling can't represent to jpg, so the dropdown
     // isn't desynced and the list doesn't include types culling never exposes.
