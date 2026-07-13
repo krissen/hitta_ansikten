@@ -97,6 +97,46 @@ function isSupportedImageFile(filePath) {
   return SUPPORTED_IMAGE_EXTENSIONS.has(ext);
 }
 
+// Expand a list of directories to the supported image files they directly
+// contain (non-recursive), naturally sorted by filename. `~` is expanded like
+// the expand-glob handler. Shared by the open-folder-dialog handler and the
+// expand-folders IPC (folder hand-off from the pipeline / working-folder anchor).
+function expandDirsToImageFiles(dirs) {
+  const fs = require("fs");
+  const pathModule = require("path");
+  const os = require("os");
+  const expandedPaths = [];
+
+  for (const dir of dirs || []) {
+    let selectedPath = dir;
+    if (typeof selectedPath === "string" && selectedPath.startsWith("~")) {
+      selectedPath = pathModule.join(os.homedir(), selectedPath.slice(1));
+    }
+    try {
+      const entries = fs.readdirSync(selectedPath);
+      for (const entry of entries) {
+        if (isSupportedImageFile(entry)) {
+          expandedPaths.push(pathModule.join(selectedPath, entry));
+        }
+      }
+    } catch (err) {
+      console.error("Error reading folder:", selectedPath, err);
+    }
+  }
+
+  // Sort files (natural sort for filenames with numbers)
+  expandedPaths.sort((a, b) => {
+    const nameA = pathModule.basename(a);
+    const nameB = pathModule.basename(b);
+    return nameA.localeCompare(nameB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
+
+  return expandedPaths;
+}
+
 // Expand globs and resolve paths
 async function expandFilePaths(patterns) {
   const files = [];
@@ -672,9 +712,6 @@ ipcMain.handle("open-multi-file-dialog", async () => {
 
 // Folder dialog - select folders and expand to image files
 ipcMain.handle("open-folder-dialog", async () => {
-  const fs = require("fs");
-  const pathModule = require("path");
-
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openDirectory", "multiSelections"],
     message: t("dialogs.selectFolders"),
@@ -684,43 +721,14 @@ ipcMain.handle("open-folder-dialog", async () => {
     return null;
   }
 
-  // Expand directories to their image files
-  const supportedExtensions = [
-    ".nef",
-    ".cr2",
-    ".arw",
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".tiff",
-  ];
-  const expandedPaths = [];
+  return expandDirsToImageFiles(result.filePaths);
+});
 
-  for (const selectedPath of result.filePaths) {
-    try {
-      const entries = fs.readdirSync(selectedPath);
-      for (const entry of entries) {
-        const ext = pathModule.extname(entry).toLowerCase();
-        if (supportedExtensions.includes(ext)) {
-          expandedPaths.push(pathModule.join(selectedPath, entry));
-        }
-      }
-    } catch (err) {
-      console.error("Error reading folder:", selectedPath, err);
-    }
-  }
-
-  // Sort files (natural sort for filenames with numbers)
-  expandedPaths.sort((a, b) => {
-    const nameA = pathModule.basename(a);
-    const nameB = pathModule.basename(b);
-    return nameA.localeCompare(nameB, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-  });
-
-  return expandedPaths;
+// Expand a set of already-known folders (no dialog) to their image files.
+// Used by the pipeline hand-off (Rename → Review) and the working-folder
+// anchor's "load this folder" offer, which pass folder paths directly.
+ipcMain.handle("expand-folders", async (event, dirs) => {
+  return expandDirsToImageFiles(Array.isArray(dirs) ? dirs : [dirs]);
 });
 
 // Expand glob pattern to file paths

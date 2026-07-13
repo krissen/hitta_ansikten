@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
       "open-folder-dialog",
       "open-folder-paths",
       "expand-glob",
+      "expand-folders",
       "check-file-changed",
       "get-initial-file",
       "open-raw-in-lightroom",
