@@ -15,6 +15,8 @@ from collections import defaultdict
 from glob import glob
 from pathlib import Path
 
+from core.exiftool import find_exiftool
+
 # Simple logging setup for this standalone script
 logging.basicConfig(
     level=logging.WARNING,
@@ -28,7 +30,7 @@ def get_exif_data(files: list[Path]) -> list[tuple[str, int, Path]]:
         return []
     
     cmd = [
-        "exiftool", "-q", "-q", "-m",
+        find_exiftool(), "-q", "-q", "-m",
         "-if", "defined $CreateDate",
         "-d", "%y%m%d_%H%M%S",
         "-p", "$CreateDate|${SubSecTimeOriginal;$_||=0}|$FilePath",
