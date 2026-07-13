@@ -360,12 +360,23 @@ export function PlayerCountModule() {
   }, [loadExclusions, submitWith, input, perMatch, options]);
 
   // Targeted permanent publik (shared helper: raw-config save + session pin);
-  // refresh the editor lists unless that would clobber unsaved edits.
+  // refresh the editor lists unless that would clobber unsaved edits — in that
+  // case merge just the new name into the local publik list instead, so a
+  // later "Spara som standard" can't post a list that lacks it (which would
+  // silently un-persist the permanent move).
   const makePublikPermanent = useCallback(
     async (name) => {
+      const clean = name.trim();
+      if (!clean) return;
       try {
-        await persistPublikPermanent(api, name);
-        if (!exclusionsDirty && !configDirty) await loadExclusions();
+        await persistPublikPermanent(api, clean);
+        if (!exclusionsDirty && !configDirty) {
+          await loadExclusions();
+        } else {
+          setExclusions((prev) =>
+            prev.publik.includes(clean) ? prev : { ...prev, publik: [...prev.publik, clean] }
+          );
+        }
       } catch (err) {
         setError(err.message || String(err));
       }
