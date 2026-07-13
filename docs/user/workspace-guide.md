@@ -196,6 +196,12 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 > automatiskt) — övriga är alltid valbara. Startsidan försvinner så fort du
 > öppnar en vy eller laddar en bild, och **kommer tillbaka om du stänger alla
 > öppna moduler** så arbetsytan aldrig blir tom utan väg vidare.
+>
+> **Fortsätt där du var:** har du nyss importerat eller bytt namn i ett event
+> visar startsidan högst upp en rad "Aktuell mapp: {mapp}" med en
+> **Fortsätt**-knapp till nästa steg (efter import → *Byt namn*, efter namnbyte →
+> *Granska ansikten*) — mappen är då redan förvald. Ingenting laddas automatiskt;
+> raden är bara en genväg.
 
 ### 0. Importera från minneskort (valfritt)
 
