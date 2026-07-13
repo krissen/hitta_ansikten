@@ -338,17 +338,29 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef'], startQueue: false });
   });
 
-  it('ensureReviewSurface switches a queue-only layout to the pipeline layout (Review becomes visible)', async () => {
+  it('ensureReviewSurface docks Review+Viewer beside an existing queue WITHOUT remounting it', async () => {
     // Build a queue-only layout: the database preset has no Review/Viewer; add a
     // File Queue tab so neither review surface exists but the queue does.
     await dispatch('layout-database');
     await act(async () => { window.workspace.openModule('file-queue'); });
-    expect(tabComponents(window.workspace.model)).toContain('file-queue');
+    const queueIdBefore = tabId(window.workspace.model, 'file-queue');
+    expect(queueIdBefore).toBeTruthy();
     expect(tabComponents(window.workspace.model)).not.toContain('review-module');
     expect(tabComponents(window.workspace.model)).not.toContain('image-viewer');
 
-    // loadFile calls this; from a queue-only layout it must switch to the
-    // pipeline layout rather than stack Review behind the viewer in one tabset.
+    // loadFile calls this. Replacing the model would unmount the live FileQueue
+    // (dropping currentFileRef/currentIndex mid-loadFile), so it must add the
+    // review surface beside the queue instead — same queue node afterwards.
+    await act(async () => { window.workspace.ensureReviewSurface(); });
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+  });
+
+  it('ensureReviewSurface loads the pipeline layout only when the queue is absent (blank start)', async () => {
+    // Database preset: no queue, no review surface. Nothing to lose → loadLayout.
+    await dispatch('layout-database');
+    expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
     await act(async () => { window.workspace.ensureReviewSurface(); });
     expect(tabComponents(window.workspace.model).sort()).toEqual([
       'file-queue',

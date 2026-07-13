@@ -286,15 +286,18 @@ export function FlexLayoutWorkspace() {
     return ids.length > 0;
   }, [model]);
 
-  // True if a tab for the given module is currently present in the layout.
-  const hasModuleTab = useCallback((moduleId) => {
-    if (!model) return false;
-    let found = false;
-    model.visitNodes((node) => {
-      if (node.getType() === 'tab' && node.getComponent?.() === moduleId) found = true;
+  // The tab node for the given module, or null if it isn't in the layout.
+  const findModuleTab = useCallback((moduleId) => {
+    if (!model) return null;
+    let node = null;
+    model.visitNodes((n) => {
+      if (n.getType() === 'tab' && n.getComponent?.() === moduleId) node = n;
     });
-    return found;
+    return node;
   }, [model]);
+
+  // True if a tab for the given module is currently present in the layout.
+  const hasModuleTab = useCallback((moduleId) => !!findModuleTab(moduleId), [findModuleTab]);
 
   // Factory function for FlexLayout
   const factory = useCallback((node) => {
@@ -376,24 +379,50 @@ export function FlexLayoutWorkspace() {
     }
   }, []);
 
+  // Add a module in a NEW tabset docked at `location` relative to `refTabsetId`
+  // (DockLocation.RIGHT/BOTTOM split off a fresh tabset), rather than as another
+  // tab inside an existing tabset. Used to place Review/Viewer beside the queue
+  // without stacking them on top of it.
+  const openModuleInNewTabset = useCallback((moduleId, refTabsetId, location) => {
+    if (!model) return;
+    model.doAction(Actions.addNode(
+      { type: 'tab', name: MODULE_TITLES[moduleId] || moduleId, component: moduleId, config: { moduleId } },
+      refTabsetId,
+      location,
+      -1,
+    ));
+  }, [model]);
+
   // Ensure a review surface (Review + Image Viewer) is mounted before the queue
-  // hands off an image. Called by FileQueue.loadFile. If the layout has NEITHER
-  // panel — a saved queue-only layout — docking both into the queue's tabset
-  // would stack them so one hides behind the other; switch to the pipeline
-  // layout once instead. Review can't be mounted in that case, so it has no
-  // unsaved edits to guard (the dirty check is a belt-and-braces no-op). If at
-  // least one panel already exists the layout is deliberate: just ensure both
-  // are present, opening Review first so the viewer stays the active surface.
+  // hands off an image (called by FileQueue.loadFile).
+  //
+  // - If a review surface already exists, the layout is deliberate: just ensure
+  //   both panels are present/focused.
+  // - Otherwise NEITHER panel exists. If the queue is ALSO absent it's a blank
+  //   start — a fresh queue-review layout is safe (no live queue to lose).
+  // - If the queue EXISTS (the common case: loadFile is running on it), replacing
+  //   the model must be AVOIDED: loadLayout would unmount that FileQueue instance
+  //   mid-loadFile and drop its currentFileRef/currentIndex, so review-complete
+  //   could never mark the file done or auto-advance (round-3 finding). Dock
+  //   Review + Image Viewer in their OWN tabsets beside the queue instead — never
+  //   stacked inside the queue's tabset (round-2 finding), never replacing it.
   const ensureReviewSurface = useCallback(() => {
-    const hasReview = hasModuleTab('review-module');
-    const hasViewer = hasModuleTab('image-viewer');
-    if (!hasReview && !hasViewer && reviewDirtyRef.current.size === 0) {
-      loadLayout('queue-review');
-    } else {
+    if (hasModuleTab('review-module') || hasModuleTab('image-viewer')) {
       openModule('review-module');
       openModule('image-viewer');
+      return;
     }
-  }, [hasModuleTab, loadLayout, openModule]);
+    const queueTab = findModuleTab('file-queue');
+    if (!queueTab) {
+      loadLayout('queue-review');
+      return;
+    }
+    const queueTabsetId = queueTab.getParent().getId();
+    openModuleInNewTabset('review-module', queueTabsetId, DockLocation.RIGHT);
+    const reviewTab = findModuleTab('review-module');
+    const reviewTabsetId = reviewTab ? reviewTab.getParent().getId() : queueTabsetId;
+    openModuleInNewTabset('image-viewer', reviewTabsetId, DockLocation.RIGHT);
+  }, [hasModuleTab, findModuleTab, loadLayout, openModule, openModuleInNewTabset]);
 
   // Replace the workspace with a single self-contained module filling it. Used
   // by the landing page for workflow steps (culling, player-count, import,
