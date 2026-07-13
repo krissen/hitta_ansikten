@@ -38,12 +38,14 @@ export function RenameNefModule() {
     recursive: true,
   }), [roots, glob]);
 
-  // Hand-off from Import ("Döp om filer…"): union the imported folder(s) with
-  // any already-listed roots and clear stale preview/result state.
+  // Hand-off from Import ("Döp om filer…"): REPLACE the roots with the imported
+  // folder(s), not union. The hand-off means "rename what I just imported"; the
+  // pre-filled default root can be stale (the import destination field may have
+  // been edited after the import), so unioning could rename in the wrong folder.
   useModuleEvent('rename-nef-load', (data) => {
     const incoming = data?.roots || [];
     if (incoming.length) {
-      setRoots((r) => Array.from(new Set([...r, ...incoming])));
+      setRoots(Array.from(new Set(incoming)));
     }
     setPreview(null);
     setResult(null);
