@@ -26,5 +26,6 @@ module.exports = {
     "one": "Bytte namn på {count} fil",
     "other": "Bytte namn på {count} filer"
   },
-  "errorPrefix": "Fel: {message}"
+  "errorPrefix": "Fel: {message}",
+  "reviewFaces": "Granska ansikten…"
 };

@@ -9,7 +9,7 @@
 import React, { useState, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { preferences } from '../workspace/preferences.js';
 import { getWorkingFolder, setWorkingFolder } from '../shared/workingFolder.js';
@@ -20,6 +20,7 @@ import './RenameNefModule.css';
 export function RenameNefModule() {
   const { api } = useBackend();
   const showToast = useToast();
+  const emit = useEmitEvent();
 
   // Pre-fill so the common "import then rename" flow starts pointed at the
   // right folder. Prefer the working-folder anchor (set by the just-run import),
@@ -34,6 +35,10 @@ export function RenameNefModule() {
   const [glob, setGlob] = useState('');
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
+  // Roots that the last execute actually ran on, frozen at execute-start so the
+  // "Granska ansikten…" hand-off scopes Review to the renamed folder even if the
+  // live `roots` selection is edited afterwards (cf. ImportModule.importedDest).
+  const [resultRoots, setResultRoots] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   // Latest rename-nef-progress event (null until the first arrives → the bar
@@ -103,13 +108,16 @@ export function RenameNefModule() {
     setBusy(true);
     setError(null);
     setProgress(null);
+    // Freeze the folders this run targets before the await.
+    const usedRoots = [...roots];
     try {
       const data = await api.post('/api/v1/rename-nef/execute', params());
       setResult(data);
+      setResultRoots(usedRoots);
       setPreview(null);
       // Rename finished on these folders — advance the anchor to 'rename' so the
       // next step (review/count) can pre-fill from the same event folder.
-      if (roots.length) setWorkingFolder({ roots, step: 'rename' });
+      if (usedRoots.length) setWorkingFolder({ roots: usedRoots, step: 'rename' });
       // Transient receipt; the result panel keeps the persistent breakdown.
       const count = data.renamed?.length ?? 0;
       showToast(t('renameNef.doneToast', { count }), {
@@ -243,6 +251,16 @@ export function RenameNefModule() {
               <details className="rename-nef-errors"><summary>{t('renameNef.errorsSummary', { count: result.errors.length })}</summary>
                 <ul>{result.errors.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
               </details>
+            )}
+            {resultRoots.length > 0 && (
+              <div className="rename-nef-result-actions">
+                <Button
+                  variant={result.errors.length > 0 ? 'secondary' : 'primary'}
+                  onClick={() => emit('open-review-queue', { roots: resultRoots })}
+                >
+                  {t('renameNef.reviewFaces')}
+                </Button>
+              </div>
             )}
           </div>
         )}
