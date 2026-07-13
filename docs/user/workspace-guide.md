@@ -283,6 +283,16 @@ antal.
    > sparningen kanske inte får effekt. Motsvarar CLI:ns
    > `--gap-minutes`/`--baseline`/`--min-images` och `--tranare`/`--publik` samt
    > config-nycklarna `always_grupp`/`always_publik`.
+
+   > **Högerklicka ett namn** i spelartabellen eller i de exkluderade
+   > sektionerna för en meny som flyttar namnet mellan kategorierna **för den
+   > aktuella sessionen** — t.ex. gör en publik-/gruppmarkerad person till
+   > spelare, eller flytta en spelare som bara spelade kort tid till publik.
+   > Sessionflyttar sparas inte: **Återställ** rensar dem och **Spara som
+   > standard** tar inte med dem. Tillfälliga spelare visas som chips under
+   > **Uteslutna** (ta bort chipet = ångra). Menyvalet **Gör publik permanent**
+   > skriver däremot namnet direkt till publik-listan i config (utan att spara
+   > övriga osparade ändringar).
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
    (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
    spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken. Välj filtyp

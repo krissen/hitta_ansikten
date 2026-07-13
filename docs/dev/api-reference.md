@@ -831,7 +831,9 @@ median-baseline over/under-representation statistics.
   "min_images": 3,
   "per_match": false,
   "tranare": null,
-  "publik": null
+  "publik": null,
+  "grupp": null,
+  "spelare": null
 }
 ```
 
@@ -863,10 +865,13 @@ At least one of `roots`/`globs` is required.
 is populated only when `per_match` is true.
 
 `gap_minutes` (match split), `baseline` (`median`/`mean`) and `min_images` map to
-the CLI's `--gap-minutes`/`--baseline`/`--min-images`. `tranare`/`publik` override
-the coach/audience exclusion lists for this request only (`null` keeps the
-config/env defaults); the built-in always-markers (`Laget`/`FBK` group, `Klacken`
-audience) are merged in regardless and can't be overridden.
+the CLI's `--gap-minutes`/`--baseline`/`--min-images`. `tranare`/`publik`/`grupp`
+override the coach/audience/group exclusion lists for this request only (`null`
+keeps the config/env defaults); the configured always-markers (default `Laget`/
+`FBK` group, `Klacken` audience) are merged in regardless. `spelare` is a
+force-include list: those names are removed from **all** exclusion sets (even
+always-markers) for this request, so they count as players — this backs the
+GUI's session-only "gör till spelare" context-menu action.
 
 ### `GET /api/v1/players/exclusions`
 
