@@ -394,24 +394,39 @@ export function FlexLayoutWorkspace() {
   }, [model]);
 
   // Ensure a review surface (Review + Image Viewer) is mounted before the queue
-  // hands off an image (called by FileQueue.loadFile).
+  // hands off an image (called by FileQueue.loadFile). Four cases — none may
+  // replace the layout while a queue exists, and none may stack a new panel into
+  // an existing tabset (that hides/unmounts the panel already there under
+  // render-on-demand):
   //
-  // - If a review surface already exists, the layout is deliberate: just ensure
-  //   both panels are present/focused.
-  // - Otherwise NEITHER panel exists. If the queue is ALSO absent it's a blank
-  //   start — a fresh queue-review layout is safe (no live queue to lose).
-  // - If the queue EXISTS (the common case: loadFile is running on it), replacing
-  //   the model must be AVOIDED: loadLayout would unmount that FileQueue instance
-  //   mid-loadFile and drop its currentFileRef/currentIndex, so review-complete
-  //   could never mark the file done or auto-advance (round-3 finding). Dock
-  //   Review + Image Viewer in their OWN tabsets beside the queue instead — never
-  //   stacked inside the queue's tabset (round-2 finding), never replacing it.
+  //  1. BOTH present → deliberate layout: just focus the existing tabs.
+  //  2. Only Review present → dock Image Viewer in its OWN tabset to the RIGHT of
+  //     Review (order stays …|review|viewer).
+  //  3. Only Viewer present → dock Review in its OWN tabset to the LEFT of the
+  //     Viewer (order stays queue|review|viewer).
+  //  4. NEITHER present → if the queue is ALSO absent it's a blank start, so a
+  //     fresh queue-review layout is safe (nothing live to lose); if the queue
+  //     EXISTS, replacing the model would unmount that FileQueue mid-loadFile and
+  //     drop its currentFileRef/currentIndex (round-3 finding), so dock Review +
+  //     Image Viewer in their own tabsets beside the queue instead.
   const ensureReviewSurface = useCallback(() => {
-    if (hasModuleTab('review-module') || hasModuleTab('image-viewer')) {
+    const reviewTab = findModuleTab('review-module');
+    const viewerTab = findModuleTab('image-viewer');
+
+    if (reviewTab && viewerTab) {
       openModule('review-module');
       openModule('image-viewer');
       return;
     }
+    if (reviewTab && !viewerTab) {
+      openModuleInNewTabset('image-viewer', reviewTab.getParent().getId(), DockLocation.RIGHT);
+      return;
+    }
+    if (viewerTab && !reviewTab) {
+      openModuleInNewTabset('review-module', viewerTab.getParent().getId(), DockLocation.LEFT);
+      return;
+    }
+    // Neither present.
     const queueTab = findModuleTab('file-queue');
     if (!queueTab) {
       loadLayout('queue-review');
@@ -419,10 +434,10 @@ export function FlexLayoutWorkspace() {
     }
     const queueTabsetId = queueTab.getParent().getId();
     openModuleInNewTabset('review-module', queueTabsetId, DockLocation.RIGHT);
-    const reviewTab = findModuleTab('review-module');
-    const reviewTabsetId = reviewTab ? reviewTab.getParent().getId() : queueTabsetId;
+    const newReviewTab = findModuleTab('review-module');
+    const reviewTabsetId = newReviewTab ? newReviewTab.getParent().getId() : queueTabsetId;
     openModuleInNewTabset('image-viewer', reviewTabsetId, DockLocation.RIGHT);
-  }, [hasModuleTab, findModuleTab, loadLayout, openModule, openModuleInNewTabset]);
+  }, [findModuleTab, loadLayout, openModule, openModuleInNewTabset]);
 
   // Replace the workspace with a single self-contained module filling it. Used
   // by the landing page for workflow steps (culling, player-count, import,

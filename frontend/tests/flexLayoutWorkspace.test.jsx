@@ -357,6 +357,41 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(tabComponents(window.workspace.model)).toContain('image-viewer');
   });
 
+  it('ensureReviewSurface docks the MISSING Review beside an existing Viewer (queue kept)', async () => {
+    // A partial surface: queue + viewer, Review closed. The comparison preset has
+    // image-viewer (+ original-view) but no review/queue; add a queue.
+    await dispatch('layout-comparison');
+    await act(async () => { window.workspace.openModule('file-queue'); });
+    const queueIdBefore = tabId(window.workspace.model, 'file-queue');
+    expect(queueIdBefore).toBeTruthy();
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+    expect(tabComponents(window.workspace.model)).not.toContain('review-module');
+
+    await act(async () => { window.workspace.ensureReviewSurface(); });
+    // Queue not remounted; Review added; Viewer still there.
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+  });
+
+  it('ensureReviewSurface docks the MISSING Viewer beside an existing Review (queue kept)', async () => {
+    // A partial surface: queue + review, Viewer closed. Build it from the
+    // database preset (no review/viewer/queue), adding queue then review.
+    await dispatch('layout-database');
+    await act(async () => { window.workspace.openModule('file-queue'); });
+    await act(async () => { window.workspace.openModule('review-module'); });
+    const queueIdBefore = tabId(window.workspace.model, 'file-queue');
+    expect(queueIdBefore).toBeTruthy();
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+    expect(tabComponents(window.workspace.model)).not.toContain('image-viewer');
+
+    await act(async () => { window.workspace.ensureReviewSurface(); });
+    // Queue not remounted; Viewer added; Review still there.
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+  });
+
   it('ensureReviewSurface loads the pipeline layout only when the queue is absent (blank start)', async () => {
     // Database preset: no queue, no review surface. Nothing to lose → loadLayout.
     await dispatch('layout-database');
