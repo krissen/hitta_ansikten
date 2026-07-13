@@ -12,6 +12,7 @@ import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { preferences } from '../workspace/preferences.js';
+import { setWorkingFolder } from '../shared/workingFolder.js';
 import { Button, Alert, ProgressBar } from './shared';
 import { t } from '../../i18n/index.js';
 import './ImportModule.css';
@@ -125,6 +126,9 @@ export function ImportModule() {
       });
       setResult(res);
       setImportedDest(usedDestination);
+      // Anchor the pipeline on the just-imported folder so the rename step can
+      // pre-fill from it (opt-in; the anchor is a pointer, not an auto-load).
+      setWorkingFolder({ roots: [usedDestination], step: 'import' });
       // Transient receipt of the completed transfer; the result panel below
       // keeps the persistent, inspectable breakdown (skipped/errors/eject).
       const count = res.transferred?.length ?? 0;
