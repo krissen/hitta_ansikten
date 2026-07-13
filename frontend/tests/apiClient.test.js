@@ -122,6 +122,69 @@ describe('APIClient._fetchWithTimeout', () => {
   });
 });
 
+// A non-ok response whose JSON body carries a FastAPI-style { detail }.
+function detailErrorFetch(status, detail, statusText = 'Error') {
+  return vi.fn(() => Promise.resolve({
+    ok: false,
+    status,
+    statusText,
+    json: () => Promise.resolve({ detail })
+  }));
+}
+
+// A non-ok response whose body is not JSON (json() rejects).
+function nonJsonErrorFetch(status, statusText = 'Bad Request') {
+  return vi.fn(() => Promise.resolve({
+    ok: false,
+    status,
+    statusText,
+    json: () => Promise.reject(new Error('Unexpected token < in JSON'))
+  }));
+}
+
+describe('APIClient error detail extraction', () => {
+  let client;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    client = new APIClient('http://127.0.0.1:9999');
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('uses the backend JSON detail string as the error message', async () => {
+    global.fetch = detailErrorFetch(400, 'exiftool krävs men hittades inte i PATH.');
+
+    const err = await client.post('/api/v1/rename-nef/preview', {}).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(400);
+    expect(err.retryable).toBe(false);
+    expect(err.message).toBe('HTTP 400: exiftool krävs men hittades inte i PATH.');
+  });
+
+  it('falls back to statusText when the body is not JSON', async () => {
+    global.fetch = nonJsonErrorFetch(400, 'Bad Request');
+
+    const err = await client.get('/api/v1/anything').catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(400);
+    expect(err.message).toBe('HTTP 400: Bad Request');
+  });
+
+  it('falls back to statusText when detail is not a string', async () => {
+    // FastAPI validation errors put an array under `detail`; only strings are used.
+    global.fetch = detailErrorFetch(422, [{ msg: 'x' }], 'Unprocessable Entity');
+
+    const err = await client.post('/api/v1/anything', {}).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(422);
+    expect(err.message).toBe('HTTP 422: Unprocessable Entity');
+  });
+});
+
 describe('APIClient.clearCache', () => {
   let client;
   const originalFetch = global.fetch;

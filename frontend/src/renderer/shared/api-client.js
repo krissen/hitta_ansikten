@@ -63,17 +63,17 @@ export class APIClient {
     }
   }
 
-  _classifyError(err, response = null) {
+  async _classifyError(err, response = null) {
     if (!navigator.onLine) {
       this._setOffline(true);
       return new NetworkError(t('errors.noConnection'), { isOffline: true, retryable: true });
     }
 
-    if (err.name === 'AbortError') {
+    if (err?.name === 'AbortError') {
       return new NetworkError(t('errors.timeout'), { isTimeout: true, retryable: true });
     }
 
-    if (err.name === 'TypeError' && err.message.includes('fetch')) {
+    if (err?.name === 'TypeError' && err.message.includes('fetch')) {
       this._setOffline(true);
       return new NetworkError(t('errors.unreachable'), { isOffline: true, retryable: true });
     }
@@ -81,10 +81,36 @@ export class APIClient {
     if (response) {
       const statusCode = response.status;
       const retryable = statusCode >= 500 || statusCode === 429;
-      return new NetworkError(`HTTP ${statusCode}: ${response.statusText}`, { statusCode, retryable });
+      // Prefer the backend's JSON error detail (FastAPI `{"detail": "..."}`)
+      // over the bare status text so users see the real cause, e.g.
+      // "HTTP 400: exiftool krävs men hittades inte i PATH." The response body
+      // can only be read once; this is the sole reader on the error path (the
+      // success path returns before classification runs).
+      const detail = await this._readErrorDetail(response);
+      const message = detail || response.statusText;
+      return new NetworkError(`HTTP ${statusCode}: ${message}`, { statusCode, retryable });
     }
 
-    return new NetworkError(err.message || t('errors.unknown'), { retryable: false });
+    return new NetworkError(err?.message || t('errors.unknown'), { retryable: false });
+  }
+
+  /**
+   * Read a FastAPI-style error detail string from a response body.
+   * Returns null for non-JSON bodies, a non-string `detail`, or a body that
+   * cannot be read (e.g. already consumed) — callers fall back to status text.
+   * @param {Response} response
+   * @returns {Promise<string|null>}
+   */
+  async _readErrorDetail(response) {
+    try {
+      const body = await response.json();
+      if (body && typeof body.detail === 'string') {
+        return body.detail;
+      }
+    } catch {
+      // Non-JSON or unreadable body → caller falls back to statusText.
+    }
+    return null;
   }
 
   addConnectionListener(callback) {
@@ -158,7 +184,7 @@ export class APIClient {
       });
 
       if (!response.ok) {
-        throw this._classifyError(null, response);
+        throw await this._classifyError(null, response);
       }
 
       return await response.json();
@@ -167,7 +193,7 @@ export class APIClient {
         debugError('Backend', `GET ${path} failed:`, err.message);
         throw err;
       }
-      const classified = this._classifyError(err, response);
+      const classified = await this._classifyError(err, response);
       debugError('Backend', `GET ${path} failed:`, classified.message);
       throw classified;
     }
@@ -193,7 +219,7 @@ export class APIClient {
       });
 
       if (!response.ok) {
-        throw this._classifyError(null, response);
+        throw await this._classifyError(null, response);
       }
 
       return await response.json();
@@ -202,7 +228,7 @@ export class APIClient {
         debugError('Backend', `POST ${path} failed:`, err.message);
         throw err;
       }
-      const classified = this._classifyError(err, response);
+      const classified = await this._classifyError(err, response);
       debugError('Backend', `POST ${path} failed:`, classified.message);
       throw classified;
     }
@@ -502,7 +528,7 @@ export class APIClient {
       });
 
       if (!response.ok) {
-        throw this._classifyError(null, response);
+        throw await this._classifyError(null, response);
       }
 
       return await response.json();
@@ -511,7 +537,7 @@ export class APIClient {
         debugError('Backend', 'DELETE /api/v1/preprocessing/cache failed:', err.message);
         throw err;
       }
-      const classified = this._classifyError(err, response);
+      const classified = await this._classifyError(err, response);
       debugError('Backend', 'DELETE /api/v1/preprocessing/cache failed:', classified.message);
       throw classified;
     }

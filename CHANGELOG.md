@@ -8,6 +8,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ### Fixed
 - **Robust exiftool-upplösning.** NEF-namnbyte och EXIF-baserade steg hittar nu `exiftool` även när appen startats från GUI (Electron på macOS ärver en PATH utan `/opt/homebrew/bin`). `exiftool` slås upp via PATH med fallback till Homebrew-katalogerna, och backend-processen får dessa kataloger i PATH.
+- **Tydligare felmeddelanden från backend.** HTTP-fel visar nu FastAPI:s `detail`-text (t.ex. "exiftool krävs men hittades inte i PATH") i stället för en naken statustext.
 
 ## [1.5.0] - 2026-07-10
 
