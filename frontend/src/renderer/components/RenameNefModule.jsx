@@ -38,14 +38,17 @@ export function RenameNefModule() {
     recursive: true,
   }), [roots, glob]);
 
-  // Hand-off from Import ("Döp om filer…"): REPLACE the roots with the imported
-  // folder(s), not union. The hand-off means "rename what I just imported"; the
-  // pre-filled default root can be stale (the import destination field may have
-  // been edited after the import), so unioning could rename in the wrong folder.
+  // Hand-off from Import ("Döp om filer…"): scope the module strictly to the
+  // imported folder(s). REPLACE roots (not union) — the pre-filled default root
+  // can be stale (the import destination field may have been edited after the
+  // import). Also CLEAR any leftover glob: params() forwards it and the backend
+  // resolver unions glob matches with the root scan, so a stale pattern like
+  // /old/*.NEF would pull in files outside the just-imported folder.
   useModuleEvent('rename-nef-load', (data) => {
     const incoming = data?.roots || [];
     if (incoming.length) {
       setRoots(Array.from(new Set(incoming)));
+      setGlob('');
     }
     setPreview(null);
     setResult(null);
