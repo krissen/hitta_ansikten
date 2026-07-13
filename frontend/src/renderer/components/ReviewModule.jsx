@@ -818,10 +818,14 @@ export function ReviewModule({ node }) {
     emit('file-queue:undo-trash');
   }, [node, emit]));
   useModuleEvent('queue-status', setQueueStatus);
-  // Pull the current queue status on mount so the overview bar isn't blank
-  // when the Review panel is opened after navigation has already happened.
+  // Pull the current queue status AND the current image on mount. When Review
+  // is opened after an image already loaded (e.g. a layout switch into the
+  // review view), the one-shot `image-loaded` is long gone, so Review would sit
+  // on "waiting for image". request-current-image asks ImageViewer to re-emit
+  // its current image-loaded payload, which drives Review's normal detect path.
   useEffect(() => {
     emit('request-queue-status');
+    emit('request-current-image');
   }, [emit]);
   useModuleEvent('undo-face-action', undoWithToast);
 
