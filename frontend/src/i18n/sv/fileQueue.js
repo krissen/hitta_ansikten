@@ -45,7 +45,8 @@ module.exports = {
 
   "emptyStates": {
     "noFiles": "Inga filer i kön",
-    "addHint": "Klicka på + för att lägga till filer"
+    "addHint": "Klicka på + för att lägga till filer",
+    "loadFolderOffer": "Ladda {name}?"
   },
 
   "preprocessing": {
