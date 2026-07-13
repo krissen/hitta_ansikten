@@ -6,6 +6,8 @@ module.exports = {
   "preview": "Förhandsgranska",
   "execute": "Byt namn",
   "removeFolder": "Ta bort {name}",
+  "progressPreparing": "Förbereder…",
+  "progressLabel": "Läser EXIF… {current}/{total}",
   "emptyPromptPrefix": "Välj en mapp och tryck ",
   "emptyPromptAction": "Förhandsgranska",
   "emptyPromptSuffix": ".",

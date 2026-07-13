@@ -44,6 +44,20 @@
   height: 16px;
 }
 
+.rename-nef-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rename-nef-progress-label {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .rename-nef-body {
   flex: 1;
   overflow-y: auto;
