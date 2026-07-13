@@ -115,8 +115,11 @@ export function playerSessionParams(session = getPlayerSession()) {
 export function contextMenuItemsFor(bucket) {
   switch (bucket) {
     case 'players':
-    case 'below_threshold':
       return ['toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent'];
+    case 'below_threshold':
+      // Already a player by classification, but under min_images — the pin
+      // ("gör till spelare") is what lifts it past the threshold.
+      return ['toPlayerSession', 'toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent'];
     case 'publik':
       return ['toPlayerSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent'];
     case 'tranare':

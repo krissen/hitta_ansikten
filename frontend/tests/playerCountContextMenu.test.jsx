@@ -89,7 +89,12 @@ describe('contextMenuItemsFor', () => {
     expect(contextMenuItemsFor('players')).toEqual([
       'toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent',
     ]);
-    expect(contextMenuItemsFor('below_threshold')).toEqual(contextMenuItemsFor('players'));
+  });
+
+  it('offers the player pin on below-threshold rows (bypasses min_images)', () => {
+    expect(contextMenuItemsFor('below_threshold')).toEqual([
+      'toPlayerSession', 'toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent',
+    ]);
   });
 
   it('offers back-to-player + other buckets on excluded names', () => {
