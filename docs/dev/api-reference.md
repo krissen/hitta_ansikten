@@ -1051,9 +1051,16 @@ timestamps are disambiguated with `-NN`.
 
 ### `POST /api/v1/rename-nef/execute`
 
-Rename the NEFs (+ `.xmp` sidecars) from EXIF. Recomputes from current EXIF (no
-stale plan); two-pass via temp files; **never overwrites** — on a target-name
-collision the original is restored and reported as skipped.
+Rename the NEFs (+ `.xmp` sidecars) from EXIF. Reuses the preview's plan when
+the request and every file's `(mtime_ns, size)` signature are unchanged
+(skipping the EXIF re-read); any divergence — added/removed file, mtime/size
+change — forces a full re-read. Concurrent executes are serialized with a
+per-service lock. Two-pass via temp files; **never overwrites** — on a
+target-name collision the original is restored and reported as skipped.
+
+Both `preview` and `execute` emit `rename-nef-progress` over the WebSocket
+during the EXIF phase:
+`{ "phase": "preview"|"execute", "current": 50, "total": 312, "percent": 16 }`.
 
 **Response:** `{ "renamed": [{"from":"DSC0001.NEF","to":"250601_100000.NEF"}], "skipped": [{"path":"…","reason":"…"}], "errors": [] }`.
 
@@ -1076,6 +1083,8 @@ Real-time progress updates during processing.
 | `face-detected` | `{ file, faces }` | Face detected |
 | `complete` | `{ filesProcessed }` | Batch complete |
 | `error` | `{ message }` | Processing error |
+| `import-progress` | `{ phase, current, total, file, percent }` | Card import transfer progress |
+| `rename-nef-progress` | `{ phase, current, total, percent }` | EXIF read progress during NEF rename preview/execute |
 
 **Example client:**
 ```javascript
