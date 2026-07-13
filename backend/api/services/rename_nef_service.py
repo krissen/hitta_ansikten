@@ -7,6 +7,7 @@ execute to return structured results, carry .xmp sidecars, and — unlike the CL
 restore (never delete) the original when a target name is already taken.
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -19,12 +20,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from rename_nef import compute_renames, get_exif_data  # noqa: E402
 
+from ..websocket.progress import broadcast_event  # noqa: E402
 from .file_resolver import preset_extensions, resolve_files  # noqa: E402
 from .rename_service import find_sidecar_files  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 SIDECAR_EXTENSIONS = ["xmp"]
+# EXIF reads dominate preview/execute time on large folders. Chunk the exiftool
+# calls so progress can be broadcast between batches instead of one long stall.
+EXIF_CHUNK_SIZE = 50
 # A usable capture timestamp must be exactly YYMMDD_HHMMSS. exiftool's
 # `-if defined $CreateDate` can still let a blank/zero date through (→ ts ""),
 # which would otherwise rename a file to just ".NEF" — guard against that.
@@ -44,26 +49,50 @@ class RenameNefService:
             extensions=preset_extensions("nef"), recursive=recursive,
         )
 
-    def _plan(self, files):
+    async def _plan(self, files, phase="preview"):
         """Return (renames, no_date_names, valid_count) from the resolved files.
 
         Only entries with a well-formed YYMMDD_HHMMSS timestamp are eligible;
         everything else (no/blank CreateDate) is reported as no_date and never
         renamed.
+
+        EXIF is read in chunks so progress can be broadcast between batches over
+        the `rename-nef-progress` WebSocket event (phase = 'preview'|'execute').
+        get_exif_data sorts each batch internally, so the *merged* list is
+        re-sorted with the same key before compute_renames — the -NN suffixes
+        depend on that global ordering.
         """
-        try:
-            entries = get_exif_data([Path(f) for f in files])
-        except FileNotFoundError:
-            raise ValueError("exiftool krävs men hittades inte i PATH.")
+        total = len(files)
+        loop = asyncio.get_event_loop()
+        entries: list[tuple[str, int, Path]] = []
+
+        await broadcast_event("rename-nef-progress", {
+            "phase": phase, "current": 0, "total": total,
+            "percent": 0 if total else 100,
+        })
+        for start in range(0, total, EXIF_CHUNK_SIZE):
+            chunk = [Path(f) for f in files[start:start + EXIF_CHUNK_SIZE]]
+            try:
+                chunk_entries = await loop.run_in_executor(None, get_exif_data, chunk)
+            except FileNotFoundError:
+                raise ValueError("exiftool krävs men hittades inte i PATH.")
+            entries.extend(chunk_entries)
+            done = min(start + EXIF_CHUNK_SIZE, total)
+            await broadcast_event("rename-nef-progress", {
+                "phase": phase, "current": done, "total": total,
+                "percent": round(100 * done / total) if total else 100,
+            })
+
+        entries.sort(key=lambda e: (e[0], e[1], str(e[2])))
         valid = [(ts, sub, p) for ts, sub, p in entries if _VALID_TS.match(ts or "")]
         dated = {str(p) for _, _, p in valid}
         no_date = [Path(f).name for f in files if f not in dated]
         renames = compute_renames(valid)
         return renames, no_date, len(valid)
 
-    def preview(self, roots=None, globs=None, recursive=True) -> dict:
+    async def preview(self, roots=None, globs=None, recursive=True) -> dict:
         files = self._resolve(roots, globs, recursive)
-        renames, no_date, valid_count = self._plan(files)
+        renames, no_date, valid_count = await self._plan(files, phase="preview")
         return {
             "items": [
                 {"original_path": str(src), "original": src.name, "new_name": dst.name}
@@ -75,9 +104,9 @@ class RenameNefService:
             "no_date": no_date,
         }
 
-    def execute(self, roots=None, globs=None, recursive=True) -> dict:
+    async def execute(self, roots=None, globs=None, recursive=True) -> dict:
         files = self._resolve(roots, globs, recursive)
-        renames, _no_date, _valid = self._plan(files)
+        renames, _no_date, _valid = await self._plan(files, phase="execute")
 
         # Build the full move list: each NEF plus its .xmp sidecar, with fresh
         # unique temp names (two-pass avoids intra-batch collisions).
@@ -126,6 +155,12 @@ class RenameNefService:
                 else:
                     errors.append({"path": str(tmp), "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
 
+        # The rename passes above are fast local moves; report a closing 100% so
+        # the UI's progress bar completes rather than freezing at the EXIF total.
+        await broadcast_event("rename-nef-progress", {
+            "phase": "execute", "current": len(files), "total": len(files),
+            "percent": 100,
+        })
         return {"renamed": renamed, "skipped": skipped, "errors": errors}
 
     @staticmethod
