@@ -7,11 +7,22 @@ vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
   useBackend: () => ({ api: { get: mockGet } }),
 }));
 
+// The continue row emits in-app hand-off events; capture them via a stubbed bus.
+const mockEmit = vi.fn();
+vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
+  useEmitEvent: () => mockEmit,
+  useModuleEvent: () => {},
+  useModuleAPI: () => ({ emit: mockEmit, on: () => () => {} }),
+}));
+
 import { StartupLanding } from '../src/renderer/components/StartupLanding.jsx';
+import { setWorkingFolder, clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
 describe('StartupLanding', () => {
   beforeEach(() => {
     mockGet.mockReset();
+    mockEmit.mockReset();
+    clearWorkingFolder();
   });
 
   it('renders the workflow steps in order, then the tools', async () => {
@@ -81,5 +92,46 @@ describe('StartupLanding', () => {
     await waitFor(() => expect(importBtn.disabled).toBe(true));
     fireEvent.click(importBtn);
     expect(onOpenModule).not.toHaveBeenCalled();
+  });
+});
+
+describe('StartupLanding — continue row (working-folder anchor)', () => {
+  beforeEach(() => {
+    mockGet.mockReset();
+    mockGet.mockResolvedValue({ volumes: [] });
+    mockEmit.mockReset();
+    clearWorkingFolder();
+  });
+
+  it('shows no continue row when there is no anchor', () => {
+    render(<StartupLanding onOpenModule={() => {}} />);
+    expect(screen.queryByText(/Aktuell mapp/)).toBeNull();
+    expect(screen.queryByRole('button', { name: /Fortsätt/ })).toBeNull();
+  });
+
+  it('after import: offers "Fortsätt: Byt namn" and emits open-rename-nef with the roots', () => {
+    setWorkingFolder({ roots: ['/events/cupen'], step: 'import' });
+    render(<StartupLanding onOpenModule={() => {}} />);
+
+    expect(screen.getByText('Aktuell mapp: cupen')).toBeTruthy();
+    const btn = screen.getByRole('button', { name: /Fortsätt: Byt namn/ });
+    fireEvent.click(btn);
+    expect(mockEmit).toHaveBeenCalledWith('open-rename-nef', { roots: ['/events/cupen'] });
+  });
+
+  it('after rename: offers "Fortsätt: Granska ansikten" and emits open-review-queue with the roots', () => {
+    setWorkingFolder({ roots: ['/events/cupen'], step: 'rename' });
+    render(<StartupLanding onOpenModule={() => {}} />);
+
+    expect(screen.getByText('Aktuell mapp: cupen')).toBeTruthy();
+    const btn = screen.getByRole('button', { name: /Fortsätt: Granska ansikten/ });
+    fireEvent.click(btn);
+    expect(mockEmit).toHaveBeenCalledWith('open-review-queue', { roots: ['/events/cupen'] });
+  });
+
+  it('shows no continue row for an anchor whose step has no next hand-off', () => {
+    setWorkingFolder({ roots: ['/events/cupen'], step: 'review' });
+    render(<StartupLanding onOpenModule={() => {}} />);
+    expect(screen.queryByText(/Aktuell mapp/)).toBeNull();
   });
 });
