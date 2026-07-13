@@ -286,6 +286,16 @@ export function FlexLayoutWorkspace() {
     return ids.length > 0;
   }, [model]);
 
+  // True if a tab for the given module is currently present in the layout.
+  const hasModuleTab = useCallback((moduleId) => {
+    if (!model) return false;
+    let found = false;
+    model.visitNodes((node) => {
+      if (node.getType() === 'tab' && node.getComponent?.() === moduleId) found = true;
+    });
+    return found;
+  }, [model]);
+
   // Factory function for FlexLayout
   const factory = useCallback((node) => {
     const component = node.getComponent();
@@ -384,11 +394,13 @@ export function FlexLayoutWorkspace() {
 
   const openLandingStep = useCallback((moduleId) => {
     setShowLanding(false);
-    // Review needs its multi-pane layout (Review + Image Viewer); every other
-    // landing target is a self-contained view opened solo (fills the workspace)
-    // so a direct pick lands you on that view, not docked beside an empty panel.
+    // Review needs its multi-pane pipeline layout (File Queue + Review + Image
+    // Viewer). Without the queue panel the review view is a dead end — nothing
+    // feeds it — so land on 'queue-review', not the queue-less 'review'. Every
+    // other landing target is a self-contained view opened solo (fills the
+    // workspace) so a direct pick lands you on that view, not beside an empty panel.
     if (moduleId === 'review-module') {
-      loadLayout('review');
+      loadLayout('queue-review');
     } else {
       openModuleSolo(moduleId);
     }
@@ -617,6 +629,46 @@ export function FlexLayoutWorkspace() {
     };
     const offOpenRenameNef = moduleAPI.on('open-rename-nef', handleOpenRenameNef);
 
+    // In-app hand-off from Rename-NEF → Review ("Granska ansikten…"): bring up
+    // the pipeline layout (File Queue + Review + Image Viewer) and hand the
+    // just-renamed folder(s) to the queue, which expands them to files. Mirror
+    // the culling dirty-guard: with no unsaved Review edits, load the full
+    // 'queue-review' layout; with unsaved edits, don't blow the layout away —
+    // just ensure the queue is present so we don't discard Review state.
+    const handleOpenReviewQueue = async ({ roots }) => {
+      if (reviewDirtyRef.current.size === 0) {
+        loadLayout('queue-review');
+      } else {
+        openModule('file-queue');
+      }
+      await moduleAPI.waitForListeners('file-queue-load', 2000);
+      moduleAPI.emit('file-queue-load', { roots });
+    };
+    const offOpenReviewQueue = moduleAPI.on('open-review-queue', handleOpenReviewQueue);
+
+    // CLI `ansikten -q FILES` (and the `queue-files` IPC generally): the queue
+    // may not be mounted yet — a saved layout without a File Queue panel, or a
+    // cold start where the landing page was suppressed by the launch intent but
+    // no receiver existed → a blank workspace. Ensure the queue is present
+    // (load 'queue-review' if missing, honouring the Review dirty-guard), then
+    // re-emit the payload as the renderer-side 'file-queue-load' once the queue
+    // has subscribed. This is the single mount-aware entry point that the old
+    // direct FileQueue IPC listener couldn't provide.
+    const handleQueueFilesIpc = async (payload) => {
+      if (!hasModuleTab('file-queue')) {
+        if (reviewDirtyRef.current.size === 0) {
+          loadLayout('queue-review');
+        } else {
+          openModule('file-queue');
+        }
+      } else {
+        openModule('file-queue');
+      }
+      await moduleAPI.waitForListeners('file-queue-load', 2000);
+      moduleAPI.emit('file-queue-load', payload || {});
+    };
+    const offQueueFiles = window.ansiktenAPI.on('queue-files', handleQueueFilesIpc);
+
     // Track which files have unsaved Review changes so the culling hand-off
     // above won't close Review and discard them.
     const offReviewDirty = moduleAPI.on('review-dirty', ({ imagePath, dirty }) => {
@@ -638,9 +690,11 @@ export function FlexLayoutWorkspace() {
       offOpenCulling?.();
       offOpenImport?.();
       offOpenRenameNef?.();
+      offOpenReviewQueue?.();
+      offQueueFiles?.();
       offReviewDirty?.();
     };
-  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, moduleAPI, moveToNewTabset]);
+  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, hasModuleTab, moduleAPI, moveToNewTabset]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
