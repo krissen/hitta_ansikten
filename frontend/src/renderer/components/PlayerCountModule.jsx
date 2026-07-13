@@ -15,6 +15,16 @@ import { Button, Alert, ContextMenu } from './shared';
 import { useContextMenu } from '../hooks/useContextMenu.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
 import { getWorkingFolder } from '../shared/workingFolder.js';
+import {
+  getPlayerSession,
+  playerSessionParams,
+  movePlayerSession,
+  removePlayerSession,
+  clearPlayerSession,
+  subscribePlayerSession,
+  buildPlayerMenuItems,
+  persistPublikPermanent,
+} from '../shared/playerSession.js';
 import { t } from '../../i18n/index.js';
 import './PlayerCountModule.css';
 
@@ -24,10 +34,11 @@ const REFRESH_DEBOUNCE_MS = 400;
 export const DEFAULT_OPTIONS = { gapMinutes: 30, baseline: 'median', minImages: 3 };
 
 // Build the /players/count request body. Pure + exported for unit tests.
-// `exclOverride` is { tranare, publik, grupp, spelare } to override the
-// config/env exclusion lists (grupp) and force-include names (spelare) for
-// this request, or null/undefined to keep the backend defaults (config/env).
-export function buildCountParams(inp, options, includePerMatch, exclOverride) {
+// `exclOverride` is { tranare, publik } to override the config/env exclusion
+// lists, or null/undefined to keep the backend defaults (config/env).
+// `session` is a playerSessionParams() object (session-only right-click pins),
+// or null/undefined for none.
+export function buildCountParams(inp, options, includePerMatch, exclOverride, session) {
   const opts = options || DEFAULT_OPTIONS;
   return {
     roots: inp.roots,
@@ -42,27 +53,11 @@ export function buildCountParams(inp, options, includePerMatch, exclOverride) {
     per_match: includePerMatch,
     tranare: exclOverride ? exclOverride.tranare : null,
     publik: exclOverride ? exclOverride.publik : null,
-    grupp: exclOverride ? exclOverride.grupp ?? null : null,
-    spelare: exclOverride?.spelare?.length ? exclOverride.spelare : null,
+    spelare: session?.spelare ?? null,
+    session_tranare: session?.session_tranare ?? null,
+    session_publik: session?.session_publik ?? null,
+    session_grupp: session?.session_grupp ?? null,
   };
-}
-
-// Context-menu action keys per result bucket. Pure + exported for unit tests.
-// 'sep' marks a separator; the component maps keys to labels and handlers.
-export function contextMenuItemsFor(bucket) {
-  switch (bucket) {
-    case 'players':
-    case 'below_threshold':
-      return ['toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent'];
-    case 'publik':
-      return ['toPlayerSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent'];
-    case 'tranare':
-      return ['toPlayerSession', 'toPublikSession', 'toGruppSession'];
-    case 'grupp':
-      return ['toPlayerSession', 'toPublikSession', 'toTranareSession'];
-    default:
-      return [];
-  }
 }
 
 export function PlayerCountModule() {
@@ -88,11 +83,11 @@ export function PlayerCountModule() {
   const [alwaysPublik, setAlwaysPublik] = useState([]);
   const [envKeys, setEnvKeys] = useState([]); // RAKNA_* env vars shadowing config
   const [exclusionsDirty, setExclusionsDirty] = useState(false); // tranare/publik (per-request)
-  // Session-only reclassification (context menu): force-included names that
-  // count as players despite any exclusion list, and a per-request grupp
-  // override (null = no override → config/env). Never persisted by save.
-  const [sessionSpelare, setSessionSpelare] = useState([]);
-  const [sessionGrupp, setSessionGrupp] = useState(null);
+  // Session-only right-click moves, shared with the culling stats column
+  // (sessionStorage-backed store). Kept out of `exclusions` entirely so
+  // "Spara som standard" can never persist a session move.
+  const [session, setSession] = useState(getPlayerSession());
+  useEffect(() => subscribePlayerSession(setSession), []);
   const [configDirty, setConfigDirty] = useState(false); // grupp/always (needs save)
   const [savingDefaults, setSavingDefaults] = useState(false);
 
@@ -106,7 +101,9 @@ export function PlayerCountModule() {
 
   const buildParams = useCallback(
     (inp, includePerMatch, opts, exclOverride) =>
-      buildCountParams(inp, opts, includePerMatch, exclOverride),
+      // Session pins are read fresh at call time, so every recount path
+      // (submit, option change, auto-refresh resubmit) carries them.
+      buildCountParams(inp, opts, includePerMatch, exclOverride, playerSessionParams()),
     []
   );
 
@@ -161,28 +158,11 @@ export function PlayerCountModule() {
     watchedDirsRef.current = desired;
   }, []);
 
-  // Assemble the per-request override from session state (or explicit next
-  // values from a handler, to avoid racing async state updates).
-  const buildSessionOverride = useCallback(
-    (excl, dirty, spelareList, gruppList) =>
-      dirty || spelareList.length > 0 || gruppList !== null
-        ? {
-            tranare: dirty ? excl.tranare : null,
-            publik: dirty ? excl.publik : null,
-            grupp: gruppList,
-            spelare: spelareList,
-          }
-        : null,
-    []
-  );
-
   const submitWith = useCallback(
     (inp, includePerMatch, opts = options, exclOverride) => {
       // Undefined = fall back to current state; explicit null = force defaults.
       const override =
-        exclOverride !== undefined
-          ? exclOverride
-          : buildSessionOverride(exclusions, exclusionsDirty, sessionSpelare, sessionGrupp);
+        exclOverride !== undefined ? exclOverride : exclusionsDirty ? exclusions : null;
       const params = buildParams(inp, includePerMatch, opts, override);
       lastParamsRef.current = params;
       // Publish the scan scope so Gallra spelare mirrors the same selection.
@@ -197,9 +177,18 @@ export function PlayerCountModule() {
       runCount(params);
       updateWatches(watchDirsFor(inp));
     },
-    [buildParams, runCount, updateWatches, watchDirsFor, options, exclusions, exclusionsDirty,
-      buildSessionOverride, sessionSpelare, sessionGrupp]
+    [buildParams, runCount, updateWatches, watchDirsFor, options, exclusions, exclusionsDirty]
   );
+
+  // Re-run the count when the shared session moves change (from this module's
+  // context menu, its chips, or the culling stats column). Skips the initial
+  // subscription value and counts that haven't run yet.
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    if (sessionRef.current === session) return;
+    sessionRef.current = session;
+    if (lastParamsRef.current) submitWith(input, perMatch);
+  }, [session, submitWith, input, perMatch]);
 
   const handleSubmit = useCallback(
     () => submitWith(input, perMatch),
@@ -284,21 +273,13 @@ export function PlayerCountModule() {
   }, [loadExclusions]);
 
   // Edit the exclusion lists (per-request override; marks dirty + re-runs).
-  // Optional explicit next session values avoid racing async state updates.
-  // `exclChanged` = whether tranare/publik actually changed (session grupp /
-  // force-include moves alone shouldn't flag the lists as unsaved).
   const applyExclusions = useCallback(
-    (next, nextSpelare = sessionSpelare, nextGrupp = sessionGrupp, exclChanged = true) => {
-      const nextDirty = exclusionsDirty || exclChanged;
+    (next) => {
       setExclusions(next);
-      setExclusionsDirty(nextDirty);
-      setSessionSpelare(nextSpelare);
-      setSessionGrupp(nextGrupp);
-      if (lastParamsRef.current) {
-        submitWith(input, perMatch, options, buildSessionOverride(next, nextDirty, nextSpelare, nextGrupp));
-      }
+      setExclusionsDirty(true);
+      if (lastParamsRef.current) submitWith(input, perMatch, options, next);
     },
-    [submitWith, input, perMatch, options, buildSessionOverride, sessionSpelare, sessionGrupp, exclusionsDirty]
+    [submitWith, input, perMatch, options]
   );
 
   // Config-level lists (grupp / always-publik): edit state + mark dirty; they
@@ -309,64 +290,13 @@ export function PlayerCountModule() {
     setConfigDirty(true);
   }, []);
 
-  // Session-only reclassify: force-include a name as a player this session.
-  // Also drops it from the session tranare/publik/grupp lists (tidier chips —
-  // the force-include alone already wins over every exclusion set).
-  const makePlayerForSession = useCallback(
-    (name) => {
-      const clean = name.trim();
-      if (!clean) return;
-      const nextSpelare = sessionSpelare.includes(clean) ? sessionSpelare : [...sessionSpelare, clean];
-      const nextExcl = {
-        tranare: exclusions.tranare.filter((n) => n !== clean),
-        publik: exclusions.publik.filter((n) => n !== clean),
-      };
-      const nextGrupp = sessionGrupp === null ? null : sessionGrupp.filter((n) => n !== clean);
-      const exclChanged =
-        exclusions.tranare.includes(clean) || exclusions.publik.includes(clean);
-      applyExclusions(nextExcl, nextSpelare, nextGrupp, exclChanged);
-    },
-    [exclusions, sessionSpelare, sessionGrupp, applyExclusions]
-  );
-
-  // Session-only reclassify: move a name into publik/tranare/grupp (removing it
-  // from the other session lists and from the force-includes).
-  const moveToBucketForSession = useCallback(
-    (kind, name) => {
-      const clean = name.trim();
-      if (!clean) return;
-      const nextSpelare = sessionSpelare.filter((n) => n !== clean);
-      const nextExcl = {
-        tranare: exclusions.tranare.filter((n) => n !== clean),
-        publik: exclusions.publik.filter((n) => n !== clean),
-      };
-      // The grupp override starts from the resolved config list the first time
-      // a session grupp move happens (null = no override yet).
-      let nextGrupp = sessionGrupp === null ? null : sessionGrupp.filter((n) => n !== clean);
-      if (kind === 'grupp') {
-        const base = nextGrupp ?? grupp.filter((n) => n !== clean);
-        nextGrupp = [...base, clean];
-      } else {
-        nextExcl[kind] = [...nextExcl[kind], clean];
-        if (nextGrupp === null && grupp.includes(clean)) {
-          nextGrupp = grupp.filter((n) => n !== clean);
-        }
-      }
-      const exclChanged =
-        kind !== 'grupp' ||
-        exclusions.tranare.includes(clean) ||
-        exclusions.publik.includes(clean);
-      applyExclusions(nextExcl, nextSpelare, nextGrupp, exclChanged);
-    },
-    [exclusions, grupp, sessionSpelare, sessionGrupp, applyExclusions]
-  );
-
   const addExcluded = useCallback(
     (kind, name) => {
       const clean = name.trim();
       if (!clean) return;
       if (kind === 'spelare') {
-        makePlayerForSession(clean);
+        // Session-only force-include (shared store; recount via subscription).
+        movePlayerSession(clean, 'spelare');
       } else if (kind === 'tranare' || kind === 'publik') {
         if (exclusions[kind].includes(clean)) return;
         applyExclusions({ ...exclusions, [kind]: [...exclusions[kind], clean] });
@@ -376,13 +306,13 @@ export function PlayerCountModule() {
         editConfigList(kind, [...list, clean]);
       }
     },
-    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList, makePlayerForSession]
+    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList]
   );
 
   const removeExcluded = useCallback(
     (kind, name) => {
       if (kind === 'spelare') {
-        applyExclusions(exclusions, sessionSpelare.filter((n) => n !== name), sessionGrupp, false);
+        removePlayerSession(name);
       } else if (kind === 'tranare' || kind === 'publik') {
         applyExclusions({ ...exclusions, [kind]: exclusions[kind].filter((n) => n !== name) });
       } else {
@@ -390,7 +320,7 @@ export function PlayerCountModule() {
         editConfigList(kind, list.filter((n) => n !== name));
       }
     },
-    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList, sessionSpelare, sessionGrupp]
+    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList]
   );
 
   // Persist the current lists as the new defaults (config.json → future counts + CLI).
@@ -409,10 +339,6 @@ export function PlayerCountModule() {
       applyLoaded(data);
       setExclusionsDirty(false); // the saved lists are now the default
       setConfigDirty(false);
-      // Session-only moves are intentionally not persisted; saving defaults
-      // resets to the saved state, so drop them too.
-      setSessionSpelare([]);
-      setSessionGrupp(null);
       // Re-run with the resolved defaults so lastParamsRef no longer holds the
       // per-request override (which would otherwise linger on auto-refresh).
       if (lastParamsRef.current) submitWith(input, perMatch, options, null);
@@ -428,34 +354,23 @@ export function PlayerCountModule() {
     await loadExclusions();
     setExclusionsDirty(false);
     setConfigDirty(false);
-    setSessionSpelare([]);
-    setSessionGrupp(null);
+    // Återställ also clears the session-only right-click moves.
+    clearPlayerSession();
     if (lastParamsRef.current) submitWith(input, perMatch, options, null);
   }, [loadExclusions, submitWith, input, perMatch, options]);
 
-  // Persist ONLY "name is publik" to the config (unlike saveDefaults, which
-  // would also persist every other unsaved session edit). Other session-only
-  // moves stay unpersisted; the current view is updated via a session move.
+  // Targeted permanent publik (shared helper: raw-config save + session pin);
+  // refresh the editor lists unless that would clobber unsaved edits.
   const makePublikPermanent = useCallback(
     async (name) => {
-      const clean = name.trim();
-      if (!clean) return;
       try {
-        const cfg = await api.get('/api/v1/players/exclusions');
-        const publik = cfg.publik || [];
-        if (!publik.includes(clean)) {
-          // The backend strips always-markers/dupes from the posted list.
-          await api.post('/api/v1/players/exclusions', {
-            tranare: cfg.tranare || [],
-            publik: [...publik, clean],
-          });
-        }
-        moveToBucketForSession('publik', clean);
+        await persistPublikPermanent(api, name);
+        if (!exclusionsDirty && !configDirty) await loadExclusions();
       } catch (err) {
         setError(err.message || String(err));
       }
     },
-    [api, moveToBucketForSession]
+    [api, exclusionsDirty, configDirty, loadExclusions]
   );
 
   // Open the culling workspace filtered to a player (from the stats table).
@@ -507,24 +422,7 @@ export function PlayerCountModule() {
     (e, name, bucket) => openMenu(e, { name, bucket }),
     [openMenu]
   );
-  const menuActions = {
-    toPlayerSession: makePlayerForSession,
-    toPublikSession: (name) => moveToBucketForSession('publik', name),
-    toTranareSession: (name) => moveToBucketForSession('tranare', name),
-    toGruppSession: (name) => moveToBucketForSession('grupp', name),
-    publikPermanent: makePublikPermanent,
-  };
-  const menuItems = menu
-    ? contextMenuItemsFor(menu.bucket).map((key, i) =>
-        key === 'sep'
-          ? { key: `sep-${i}`, separator: true }
-          : {
-              key,
-              label: t(`playerCount.contextMenu.${key}`),
-              onClick: (m) => menuActions[key](m.name),
-            }
-      )
-    : [];
+  const menuItems = menu ? buildPlayerMenuItems(menu.bucket, makePublikPermanent) : [];
 
   const totalImages = result?.total_images ?? 0;
 
@@ -562,7 +460,7 @@ export function PlayerCountModule() {
         onOptionsChange={applyOptions}
         onOptionsPreview={setOptions}
         exclusions={exclusions}
-        sessionSpelare={sessionSpelare}
+        sessionSpelare={session.spelare}
         grupp={grupp}
         alwaysPublik={alwaysPublik}
         envKeys={envKeys}

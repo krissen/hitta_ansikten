@@ -3,10 +3,17 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 import {
   buildCountParams,
-  contextMenuItemsFor,
   DEFAULT_OPTIONS,
 } from '../src/renderer/components/PlayerCountModule.jsx';
 import { ContextMenu } from '../src/renderer/components/shared/ContextMenu.jsx';
+import {
+  contextMenuItemsFor,
+  movePlayerSession,
+  removePlayerSession,
+  clearPlayerSession,
+  getPlayerSession,
+  playerSessionParams,
+} from '../src/renderer/shared/playerSession.js';
 
 const INPUT = {
   roots: ['/photos'],
@@ -17,41 +24,63 @@ const INPUT = {
   recursive: true,
 };
 
-describe('buildCountParams (session override extensions)', () => {
-  it('sends null grupp/spelare without an override', () => {
+describe('buildCountParams (session pin extensions)', () => {
+  it('sends null pins without a session', () => {
     const params = buildCountParams(INPUT, DEFAULT_OPTIONS, false, null);
-    expect(params.grupp).toBeNull();
     expect(params.spelare).toBeNull();
+    expect(params.session_tranare).toBeNull();
+    expect(params.session_publik).toBeNull();
+    expect(params.session_grupp).toBeNull();
   });
 
-  it('sends null grupp/spelare for a tranare/publik-only override', () => {
-    const params = buildCountParams(INPUT, DEFAULT_OPTIONS, false, {
-      tranare: ['Coach'],
-      publik: [],
-    });
-    expect(params.grupp).toBeNull();
-    expect(params.spelare).toBeNull();
-  });
-
-  it('sends the grupp override and force-include list when provided', () => {
-    const params = buildCountParams(INPUT, DEFAULT_OPTIONS, false, {
-      tranare: null,
-      publik: null,
-      grupp: ['Laget'],
+  it('sends the session pins when provided', () => {
+    const params = buildCountParams(INPUT, DEFAULT_OPTIONS, false, null, {
       spelare: ['Oscar'],
+      session_tranare: null,
+      session_publik: ['Farbror'],
+      session_grupp: null,
     });
-    expect(params.grupp).toEqual(['Laget']);
     expect(params.spelare).toEqual(['Oscar']);
+    expect(params.session_publik).toEqual(['Farbror']);
+    expect(params.session_tranare).toBeNull();
+    expect(params.session_grupp).toBeNull();
+  });
+});
+
+describe('playerSession store', () => {
+  it('pins a name to one bucket at a time and undoes moves', () => {
+    clearPlayerSession();
+    movePlayerSession('Oscar', 'spelare');
+    movePlayerSession('Anna', 'publik');
+    expect(getPlayerSession().spelare).toEqual(['Oscar']);
+    expect(getPlayerSession().publik).toEqual(['Anna']);
+
+    movePlayerSession('Oscar', 'grupp'); // re-pin moves, never duplicates
+    expect(getPlayerSession().spelare).toEqual([]);
+    expect(getPlayerSession().grupp).toEqual(['Oscar']);
+
+    removePlayerSession('Oscar');
+    expect(getPlayerSession().grupp).toEqual([]);
+    clearPlayerSession();
   });
 
-  it('sends null spelare for an empty force-include list', () => {
-    const params = buildCountParams(INPUT, DEFAULT_OPTIONS, false, {
-      tranare: ['Coach'],
-      publik: [],
-      grupp: null,
-      spelare: [],
+  it('maps to /players/count request fields (null when empty)', () => {
+    clearPlayerSession();
+    expect(playerSessionParams()).toEqual({
+      spelare: null,
+      session_tranare: null,
+      session_publik: null,
+      session_grupp: null,
     });
-    expect(params.spelare).toBeNull();
+    movePlayerSession('Oscar', 'spelare');
+    movePlayerSession('Coach', 'tranare');
+    expect(playerSessionParams()).toEqual({
+      spelare: ['Oscar'],
+      session_tranare: ['Coach'],
+      session_publik: null,
+      session_grupp: null,
+    });
+    clearPlayerSession();
   });
 });
 
