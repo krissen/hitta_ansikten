@@ -202,10 +202,11 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 1. Öppna **Importera** (`Cmd+Shift+I`). Modulen listar isatta minneskort med antal NEF.
 2. Välj kort, målmapp (kom ihåg senaste), samt Flytta/Kopiera och om kortet ska matas ut.
 3. Klicka **Importera** — en förloppsindikator visas; kortet matas ut efter felfri överföring.
+4. När importen är klar visas knappen **"Döp om filer…"** i resultatet — den öppnar **Byt namn** med den importerade mappen redan ifylld (nästa steg).
 
 ### 0b. Byt namn på NEF (valfritt)
 
-1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`).
+1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`). Målmappen förväljs från senaste importdestination.
 2. **Förhandsgranska** visar `DSC… → YYMMDD_HHMMSS.NEF` (dubbletter får `-NN`; filer utan CreateDate hoppas över).
 3. **Byt namn** utför; befintliga målnamn skrivs aldrig över.
 

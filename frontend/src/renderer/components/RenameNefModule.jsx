@@ -9,6 +9,8 @@
 import React, { useState, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { preferences } from '../workspace/preferences.js';
 import { Button, IconButton, Alert, EmptyState } from './shared';
 import { t } from '../../i18n/index.js';
 import './RenameNefModule.css';
@@ -17,7 +19,13 @@ export function RenameNefModule() {
   const { api } = useBackend();
   const showToast = useToast();
 
-  const [roots, setRoots] = useState([]);
+  // Pre-fill with the import destination so the common "import then rename"
+  // flow starts pointed at the right folder. Backend file_resolver expands ~,
+  // so a stored ~-path is fine to pass through. Missing preference → empty.
+  const [roots, setRoots] = useState(() => {
+    const dest = preferences.get('import.destination');
+    return dest ? [dest] : [];
+  });
   const [glob, setGlob] = useState('');
   const [preview, setPreview] = useState(null);
   const [result, setResult] = useState(null);
@@ -29,6 +37,18 @@ export function RenameNefModule() {
     globs: glob.trim() ? [glob.trim()] : [],
     recursive: true,
   }), [roots, glob]);
+
+  // Hand-off from Import ("Döp om filer…"): union the imported folder(s) with
+  // any already-listed roots and clear stale preview/result state.
+  useModuleEvent('rename-nef-load', (data) => {
+    const incoming = data?.roots || [];
+    if (incoming.length) {
+      setRoots((r) => Array.from(new Set([...r, ...incoming])));
+    }
+    setPreview(null);
+    setResult(null);
+    setError(null);
+  }, []);
 
   const addFolder = useCallback(async () => {
     try {

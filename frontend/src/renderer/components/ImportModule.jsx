@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
-import { useModuleEvent } from '../hooks/useModuleEvent.js';
+import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { preferences } from '../workspace/preferences.js';
 import { Button, Alert, ProgressBar } from './shared';
@@ -22,6 +22,7 @@ const isMac = navigator.platform.toLowerCase().includes('mac');
 export function ImportModule() {
   const { api } = useBackend();
   const showToast = useToast();
+  const emit = useEmitEvent();
 
   const [volumes, setVolumes] = useState([]);
   const [selectedMount, setSelectedMount] = useState('');
@@ -37,6 +38,10 @@ export function ImportModule() {
   const [progressLabel, setProgressLabel] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  // Destination the last completed import actually wrote to. Captured at run
+  // time so the "Döp om filer…" hand-off targets that folder even if the field
+  // is edited afterwards.
+  const [importedDest, setImportedDest] = useState('');
 
   const loadVolumes = useCallback(async () => {
     setLoadingVolumes(true);
@@ -110,14 +115,16 @@ export function ImportModule() {
     setError(null);
     setProgress(0);
     setProgressLabel('');
+    const usedDestination = destination.trim();
     try {
       const res = await api.post('/api/v1/import/run', {
         volume_mount: selectedMount,
-        destination: destination.trim(),
+        destination: usedDestination,
         mode,
         eject,
       });
       setResult(res);
+      setImportedDest(usedDestination);
       // Transient receipt of the completed transfer; the result panel below
       // keeps the persistent, inspectable breakdown (skipped/errors/eject).
       const count = res.transferred?.length ?? 0;
@@ -132,6 +139,12 @@ export function ImportModule() {
       setProgress(null);
     }
   }, [api, selectedMount, destination, mode, eject, loadVolumes, showToast]);
+
+  // Hand the just-imported folder to the rename step (opt-in; never auto-opened).
+  const openRename = useCallback(() => {
+    if (!importedDest) return;
+    emit('open-rename-nef', { roots: [importedDest] });
+  }, [emit, importedDest]);
 
   const selected = volumes.find((v) => v.mount === selectedMount);
   const canRun = !running && !!selectedMount && destination.trim() !== '';
@@ -239,6 +252,13 @@ export function ImportModule() {
                 <summary>{t('import.errorsSummary', { count: result.errors.length })}</summary>
                 <ul>{result.errors.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
               </details>
+            )}
+            {importedDest && (
+              <div className="import-next">
+                <Button variant="secondary" size="sm" onClick={openRename}>
+                  {t('import.openRename')}
+                </Button>
+              </div>
             )}
           </div>
         )}

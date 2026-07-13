@@ -22,6 +22,7 @@ module.exports = {
   "skippedSuffix": ", {count} överhoppade",
   "ejected": "Kortet utmatat ✓",
   "notEjected": "Kortet ej utmatat",
+  "openRename": "Döp om filer…",
   "errorsSummary": "{count} fel",
   "doneToast": {
     "one": "{count} NEF överförd",
