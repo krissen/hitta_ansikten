@@ -648,18 +648,27 @@ export function FlexLayoutWorkspace() {
     };
     const offOpenRenameNef = moduleAPI.on('open-rename-nef', handleOpenRenameNef);
 
-    // In-app hand-off from Rename-NEF → Review ("Granska ansikten…"): bring up
-    // the pipeline layout (File Queue + Review + Image Viewer) and hand the
-    // just-renamed folder(s) to the queue, which expands them to files. Mirror
-    // the culling dirty-guard: with no unsaved Review edits, load the full
-    // 'queue-review' layout; with unsaved edits, don't blow the layout away —
-    // just ensure the queue is present so we don't discard Review state.
-    const handleOpenReviewQueue = async ({ roots }) => {
-      if (reviewDirtyRef.current.size === 0) {
+    // Bring the File Queue up so it can receive a 'file-queue-load' emit, WITHOUT
+    // racing a layout swap. Only load the fresh pipeline layout when the queue is
+    // ABSENT and Review has no unsaved edits; otherwise just focus the existing
+    // queue. Reloading while a File Queue tab already exists is the bug: the old
+    // queue's 'file-queue-load' listener stays registered until React commits the
+    // unmount, so waitForListeners can resolve against that dying listener and the
+    // emit is lost with it. Only loadLayout when there is no queue listener to
+    // race against; when the queue is present its live listener gets the emit.
+    const ensureQueueMounted = () => {
+      if (!hasModuleTab('file-queue') && reviewDirtyRef.current.size === 0) {
         loadLayout('queue-review');
       } else {
         openModule('file-queue');
       }
+    };
+
+    // In-app hand-off from Rename-NEF → Review ("Granska ansikten…"): bring up
+    // the pipeline layout (File Queue + Review + Image Viewer) and hand the
+    // just-renamed folder(s) to the queue, which expands them to files.
+    const handleOpenReviewQueue = async ({ roots }) => {
+      ensureQueueMounted();
       await moduleAPI.waitForListeners('file-queue-load', 2000);
       moduleAPI.emit('file-queue-load', { roots });
     };
@@ -668,21 +677,13 @@ export function FlexLayoutWorkspace() {
     // CLI `ansikten -q FILES` (and the `queue-files` IPC generally): the queue
     // may not be mounted yet — a saved layout without a File Queue panel, or a
     // cold start where the landing page was suppressed by the launch intent but
-    // no receiver existed → a blank workspace. Ensure the queue is present
-    // (load 'queue-review' if missing, honouring the Review dirty-guard), then
-    // re-emit the payload as the renderer-side 'file-queue-load' once the queue
-    // has subscribed. This is the single mount-aware entry point that the old
-    // direct FileQueue IPC listener couldn't provide.
+    // no receiver existed → a blank workspace. Ensure the queue is present (load
+    // 'queue-review' only when it is missing) then re-emit the payload as the
+    // renderer-side 'file-queue-load' once the queue has subscribed. This is the
+    // single mount-aware entry point that the old direct FileQueue IPC listener
+    // couldn't provide.
     const handleQueueFilesIpc = async (payload) => {
-      if (!hasModuleTab('file-queue')) {
-        if (reviewDirtyRef.current.size === 0) {
-          loadLayout('queue-review');
-        } else {
-          openModule('file-queue');
-        }
-      } else {
-        openModule('file-queue');
-      }
+      ensureQueueMounted();
       await moduleAPI.waitForListeners('file-queue-load', 2000);
       moduleAPI.emit('file-queue-load', payload || {});
     };
