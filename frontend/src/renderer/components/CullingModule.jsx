@@ -680,10 +680,11 @@ export function CullingModule({ node }) {
   const [confirmNav, setConfirmNav] = useState(null);
   const confirmNavRef = useRef(null);
   confirmNavRef.current = confirmNav;
-  // Mirror the context-menu state so the capture-phase key handler can bail
-  // while the menu is open (its own Esc handler closes it).
+  // Mirror the context-menu states (file menu + stats-column name menu) so the
+  // capture-phase key handler can bail while either is open (each menu's own
+  // Esc handler closes it).
   const menuRef = useRef(null);
-  menuRef.current = menu;
+  menuRef.current = menu || nameMenu;
 
   // Run a navigation, but defer it behind the confirm dialog when the current
   // file has unsaved name toggles.
