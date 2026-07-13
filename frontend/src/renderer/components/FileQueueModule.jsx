@@ -802,13 +802,18 @@ export function FileQueueModule({ node }) {
       return;
     }
 
-    // Ensure the review surface is mounted/visible. Review consumes
-    // `image-loaded` (emitted by ImageViewer right after the load) to run
-    // detection, so it must be listening before that fires. Open Review first,
-    // then the viewer, so the image stays the active/focused surface. Review's
+    // Ensure the review surface (Review + Image Viewer) is mounted/visible before
+    // the image loads: Review consumes `image-loaded` (emitted by ImageViewer
+    // right after the load) to run detection, so it must be listening before that
+    // fires. The workspace owns the decision — in a saved queue-only layout it
+    // switches to the pipeline layout rather than stacking Review behind the
+    // viewer in the queue's tabset; otherwise it just focuses both. Review's
     // late-mount recovery (request-current-image on mount) still covers layouts
     // that gain a Review panel after an image was already loaded.
-    if (window.workspace?.openModule) {
+    if (window.workspace?.ensureReviewSurface) {
+      window.workspace.ensureReviewSurface();
+    } else if (window.workspace?.openModule) {
+      // Fallback for an older workspace without the helper: focus both, viewer last.
       window.workspace.openModule('review-module');
       window.workspace.openModule('image-viewer');
     }

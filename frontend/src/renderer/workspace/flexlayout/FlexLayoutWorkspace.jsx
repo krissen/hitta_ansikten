@@ -376,6 +376,25 @@ export function FlexLayoutWorkspace() {
     }
   }, []);
 
+  // Ensure a review surface (Review + Image Viewer) is mounted before the queue
+  // hands off an image. Called by FileQueue.loadFile. If the layout has NEITHER
+  // panel — a saved queue-only layout — docking both into the queue's tabset
+  // would stack them so one hides behind the other; switch to the pipeline
+  // layout once instead. Review can't be mounted in that case, so it has no
+  // unsaved edits to guard (the dirty check is a belt-and-braces no-op). If at
+  // least one panel already exists the layout is deliberate: just ensure both
+  // are present, opening Review first so the viewer stays the active surface.
+  const ensureReviewSurface = useCallback(() => {
+    const hasReview = hasModuleTab('review-module');
+    const hasViewer = hasModuleTab('image-viewer');
+    if (!hasReview && !hasViewer && reviewDirtyRef.current.size === 0) {
+      loadLayout('queue-review');
+    } else {
+      openModule('review-module');
+      openModule('image-viewer');
+    }
+  }, [hasModuleTab, loadLayout, openModule]);
+
   // Replace the workspace with a single self-contained module filling it. Used
   // by the landing page for workflow steps (culling, player-count, import,
   // rename-nef) so they don't dock beside the empty Review panel.
@@ -704,6 +723,7 @@ export function FlexLayoutWorkspace() {
       model,
       layoutRef,
       openModule,
+      ensureReviewSurface,
       closePanel,
       loadLayout,
       addColumn: () => addTabset('column'),
@@ -720,7 +740,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
+  }, [model, openModule, ensureReviewSurface, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
 
   // NOTE: Auto-load from queue is handled by FileQueueModule, not here
 
