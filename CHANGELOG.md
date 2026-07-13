@@ -7,6 +7,7 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 ## [Unreleased]
 
 ### Added
+- **Arbetsmapp-ankare (osynligt i UI ännu).** En tunn gemensam pekare (`shared/workingFolder.js`) håller reda på "det aktuella eventets mapp" genom pipelinen: importsteget sätter ankaret till den importerade målmappen och namnbytessteget avancerar det efter ett klart namnbyte. Namnbytesmodulen förväljer nu roots från ankaret först (sedan `import.destination`-prefen, sedan tomt). Allt är opt-in — ankaret är en pekare som förfyller defaults, aldrig en auto-laddning; det överlever Cmd+R (sessionStorage) men nollas vid appomstart så förra veckans event aldrig erbjuds. De tre arbetsmängderna (filkö, scan-scope, destination) och `import.destination`-prefen lämnas orörda. Synligt UI kommer i en senare etapp.
 - **Direkt hand-off Importera → Byt namn.** Efter en klar import visar importpanelen en knapp **"Döp om filer…"** som öppnar namnbytesmodulen med den importerade målmappen förvald. Namnbytesmodulen förväljer också målmappen från senast använda importdestination vid öppning. Ingen automatisk växling — allt är opt-in.
 
 ### Changed
