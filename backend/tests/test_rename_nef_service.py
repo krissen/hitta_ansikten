@@ -7,6 +7,7 @@ verifies that two files sharing a timestamp but landing in different chunks get
 deterministic suffixes driven by (ts, subsec, path) — not by chunk order.
 """
 
+import os
 from pathlib import Path
 
 import pytest
@@ -74,3 +75,113 @@ async def test_plan_broadcasts_progress_per_chunk(monkeypatch):
     assert events[-1][1] == {
         "phase": "preview", "current": 4, "total": 4, "percent": 100,
     }
+
+
+# ----- plan cache: preview → execute skips the EXIF re-read ------------------
+
+# Real on-disk files so the (mtime_ns, size) signature can be stat'd. exiftool is
+# mocked, keyed on filename; unknown names are simply skipped (as a real read
+# would drop files without a CreateDate).
+_CACHE_EXIF = {
+    "a.NEF": ("250101_120000", 0),
+    "b.NEF": ("250101_120001", 0),
+    "c.NEF": ("250101_120002", 0),
+}
+
+
+def _make_nefs(tmp_path, names):
+    for n in names:
+        (tmp_path / n).write_bytes(b"nef")
+
+
+def _counting_exif(calls):
+    def _fake(chunk):
+        calls.append(len(chunk))
+        entries = [
+            (_CACHE_EXIF[p.name][0], _CACHE_EXIF[p.name][1], Path(p))
+            for p in chunk if p.name in _CACHE_EXIF
+        ]
+        entries.sort(key=lambda e: (e[0], e[1], str(e[2])))
+        return entries
+    return _fake
+
+
+@pytest.mark.asyncio
+async def test_execute_reuses_preview_plan_when_unchanged(tmp_path, monkeypatch):
+    _make_nefs(tmp_path, ["a.NEF", "b.NEF"])
+    calls = []
+    monkeypatch.setattr(rename_nef_service, "get_exif_data", _counting_exif(calls))
+
+    svc = RenameNefService()
+    roots = [str(tmp_path)]
+
+    prev = await svc.preview(roots=roots)
+    assert prev["to_rename"] == 2
+    assert len(calls) == 1  # EXIF read once, during preview
+
+    result = await svc.execute(roots=roots)
+    assert len(calls) == 1  # cache hit → no second EXIF read
+    assert {r["to"] for r in result["renamed"]} == {"250101_120000.NEF", "250101_120001.NEF"}
+    assert (tmp_path / "250101_120000.NEF").exists()
+    # Files renamed → cache dropped so a stale signature can never match later.
+    assert svc._preview_cache is None
+
+
+@pytest.mark.asyncio
+async def test_execute_rereads_when_mtime_changes(tmp_path, monkeypatch):
+    _make_nefs(tmp_path, ["a.NEF", "b.NEF"])
+    calls = []
+    monkeypatch.setattr(rename_nef_service, "get_exif_data", _counting_exif(calls))
+
+    svc = RenameNefService()
+    roots = [str(tmp_path)]
+
+    await svc.preview(roots=roots)
+    assert len(calls) == 1
+
+    # Touch one file: signature diverges → full re-read on execute.
+    f = tmp_path / "a.NEF"
+    st = f.stat()
+    bump = st.st_mtime_ns + 5_000_000_000
+    os.utime(f, ns=(bump, bump))
+
+    await svc.execute(roots=roots)
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_execute_rereads_when_file_added(tmp_path, monkeypatch):
+    _make_nefs(tmp_path, ["a.NEF", "b.NEF"])
+    calls = []
+    monkeypatch.setattr(rename_nef_service, "get_exif_data", _counting_exif(calls))
+
+    svc = RenameNefService()
+    roots = [str(tmp_path)]
+
+    await svc.preview(roots=roots)
+    assert len(calls) == 1
+
+    # A new file changes the resolved set (signature keys differ) → re-read.
+    _make_nefs(tmp_path, ["c.NEF"])
+
+    await svc.execute(roots=roots)
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_execute_invalidates_cache_for_next_run(tmp_path, monkeypatch):
+    _make_nefs(tmp_path, ["a.NEF", "b.NEF"])
+    calls = []
+    monkeypatch.setattr(rename_nef_service, "get_exif_data", _counting_exif(calls))
+
+    svc = RenameNefService()
+    roots = [str(tmp_path)]
+
+    await svc.preview(roots=roots)
+    await svc.execute(roots=roots)  # cache hit, then invalidated
+    assert len(calls) == 1
+    assert svc._preview_cache is None
+
+    # Second execute has no cache to lean on → it must read EXIF again.
+    await svc.execute(roots=roots)
+    assert len(calls) == 2

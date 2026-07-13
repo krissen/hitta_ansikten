@@ -30,6 +30,9 @@ SIDECAR_EXTENSIONS = ["xmp"]
 # EXIF reads dominate preview/execute time on large folders. Chunk the exiftool
 # calls so progress can be broadcast between batches instead of one long stall.
 EXIF_CHUNK_SIZE = 50
+# Above this file count, gather the plan-cache signature (a stat per file) in a
+# thread so the event loop isn't blocked; below it the stats are cheap inline.
+SIGNATURE_EXECUTOR_THRESHOLD = 2000
 # A usable capture timestamp must be exactly YYMMDD_HHMMSS. exiftool's
 # `-if defined $CreateDate` can still let a blank/zero date through (→ ts ""),
 # which would otherwise rename a file to just ".NEF" — guard against that.
@@ -38,6 +41,14 @@ _VALID_TS = re.compile(r"^\d{6}_\d{6}$")
 
 class RenameNefService:
     """Preview and execute EXIF-based NEF renaming."""
+
+    def __init__(self):
+        # Plan cache: preview stores its (renames, no_date, valid_count) here
+        # keyed by request + a per-file (mtime_ns, size) signature, so a
+        # following execute on unchanged files can skip the slow EXIF re-read.
+        # Purely an optimization — correctness rests on the signature match; any
+        # divergence falls back to a full _plan.
+        self._preview_cache = None
 
     def _resolve(self, roots, globs, recursive):
         roots = roots or []
@@ -48,6 +59,33 @@ class RenameNefService:
             roots=roots, globs=globs,
             extensions=preset_extensions("nef"), recursive=recursive,
         )
+
+    @staticmethod
+    def _request_key(roots, globs, recursive):
+        """Order-invariant identity of a preview/execute request."""
+        return (tuple(sorted(roots or [])), tuple(sorted(globs or [])), bool(recursive))
+
+    @staticmethod
+    def _signature_sync(files):
+        """Map each resolved file to (mtime_ns, size); None if it can't be stat'd.
+
+        The dict's keys double as the file-set identity, so a comparison against
+        a cached signature detects added/removed files and content changes alike.
+        """
+        sig = {}
+        for f in files:
+            try:
+                st = os.stat(f)
+                sig[f] = (st.st_mtime_ns, st.st_size)
+            except OSError:
+                sig[f] = None
+        return sig
+
+    async def _signature(self, files):
+        loop = asyncio.get_event_loop()
+        if len(files) > SIGNATURE_EXECUTOR_THRESHOLD:
+            return await loop.run_in_executor(None, self._signature_sync, files)
+        return self._signature_sync(files)
 
     async def _plan(self, files, phase="preview"):
         """Return (renames, no_date_names, valid_count) from the resolved files.
@@ -92,7 +130,17 @@ class RenameNefService:
 
     async def preview(self, roots=None, globs=None, recursive=True) -> dict:
         files = self._resolve(roots, globs, recursive)
-        renames, no_date, valid_count = await self._plan(files, phase="preview")
+        # Drop any stale plan first, then capture the signature just before the
+        # EXIF read so it reflects the state the plan is built from.
+        self._preview_cache = None
+        signature = await self._signature(files)
+        plan = await self._plan(files, phase="preview")
+        renames, no_date, valid_count = plan
+        self._preview_cache = {
+            "key": self._request_key(roots, globs, recursive),
+            "signature": signature,
+            "plan": plan,
+        }
         return {
             "items": [
                 {"original_path": str(src), "original": src.name, "new_name": dst.name}
@@ -106,7 +154,22 @@ class RenameNefService:
 
     async def execute(self, roots=None, globs=None, recursive=True) -> dict:
         files = self._resolve(roots, globs, recursive)
-        renames, _no_date, _valid = await self._plan(files, phase="execute")
+
+        # Reuse the preview's plan when the request and every file's
+        # (mtime_ns, size) are unchanged — skips the slow EXIF re-read entirely.
+        # The signature's keys are the file set, so this also rejects a changed
+        # file set. Any mismatch falls back to a fresh _plan.
+        cache = self._preview_cache
+        key = self._request_key(roots, globs, recursive)
+        if cache and cache["key"] == key and cache["signature"] == await self._signature(files):
+            renames, _no_date, _valid = cache["plan"]
+            # Nothing to read — flip the UI straight to done instead of waiting.
+            await broadcast_event("rename-nef-progress", {
+                "phase": "execute", "current": len(files), "total": len(files),
+                "percent": 100,
+            })
+        else:
+            renames, _no_date, _valid = await self._plan(files, phase="execute")
 
         # Build the full move list: each NEF plus its .xmp sidecar, with fresh
         # unique temp names (two-pass avoids intra-batch collisions).
@@ -154,6 +217,10 @@ class RenameNefService:
                     errors.append({"path": str(src), "error": str(e)})
                 else:
                     errors.append({"path": str(tmp), "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
+
+        # The plan is consumed and the files on disk have changed names — drop
+        # the cache so a later preview/execute can't match a stale signature.
+        self._preview_cache = None
 
         # The rename passes above are fast local moves; report a closing 100% so
         # the UI's progress bar completes rather than freezing at the EXIF total.
