@@ -172,6 +172,14 @@ describe('ReviewModule — smoke', () => {
     expect(() => render(<ReviewModule node={null} />)).not.toThrow();
   });
 
+  it('asks ImageViewer to re-send the current image on mount (late-mount recovery)', async () => {
+    // A Review panel opened after an image already loaded misses the one-shot
+    // image-loaded; request-current-image makes ImageViewer re-emit it.
+    await mountReview();
+    expect(h.emit).toHaveBeenCalledWith('request-current-image');
+    expect(h.emit).toHaveBeenCalledWith('request-queue-status');
+  });
+
   it('waits for an image before any faces are shown', async () => {
     const { container } = await mountReview();
     expect(container.querySelector('.review-status').textContent).toBe(

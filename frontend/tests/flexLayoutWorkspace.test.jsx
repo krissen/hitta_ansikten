@@ -260,6 +260,69 @@ describe('FlexLayoutWorkspace — menu-command dispatch (characterization)', () 
   });
 });
 
+describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-files)', () => {
+  // moduleAPI.on records (event, handler); retrieve the registered handler.
+  function moduleApiHandler(evt) {
+    const reg = h.on.mock.calls.find(([e]) => e === evt);
+    return reg ? reg[1] : null;
+  }
+  // IPC listeners are captured on the fresh window.ansiktenAPI.on mock.
+  function ipcHandler(evt) {
+    const reg = window.ansiktenAPI.on.mock.calls.find(([e]) => e === evt);
+    return reg ? reg[1] : null;
+  }
+  function reviewTabId(model) {
+    let id = null;
+    model.visitNodes((n) => {
+      if (n.getType() === 'tab' && n.getComponent() === 'review-module') id = n.getId();
+    });
+    return id;
+  }
+
+  beforeEach(mountWorkspace);
+
+  it('open-review-queue (no unsaved edits) loads the queue-review layout and hands roots to the queue', async () => {
+    expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
+    const handler = moduleApiHandler('open-review-queue');
+    await act(async () => { await handler({ roots: ['/events/cupen'] }); });
+
+    expect(tabComponents(window.workspace.model).sort()).toEqual([
+      'file-queue',
+      'image-viewer',
+      'review-module',
+    ]);
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { roots: ['/events/cupen'] });
+    expect(h.moduleAPI.waitForListeners).toHaveBeenCalledWith('file-queue-load', 2000);
+  });
+
+  it('open-review-queue with unsaved Review edits keeps the existing Review tab (no layout reload)', async () => {
+    const before = reviewTabId(window.workspace.model);
+    expect(before).toBeTruthy();
+    // Mark a file dirty so the guard must preserve Review state.
+    const dirty = moduleApiHandler('review-dirty');
+    await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
+
+    const handler = moduleApiHandler('open-review-queue');
+    await act(async () => { await handler({ roots: ['/events/cupen'] }); });
+
+    // Same node id → the layout was NOT rebuilt (which would discard Review).
+    expect(reviewTabId(window.workspace.model)).toBe(before);
+    // Queue still brought up and roots still handed off.
+    expect(tabComponents(window.workspace.model)).toContain('file-queue');
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { roots: ['/events/cupen'] });
+  });
+
+  it('queue-files IPC mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
+    expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
+    const handler = ipcHandler('queue-files');
+    expect(handler).toBeTypeOf('function');
+    await act(async () => { await handler({ files: ['/a.nef', '/b.nef'], startQueue: true, clear: false }); });
+
+    expect(tabComponents(window.workspace.model)).toContain('file-queue');
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef', '/b.nef'], startQueue: true, clear: false });
+  });
+});
+
 describe('applyUIPreferences', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
