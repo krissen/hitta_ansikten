@@ -49,6 +49,12 @@ class RenameNefService:
         # Purely an optimization — correctness rests on the signature match; any
         # divergence falls back to a full _plan.
         self._preview_cache = None
+        # Serialize execute(): it plans then mutates the filesystem across await
+        # points, so two overlapping calls (double-submit, two clients) could both
+        # plan the same files, and the second would run its two-pass move against
+        # source paths the first already renamed away — raining per-file errors
+        # instead of being a clean no-op. preview() stays lock-free (read-only).
+        self._execute_lock = asyncio.Lock()
 
     def _resolve(self, roots, globs, recursive):
         roots = roots or []
@@ -153,82 +159,85 @@ class RenameNefService:
         }
 
     async def execute(self, roots=None, globs=None, recursive=True) -> dict:
-        files = self._resolve(roots, globs, recursive)
+        # Serialize the whole plan-then-rename body: overlapping executes must not
+        # interleave at the await points (see _execute_lock in __init__).
+        async with self._execute_lock:
+            files = self._resolve(roots, globs, recursive)
 
-        # Reuse the preview's plan when the request and every file's
-        # (mtime_ns, size) are unchanged — skips the slow EXIF re-read entirely.
-        # The signature's keys are the file set, so this also rejects a changed
-        # file set. Any mismatch falls back to a fresh _plan.
-        cache = self._preview_cache
-        key = self._request_key(roots, globs, recursive)
-        if cache and cache["key"] == key and cache["signature"] == await self._signature(files):
-            renames, _no_date, _valid = cache["plan"]
-            # Nothing to read — flip the UI straight to done instead of waiting.
+            # Reuse the preview's plan when the request and every file's
+            # (mtime_ns, size) are unchanged — skips the slow EXIF re-read entirely.
+            # The signature's keys are the file set, so this also rejects a changed
+            # file set. Any mismatch falls back to a fresh _plan.
+            cache = self._preview_cache
+            key = self._request_key(roots, globs, recursive)
+            if cache and cache["key"] == key and cache["signature"] == await self._signature(files):
+                renames, _no_date, _valid = cache["plan"]
+                # Nothing to read — flip the UI straight to done instead of waiting.
+                await broadcast_event("rename-nef-progress", {
+                    "phase": "execute", "current": len(files), "total": len(files),
+                    "percent": 100,
+                })
+            else:
+                renames, _no_date, _valid = await self._plan(files, phase="execute")
+
+            # Build the full move list: each NEF plus its .xmp sidecar, with fresh
+            # unique temp names (two-pass avoids intra-batch collisions).
+            stamp = str(os.getpid())
+            full: list[tuple[Path, Path, Path]] = []
+            ctr = 0
+            for src, dst, _tmp in renames:
+                full.append((src, dst, src.parent / f".rename_tmp_{stamp}_{ctr}{src.suffix}"))
+                ctr += 1
+                for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
+                    sc_dst = dst.with_name(f"{dst.stem}{sc.suffix}")
+                    if sc.name == sc_dst.name:
+                        continue
+                    full.append((sc, sc_dst, sc.parent / f".rename_tmp_{stamp}_{ctr}{sc.suffix}"))
+                    ctr += 1
+
+            renamed: list[dict] = []
+            skipped: list[dict] = []
+            errors: list[dict] = []
+
+            # Pass 1: src -> temp.
+            moved: list[tuple[Path, Path, Path]] = []
+            for src, dst, tmp in full:
+                try:
+                    src.rename(tmp)
+                    moved.append((src, dst, tmp))
+                except OSError as e:
+                    logger.error("[RenameNef] to-temp failed: %s -> %s: %s", src, tmp, e)
+                    errors.append({"path": str(src), "error": str(e)})
+
+            # Pass 2: temp -> dst, never overwriting; restore the original on collision.
+            for src, dst, tmp in moved:
+                if dst.exists():
+                    if self._restore(tmp, src):
+                        skipped.append({"path": str(src), "reason": f"målnamn upptaget: {dst.name}"})
+                    else:
+                        errors.append({"path": str(tmp), "error": f"kan ej återställa: {src.name} upptaget — fil kvar som {tmp.name}"})
+                    continue
+                try:
+                    tmp.rename(dst)
+                    renamed.append({"from": src.name, "to": dst.name})
+                except OSError as e:
+                    logger.error("[RenameNef] to-final failed: %s -> %s: %s", tmp, dst, e)
+                    if self._restore(tmp, src):
+                        errors.append({"path": str(src), "error": str(e)})
+                    else:
+                        errors.append({"path": str(tmp), "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
+
+            # The plan is consumed and the files on disk have changed names — drop
+            # the cache so a later preview/execute can't match a stale signature.
+            self._preview_cache = None
+
+            # The rename passes above are fast local moves; report a closing 100% so
+            # the UI's progress bar completes rather than freezing at the EXIF total.
             await broadcast_event("rename-nef-progress", {
                 "phase": "execute", "current": len(files), "total": len(files),
                 "percent": 100,
             })
-        else:
-            renames, _no_date, _valid = await self._plan(files, phase="execute")
-
-        # Build the full move list: each NEF plus its .xmp sidecar, with fresh
-        # unique temp names (two-pass avoids intra-batch collisions).
-        stamp = str(os.getpid())
-        full: list[tuple[Path, Path, Path]] = []
-        ctr = 0
-        for src, dst, _tmp in renames:
-            full.append((src, dst, src.parent / f".rename_tmp_{stamp}_{ctr}{src.suffix}"))
-            ctr += 1
-            for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
-                sc_dst = dst.with_name(f"{dst.stem}{sc.suffix}")
-                if sc.name == sc_dst.name:
-                    continue
-                full.append((sc, sc_dst, sc.parent / f".rename_tmp_{stamp}_{ctr}{sc.suffix}"))
-                ctr += 1
-
-        renamed: list[dict] = []
-        skipped: list[dict] = []
-        errors: list[dict] = []
-
-        # Pass 1: src -> temp.
-        moved: list[tuple[Path, Path, Path]] = []
-        for src, dst, tmp in full:
-            try:
-                src.rename(tmp)
-                moved.append((src, dst, tmp))
-            except OSError as e:
-                logger.error("[RenameNef] to-temp failed: %s -> %s: %s", src, tmp, e)
-                errors.append({"path": str(src), "error": str(e)})
-
-        # Pass 2: temp -> dst, never overwriting; restore the original on collision.
-        for src, dst, tmp in moved:
-            if dst.exists():
-                if self._restore(tmp, src):
-                    skipped.append({"path": str(src), "reason": f"målnamn upptaget: {dst.name}"})
-                else:
-                    errors.append({"path": str(tmp), "error": f"kan ej återställa: {src.name} upptaget — fil kvar som {tmp.name}"})
-                continue
-            try:
-                tmp.rename(dst)
-                renamed.append({"from": src.name, "to": dst.name})
-            except OSError as e:
-                logger.error("[RenameNef] to-final failed: %s -> %s: %s", tmp, dst, e)
-                if self._restore(tmp, src):
-                    errors.append({"path": str(src), "error": str(e)})
-                else:
-                    errors.append({"path": str(tmp), "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
-
-        # The plan is consumed and the files on disk have changed names — drop
-        # the cache so a later preview/execute can't match a stale signature.
-        self._preview_cache = None
-
-        # The rename passes above are fast local moves; report a closing 100% so
-        # the UI's progress bar completes rather than freezing at the EXIF total.
-        await broadcast_event("rename-nef-progress", {
-            "phase": "execute", "current": len(files), "total": len(files),
-            "percent": 100,
-        })
-        return {"renamed": renamed, "skipped": skipped, "errors": errors}
+            return {"renamed": renamed, "skipped": skipped, "errors": errors}
 
     @staticmethod
     def _restore(tmp: Path, src: Path) -> bool:

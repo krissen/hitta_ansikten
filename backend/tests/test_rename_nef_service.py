@@ -7,6 +7,7 @@ verifies that two files sharing a timestamp but landing in different chunks get
 deterministic suffixes driven by (ts, subsec, path) — not by chunk order.
 """
 
+import asyncio
 import os
 from pathlib import Path
 
@@ -185,3 +186,30 @@ async def test_execute_invalidates_cache_for_next_run(tmp_path, monkeypatch):
     # Second execute has no cache to lean on → it must read EXIF again.
     await svc.execute(roots=roots)
     assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_concurrent_execute_is_serialized(tmp_path, monkeypatch):
+    """Two overlapping executes must not interleave at the await points.
+
+    Without the per-service lock both calls plan the same files; the first
+    renames them and the second runs its two-pass move against source paths that
+    no longer exist, raising per-file errors. Serialized, the second re-plans
+    after the first against the already-renamed files and is a clean no-op.
+    """
+    _make_nefs(tmp_path, ["a.NEF", "b.NEF"])
+    calls = []
+    monkeypatch.setattr(rename_nef_service, "get_exif_data", _counting_exif(calls))
+
+    svc = RenameNefService()
+    roots = [str(tmp_path)]
+
+    r1, r2 = await asyncio.gather(svc.execute(roots=roots), svc.execute(roots=roots))
+
+    # Neither call produced per-file errors...
+    assert r1["errors"] == []
+    assert r2["errors"] == []
+    # ...and the rename happened exactly once (2 renamed + 0 no-op).
+    assert sorted([len(r1["renamed"]), len(r2["renamed"])]) == [0, 2]
+    assert (tmp_path / "250101_120000.NEF").exists()
+    assert (tmp_path / "250101_120001.NEF").exists()
