@@ -71,6 +71,22 @@ describe('countSettings store', () => {
     expect(s.gapMinutes).toBe(12);
   });
 
+  it('returns the sanitized merged snapshot (PlayerCountModule adopts it so its self-notify guard compares sanitized-vs-sanitized)', () => {
+    // The subscribe-dedup guard in PlayerCountModule compares the store's
+    // sanitized notify() snapshot against the options it last applied. For that
+    // to be robust it adopts setCountSettings' return value, so the return must
+    // already be sanitized/coerced (not the raw patch).
+    const returned = setCountSettings({ minImages: '7', gapMinutes: 12.9, baseline: 'mean' });
+    expect(returned).toEqual({ minImages: 7, gapMinutes: 12, baseline: 'mean' });
+    // And it equals the value a subscriber is handed / getCountSettings returns.
+    expect(returned).toEqual(getCountSettings());
+  });
+
+  it('returns defaults for invalid fields so an adopting caller holds a valid shape', () => {
+    const returned = setCountSettings({ minImages: 0, gapMinutes: -5, baseline: 'bogus' });
+    expect(returned).toEqual(DEFAULTS);
+  });
+
   it('notifies subscribers on change and stops after unsubscribe', () => {
     const seen = [];
     const unsub = subscribeCountSettings((s) => seen.push(s.baseline));

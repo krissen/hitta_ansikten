@@ -261,10 +261,16 @@ export function PlayerCountModule() {
 
   const applyOptions = useCallback(
     (next) => {
-      optionsRef.current = next;
-      setOptions(next);
-      setCountSettings(next); // publish to the shared store (culling stats panel)
-      if (lastParamsRef.current) submitWith(input, perMatch, next);
+      // Publish to the shared store (culling stats panel) and adopt its sanitized
+      // return, not the raw `next`. The subscribe guard below compares against the
+      // store's sanitized snapshot, so optionsRef/local state must hold that same
+      // sanitized shape — otherwise the guard only matches by luck (when the raw
+      // values happen to be sanitize-idempotent) and a self-originated update can
+      // slip through as external, firing a redundant recount.
+      const applied = setCountSettings(next);
+      optionsRef.current = applied;
+      setOptions(applied);
+      if (lastParamsRef.current) submitWith(input, perMatch, applied);
     },
     [submitWith, input, perMatch]
   );
