@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { APIClient, NetworkError } from '../src/renderer/shared/api-client.js';
+import { APIClient, NetworkError, isConnectionLostError } from '../src/renderer/shared/api-client.js';
 
 // Build an AbortError the way fetch would surface one.
 function makeAbortError() {
@@ -300,5 +300,48 @@ describe('APIClient.clearCache', () => {
     const err = await client.clearCache().catch(e => e);
     expect(err).toBeInstanceOf(NetworkError);
     expect(err.isTimeout).toBe(true);
+  });
+});
+
+// ImportModule treats a lost response as "still running" (the transfer streams a
+// terminal event over the WebSocket) but must never do so for a genuine backend
+// response or an unexpected throw — those would hang the panel in `running`
+// forever. isConnectionLostError is that discriminator; lock every branch.
+describe('isConnectionLostError', () => {
+  it('is true for a timed-out connection', () => {
+    expect(isConnectionLostError(new NetworkError('t', { isTimeout: true }))).toBe(true);
+  });
+
+  it('is true for an offline/dropped connection', () => {
+    expect(isConnectionLostError(new NetworkError('o', { isOffline: true }))).toBe(true);
+  });
+
+  it('is false for a genuine backend response (4xx/5xx sets statusCode)', () => {
+    expect(isConnectionLostError(new NetworkError('HTTP 400', { statusCode: 400 }))).toBe(false);
+    expect(isConnectionLostError(new NetworkError('HTTP 500', { statusCode: 500 }))).toBe(false);
+    // Even a 5xx that is somehow flagged as retryable/offline stays false while a
+    // status code is present — a backend response is never "connection lost".
+    expect(isConnectionLostError(new NetworkError('HTTP 503', { statusCode: 503, isOffline: true }))).toBe(false);
+  });
+
+  it('is false for an unexpected throw with no connection flags', () => {
+    // The api-client fallback (unknown, non-fetch error) sets neither flag.
+    expect(isConnectionLostError(new NetworkError('weird', { retryable: false }))).toBe(false);
+    // A plain Error thrown from the try-block (e.g. a bug after the response).
+    expect(isConnectionLostError(new Error('boom'))).toBe(false);
+    expect(isConnectionLostError(new TypeError('x is not a function'))).toBe(false);
+    expect(isConnectionLostError(undefined)).toBe(false);
+  });
+
+  it('matches what the client produces for a dropped connection end-to-end', async () => {
+    const client = new APIClient('http://127.0.0.1:9999');
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+    try {
+      const err = await client.post('/api/v1/import/run', {}).catch(e => e);
+      expect(isConnectionLostError(err)).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });

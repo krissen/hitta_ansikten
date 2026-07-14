@@ -19,6 +19,22 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * True when an error means the request never reached a completed backend
+ * response — a timed-out or dropped/offline connection. It is deliberately
+ * strict: a genuine backend response (4xx/5xx sets `statusCode`) and any other
+ * unexpected throw (no `statusCode`, but also no `isTimeout`/`isOffline`) both
+ * return false. Callers whose work continues server-side and reports out of
+ * band (e.g. the card import, which streams a terminal event over the
+ * WebSocket) use this to treat a lost response as "still running" rather than a
+ * failure — while never swallowing a real error into an endless in-progress state.
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isConnectionLostError(err) {
+  return err?.statusCode == null && Boolean(err?.isTimeout || err?.isOffline);
+}
+
 export class APIClient {
   constructor(baseUrl = 'http://127.0.0.1:5001') {
     this.baseUrl = baseUrl;

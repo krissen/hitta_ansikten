@@ -13,6 +13,7 @@ import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { preferences } from '../workspace/preferences.js';
 import { setWorkingFolder } from '../shared/workingFolder.js';
+import { isConnectionLostError } from '../shared/api-client.js';
 import { Button, Alert, ProgressBar } from './shared';
 import { t } from '../../i18n/index.js';
 import './ImportModule.css';
@@ -170,12 +171,12 @@ export function ImportModule() {
       // failure: the transfer is still running server-side and the WS "done"
       // event owns the final summary. Treat ONLY those as ongoing. A genuine
       // backend response (4xx/5xx, incl. an early ValueError from run_import)
-      // sets `statusCode` and sends no terminal "done" event, so treating it as
-      // ongoing would hang the panel in `running` forever — it must surface as
-      // an error. Without the ongoing case, a dropped connection would instead
-      // show a false error, re-enable the button mid-import, and later render
-      // the WS summary under a stale error banner.
-      if (err?.statusCode == null && (err?.isTimeout || err?.isOffline)) {
+      // sends no terminal "done" event, so treating it as ongoing would hang the
+      // panel in `running` forever — it, and any other unexpected throw, must
+      // surface as an error. Without the ongoing case, a dropped connection would
+      // instead show a false error, re-enable the button mid-import, and later
+      // render the WS summary under a stale error banner.
+      if (isConnectionLostError(err)) {
         ongoing = true;
       } else {
         setError(err.message || String(err));
