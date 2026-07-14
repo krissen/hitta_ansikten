@@ -211,6 +211,9 @@ def test_culling_rename_journals(journal, tmp_path):
     img = tmp_path / "260626_191003_Milian,_Valter.jpg"
     img.write_bytes(b"jpg")
 
+    sidecar = tmp_path / "260626_191003_Milian,_Valter.xmp"
+    sidecar.write_text("side")
+
     CullingService().rename(str(img), "260626_191003_Milian.jpg")
 
     rows = _rows(journal)
@@ -219,18 +222,25 @@ def test_culling_rename_journals(journal, tmp_path):
     assert rows[0]["op"] == "rename"
     assert rows[0]["src"] == str(img)
     assert rows[0]["dst"] == str(tmp_path / "260626_191003_Milian.jpg")
+    # The renamed sidecar rides in the row.
+    assert rows[0]["sidecars"] == [
+        {"src": str(sidecar), "dst": str(tmp_path / "260626_191003_Milian.xmp")}
+    ]
+
+
+def _culling_svc(cs, CullingService, tmp_path, monkeypatch):
+    trash = tmp_path / "trash"
+    trash.mkdir()
+    monkeypatch.setattr(cs, "TRASH_DIR", trash)
+    monkeypatch.setattr(cs, "MANIFEST_PATH", trash / "manifest.jsonl")
+    return CullingService(), trash
 
 
 def test_culling_trash_and_restore_journal(journal, tmp_path, monkeypatch):
     import api.services.culling_service as cs
     from api.services.culling_service import CullingService
 
-    trash = tmp_path / "trash"
-    trash.mkdir()
-    monkeypatch.setattr(cs, "TRASH_DIR", trash)
-    monkeypatch.setattr(cs, "MANIFEST_PATH", trash / "manifest.jsonl")
-
-    svc = CullingService()
+    svc, _trash = _culling_svc(cs, CullingService, tmp_path, monkeypatch)
     img = tmp_path / "pic.jpg"
     img.write_bytes(b"jpg")
 
@@ -244,3 +254,29 @@ def test_culling_trash_and_restore_journal(journal, tmp_path, monkeypatch):
     # Trash: original -> trash store. Restore: trash store -> back to original.
     assert rows[0]["src"] == str(img)
     assert rows[1]["dst"] == str(img)
+    # No sidecar → empty list on both rows.
+    assert rows[0]["sidecars"] == [] and rows[1]["sidecars"] == []
+
+
+def test_culling_trash_restore_journal_with_sidecar(journal, tmp_path, monkeypatch):
+    import api.services.culling_service as cs
+    from api.services.culling_service import CullingService
+
+    svc, trash = _culling_svc(cs, CullingService, tmp_path, monkeypatch)
+    img = tmp_path / "260626_191003_Milian.jpg"
+    img.write_bytes(b"jpg")
+    (tmp_path / "260626_191003_Milian.xmp").write_text("side")
+
+    tid = svc.trash([str(img)])["trashed"][0]["id"]
+    trash_rows = _rows(journal)
+    # Trash row lists the sidecar moved into the trash store.
+    assert len(trash_rows[0]["sidecars"]) == 1
+    assert trash_rows[0]["sidecars"][0]["src"] == str(tmp_path / "260626_191003_Milian.xmp")
+    assert trash_rows[0]["sidecars"][0]["dst"].startswith(str(trash))
+
+    svc.restore([tid])
+    restore_row = _rows(journal)[1]
+    # Restore row lists the sidecar coming back out to its original name.
+    assert len(restore_row["sidecars"]) == 1
+    assert restore_row["sidecars"][0]["dst"] == str(tmp_path / "260626_191003_Milian.xmp")
+    assert restore_row["sidecars"][0]["src"].startswith(str(trash))

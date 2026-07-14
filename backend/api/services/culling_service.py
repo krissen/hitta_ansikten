@@ -201,8 +201,6 @@ class CullingService:
                 # gone from its folder, so the manifest entry below must always be
                 # written to keep it restorable.
                 shutil.move(str(src), str(TRASH_DIR / stored_name))
-                fs_ops.record(op="trash", tool="culling", batch_id=batch_id,
-                              src=src, dst=TRASH_DIR / stored_name)
             except Exception as e:
                 logger.exception("Failed to trash %s", p)
                 errors.append({"path": p, "error": str(e)})
@@ -218,6 +216,15 @@ class CullingService:
                     stored_sidecars.append({"original_path": str(sc), "stored_name": sc_stored})
                 except Exception:
                     logger.exception("Failed to trash sidecar %s", sc)
+
+            # Journal after the sidecars are settled, listing the ones that
+            # actually moved into the trash (mirrors the manifest entry).
+            fs_ops.record(
+                op="trash", tool="culling", batch_id=batch_id,
+                src=src, dst=TRASH_DIR / stored_name,
+                sidecars=[(sc["original_path"], TRASH_DIR / sc["stored_name"])
+                          for sc in stored_sidecars],
+            )
 
             entry = {
                 "id": tid,
@@ -316,16 +323,20 @@ class CullingService:
                 continue
             try:
                 dest = self._restore_one(entry["original_path"], entry["stored_name"])
-                fs_ops.record(op="restore", tool="culling", batch_id=batch_id,
-                              src=TRASH_DIR / entry["stored_name"], dst=dest)
                 # Sidecars must land beside the *actual* restored image: when the
                 # original path was occupied and the image came back as
                 # <stem>-restored, its .xmp must follow to <stem>-restored.xmp,
                 # not the original name (which would orphan the metadata).
+                restored_sidecars: list[tuple] = []
                 for sc in entry.get("sidecars", []):
                     sc_suffix = Path(sc["original_path"]).suffix
                     sc_target = dest.with_name(dest.stem + sc_suffix)
-                    self._restore_one(str(sc_target), sc["stored_name"])
+                    sc_dest = self._restore_one(str(sc_target), sc["stored_name"])
+                    restored_sidecars.append((TRASH_DIR / sc["stored_name"], sc_dest))
+                # Journal after sidecars settle, listing their actual restored dsts.
+                fs_ops.record(op="restore", tool="culling", batch_id=batch_id,
+                              src=TRASH_DIR / entry["stored_name"], dst=dest,
+                              sidecars=restored_sidecars)
                 keep = [e for e in keep if e["id"] != tid]
                 restored.append({"id": tid, "restored_path": str(dest)})
             except Exception as e:
