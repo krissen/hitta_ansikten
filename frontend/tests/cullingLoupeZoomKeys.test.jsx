@@ -5,12 +5,15 @@ import { ZOOM_STEP } from '../src/renderer/shared/canvasViewport.js';
 
 // Loupe zoom shortcuts (+ / - / = / 0) in CullingModule.
 //
-// The keys are bound in the module's window keydown handler and forwarded to
-// the CanvasImageView imperative handle, mirroring ImageViewer's bindings:
-// + zooms in a step, - zooms out a step, = resets to 1:1 (resetZoom) and 0
-// returns to auto-fit. These tests pin the guards around them: single view
-// only, a drawable image required, and full suppression while a text field
-// (the inline rename input) has focus.
+// The keys are bound in a document-level CAPTURE-phase keydown handler and
+// forwarded to the CanvasImageView imperative handle, mirroring ImageViewer's
+// bindings: + zooms in a step, - zooms out a step, = resets to 1:1 (resetZoom)
+// and 0 returns to auto-fit. Capture + stopImmediatePropagation matters:
+// ImageViewer binds the same keys on document without any tabset gating, so
+// culling must CLAIM the event when it acts (or one keystroke zooms both
+// viewers) and let it propagate untouched when any gate fails. These tests pin
+// the guards: active tabset, single view only, a drawable image required, and
+// full suppression while a text field (the inline rename input) has focus.
 //
 // The harness follows tests/cullingModuleFence.test.jsx (mocked backend +
 // module-event bus), plus two extra seams so the ref calls are observable:
@@ -206,6 +209,67 @@ describe('CullingModule — loupe zoom keys (+ / - / = / 0)', () => {
     expect(h.viewApi.zoom).not.toHaveBeenCalled();
     expect(h.viewApi.resetZoom).not.toHaveBeenCalled();
     expect(h.viewApi.autoFit).not.toHaveBeenCalled();
+  });
+
+  it('claims the event when it acts — a later document-level listener never sees it', async () => {
+    await mountCulling();
+    await loadFiles();
+
+    // Stand-in for ImageViewer's ungated document-level shortcut listener
+    // (useKeyboardShortcuts), registered after the module's capture-phase
+    // handler: stopImmediatePropagation must block it, otherwise one keystroke
+    // would zoom both the loupe and a mounted ImageViewer tab.
+    const other = vi.fn();
+    document.addEventListener('keydown', other);
+    try {
+      await act(async () => { press('+'); });
+    } finally {
+      document.removeEventListener('keydown', other);
+    }
+    expect(h.viewApi.zoom).toHaveBeenCalledTimes(1);
+    expect(other).not.toHaveBeenCalled();
+  });
+
+  it('lets the event propagate when a gate fails (grid view)', async () => {
+    localStorage.setItem('ansikten.culling.viewMode', 'grid');
+    const { container } = await mountCulling();
+    await loadFiles();
+    expect(container.querySelector('.culling-grid')).toBeTruthy();
+
+    const other = vi.fn();
+    document.addEventListener('keydown', other);
+    try {
+      await act(async () => { press('+'); });
+    } finally {
+      document.removeEventListener('keydown', other);
+    }
+    // Culling did not act — and did not swallow the key either, so another
+    // module's viewer (e.g. ImageViewer) can still respond to it.
+    expect(h.viewApi.zoom).not.toHaveBeenCalled();
+    expect(other).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the event propagate when another tabset is active', async () => {
+    // Visible but NOT the active tabset — the exact split-layout scenario the
+    // capture-phase claim exists for: an inactive culling panel must neither
+    // zoom its own loupe nor swallow the key from the active module.
+    const node = {
+      isVisible: () => true,
+      getModel: () => ({ getActiveTabset: () => ({ getId: () => 'OTHER' }) }),
+      getParent: () => ({ getId: () => 'TS1' }),
+    };
+    await mountCulling(node);
+    await loadFiles();
+
+    const other = vi.fn();
+    document.addEventListener('keydown', other);
+    try {
+      await act(async () => { press('+'); });
+    } finally {
+      document.removeEventListener('keydown', other);
+    }
+    expect(h.viewApi.zoom).not.toHaveBeenCalled();
+    expect(other).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing while the loupe has no drawable image', async () => {

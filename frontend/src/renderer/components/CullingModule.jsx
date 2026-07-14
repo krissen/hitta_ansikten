@@ -800,29 +800,6 @@ export function CullingModule({ node }) {
         return;
       }
 
-      // Loupe zoom (parity with ImageViewer's bindings): +/- step in/out,
-      // = resets to 1:1, 0 returns to auto-fit. Only meaningful in single view
-      // with a drawable image on the canvas — the grid has nothing to zoom, and
-      // an empty/error/loading loupe should ignore the keys. Held +/- repeats
-      // via native key-repeat (no hold/double-tap layer like ImageViewer's).
-      if (viewModeRef.current === 'single' && loupeImageRef.current) {
-        if (e.key === '+' || e.key === '-') {
-          e.preventDefault();
-          loupeViewRef.current?.zoom(e.key === '+' ? ZOOM_STEP : 1 / ZOOM_STEP);
-          return;
-        }
-        if (e.key === '=') {
-          e.preventDefault();
-          loupeViewRef.current?.resetZoom();
-          return;
-        }
-        if (e.key === '0') {
-          e.preventDefault();
-          loupeViewRef.current?.autoFit();
-          return;
-        }
-      }
-
       if (!e.altKey && (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x')) {
         // Ignore the cull shortcut while a query is loading — `files` still
         // holds the previous filter, so culling now would trash the wrong file.
@@ -967,6 +944,47 @@ export function CullingModule({ node }) {
     document.addEventListener('keydown', onKeyCapture, true);
     return () => document.removeEventListener('keydown', onKeyCapture, true);
   }, [node, showTrash, currentIndex, beginEdit]);
+
+  // Loupe zoom (parity with ImageViewer's bindings): +/- step in/out, = resets
+  // to 1:1, 0 returns to auto-fit. CAPTURE phase with stopImmediatePropagation,
+  // like the Enter/Esc handler above: ImageViewer binds the same four keys via
+  // an ungated document-level listener (useKeyboardShortcuts), so when culling
+  // is the active tabset next to a mounted ImageViewer tab, a bubble-phase
+  // handler would zoom BOTH viewers on one keystroke. The keys are claimed only
+  // when culling would actually act on them — active tabset, single view with a
+  // drawable image (the grid has nothing to zoom; an empty/error/loading loupe
+  // ignores the keys), no text-field focus, no confirm dialog, trash closed and
+  // no modifiers (⌘0/⌘- etc. stay app shortcuts) — otherwise the event
+  // propagates untouched and ImageViewer keeps working when culling is
+  // inactive. Held +/- repeats via native key-repeat (no hold/double-tap layer
+  // like ImageViewer's).
+  useEffect(() => {
+    const onZoomKeyCapture = (e) => {
+      if (e.key !== '+' && e.key !== '-' && e.key !== '=' && e.key !== '0') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!isTabsetActive(node)) return;
+      if (showTrash) return;
+      if (confirmNavRef.current) return; // the confirm dialog owns the keyboard
+      const tag = e.target?.tagName;
+      // Text entry (rename input, glob, dropdown) must keep the keys — "+",
+      // "-", "0" and "=" are all typeable characters there.
+      if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (viewModeRef.current !== 'single' || !loupeImageRef.current) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      if (e.key === '+' || e.key === '-') {
+        loupeViewRef.current?.zoom(e.key === '+' ? ZOOM_STEP : 1 / ZOOM_STEP);
+      } else if (e.key === '=') {
+        loupeViewRef.current?.resetZoom();
+      } else {
+        loupeViewRef.current?.autoFit();
+      }
+    };
+    document.addEventListener('keydown', onZoomKeyCapture, true);
+    return () => document.removeEventListener('keydown', onZoomKeyCapture, true);
+  }, [node, showTrash]);
 
   // Dismiss the context menu on any click, a fresh right-click elsewhere,
   // scroll, resize, or Escape.
