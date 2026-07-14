@@ -120,7 +120,8 @@ export function ModuleAPIProvider({ children }) {
    */
   const http = useMemo(() => ({
     get: async (path, params) => apiClient.get(path, params),
-    post: async (path, body) => apiClient.post(path, body)
+    // Forward per-call options (e.g. { timeout: 0 }) — do not drop the third arg.
+    post: async (path, body, options) => apiClient.post(path, body, options)
   }), []);
 
   /**
