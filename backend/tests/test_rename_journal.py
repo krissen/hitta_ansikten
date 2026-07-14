@@ -171,6 +171,36 @@ async def test_import_journals_transfers(journal, tmp_path, monkeypatch, mode, e
     assert all(r["tool"] == "import" for r in rows)
     assert all(r["op"] == expected_op for r in rows)
     assert {Path(r["dst"]).name for r in rows} == {"DSC0001.NEF", "DSC0002.NEF"}
+    # No sidecars in this batch → every row carries an empty list.
+    assert all(r["sidecars"] == [] for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_import_journals_transferred_sidecar(journal, tmp_path, monkeypatch):
+    from api.services import import_service
+    from api.services.import_service import ImportService
+
+    async def _noop(event, payload):
+        pass
+
+    monkeypatch.setattr(import_service, "broadcast_event", _noop)
+
+    src = tmp_path / "card"
+    src.mkdir()
+    (src / "DSC0001.NEF").write_bytes(b"raw-1")
+    (src / "DSC0001.xmp").write_text("side")  # sidecar rides along
+    dest = tmp_path / "dest"
+
+    await ImportService().run_import(
+        volume_mount=str(src), destination=str(dest), mode="copy", eject=False)
+
+    rows = _rows(journal)
+    assert len(rows) == 1
+    assert rows[0]["dst"] == str(dest / "DSC0001.NEF")
+    # The row lists the sidecar that actually transferred.
+    assert rows[0]["sidecars"] == [
+        {"src": str(src / "DSC0001.xmp"), "dst": str(dest / "DSC0001.xmp")}
+    ]
 
 
 # ----- culling_service: rename / trash / restore -----------------------------

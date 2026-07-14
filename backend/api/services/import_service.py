@@ -152,16 +152,22 @@ class ImportService:
                     skipped.append({"path": str(src), "reason": "identisk fil finns redan"})
                 else:
                     await loop.run_in_executor(None, op, str(src), str(target))
-                    fs_ops.record(op=journal_op, tool="import", batch_id=batch_id,
-                                  src=src, dst=target)
-                    # Carry .xmp sidecars, named after the (possibly renamed) target.
+                    # Carry .xmp sidecars, named after the (possibly renamed)
+                    # target; collect the ones that actually transferred so the
+                    # journal row reflects the real delta, never a pre-existing
+                    # sidecar already on the target stem.
+                    moved_sidecars: list[tuple[Path, Path]] = []
                     for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
                         sc_target = dest / f"{target.stem}{sc.suffix}"
                         if not sc_target.exists():
                             try:
                                 await loop.run_in_executor(None, op, str(sc), str(sc_target))
+                                moved_sidecars.append((sc, sc_target))
                             except Exception:
                                 logger.exception("[Import] sidecar transfer failed: %s", sc)
+                    # Journal after the sidecars are settled, listing only movers.
+                    fs_ops.record(op=journal_op, tool="import", batch_id=batch_id,
+                                  src=src, dst=target, sidecars=moved_sidecars)
                     transferred.append(str(target))
             except Exception as e:
                 logger.exception("[Import] transfer failed: %s", src)
