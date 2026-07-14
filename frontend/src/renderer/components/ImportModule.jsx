@@ -38,6 +38,9 @@ export function ImportModule() {
   const [progress, setProgress] = useState(null);
   const [progressLabel, setProgressLabel] = useState('');
   const [result, setResult] = useState(null);
+  // Completion summary from the WS "done" event (counts only). Backs the result
+  // panel when the HTTP response is lost — a long import can outlive the request.
+  const [doneSummary, setDoneSummary] = useState(null);
   const [error, setError] = useState(null);
   // Destination the last completed import actually wrote to. Captured at run
   // time so the "Döp om filer…" hand-off targets that folder even if the field
@@ -64,9 +67,28 @@ export function ImportModule() {
 
   useEffect(() => { loadVolumes(); }, [loadVolumes]);
 
-  // Live progress.
+  // Live progress + terminal "done" event.
   const onProgress = useCallback((data) => {
     if (!data) return;
+    if (data.phase === 'done') {
+      // Sole source of the summary when the HTTP response was lost, and a
+      // harmless duplicate of it otherwise (the panel prefers the HTTP result).
+      setDoneSummary({
+        transferredCount: data.transferred,
+        skippedCount: data.skipped,
+        errorCount: data.errors,
+        ejected: data.ejected,
+        ejectError: data.eject_error,
+        destination: data.destination,
+      });
+      if (data.destination) {
+        setImportedDest(data.destination);
+        setWorkingFolder({ roots: [data.destination], step: 'import' });
+      }
+      setRunning(false);
+      setProgress(null);
+      return;
+    }
     setProgress(data.percent ?? null);
     setProgressLabel(t('import.progressLabel', {
       current: data.current,
@@ -113,17 +135,21 @@ export function ImportModule() {
     if (!selectedMount || !destination.trim()) return;
     setRunning(true);
     setResult(null);
+    setDoneSummary(null);
     setError(null);
     setProgress(0);
     setProgressLabel('');
     const usedDestination = destination.trim();
+    // No client timeout: a large card import (hundreds of NEF, tens of GB) runs
+    // for minutes and must not be aborted mid-transfer.
+    let ongoing = false;
     try {
       const res = await api.post('/api/v1/import/run', {
         volume_mount: selectedMount,
         destination: usedDestination,
         mode,
         eject,
-      });
+      }, { timeout: 0 });
       setResult(res);
       setImportedDest(usedDestination);
       // Anchor the pipeline on the just-imported folder so the rename step can
@@ -132,15 +158,24 @@ export function ImportModule() {
       // Transient receipt of the completed transfer; the result panel below
       // keeps the persistent, inspectable breakdown (skipped/errors/eject).
       const count = res.transferred?.length ?? 0;
-      showToast(t('import.doneToast', { count }), {
+      showToast(t('import.doneToast', { count, dest: usedDestination }), {
         type: res.errors?.length ? 'warning' : 'success',
       });
       loadVolumes(); // card is likely gone after eject; refresh the list
     } catch (err) {
-      setError(err.message || String(err));
+      // A lost/timed-out HTTP response is not a failure: the transfer is still
+      // running server-side and the WS "done" event owns the final summary.
+      // Only a genuine error (e.g. a 4xx/5xx from the backend) surfaces here.
+      if (err?.isTimeout) {
+        ongoing = true;
+      } else {
+        setError(err.message || String(err));
+      }
     } finally {
-      setRunning(false);
-      setProgress(null);
+      if (!ongoing) {
+        setRunning(false);
+        setProgress(null);
+      }
     }
   }, [api, selectedMount, destination, mode, eject, loadVolumes, showToast]);
 
@@ -152,6 +187,21 @@ export function ImportModule() {
 
   const selected = volumes.find((v) => v.mount === selectedMount);
   const canRun = !running && !!selectedMount && destination.trim() !== '';
+
+  // Completion summary, normalized from whichever source arrived: the HTTP
+  // response (full detail, incl. the per-file error list) is preferred; the WS
+  // "done" event (counts only) is the fallback when the response was lost.
+  const summary = result
+    ? {
+        transferredCount: result.transferred.length,
+        skippedCount: result.skipped.length,
+        errorCount: result.errors.length,
+        errorList: result.errors,
+        ejected: result.ejected,
+        ejectError: result.eject_error,
+        destination: importedDest,
+      }
+    : doneSummary;
 
   return (
     <div className="module-container import">
@@ -242,20 +292,27 @@ export function ImportModule() {
           </div>
         )}
 
-        {result && !running && (
+        {summary && !running && (
           <div className="import-result">
             <div>
-              <strong>{result.transferred.length}</strong> {t('import.transferred')}
-              {result.skipped.length > 0 && t('import.skippedSuffix', { count: result.skipped.length })}
+              <strong>{summary.transferredCount}</strong> {t('import.transferred')}
+              {summary.skippedCount > 0 && t('import.skippedSuffix', { count: summary.skippedCount })}
             </div>
-            {result.ejected
-              ? <div className="import-ok">{t('import.ejected')}</div>
-              : (eject && <div className="import-warn">{t('import.notEjected')}</div>)}
-            {result.errors.length > 0 && (
+            {summary.destination && (
+              <div className="import-dest-used">{t('import.destUsed', { path: summary.destination })}</div>
+            )}
+            {summary.ejected && <div className="import-ok">{t('import.ejected')}</div>}
+            {!summary.ejected && summary.ejectError && (
+              <div className="import-warn">{t('import.ejectFailed')}</div>
+            )}
+            {Array.isArray(summary.errorList) && summary.errorList.length > 0 && (
               <details className="import-errors">
-                <summary>{t('import.errorsSummary', { count: result.errors.length })}</summary>
-                <ul>{result.errors.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
+                <summary>{t('import.errorsSummary', { count: summary.errorList.length })}</summary>
+                <ul>{summary.errorList.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
               </details>
+            )}
+            {!summary.errorList && summary.errorCount > 0 && (
+              <div className="import-warn">{t('import.errorsSummary', { count: summary.errorCount })}</div>
             )}
             {importedDest && (
               <div className="import-next">
