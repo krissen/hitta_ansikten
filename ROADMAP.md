@@ -18,7 +18,13 @@ deliverables, DoD) för en prestandarelease.
 
 ### Nu
 
-(Inget pågående just nu.)
+**Rename-journal & undo (PR-serie 1–3).** Bakgrund: incidenterna 2026-07-14 (#220/#221) visade att src→dst-mappningen för renames aldrig persisteras — den finns bara i HTTP-svar + roterande `ansikten.log`; enda genuina undo-journalen är gallringens `manifest.jsonl`. Kodinventering (dev @ 8dc10dc) bekräftade dessutom TOCTOU i ansikts-rename (`rename_service.py:975`: `os.rename` utan `dst.exists()`-koll vid execute, skyddet ligger bara i preview; ingen sidecar-rollback) och att never-overwrite/two-pass-mönstret är duplicerat i fyra separata implementationer (rename_service, rename_nef_service/`_restore`, `rename_nef.py`, culling `_safe_rename`; import har en fjärde variant i `_resolve_target`).
+
+- [ ] **PR 1 — `core/fs_ops.py`: gemensam säker rename/move + journal.** Atomisk two-pass rename/move med never-overwrite + rollback (generalisera culling-`rename`s preflight/rollback + rename_nef:s two-pass), `-N`-disambiguering, samt append-only journal `~/.local/share/faceid/rename_journal.jsonl` (`{ts, op: rename|move|trash|restore, tool, batch_id, src, dst}`). Migrera de fyra flödena: `rename_service.execute_rename` (fixar TOCTOU + sidecar-rollback på köpet), `rename_nef_service` (execute + restore-names), `import_service.run_import`, culling-`rename` (trash/restore journalför även till samma journal; `manifest.jsonl` behålls). CLI får journalen gratis via delad kod (`rename_nef.py`); `filer2mappar.py`/`hitta_ansikten.py` i mån av enkelhet. Ingen rotation (små rader); size-notis i docs.
+- [ ] **PR 2 — Undo: "ångra senaste batch".** Endpoints `rename-journal/batches` + `rename-journal/undo` (preview + execute): spela batchen baklänges via fs_ops (never-overwrite), synka `processed_files.jsonl`-namn via `_sync_processed_names` (`rename_nef_service.py:478`). GUI-åtgärd i RenameNef-modulen med preview-tabell (samma mönster som restore-names). Kantfall: hash-koll före revert (fil ändrad/flyttad → skip + rapport); partiell undo rapporteras per fil.
+- [ ] **PR 3 (valfri, liten) — processed_files-namnhistorik.** Behåll gamla namnet per hash (`previous_names: [...]`) i stället för in-place-overwrite när `name` uppdateras — bälte+hängslen utöver journalen (dagens incidenträddning byggde på att namnfältet råkade vara intakt).
+
+Arbetsmodell: arbetsledare + Opus-arbetare i worktree per PR; review enligt quota-läge (Codex OoQ 2026-07-14 kväll → Nagelfararna ensam; verifiera vid sessionstart). Fullständig spec i planfilen `~/.claude/plans/allvarligt-fel-nu-riktigt-idempotent-cake.md`.
 
 ### Kort sikt
 
