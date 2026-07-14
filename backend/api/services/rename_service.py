@@ -6,7 +6,6 @@ Ported from the Ansikten CLI rename functionality.
 """
 
 import logging
-import os
 import re
 from datetime import datetime
 from pathlib import Path
