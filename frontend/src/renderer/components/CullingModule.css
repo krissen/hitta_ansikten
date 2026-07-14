@@ -466,12 +466,6 @@
   margin-left: 6px;
 }
 
-.culling-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
 /* ----- Overview (grid) mode -------------------------------------------- */
 /* A scrollable contact sheet that replaces the list+preview area when the view
    mode is "grid". The min column width (160px) is kept in sync with

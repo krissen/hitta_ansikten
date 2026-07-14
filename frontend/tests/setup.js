@@ -9,6 +9,20 @@
  * only runs under jsdom (Vitest); real browsers keep their native behaviour.
  */
 
+// jsdom does not implement `window.matchMedia`. CanvasImageView uses it to track
+// device-pixel-ratio changes, so any component test that mounts the canvas viewer
+// (ImageViewer, CullingModule loupe, …) needs a minimal stub. Real browsers keep
+// their native implementation.
+if (typeof window !== 'undefined' && !window.matchMedia) {
+  window.matchMedia = () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {}
+  });
+}
+
 if (typeof HTMLDialogElement !== 'undefined') {
   const proto = HTMLDialogElement.prototype;
 

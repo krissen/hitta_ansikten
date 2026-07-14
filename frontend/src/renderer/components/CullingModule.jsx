@@ -29,6 +29,8 @@ import { extOf } from '../shared/fileExts.js';
 import { statsScopeFromQuery, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
 import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
+import { useDecodedImage } from '../hooks/useDecodedImage.js';
+import { CanvasImageView } from './CanvasImageView.jsx';
 import { CullingContextMenu } from './culling/ContextMenu.jsx';
 import { CullingFilterBar } from './culling/FilterBar.jsx';
 import { ContextMenu } from './shared';
@@ -1145,6 +1147,20 @@ export function CullingModule({ node }) {
   const { previewUrl, previewLoading, previewError, bumpPreview } =
     useCullingPreview(api, currentPath, files, currentIndex);
 
+  // Decode the resolved preview URL into a canvas-ready drawable so the loupe
+  // gets the same zoom/pan viewer as the review workflow. useCullingPreview owns
+  // the URL (JPEG stat-settle / NEF conversion / re-export nonce); this only
+  // decodes whatever URL it currently exposes.
+  const { image: loupeImage, loading: decodeLoading, error: decodeError } =
+    useDecodedImage(previewUrl);
+
+  // Imperative handle to the loupe viewer; reset to auto-fit on each new image
+  // so stepping to another file starts fitted (matches ImageViewer's load).
+  const loupeViewRef = useRef(null);
+  useEffect(() => {
+    if (loupeImage) loupeViewRef.current?.autoFit();
+  }, [loupeImage]);
+
   return (
     <div className="module-container culling">
       <CullingFilterBar
@@ -1319,14 +1335,21 @@ export function CullingModule({ node }) {
                 )}
               </div>
             )}
+            {/* Canvas loupe: stays mounted across file steps so its ref (and
+                zoom/pan state) persist. The overlays below layer on top for the
+                empty/error/loading states; the canvas is transparent when it has
+                no image. */}
+            {current && <CanvasImageView ref={loupeViewRef} image={loupeImage} />}
             {!current ? (
               <EmptyState title={t('culling.empty.noImageSelected')} />
             ) : previewError ? (
               <Alert variant="error" className="culling-preview-error">{previewError}</Alert>
             ) : previewLoading ? (
               <EmptyState title={isRaw(currentPath) ? t('culling.preview.converting') : t('culling.preview.loading')} />
-            ) : previewUrl ? (
-              <img className="culling-image" src={previewUrl} alt={current.basename} />
+            ) : decodeError ? (
+              <Alert variant="error" className="culling-preview-error">{t('culling.errors.imageLoadFailed')}</Alert>
+            ) : !loupeImage ? (
+              <EmptyState title={t('culling.preview.loading')} />
             ) : null}
           </div>
           </div>
