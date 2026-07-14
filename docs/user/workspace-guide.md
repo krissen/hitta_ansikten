@@ -91,6 +91,12 @@ Gallra spelare har två vyer: **enkelbild** (loupe, standard) och **översikt**
 (rutnät/contact sheet). Växla med **Rutnät**-knappen i filterraden (markerad när
 översikten är aktiv; valet sparas mellan omstarter).
 
+Enkelbildsvyn använder samma canvas-bildvisare som Granska ansikten: **rulla med
+mushjulet** för att zooma in/ut mot pekaren och **dra** för att panorera när du
+zoomat in. Varje ny bild börjar autoanpassad (fit-to-window), så att stega mellan
+filer nollställer zoomen automatiskt. NEF/RAW visas via samma konvertering som
+tidigare.
+
 | Genväg | Funktion |
 |--------|----------|
 | `↑` / `↓` (`k` / `j`) | **Enkelbild:** föregående/nästa. **Rutnät:** upp/ned en rad |

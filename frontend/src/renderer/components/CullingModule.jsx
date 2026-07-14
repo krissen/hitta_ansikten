@@ -29,6 +29,8 @@ import { extOf } from '../shared/fileExts.js';
 import { statsScopeFromQuery, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
 import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
+import { useDecodedImage } from '../hooks/useDecodedImage.js';
+import { CanvasImageView } from './CanvasImageView.jsx';
 import { CullingContextMenu } from './culling/ContextMenu.jsx';
 import { CullingFilterBar } from './culling/FilterBar.jsx';
 import { ContextMenu } from './shared';
@@ -1157,6 +1159,30 @@ export function CullingModule({ node }) {
   const { previewUrl, previewLoading, previewError, bumpPreview } =
     useCullingPreview(api, currentPath, files, currentIndex);
 
+  // Decode the resolved preview URL into a canvas-ready drawable so the loupe
+  // gets the same zoom/pan viewer as the review workflow. useCullingPreview owns
+  // the URL (JPEG stat-settle / NEF conversion / re-export nonce); this only
+  // decodes whatever URL it currently exposes. Grid mode doesn't render the
+  // loupe, so decoding is suspended there (null URL) — otherwise every grid
+  // click/arrow would decode a full-res image nobody sees. Entering single view
+  // hands the current URL back in and the decode runs then.
+  const { image: loupeImage, loading: decodeLoading, error: decodeError } =
+    useDecodedImage(viewMode === 'single' ? previewUrl : null);
+
+  // Imperative handle to the loupe viewer; reset to auto-fit when a new FILE's
+  // image arrives (matches ImageViewer's load). Keyed on currentPath, not on
+  // the drawable: an in-place re-export of the same file (folder watch →
+  // bumpPreview) swaps the drawable but must keep the user's zoom/pan.
+  const loupeViewRef = useRef(null);
+  const lastFitPathRef = useRef(null);
+  useEffect(() => {
+    if (!loupeImage) return;
+    if (currentPath !== lastFitPathRef.current) {
+      lastFitPathRef.current = currentPath;
+      loupeViewRef.current?.autoFit();
+    }
+  }, [loupeImage, currentPath]);
+
   return (
     <div className="module-container culling">
       <CullingFilterBar
@@ -1334,14 +1360,30 @@ export function CullingModule({ node }) {
                 )}
               </div>
             )}
+            {/* Canvas loupe: stays mounted across file steps so its ref (and
+                zoom/pan state) persist. The overlays below layer on top for the
+                empty/error/loading states; the canvas is transparent when it has
+                no image. */}
+            {current && (
+              <CanvasImageView
+                ref={loupeViewRef}
+                image={loupeImage}
+                ariaLabel={current.basename}
+              />
+            )}
             {!current ? (
               <EmptyState title={t('culling.empty.noImageSelected')} />
             ) : previewError ? (
               <Alert variant="error" className="culling-preview-error">{previewError}</Alert>
             ) : previewLoading ? (
               <EmptyState title={isRaw(currentPath) ? t('culling.preview.converting') : t('culling.preview.loading')} />
-            ) : previewUrl ? (
-              <img className="culling-image" src={previewUrl} alt={current.basename} />
+            ) : decodeError ? (
+              <Alert variant="error" className="culling-preview-error">{t('culling.errors.imageLoadFailed')}</Alert>
+            ) : decodeLoading && !loupeImage ? (
+              // Decode in flight with nothing on screen yet (first image after a
+              // mount or view switch). A seamless step keeps the previous frame
+              // (loupeImage non-null), so no placeholder flashes then.
+              <EmptyState title={t('culling.preview.loading')} />
             ) : null}
           </div>
           </div>

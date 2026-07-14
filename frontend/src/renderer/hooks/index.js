@@ -18,3 +18,4 @@ export { useOperationStatus, useAsyncOperation } from './useOperationStatus.js';
 export { useFormState, useMultipleForms } from './useFormState.js';
 export { useContextMenu } from './useContextMenu.js';
 export { useCountSettings } from './useCountSettings.js';
+export { useDecodedImage } from './useDecodedImage.js';

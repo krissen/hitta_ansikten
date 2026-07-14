@@ -15,6 +15,11 @@
  *   output changes so the view repaints (e.g. include your overlay state in the
  *   useCallback deps).
  * - className: optional extra class on the container.
+ * - ariaLabel: optional accessible name for the displayed photo. When provided
+ *   the canvas gets role="img" + aria-label (e.g. the file's basename) so
+ *   screen readers announce what is shown — the equivalent of an <img alt>.
+ *   When omitted the canvas stays unnamed (hosts like ImageViewer never named
+ *   their canvas; don't invent a label for them).
  *
  * Imperative handle (via ref):
  * - zoom(factor, centerX?, centerY?): multiplicative zoom; center defaults to
@@ -44,7 +49,7 @@ import { ZOOM_STEP, computeZoom, centerPan } from '../shared/canvasViewport.js';
 import './CanvasImageView.css';
 
 export const CanvasImageView = forwardRef(function CanvasImageView(
-  { image, drawOverlay, className },
+  { image, drawOverlay, className, ariaLabel },
   ref
 ) {
   const containerRef = useRef(null);
@@ -160,7 +165,7 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
   // ============================================
 
   const render = useCallback(() => {
-    if (!canvasRef.current || !image) return;
+    if (!canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d'); // Allow transparency for themed background
@@ -173,6 +178,13 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
     // reallocating the backing store (the resize effect owns canvas.width/height).
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    // Clear-then-bail: when the image goes away (decode error, source cleared)
+    // the canvas must go transparent instead of retaining the last-painted
+    // frame — the absolutely-positioned canvas paints above the host's static
+    // loading/error/empty overlays, so a stale frame would hide them and keep
+    // showing the previous photo.
+    if (!image) return;
 
     let scale, x, y;
     if (zoomMode === 'auto') {
@@ -298,6 +310,8 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
     <div ref={containerRef} className={className ? `canvas-image-view ${className}` : 'canvas-image-view'}>
       <canvas
         ref={canvasRef}
+        role={ariaLabel ? 'img' : undefined}
+        aria-label={ariaLabel || undefined}
         style={{ cursor: zoomMode === 'manual' ? 'grab' : 'default' }}
       />
     </div>
