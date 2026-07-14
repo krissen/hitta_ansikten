@@ -25,6 +25,7 @@ module.exports = {
   "ejectFailed": "Kortet kunde inte matas ut — dra ut det manuellt.",
   "openRename": "Döp om filer…",
   "errorsSummary": "{count} fel",
+  "lostContact": "Kontakten med importen förlorades — kontrollera destinationen innan du kör igen.",
   "doneToast": {
     "one": "{count} NEF överförd till {dest}",
     "other": "{count} NEF överförda till {dest}"

@@ -21,6 +21,13 @@ import './ImportModule.css';
 const DEFAULT_DEST = '~/Pictures/nerladdat';
 const isMac = navigator.platform.toLowerCase().includes('mac');
 
+// In "ongoing" mode the UI waits for WS import-progress events to finish. But the
+// same connection loss that put us there can also silence those broadcasts (they
+// are not replayed), which would hang the panel in `running` forever. A watchdog
+// gives up after this much silence. The transfer broadcasts one event per file,
+// so genuine silence this long means the backend is gone, not merely slow.
+export const STALL_TIMEOUT_MS = 3 * 60 * 1000;
+
 export function ImportModule() {
   const { api } = useBackend();
   const showToast = useToast();
@@ -50,10 +57,39 @@ export function ImportModule() {
   // no import, no "done" event ever, so a lost response must surface as an error
   // rather than hang the panel in `running`). Reset at each run start.
   const sawProgressRef = useRef(false);
+  // True while the UI is waiting on WS events after a lost response ("ongoing").
+  // The stall watchdog only fires in this state.
+  const ongoingRef = useRef(false);
+  const watchdogRef = useRef(null);
   // Destination the last completed import actually wrote to. Captured at run
   // time so the "Döp om filer…" hand-off targets that folder even if the field
   // is edited afterwards.
   const [importedDest, setImportedDest] = useState('');
+
+  const clearWatchdog = useCallback(() => {
+    if (watchdogRef.current) {
+      clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
+    }
+  }, []);
+
+  // (Re)start the stall watchdog. Called when ongoing mode begins and on every
+  // subsequent progress event, so a still-broadcasting backend keeps it at bay;
+  // only genuine WS silence for STALL_TIMEOUT_MS trips it into the error state.
+  const armWatchdog = useCallback(() => {
+    clearWatchdog();
+    watchdogRef.current = setTimeout(() => {
+      watchdogRef.current = null;
+      if (!ongoingRef.current) return;
+      ongoingRef.current = false;
+      setError(t('import.lostContact'));
+      setRunning(false);
+      setProgress(null);
+    }, STALL_TIMEOUT_MS);
+  }, [clearWatchdog]);
+
+  // Cancel the watchdog on unmount so a fired timer can't touch a gone component.
+  useEffect(() => clearWatchdog, [clearWatchdog]);
 
   const loadVolumes = useCallback(async () => {
     setLoadingVolumes(true);
@@ -79,6 +115,9 @@ export function ImportModule() {
   const onProgress = useCallback((data) => {
     if (!data) return;
     if (data.phase === 'done') {
+      // Terminal event — stop the watchdog and leave ongoing mode.
+      clearWatchdog();
+      ongoingRef.current = false;
       // Sole source of the summary when the HTTP response was lost, and a
       // harmless duplicate of it otherwise (the panel prefers the HTTP result).
       setDoneSummary({
@@ -108,13 +147,16 @@ export function ImportModule() {
     // working — mark this run as started so a later lost response is treated as
     // ongoing rather than a failure.
     sawProgressRef.current = true;
+    // While ongoing, each event proves the backend is still alive — push the
+    // stall deadline back.
+    if (ongoingRef.current) armWatchdog();
     setProgress(data.percent ?? null);
     setProgressLabel(t('import.progressLabel', {
       current: data.current,
       total: data.total,
       file: data.file || '',
     }));
-  }, [loadVolumes]);
+  }, [loadVolumes, clearWatchdog, armWatchdog]);
   useWebSocket('import-progress', onProgress);
 
   const pickDestination = useCallback(async () => {
@@ -159,6 +201,8 @@ export function ImportModule() {
     setProgress(0);
     setProgressLabel('');
     sawProgressRef.current = false;
+    ongoingRef.current = false;
+    clearWatchdog();
     const usedDestination = destination.trim();
     // No client timeout: a large card import (hundreds of NEF, tens of GB) runs
     // for minutes and must not be aborted mid-transfer.
@@ -196,6 +240,10 @@ export function ImportModule() {
       // indefinite hang, and the user can simply retry.
       if (isConnectionLostError(err) && sawProgressRef.current) {
         ongoing = true;
+        ongoingRef.current = true;
+        // Guard against the WS going silent too: if no further event lands within
+        // STALL_TIMEOUT_MS, give up rather than wait on a dead backend forever.
+        armWatchdog();
       } else {
         setError(err.message || String(err));
       }
@@ -205,7 +253,7 @@ export function ImportModule() {
         setProgress(null);
       }
     }
-  }, [api, selectedMount, destination, mode, eject, loadVolumes, showToast]);
+  }, [api, selectedMount, destination, mode, eject, loadVolumes, showToast, clearWatchdog, armWatchdog]);
 
   // Hand the just-imported folder to the rename step (opt-in; never auto-opened).
   const openRename = useCallback(() => {

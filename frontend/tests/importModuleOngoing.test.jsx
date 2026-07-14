@@ -34,7 +34,7 @@ vi.mock('../src/renderer/shared/workingFolder.js', () => ({
   setWorkingFolder: () => {},
 }));
 
-import { ImportModule } from '../src/renderer/components/ImportModule.jsx';
+import { ImportModule, STALL_TIMEOUT_MS } from '../src/renderer/components/ImportModule.jsx';
 
 const OFFLINE = () => new NetworkError('Ingen nätverksanslutning', { isOffline: true });
 
@@ -101,5 +101,40 @@ describe('ImportModule — lost connection is ongoing only after server-side pro
     expect(runButton()).toBeNull();
     const running = screen.getByRole('button', { name: 'Importerar…' });
     expect(running.disabled).toBe(true);
+  });
+
+  it('ongoing then WS silence for the stall timeout → error state, running reset', async () => {
+    let rejectPost;
+    mocks.api.post.mockImplementationOnce(() => new Promise((_, rej) => { rejectPost = rej; }));
+    await renderReady();
+
+    await act(async () => {
+      fireEvent.click(runButton());
+    });
+    act(() => {
+      ws.cb({ phase: 'transfer', current: 1, total: 2, file: 'DSC0001.NEF', percent: 50 });
+    });
+
+    // Fake only the timer functions so the watchdog is controllable while promise
+    // microtasks (act flushing) stay real.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await act(async () => {
+        rejectPost(OFFLINE()); // enters ongoing + arms the watchdog
+      });
+
+      // No further WS events arrive (backend gone, broadcasts silenced). The
+      // watchdog fires after the stall timeout.
+      act(() => {
+        vi.advanceTimersByTime(STALL_TIMEOUT_MS);
+      });
+
+      expect(screen.getByText(/Kontakten med importen förlorades/)).toBeTruthy();
+      const btn = runButton();
+      expect(btn).toBeTruthy();
+      expect(btn.disabled).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
