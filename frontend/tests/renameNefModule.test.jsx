@@ -16,7 +16,7 @@ const h = vi.hoisted(() => {
   const showToast = vi.fn();
   const registry = new Map(); // eventName -> latest useModuleEvent handler
   const api = { post: vi.fn() };
-  return { emit, showToast, registry, api, dest: null };
+  return { emit, showToast, registry, api, dest: null, recursive: false };
 });
 
 vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
@@ -36,7 +36,10 @@ vi.mock('../src/renderer/hooks/useWebSocket.js', () => ({
   useWebSocket: () => {},
 }));
 vi.mock('../src/renderer/workspace/preferences.js', () => ({
-  preferences: { get: () => h.dest },
+  preferences: {
+    get: (key) => (key === 'renameNef.recursive' ? h.recursive : h.dest),
+    set: (key, val) => { if (key === 'renameNef.recursive') h.recursive = val; },
+  },
 }));
 
 import { RenameNefModule } from '../src/renderer/components/RenameNefModule.jsx';
@@ -49,6 +52,7 @@ beforeEach(() => {
   h.showToast.mockClear();
   h.api.post.mockReset();
   h.dest = '/events/cupen'; // seeds the initial roots via the preference fallback
+  h.recursive = false;
   h.api.post.mockImplementation((path) => {
     if (path.includes('/rename-nef/preview')) {
       return Promise.resolve({ to_rename: 2, already_named: 0, no_date: [], items: [
@@ -131,5 +135,79 @@ describe('RenameNefModule — Review hand-off', () => {
       (b) => b.textContent === t('renameNef.reviewFaces'),
     );
     expect(reviewBtn).toBeUndefined();
+  });
+});
+
+// Toggle a checkbox by the visible label text on its wrapping <label>.
+function toggleCheckbox(container, labelText) {
+  const label = [...container.querySelectorAll('label')].find((l) => l.textContent.includes(labelText));
+  if (!label) throw new Error(`checkbox not found: ${labelText}`);
+  const box = label.querySelector('input[type="checkbox"]');
+  fireEvent.click(box);
+  return box;
+}
+
+function lastPost(pathFragment) {
+  const call = [...h.api.post.mock.calls].reverse().find(([p]) => p.includes(pathFragment));
+  return call ? call[1] : null;
+}
+
+describe('RenameNefModule — protect named files', () => {
+  it('sends include_named=false and recursive=false by default', async () => {
+    const { container } = await mountRename();
+    await clickButton(container, t('renameNef.preview'));
+    expect(lastPost('/rename-nef/preview')).toMatchObject({ include_named: false, recursive: false });
+  });
+
+  it('opts in to renaming named files when the danger checkbox is ticked', async () => {
+    h.api.post.mockImplementation((path) => {
+      if (path.includes('/rename-nef/preview')) {
+        return Promise.resolve({ to_rename: 1, already_named: 0, named_affected: 1, no_date: [], items: [
+          { original_path: '/events/cupen/250601_101500_Elis.NEF', original: '250601_101500_Elis.NEF', new_name: '250601_101500.NEF' },
+        ] });
+      }
+      return Promise.resolve({});
+    });
+    const { container } = await mountRename();
+    await act(async () => { toggleCheckbox(container, t('renameNef.includeNamedLabel')); await Promise.resolve(); });
+    await clickButton(container, t('renameNef.preview'));
+    expect(lastPost('/rename-nef/preview')).toMatchObject({ include_named: true });
+    // The stripping warning surfaces with the affected count.
+    expect(container.textContent).toContain(t('renameNef.namedAffectedWarning', { count: 1 }));
+  });
+
+  it('persists the recursive toggle and forwards it', async () => {
+    const { container } = await mountRename();
+    await act(async () => { toggleCheckbox(container, t('renameNef.recursiveLabel')); await Promise.resolve(); });
+    expect(h.recursive).toBe(true); // written through preferences.set
+    await clickButton(container, t('renameNef.preview'));
+    expect(lastPost('/rename-nef/preview')).toMatchObject({ recursive: true });
+  });
+});
+
+describe('RenameNefModule — restore names', () => {
+  beforeEach(() => {
+    h.api.post.mockImplementation((path) => {
+      if (path.includes('/restore-names/preview')) {
+        return Promise.resolve({ total_files: 1, to_restore: 1, already_correct: 0, no_record: [], items: [
+          { original_path: '/events/cupen/250601_101500.NEF', original: '250601_101500.NEF', new_name: '250601_101500_Elis.NEF' },
+        ] });
+      }
+      if (path.includes('/restore-names/execute')) {
+        return Promise.resolve({ renamed: [{ from: '250601_101500.NEF', to: '250601_101500_Elis.NEF' }], skipped: [], errors: [] });
+      }
+      return Promise.resolve({});
+    });
+  });
+
+  it('previews then executes the SHA1 restore flow', async () => {
+    const { container } = await mountRename();
+    await clickButton(container, t('renameNef.restore'));
+    expect(lastPost('/restore-names/preview')).toMatchObject({ recursive: false });
+    expect(container.textContent).toContain('250601_101500_Elis.NEF');
+
+    await clickButton(container, t('renameNef.restoreExecute'));
+    expect(lastPost('/restore-names/execute')).toBeTruthy();
+    expect(container.textContent).toContain(t('renameNef.restored'));
   });
 });

@@ -9,6 +9,7 @@ Uses two-pass rename (via temp files) to avoid collisions.
 import argparse
 import logging
 import os
+import re
 import subprocess
 import sys
 from collections import defaultdict
@@ -16,6 +17,13 @@ from glob import glob
 from pathlib import Path
 
 from core.exiftool import find_exiftool
+
+# A file is "already named" when its stem already carries its EXIF timestamp,
+# optionally followed by a burst marker (-N), a name suffix (_Name1,_Name2), or
+# both (-N_Name). Such a file has been through review/naming already and must not
+# be stripped back to a bare timestamp by an EXIF rename. Matches the empty rest
+# too, so a bare YYMMDD_HHMMSS file is a no-op as before.
+_NAMED_REST = re.compile(r"(-\d+)?(_.*)?$")
 
 # Simple logging setup for this standalone script
 logging.basicConfig(
@@ -61,7 +69,34 @@ def get_exif_data(files: list[Path]) -> list[tuple[str, int, Path]]:
     return entries
 
 
-def compute_renames(entries: list[tuple[str, int, Path]]) -> list[tuple[Path, Path, Path]]:
+def is_already_named(name: str, ts: str) -> bool:
+    """True when `name`'s stem already begins with its EXIF timestamp `ts`.
+
+    Recognizes the bare timestamp and the suffix forms the app produces:
+    ``ts``, ``ts-N``, ``ts_Name1,_Name2`` and ``ts-N_Name``. These are files
+    that have already been named (or are already in canonical form), so an
+    EXIF-based rename must leave them untouched unless explicitly opted in.
+    """
+    if not ts:
+        return False
+    stem = Path(name).stem
+    if not stem.startswith(ts):
+        return False
+    return _NAMED_REST.fullmatch(stem[len(ts):]) is not None
+
+
+def compute_renames(
+    entries: list[tuple[str, int, Path]],
+    include_named: bool = False,
+) -> list[tuple[Path, Path, Path]]:
+    # By default, drop files that are already named (their stem already carries
+    # the EXIF timestamp) so their name/burst suffix is never stripped. Filtering
+    # before the duplicate-timestamp count keeps the -N disambiguation clean for
+    # the files that actually get renamed. include_named=True restores the old
+    # behavior (rename everything, stripping any suffix).
+    if not include_named:
+        entries = [e for e in entries if not is_already_named(e[2].name, e[0])]
+
     ts_counts: dict[str, int] = defaultdict(int)
     for ts, _, _ in entries:
         ts_counts[ts] += 1
@@ -135,6 +170,11 @@ def main() -> int:
         help="Visa vad som skulle göras utan att utföra"
     )
     parser.add_argument(
+        "--include-named",
+        action="store_true",
+        help="Döp även om redan namngivna filer (tar bort namnsuffix)"
+    )
+    parser.add_argument(
         "files",
         nargs="*",
         default=["*.NEF"],
@@ -160,7 +200,7 @@ def main() -> int:
         print(f"Inga filer med CreateDate i: {' '.join(args.files)}")
         return 0
     
-    renames = compute_renames(entries)
+    renames = compute_renames(entries, include_named=args.include_named)
     execute_renames(renames, dry_run=args.dry_run)
     
     return 0

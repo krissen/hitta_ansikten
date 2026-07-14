@@ -4,6 +4,11 @@
  * GUI for the rename_nef CLI: pick a folder (optionally narrow by glob), preview
  * the EXIF-derived rename mapping, then confirm. Preview is the dry-run; execute
  * renames NEFs (+ .xmp sidecars), never overwriting an existing target.
+ *
+ * Already-named files (their stem already carries the EXIF timestamp, with an
+ * optional -N burst / _Name suffix) are protected by default; the "include
+ * named" opt-in renames them anyway and strips the suffix. A separate recovery
+ * action re-applies confirmed names by SHA1 lookup after an accidental strip.
  */
 
 import React, { useState, useCallback } from 'react';
@@ -33,28 +38,52 @@ export function RenameNefModule() {
     return dest ? [dest] : [];
   });
   const [glob, setGlob] = useState('');
+  // Persisted (default off): whether to descend into subfolders.
+  const [recursive, setRecursive] = useState(() => preferences.get('renameNef.recursive') === true);
+  // NOT persisted — always starts off each session, so a destructive strip of
+  // already-named files can never be armed silently.
+  const [includeNamed, setIncludeNamed] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [restorePreview, setRestorePreview] = useState(null);
   const [result, setResult] = useState(null);
+  const [restoreResult, setRestoreResult] = useState(null);
   // Roots that the last execute actually ran on, frozen at execute-start so the
   // "Granska ansikten…" hand-off scopes Review to the renamed folder even if the
   // live `roots` selection is edited afterwards (cf. ImportModule.importedDest).
   const [resultRoots, setResultRoots] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  // Latest rename-nef-progress event (null until the first arrives → the bar
-  // shows an indeterminate "preparing" state rather than looking frozen).
+  // Latest progress event (null until the first arrives → the bar shows an
+  // indeterminate "preparing" state rather than looking frozen).
   const [progress, setProgress] = useState(null);
 
   const onProgress = useCallback((data) => {
     if (data) setProgress(data);
   }, []);
   useWebSocket('rename-nef-progress', onProgress);
+  useWebSocket('restore-names-progress', onProgress);
 
   const params = useCallback(() => ({
     roots,
     globs: glob.trim() ? [glob.trim()] : [],
-    recursive: true,
-  }), [roots, glob]);
+    recursive,
+    include_named: includeNamed,
+  }), [roots, glob, recursive, includeNamed]);
+
+  // Drop pending previews (scope changed) but KEEP any result panel — the last
+  // run's result stays visible (and its frozen resultRoots hand-off usable) even
+  // as the live selection is edited afterwards.
+  const clearPreviews = useCallback(() => {
+    setPreview(null);
+    setRestorePreview(null);
+  }, []);
+
+  const clearAll = useCallback(() => {
+    setPreview(null);
+    setRestorePreview(null);
+    setResult(null);
+    setRestoreResult(null);
+  }, []);
 
   // Hand-off from Import ("Döp om filer…"): scope the module strictly to the
   // imported folder(s). REPLACE roots (not union) — the pre-filled default root
@@ -71,28 +100,28 @@ export function RenameNefModule() {
       // anchor in step with it (still tagged 'import' — rename hasn't run yet).
       setWorkingFolder({ roots: incoming, step: 'import' });
     }
-    setPreview(null);
-    setResult(null);
+    // Re-arming a new working set must not carry a live strip opt-in.
+    setIncludeNamed(false);
+    clearAll();
     setError(null);
-  }, []);
+  }, [clearAll]);
 
   const addFolder = useCallback(async () => {
     try {
       const paths = await window.ansiktenAPI.invoke('open-folder-paths');
       if (paths && paths.length) {
         setRoots((r) => Array.from(new Set([...r, ...paths])));
-        setPreview(null);
-        setResult(null);
+        clearAll();
       }
     } catch (err) {
       console.error('[RenameNef] folder pick failed', err);
     }
-  }, []);
+  }, [clearAll]);
 
   const doPreview = useCallback(async () => {
     setBusy(true);
     setError(null);
-    setResult(null);
+    clearAll();
     setProgress(null);
     try {
       const data = await api.post('/api/v1/rename-nef/preview', params());
@@ -102,7 +131,7 @@ export function RenameNefModule() {
     } finally {
       setBusy(false);
     }
-  }, [api, params]);
+  }, [api, params, clearAll]);
 
   const doExecute = useCallback(async () => {
     setBusy(true);
@@ -115,6 +144,8 @@ export function RenameNefModule() {
       setResult(data);
       setResultRoots(usedRoots);
       setPreview(null);
+      // A destructive strip is a one-shot action — disarm after it runs.
+      setIncludeNamed(false);
       // Rename finished on these folders — advance the anchor to 'rename' so the
       // next step (review/count) can pre-fill from the same event folder.
       if (usedRoots.length) setWorkingFolder({ roots: usedRoots, step: 'rename' });
@@ -130,8 +161,50 @@ export function RenameNefModule() {
     }
   }, [api, params, roots, showToast]);
 
-  const canPreview = !busy && (roots.length > 0 || glob.trim() !== '');
+  const restoreParams = useCallback(() => ({
+    roots,
+    globs: glob.trim() ? [glob.trim()] : [],
+    recursive,
+  }), [roots, glob, recursive]);
+
+  const doRestorePreview = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    clearAll();
+    setProgress(null);
+    try {
+      const data = await api.post('/api/v1/rename-nef/restore-names/preview', restoreParams());
+      setRestorePreview(data);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [api, restoreParams, clearAll]);
+
+  const doRestoreExecute = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    setProgress(null);
+    try {
+      const data = await api.post('/api/v1/rename-nef/restore-names/execute', restoreParams());
+      setRestoreResult(data);
+      setRestorePreview(null);
+      const count = data.renamed?.length ?? 0;
+      showToast(t('renameNef.restoreDoneToast', { count }), {
+        type: data.errors?.length ? 'warning' : 'success',
+      });
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [api, restoreParams, showToast]);
+
+  const hasScope = roots.length > 0 || glob.trim() !== '';
+  const canPreview = !busy && hasScope;
   const canExecute = !busy && preview && preview.to_rename > 0;
+  const canRestore = !busy && restorePreview && restorePreview.to_restore > 0;
 
   return (
     <div className="module-container rename-nef" data-keyboard-scope="isolated">
@@ -143,7 +216,7 @@ export function RenameNefModule() {
           aria-label={t('renameNef.globLabel')}
           placeholder={t('renameNef.globPlaceholder')}
           value={glob}
-          onChange={(e) => { setGlob(e.target.value); setPreview(null); setResult(null); }}
+          onChange={(e) => { setGlob(e.target.value); clearAll(); }}
           onKeyDown={(e) => { if (e.key === 'Enter') canPreview && doPreview(); }}
           disabled={busy}
         />
@@ -153,6 +226,35 @@ export function RenameNefModule() {
         <Button variant="primary" onClick={doExecute} disabled={!canExecute}>
           {t('renameNef.execute')}
         </Button>
+        <Button variant="secondary" onClick={doRestorePreview} disabled={!canPreview}>
+          {t('renameNef.restore')}
+        </Button>
+      </div>
+
+      <div className="rename-nef-options">
+        <label className="form-checkbox">
+          <input
+            type="checkbox"
+            checked={recursive}
+            onChange={(e) => {
+              const v = e.target.checked;
+              setRecursive(v);
+              preferences.set('renameNef.recursive', v);
+              clearPreviews();
+            }}
+            disabled={busy}
+          />
+          {t('renameNef.recursiveLabel')}
+        </label>
+        <label className="form-checkbox rename-nef-danger-toggle">
+          <input
+            type="checkbox"
+            checked={includeNamed}
+            onChange={(e) => { setIncludeNamed(e.target.checked); setPreview(null); setResult(null); }}
+            disabled={busy}
+          />
+          {t('renameNef.includeNamedLabel')}
+        </label>
       </div>
 
       {roots.length > 0 && (
@@ -166,7 +268,7 @@ export function RenameNefModule() {
                 variant="ghost"
                 size="sm"
                 className="rename-nef-chip-x"
-                onClick={() => { setRoots((rs) => rs.filter((x) => x !== r)); setPreview(null); }}
+                onClick={() => { setRoots((rs) => rs.filter((x) => x !== r)); clearPreviews(); }}
                 disabled={busy}
               />
             </span>
@@ -192,7 +294,7 @@ export function RenameNefModule() {
       <div className="module-body rename-nef-body">
         {error && <Alert variant="error">{t('renameNef.errorPrefix', { message: error })}</Alert>}
 
-        {!preview && !result && !error && (
+        {!preview && !restorePreview && !result && !restoreResult && !error && (
           <EmptyState
             title={
               <>
@@ -211,6 +313,11 @@ export function RenameNefModule() {
               {preview.already_named > 0 && t('renameNef.alreadyNamedSuffix', { count: preview.already_named })}
               {preview.no_date.length > 0 && t('renameNef.noDateSuffix', { count: preview.no_date.length })}
             </div>
+            {preview.named_affected > 0 && (
+              <Alert variant="warning">
+                {t('renameNef.namedAffectedWarning', { count: preview.named_affected })}
+              </Alert>
+            )}
             {preview.to_rename === 0 ? (
               <EmptyState title={t('renameNef.nothingToRename')} />
             ) : (
@@ -231,6 +338,45 @@ export function RenameNefModule() {
               <details className="rename-nef-nodate">
                 <summary>{t('renameNef.noDateSummary', { count: preview.no_date.length })}</summary>
                 <ul>{preview.no_date.map((n) => <li key={n}>{n}</li>)}</ul>
+              </details>
+            )}
+          </>
+        )}
+
+        {restorePreview && (
+          <>
+            <div className="rename-nef-summary">
+              <strong>{restorePreview.to_restore}</strong> {t('renameNef.restoreSummaryCount')}
+              {restorePreview.already_correct > 0 && t('renameNef.restoreCorrectSuffix', { count: restorePreview.already_correct })}
+              {restorePreview.no_record.length > 0 && t('renameNef.restoreNoRecordSuffix', { count: restorePreview.no_record.length })}
+            </div>
+            {restorePreview.to_restore === 0 ? (
+              <EmptyState title={restorePreview.total_files > 0 ? t('renameNef.restoreNothing') : t('renameNef.restoreEmptyPrompt')} />
+            ) : (
+              <>
+                <table className="rename-nef-table">
+                  <thead><tr><th>{t('renameNef.tableOriginal')}</th><th></th><th>{t('renameNef.tableNewName')}</th></tr></thead>
+                  <tbody>
+                    {restorePreview.items.map((it) => (
+                      <tr key={it.original_path}>
+                        <td>{it.original}</td>
+                        <td className="rename-nef-arrow">→</td>
+                        <td>{it.new_name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="rename-nef-result-actions">
+                  <Button variant="primary" onClick={doRestoreExecute} disabled={!canRestore}>
+                    {t('renameNef.restoreExecute')}
+                  </Button>
+                </div>
+              </>
+            )}
+            {restorePreview.no_record.length > 0 && (
+              <details className="rename-nef-nodate">
+                <summary>{t('renameNef.restoreNoRecordSummary', { count: restorePreview.no_record.length })}</summary>
+                <ul>{restorePreview.no_record.map((n) => <li key={n}>{n}</li>)}</ul>
               </details>
             )}
           </>
@@ -261,6 +407,25 @@ export function RenameNefModule() {
                   {t('renameNef.reviewFaces')}
                 </Button>
               </div>
+            )}
+          </div>
+        )}
+
+        {restoreResult && (
+          <div className="rename-nef-result">
+            <div>
+              <strong>{restoreResult.renamed.length}</strong> {t('renameNef.restored')}
+              {restoreResult.skipped.length > 0 && t('renameNef.skippedSuffix', { count: restoreResult.skipped.length })}
+            </div>
+            {restoreResult.skipped.length > 0 && (
+              <details><summary>{t('renameNef.skippedDetails')}</summary>
+                <ul>{restoreResult.skipped.map((s, i) => <li key={i}>{basename(s.path)}: {s.reason}</li>)}</ul>
+              </details>
+            )}
+            {restoreResult.errors.length > 0 && (
+              <details className="rename-nef-errors"><summary>{t('renameNef.errorsSummary', { count: restoreResult.errors.length })}</summary>
+                <ul>{restoreResult.errors.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
+              </details>
             )}
           </div>
         )}
