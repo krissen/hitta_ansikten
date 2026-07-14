@@ -230,9 +230,16 @@ from rename_nef import (  # noqa: E402
     ("260713_110145_ArvidW,_Elis.NEF", "260713_110145", True),  # _names suffix
     ("260713_112041-1.NEF", "260713_112041", True),         # -N burst
     ("260713_112041-1_Elis.NEF", "260713_112041", True),    # -N_Name
+    ("260713_110145en.NEF", "260713_110145", True),         # photographer suffix (bare)
+    ("260713_110145en_Anna.NEF", "260713_110145", True),    # photographer + _Name
+    ("260713_112041-1en_Anna.NEF", "260713_112041", True),  # -N + photographer + _Name
     ("DSC_0001.NEF", "260713_110145", False),               # unrelated name
-    ("260713_110145en.NEF", "260713_110145", False),        # photographer suffix (not protected)
     ("260713_110146.NEF", "260713_110145", False),          # different timestamp
+    # Negative: photographer suffix is bounded to 1-3 letters, and bare
+    # digits/text without `-` must stay unprotected (renamable) as before.
+    ("260713_110145abcd.NEF", "260713_110145", False),      # 4+ letters
+    ("260713_110145en1.NEF", "260713_110145", False),       # letters then digit
+    ("260713_1101453.NEF", "260713_110145", False),         # trailing digit, no `-`
 ])
 def test_is_already_named(name, ts, expected):
     assert is_already_named(name, ts) is expected
@@ -272,9 +279,12 @@ TS = "260713_112041"
 @pytest.mark.parametrize("name,expected", [
     (f"{TS}.NEF", _BARE_SLOT),          # bare
     (f"{TS}_Elis.NEF", _BARE_SLOT),     # _Name → still the bare slot
+    (f"{TS}en.NEF", _BARE_SLOT),        # photographer suffix → still bare
+    (f"{TS}en_Anna.NEF", _BARE_SLOT),   # photographer + _Name → bare
     (f"{TS}-0.NEF", 0),                 # burst index
     (f"{TS}-3.NEF", 3),
     (f"{TS}-2_Elis.NEF", 2),            # -N_Name → index N
+    (f"{TS}-1en_Anna.NEF", 1),          # -N + photographer suffix → index N
 ])
 def test_timestamp_slot(name, expected):
     assert timestamp_slot(name, TS) == expected
@@ -319,6 +329,24 @@ def test_reserve_protected_burst_named_holds_index_leaves_bare_free():
     dsts = _plan(
         (TS, 0, Path(f"/p/{TS}-1_Elis.NEF")),  # protected (-N_Name → index 1)
         (TS, 1, Path("/p/DSC_9.NEF")),         # unnamed
+    )
+    assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
+
+
+def test_reserve_photographer_named_holds_bare_slot():
+    # `ts<xx>_Name.NEF` (photographer suffix) holds the BARE slot → unnamed -0.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}en_Anna.NEF")),  # protected (photographer + _Name)
+        (TS, 1, Path("/p/DSC_9.NEF")),         # unnamed
+    )
+    assert dsts == {"DSC_9.NEF": f"{TS}-0.NEF"}
+
+
+def test_reserve_photographer_burst_named_holds_index():
+    # `ts-N<xx>_Name.NEF` holds index N, not the bare slot → unnamed takes bare.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}-1en_Anna.NEF")),  # protected (-N + photographer)
+        (TS, 1, Path("/p/DSC_9.NEF")),           # unnamed
     )
     assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
 

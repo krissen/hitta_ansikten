@@ -19,11 +19,14 @@ from pathlib import Path
 from core.exiftool import find_exiftool
 
 # A file is "already named" when its stem already carries its EXIF timestamp,
-# optionally followed by a burst marker (-N), a name suffix (_Name1,_Name2), or
-# both (-N_Name). Such a file has been through review/naming already and must not
-# be stripped back to a bare timestamp by an EXIF rename. Matches the empty rest
-# too, so a bare YYMMDD_HHMMSS file is a no-op as before.
-_NAMED_REST = re.compile(r"(-\d+)?(_.*)?$")
+# optionally followed by a burst marker (-N), a 1-3 letter photographer suffix
+# (the config-driven rename_service can emit `ts<xx>` / `ts-N<xx>`), a name
+# suffix (_Name1,_Name2), or a combination. Such a file has been through
+# review/naming already and must not be stripped back to a bare timestamp by an
+# EXIF rename. Matches the empty rest too, so a bare YYMMDD_HHMMSS file is a
+# no-op as before. The [a-zA-Z]{0,3} is bounded so `ts` + 4+ letters or bare
+# digits (no `-`) stay UNprotected and renamable.
+_NAMED_REST = re.compile(r"(-\d+)?[a-zA-Z]{0,3}(_.*)?$")
 
 # Simple logging setup for this standalone script
 logging.basicConfig(
@@ -73,9 +76,11 @@ def is_already_named(name: str, ts: str) -> bool:
     """True when `name`'s stem already begins with its EXIF timestamp `ts`.
 
     Recognizes the bare timestamp and the suffix forms the app produces:
-    ``ts``, ``ts-N``, ``ts_Name1,_Name2`` and ``ts-N_Name``. These are files
-    that have already been named (or are already in canonical form), so an
-    EXIF-based rename must leave them untouched unless explicitly opted in.
+    ``ts``, ``ts-N``, ``ts_Name1,_Name2``, ``ts-N_Name``, plus the config-driven
+    1-3 letter photographer suffix on any of them (``ts<xx>``, ``ts<xx>_Name``,
+    ``ts-N<xx>_Name``). These are files that have already been named (or are
+    already in canonical form), so an EXIF-based rename must leave them untouched
+    unless explicitly opted in.
     """
     if not ts:
         return False
