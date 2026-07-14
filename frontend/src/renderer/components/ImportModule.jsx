@@ -6,7 +6,7 @@
  * Import-only — renaming (rename_nef) is a separate step.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useWebSocket } from '../hooks/useWebSocket.js';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
@@ -43,6 +43,13 @@ export function ImportModule() {
   // panel when the HTTP response is lost — a long import can outlive the request.
   const [doneSummary, setDoneSummary] = useState(null);
   const [error, setError] = useState(null);
+  // True once this run has seen at least one server-side progress event, i.e.
+  // the backend accepted the request and started transferring. Distinguishes a
+  // connection lost mid-transfer (import runs on; the WS "done" event finishes
+  // the UI) from one that never reached the backend (crashed/unstarted server —
+  // no import, no "done" event ever, so a lost response must surface as an error
+  // rather than hang the panel in `running`). Reset at each run start.
+  const sawProgressRef = useRef(false);
   // Destination the last completed import actually wrote to. Captured at run
   // time so the "Döp om filer…" hand-off targets that folder even if the field
   // is edited afterwards.
@@ -97,6 +104,10 @@ export function ImportModule() {
       loadVolumes();
       return;
     }
+    // A per-file transfer event proves the backend accepted the request and is
+    // working — mark this run as started so a later lost response is treated as
+    // ongoing rather than a failure.
+    sawProgressRef.current = true;
     setProgress(data.percent ?? null);
     setProgressLabel(t('import.progressLabel', {
       current: data.current,
@@ -147,6 +158,7 @@ export function ImportModule() {
     setError(null);
     setProgress(0);
     setProgressLabel('');
+    sawProgressRef.current = false;
     const usedDestination = destination.trim();
     // No client timeout: a large card import (hundreds of NEF, tens of GB) runs
     // for minutes and must not be aborted mid-transfer.
@@ -171,16 +183,18 @@ export function ImportModule() {
       });
       loadVolumes(); // card is likely gone after eject; refresh the list
     } catch (err) {
-      // A lost response — timed out or a dropped/offline connection — is not a
-      // failure: the transfer is still running server-side and the WS "done"
-      // event owns the final summary. Treat ONLY those as ongoing. A genuine
-      // backend response (4xx/5xx, incl. an early ValueError from run_import)
-      // sends no terminal "done" event, so treating it as ongoing would hang the
-      // panel in `running` forever — it, and any other unexpected throw, must
-      // surface as an error. Without the ongoing case, a dropped connection would
-      // instead show a false error, re-enable the button mid-import, and later
-      // render the WS summary under a stale error banner.
-      if (isConnectionLostError(err)) {
+      // A lost response is treated as "still running" (the WS "done" event owns
+      // the final summary) ONLY when this run already saw server-side progress —
+      // proof the backend accepted the request and is transferring. This guards
+      // against two failure modes: a genuine backend response (4xx/5xx sets
+      // statusCode, sends no "done" event) and a connection that never reached
+      // the backend (crashed/unstarted server → offline TypeError, but no import
+      // and no "done" event); both must surface as an error instead of hanging
+      // the panel in `running` forever. Limitation: a connection lost after the
+      // request is accepted but before the first progress event lands is treated
+      // as an error (no progress seen); this narrow window is preferred over an
+      // indefinite hang, and the user can simply retry.
+      if (isConnectionLostError(err) && sawProgressRef.current) {
         ongoing = true;
       } else {
         setError(err.message || String(err));
