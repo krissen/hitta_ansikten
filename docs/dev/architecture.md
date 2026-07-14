@@ -180,7 +180,8 @@ Electron Renderer Process
     │   ├── ReviewModule.jsx  #   review/    — FaceCard, reviewActions, keyboard
     │   ├── CullingModule.jsx #   culling/   — FilterBar, StatsPanel, preview hook
     │   ├── FileQueueModule.jsx #  fileQueue/ — reducer, prefs, rename/preprocess hooks
-    │   ├── ImageViewer.jsx   # Canvas rendering, zoom/pan
+    │   ├── ImageViewer.jsx   # Review viewer: loading/NEF, events, face overlay
+    │   ├── CanvasImageView.jsx #  Shared prop-driven canvas core (zoom/pan/fit)
     │   └── …                 # Statistics, Database, RefineFaces, Import, RenameNef, …
     ├── hooks/                # Shared hooks (useActiveTabset, useWebSocket, …)
     ├── shared/               # api-client (HTTP + WS singleton), utilities
@@ -194,6 +195,19 @@ same-named subdirectory (`components/review/`, `components/culling/`,
 `useActiveTabset`, which gates a module's keyboard shortcuts on its tabset being
 active and supports *companion* modules (a keyboard-less surface, e.g. the image
 viewer, counts as active for its driver module).
+
+`CanvasImageView.jsx` is the shared, presentational canvas core: it owns the
+canvas element, zoom mode / factor / pan, device-pixel-ratio handling, and
+wheel/drag panning for a single decoded image, and exposes an imperative ref
+(`zoom`, `resetZoom`, `autoFit`, `setPan`, `getTransform`, `centerOnRect`,
+`applyTransform`) plus an optional `drawOverlay(ctx, { scale, x, y })` callback.
+It carries no application concerns (no module events, global shortcuts, i18n, or
+face knowledge). `ImageViewer.jsx` is the review-workflow wrapper around it —
+image loading / NEF pipeline, module-event wiring, keyboard shortcuts, menu
+state, and the face-box overlay (drawn via `drawOverlay`). The viewport math
+(zoom clamping, zoom-around-a-point, centering) lives in the pure, unit-tested
+`shared/canvasViewport.js`; contain-fit geometry stays in `shared/fitTransform.js`.
+The same core is intended for reuse by the culling loupe.
 
 ### Module Communication
 
