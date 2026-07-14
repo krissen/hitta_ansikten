@@ -89,3 +89,43 @@ async def test_run_import_done_event_reports_eject_failure(tmp_path, monkeypatch
     assert done["eject_error"] == "kortet används av en annan process"
     assert result["ejected"] is False
     assert result["eject_error"] == "kortet används av en annan process"
+
+
+@pytest.mark.asyncio
+async def test_run_import_reports_eject_skipped_on_transfer_errors(tmp_path, monkeypatch):
+    events = _capture_events(monkeypatch)
+
+    src = tmp_path / "card"
+    src.mkdir()
+    (src / "DSC0001.NEF").write_bytes(b"raw-1")
+    dest = tmp_path / "dest"
+
+    svc = ImportService()
+    # The card is ejectable, but the transfer fails for every file — eject must be
+    # skipped (a failed file may need a retry off the card) and the reason
+    # surfaced so the UI doesn't leave the card silently mounted.
+    monkeypatch.setattr(svc, "_is_ejectable", lambda info: True)
+
+    async def _fail_eject(mount):  # pragma: no cover - must never run here
+        raise AssertionError("eject must not be attempted after transfer errors")
+
+    monkeypatch.setattr(svc, "_eject", _fail_eject)
+
+    def _boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(import_service.shutil, "copy2", _boom)
+
+    result = await svc.run_import(
+        volume_mount=str(src),
+        destination=str(dest),
+        mode="copy",
+        eject=True,
+    )
+
+    done = next(payload for name, payload in events if payload.get("phase") == "done")
+    assert done["errors"] == 1
+    assert done["ejected"] is False
+    assert done["eject_error"] == "utmatning hoppades över på grund av överföringsfel"
+    assert result["ejected"] is False
+    assert result["eject_error"] == "utmatning hoppades över på grund av överföringsfel"

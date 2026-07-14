@@ -201,11 +201,17 @@ class ImportService:
 
         ejected = False
         eject_error: str | None = None
-        if eject and not errors:
+        if eject:
+            if errors:
+                # Deliberately don't eject after a partial transfer (a failed file
+                # may need a retry off the card). Surface a reason so the UI warns
+                # the card is still mounted instead of leaving it silently so.
+                eject_error = "utmatning hoppades över på grund av överföringsfel"
+                logger.warning("[Import] eject skipped — transfer had %d error(s): %s", len(errors), volume_mount)
             # Re-validate ejectable here (defense-in-depth): keep the "never the
             # internal/boot disk" guarantee local to the destructive call, not only
             # in list_volumes.
-            if self._is_ejectable(self._diskutil_info(volume_mount)):
+            elif self._is_ejectable(self._diskutil_info(volume_mount)):
                 ejected, eject_error = await self._eject(volume_mount)
             else:
                 eject_error = "volymen kan inte matas ut"
