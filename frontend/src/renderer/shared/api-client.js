@@ -19,6 +19,22 @@ export class NetworkError extends Error {
   }
 }
 
+/**
+ * True when an error means the request never reached a completed backend
+ * response — a timed-out or dropped/offline connection. It is deliberately
+ * strict: a genuine backend response (4xx/5xx sets `statusCode`) and any other
+ * unexpected throw (no `statusCode`, but also no `isTimeout`/`isOffline`) both
+ * return false. Callers whose work continues server-side and reports out of
+ * band (e.g. the card import, which streams a terminal event over the
+ * WebSocket) use this to treat a lost response as "still running" rather than a
+ * failure — while never swallowing a real error into an endless in-progress state.
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+export function isConnectionLostError(err) {
+  return err?.statusCode == null && Boolean(err?.isTimeout || err?.isOffline);
+}
+
 export class APIClient {
   constructor(baseUrl = 'http://127.0.0.1:5001') {
     this.baseUrl = baseUrl;
@@ -134,8 +150,14 @@ export class APIClient {
   }
 
   async _fetchWithTimeout(url, options = {}) {
+    // Per-call timeout override: `options.timeout` (ms) wins over the default,
+    // and `0` disables the timeout entirely — for long-running calls (e.g. a
+    // multi-minute card import) that must not be aborted mid-flight. `timeout`
+    // is stripped here so it is never forwarded to fetch as a request option.
+    const { timeout, ...fetchOptions } = options;
+    const effectiveTimeout = timeout != null ? timeout : this._requestTimeout;
     const controller = new AbortController();
-    const externalSignal = options.signal;
+    const externalSignal = fetchOptions.signal;
 
     // Honour a signal that is already aborted before the request starts.
     if (externalSignal?.aborted) {
@@ -149,14 +171,16 @@ export class APIClient {
       externalSignal.addEventListener('abort', onExternalAbort, { once: true });
     }
 
-    const timeoutId = setTimeout(() => controller.abort(), this._requestTimeout);
+    const timeoutId = effectiveTimeout > 0
+      ? setTimeout(() => controller.abort(), effectiveTimeout)
+      : null;
 
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
       this._setOffline(false);
       return response;
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId !== null) clearTimeout(timeoutId);
       if (externalSignal) {
         externalSignal.removeEventListener('abort', onExternalAbort);
       }

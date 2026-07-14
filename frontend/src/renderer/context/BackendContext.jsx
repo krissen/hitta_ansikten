@@ -98,9 +98,11 @@ export function BackendProvider({ children }) {
         throw err;
       }
     },
-    post: async (path, body) => {
+    post: async (path, body, options) => {
       try {
-        return await apiClient.post(path, body);
+        // Forward per-call options (e.g. { timeout: 0 } for long imports) to the
+        // client — the wrapper must not swallow the third argument.
+        return await apiClient.post(path, body, options);
       } catch (err) {
         debugError('Backend', `POST ${path} failed:`, err);
         throw err;

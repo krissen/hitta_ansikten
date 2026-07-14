@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { APIClient, NetworkError } from '../src/renderer/shared/api-client.js';
+import { APIClient, NetworkError, isConnectionLostError } from '../src/renderer/shared/api-client.js';
 
 // Build an AbortError the way fetch would surface one.
 function makeAbortError() {
@@ -122,6 +122,52 @@ describe('APIClient._fetchWithTimeout', () => {
   });
 });
 
+describe('APIClient per-call timeout override', () => {
+  let client;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    client = new APIClient('http://127.0.0.1:9999');
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('honours a per-call timeout override shorter than the default', async () => {
+    client._requestTimeout = 60000; // default would not fire in this test window
+    global.fetch = hangingFetch();
+
+    const err = await client.post('/api/v1/import/run', {}, { timeout: 10 }).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.isTimeout).toBe(true);
+  });
+
+  it('disables the timeout entirely when timeout is 0 (long-running import)', async () => {
+    client._requestTimeout = 10; // would abort almost immediately if not overridden
+    global.fetch = hangingFetch();
+
+    const req = client
+      .post('/api/v1/import/run', {}, { timeout: 0 })
+      .then(() => 'resolved', () => 'rejected');
+    // If the timeout were still active it would abort at 10ms; give it 50ms and
+    // assert the request is still pending.
+    const sentinel = new Promise(resolve => setTimeout(() => resolve('pending'), 50));
+
+    await expect(Promise.race([req, sentinel])).resolves.toBe('pending');
+  });
+
+  it('does not forward the timeout option to fetch', async () => {
+    global.fetch = okFetch({ ok: true });
+
+    await client.post('/api/v1/import/run', {}, { timeout: 0 });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch.mock.calls[0][1]).not.toHaveProperty('timeout');
+  });
+});
+
 // A non-ok response whose JSON body carries a FastAPI-style { detail }.
 function detailErrorFetch(status, detail, statusText = 'Error') {
   return vi.fn(() => Promise.resolve({
@@ -183,6 +229,36 @@ describe('APIClient error detail extraction', () => {
     expect(err.statusCode).toBe(422);
     expect(err.message).toBe('HTTP 422: Unprocessable Entity');
   });
+
+  // ImportModule discriminates "still running server-side" (a lost/reset
+  // connection) from a genuine backend rejection by `statusCode == null`. These
+  // lock that invariant so the discriminator stays valid.
+  it('leaves statusCode null for a reset/dropped connection (TypeError from fetch)', async () => {
+    global.fetch = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+
+    const err = await client.post('/api/v1/import/run', {}).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBeNull();
+    expect(err.isOffline).toBe(true);
+  });
+
+  it('leaves statusCode null for a request timeout', async () => {
+    client._requestTimeout = 10;
+    global.fetch = hangingFetch();
+
+    const err = await client.post('/api/v1/import/run', {}).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBeNull();
+    expect(err.isTimeout).toBe(true);
+  });
+
+  it('sets statusCode for a genuine backend response (so it surfaces as an error)', async () => {
+    global.fetch = httpErrorFetch(500, 'Internal Server Error');
+
+    const err = await client.post('/api/v1/import/run', {}).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(500);
+  });
 });
 
 describe('APIClient.clearCache', () => {
@@ -224,5 +300,48 @@ describe('APIClient.clearCache', () => {
     const err = await client.clearCache().catch(e => e);
     expect(err).toBeInstanceOf(NetworkError);
     expect(err.isTimeout).toBe(true);
+  });
+});
+
+// ImportModule treats a lost response as "still running" (the transfer streams a
+// terminal event over the WebSocket) but must never do so for a genuine backend
+// response or an unexpected throw — those would hang the panel in `running`
+// forever. isConnectionLostError is that discriminator; lock every branch.
+describe('isConnectionLostError', () => {
+  it('is true for a timed-out connection', () => {
+    expect(isConnectionLostError(new NetworkError('t', { isTimeout: true }))).toBe(true);
+  });
+
+  it('is true for an offline/dropped connection', () => {
+    expect(isConnectionLostError(new NetworkError('o', { isOffline: true }))).toBe(true);
+  });
+
+  it('is false for a genuine backend response (4xx/5xx sets statusCode)', () => {
+    expect(isConnectionLostError(new NetworkError('HTTP 400', { statusCode: 400 }))).toBe(false);
+    expect(isConnectionLostError(new NetworkError('HTTP 500', { statusCode: 500 }))).toBe(false);
+    // Even a 5xx that is somehow flagged as retryable/offline stays false while a
+    // status code is present — a backend response is never "connection lost".
+    expect(isConnectionLostError(new NetworkError('HTTP 503', { statusCode: 503, isOffline: true }))).toBe(false);
+  });
+
+  it('is false for an unexpected throw with no connection flags', () => {
+    // The api-client fallback (unknown, non-fetch error) sets neither flag.
+    expect(isConnectionLostError(new NetworkError('weird', { retryable: false }))).toBe(false);
+    // A plain Error thrown from the try-block (e.g. a bug after the response).
+    expect(isConnectionLostError(new Error('boom'))).toBe(false);
+    expect(isConnectionLostError(new TypeError('x is not a function'))).toBe(false);
+    expect(isConnectionLostError(undefined)).toBe(false);
+  });
+
+  it('matches what the client produces for a dropped connection end-to-end', async () => {
+    const client = new APIClient('http://127.0.0.1:9999');
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+    try {
+      const err = await client.post('/api/v1/import/run', {}).catch(e => e);
+      expect(isConnectionLostError(err)).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });

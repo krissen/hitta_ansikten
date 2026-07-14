@@ -80,6 +80,12 @@
 .import-ok { color: var(--color-success); }
 .import-warn { color: var(--color-warning); }
 
+.import-dest-used {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
 .import-errors {
   font-size: 0.85em;
   color: var(--color-error);
