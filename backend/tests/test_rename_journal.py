@@ -332,7 +332,8 @@ def test_culling_restore_journals_main_even_when_sidecar_fails(journal, tmp_path
 
     result = svc.restore([tid])
 
-    # Main restored + reported, entry cleared from the trash, no hard error.
+    # Main restored + reported. The failed sidecar's stored file is GONE (we
+    # deleted it), so there is nothing left to keep → the entry is fully dropped.
     assert result["restored"] and not result["errors"]
     assert img.exists()
     assert svc._load_manifest() == []
@@ -341,3 +342,49 @@ def test_culling_restore_journals_main_even_when_sidecar_fails(journal, tmp_path
     assert len(restore_rows) == 1
     assert restore_rows[0]["dst"] == str(img)
     assert restore_rows[0]["sidecars"] == []
+
+
+def test_culling_restore_keeps_orphaned_sidecar_as_recoverable_entry(journal, tmp_path, monkeypatch):
+    # P3: when the main image restores but a sidecar restore fails while its
+    # stored file REMAINS in the trash, the manifest entry must survive as a
+    # sidecar-only leftover (not be dropped) so the file stays visible + purgeable.
+    import api.services.culling_service as cs
+    from api.services.culling_service import CullingService
+
+    svc, trash = _culling_svc(cs, CullingService, tmp_path, monkeypatch)
+    img = tmp_path / "260626_191003_Milian.jpg"
+    img.write_bytes(b"jpg")
+    (tmp_path / "260626_191003_Milian.xmp").write_text("side")
+
+    tid = svc.trash([str(img)])["trashed"][0]["id"]
+    sc_stored = svc._load_manifest()[0]["sidecars"][0]["stored_name"]
+
+    # Sidecar restore fails but its stored file stays in the trash (locked, not
+    # missing) — patch _restore_one to raise only for the sidecar.
+    real = svc._restore_one
+
+    def flaky(original_path, stored_name):
+        if stored_name == sc_stored:
+            raise OSError("locked")
+        return real(original_path, stored_name)
+
+    monkeypatch.setattr(svc, "_restore_one", flaky)
+
+    result = svc.restore([tid])
+
+    assert result["restored"] and not result["errors"]
+    assert img.exists()
+    # Entry survives as a sidecar-only leftover (same id), stored file intact.
+    left = svc._load_manifest()
+    assert len(left) == 1
+    assert left[0]["id"] == tid
+    assert left[0]["stored_name"] == sc_stored
+    assert left[0]["basename"] == "260626_191003_Milian.xmp"
+    assert left[0]["sidecars"] == []
+    assert (trash / sc_stored).exists()
+    assert any(it["id"] == tid for it in svc.list_trash()["items"])
+
+    # And it is now purgeable — empty removes the orphaned stored file.
+    svc.empty([tid])
+    assert not (trash / sc_stored).exists()
+    assert svc._load_manifest() == []

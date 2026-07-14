@@ -336,6 +336,7 @@ class CullingService:
             # *actual* restored image (which may be <stem>-restored), collecting
             # the ones that made it so the journal row is the real delta.
             restored_sidecars: list[tuple] = []
+            failed_sidecars: list[dict] = []
             for sc in entry.get("sidecars", []):
                 sc_suffix = Path(sc["original_path"]).suffix
                 sc_target = dest.with_name(dest.stem + sc_suffix)
@@ -345,12 +346,34 @@ class CullingService:
                 except Exception:
                     logger.exception("Failed to restore sidecar %s for %s",
                                      sc.get("stored_name"), tid)
+                    failed_sidecars.append(sc)
 
             # Journal the actual delta (main + sidecars that landed).
             fs_ops.record(op="restore", tool="culling", batch_id=batch_id,
                           src=TRASH_DIR / entry["stored_name"], dst=dest,
                           sidecars=restored_sidecars)
-            keep = [e for e in keep if e["id"] != tid]
+
+            # Only drop the manifest entry once every stored file is accounted
+            # for. A failed sidecar whose stored file is still in the trash would
+            # otherwise be orphaned (invisible to list/empty/purge). Keep those as
+            # a sidecar-only entry (promote the first to the main slot) so they
+            # stay recoverable and purgeable; a failed sidecar whose stored file
+            # is already gone leaves nothing to keep.
+            leftover = [sc for sc in failed_sidecars
+                        if (TRASH_DIR / sc["stored_name"]).exists()]
+            if leftover:
+                head, rest = leftover[0], leftover[1:]
+                sidecar_only = {
+                    "id": tid,
+                    "original_path": head["original_path"],
+                    "stored_name": head["stored_name"],
+                    "basename": Path(head["original_path"]).name,
+                    "sidecars": rest,
+                    "trashed_at": entry.get("trashed_at", datetime.now().isoformat()),
+                }
+                keep = [sidecar_only if e["id"] == tid else e for e in keep]
+            else:
+                keep = [e for e in keep if e["id"] != tid]
             restored.append({"id": tid, "restored_path": str(dest)})
 
         self._rewrite_manifest(keep)
