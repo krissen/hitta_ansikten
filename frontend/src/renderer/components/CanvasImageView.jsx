@@ -113,7 +113,11 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
   }, [image, dimensions]);
 
   const autoFit = useCallback(() => {
+    // Also reset the manual zoom factor: it is never read while in auto mode,
+    // but leaving a stale value behind would make the state (and any future
+    // reader) lie about the viewer's baseline.
     setZoomMode('auto');
+    setZoomFactor(1);
     setPan({ x: 0, y: 0 });
   }, []);
 
@@ -189,7 +193,25 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
     }
   }, [image, dimensions, dpr, zoomMode, zoomFactor, pan, drawOverlay]);
 
+  // ============================================
+  // Canvas resize (backing store) — split from the draw path
+  // ============================================
+
+  // Own the canvas backing store. Reassigning canvas.width/height reallocates
+  // and clears it, so this must run ONLY when the size actually changes
+  // (dimensions or DPR) — never on pan/zoom. It must also run BEFORE the draw
+  // effect below (effects run in declaration order): on a resize/DPR change the
+  // reallocation clears the canvas, and the draw effect then repaints it — the
+  // reverse order would paint first and end up with a blank canvas.
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    canvas.width = dimensions.width * dpr;
+    canvas.height = dimensions.height * dpr;
+  }, [dimensions, dpr]);
+
   // Draw whenever the render closure changes (image/transform/dimensions/overlay).
+  // Repaints after a resize too, since `render` also depends on [dimensions, dpr].
   useEffect(() => {
     render();
   }, [render]);
@@ -251,19 +273,8 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
   }, [zoomMode, zoom]);
 
   // ============================================
-  // Canvas backing store + DPR
+  // DPR tracking
   // ============================================
-
-  // Own the canvas backing store. Reassigning canvas.width/height reallocates
-  // and clears it, so this must run ONLY when the size actually changes
-  // (dimensions or DPR) — never on pan/zoom. The draw effect above repaints
-  // afterwards because `render` also depends on [dimensions, dpr].
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-    canvas.width = dimensions.width * dpr;
-    canvas.height = dimensions.height * dpr;
-  }, [dimensions, dpr]);
 
   // Track DPR changes (e.g. dragging the window between monitors of different
   // pixel density). matchMedia fires once per change, so re-arm on each event.
