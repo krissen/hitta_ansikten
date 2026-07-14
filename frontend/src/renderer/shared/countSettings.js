@@ -53,6 +53,19 @@ export function getCountSettings() {
 }
 
 /**
+ * Pure preview of what setCountSettings(patch) would store: the sanitized
+ * shallow-merge of the current settings and `patch`, without persisting or
+ * notifying. setCountSettings notifies subscribers SYNCHRONOUSLY, so a caller
+ * that also subscribes must pre-adopt this value (e.g. into the ref its
+ * self-notify guard reads) BEFORE calling setCountSettings — otherwise the
+ * guard compares against a stale value during the notify and misfires.
+ */
+export function sanitizeCountSettings(patch) {
+  hydrate();
+  return sanitize({ ...current, ...(patch || {}) });
+}
+
+/**
  * Shallow-merge `patch` into the settings, sanitize, persist, and notify
  * subscribers. Returns the new settings object.
  */

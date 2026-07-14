@@ -18,6 +18,7 @@ import { getWorkingFolder } from '../shared/workingFolder.js';
 import {
   DEFAULTS as COUNT_DEFAULTS,
   getCountSettings,
+  sanitizeCountSettings,
   setCountSettings,
   subscribeCountSettings,
 } from '../shared/countSettings.js';
@@ -261,15 +262,18 @@ export function PlayerCountModule() {
 
   const applyOptions = useCallback(
     (next) => {
-      // Publish to the shared store (culling stats panel) and adopt its sanitized
-      // return, not the raw `next`. The subscribe guard below compares against the
-      // store's sanitized snapshot, so optionsRef/local state must hold that same
-      // sanitized shape — otherwise the guard only matches by luck (when the raw
-      // values happen to be sanitize-idempotent) and a self-originated update can
-      // slip through as external, firing a redundant recount.
-      const applied = setCountSettings(next);
+      // Adopt the sanitized shape BEFORE publishing to the shared store. The
+      // subscribe guard below compares the store's sanitized notify() snapshot
+      // against optionsRef, and setCountSettings notifies synchronously — so
+      // optionsRef must already hold the sanitized value when notify() runs, or
+      // the guard sees a stale ref, treats the self-originated change as
+      // external, and fires a second recount. sanitizeCountSettings is the pure
+      // preview of what setCountSettings will store, so the subsequent publish
+      // is idempotent and the guard comparison is sanitized-vs-sanitized.
+      const applied = sanitizeCountSettings(next);
       optionsRef.current = applied;
       setOptions(applied);
+      setCountSettings(applied); // publish to the culling stats panel (guard skips)
       if (lastParamsRef.current) submitWith(input, perMatch, applied);
     },
     [submitWith, input, perMatch]

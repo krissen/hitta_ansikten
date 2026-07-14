@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import {
   DEFAULTS,
   getCountSettings,
+  sanitizeCountSettings,
   setCountSettings,
   subscribeCountSettings,
 } from '../src/renderer/shared/countSettings.js';
@@ -85,6 +86,24 @@ describe('countSettings store', () => {
   it('returns defaults for invalid fields so an adopting caller holds a valid shape', () => {
     const returned = setCountSettings({ minImages: 0, gapMinutes: -5, baseline: 'bogus' });
     expect(returned).toEqual(DEFAULTS);
+  });
+
+  it('sanitizeCountSettings previews exactly what setCountSettings will store, without notifying or persisting', () => {
+    // applyOptions (PlayerCountModule) pre-adopts this preview into its ref
+    // BEFORE calling setCountSettings — setCountSettings notifies subscribers
+    // synchronously, so the self-notify guard must already see the sanitized
+    // value during notify(). The preview must therefore be pure and byte-equal
+    // to what the subsequent set stores.
+    const seen = [];
+    const unsub = subscribeCountSettings((s) => seen.push(s));
+    const preview = sanitizeCountSettings({ minImages: '7', gapMinutes: 12.9 });
+    expect(preview).toEqual({ ...DEFAULTS, minImages: 7, gapMinutes: 12 });
+    expect(seen).toEqual([]); // pure: no notify
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull(); // pure: no persist
+    expect(getCountSettings()).toEqual(DEFAULTS); // pure: store unchanged
+    const stored = setCountSettings({ minImages: '7', gapMinutes: 12.9 });
+    expect(stored).toEqual(preview);
+    unsub();
   });
 
   it('notifies subscribers on change and stops after unsubscribe', () => {
