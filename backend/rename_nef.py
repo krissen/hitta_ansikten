@@ -179,31 +179,26 @@ def execute_renames(renames: list[tuple[Path, Path, Path]], dry_run: bool = Fals
     if not renames:
         print("Inga filer att döpa om.")
         return
-    
+
     if dry_run:
         for src, dst, _ in renames:
             print(f"(dry) {src.name} -> {dst.name}")
         return
-    
-    for src, dst, tmp in renames:
-        try:
-            src.rename(tmp)
-        except OSError as e:
-            logging.error(f"Rename to temp failed: {src} -> {tmp}: {e}")
-            print(f"misslyckades (till temp): {src} -> {tmp}: {e}", file=sys.stderr)
 
-    for src, dst, tmp in renames:
-        if dst.exists():
-            logging.warning(f"Destination exists, skipping: {dst}")
-            print(f"skip: finns redan -> {dst}", file=sys.stderr)
-            if tmp.exists():
-                tmp.unlink()
-            continue
-        try:
-            tmp.rename(dst)
-        except OSError as e:
-            logging.error(f"Rename to final failed: {tmp} -> {dst}: {e}")
-            print(f"misslyckades (till final): {tmp} -> {dst}: {e}", file=sys.stderr)
+    # Shared two-pass move: never overwrites an existing target and restores the
+    # original on collision (instead of the old behaviour of dropping the temp),
+    # and records each rename to the app's rename journal.
+    from core import fs_ops
+    result = fs_ops.two_pass_rename(
+        [(src, dst) for src, dst, _ in renames],
+        tool="rename-nef-cli", journal_op="rename", log_prefix="rename_nef",
+    )
+    for item in result["renamed"]:
+        print(f"{item['from']} -> {item['to']}")
+    for item in result["skipped"]:
+        print(f"skip: {item['reason']} ({Path(item['path']).name})", file=sys.stderr)
+    for item in result["errors"]:
+        print(f"misslyckades: {item['path']}: {item['error']}", file=sys.stderr)
 
 
 def main() -> int:
