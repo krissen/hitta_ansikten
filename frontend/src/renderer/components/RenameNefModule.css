@@ -19,6 +19,23 @@
   min-width: 140px;
 }
 
+.rename-nef-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+}
+
+/* The include-named opt-in strips confirmed name suffixes — mark it as the
+   destructive choice so it reads apart from the harmless recursive toggle. */
+.rename-nef-danger-toggle {
+  color: var(--color-danger, var(--text-secondary));
+}
+
 .rename-nef-roots {
   display: flex;
   flex-wrap: wrap;

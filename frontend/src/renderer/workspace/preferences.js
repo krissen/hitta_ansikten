@@ -66,6 +66,9 @@ export class PreferencesManager {
         renameSidecars: true,       // Also rename associated sidecar files (XMP, etc)
         sidecarExtensions: ['xmp']  // Extensions to look for (case insensitive)
       },
+      renameNef: {
+        recursive: false            // EXIF rename: also descend into subfolders (default off)
+      },
       culling: {
         autoAdvanceAfterRename: true // Move to the next file after a rename in Gallra spelare
       },

@@ -227,6 +227,13 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 3. **Byt namn** utför; befintliga målnamn skrivs aldrig över.
 4. När namnbytet är klart visas knappen **"Granska ansikten…"** i resultatet — den öppnar granskningsvyn (Filkö + Granska ansikten + Bildvisare) med den namnbytta mappen redan laddad i kön (nästa steg).
 
+**Redan namngivna filer skyddas.** Filer vars namn redan bär sin EXIF-tidsstämpel — med eller utan namnsuffix (`260713_110145_Elis.NEF`), burst (`…-1.NEF`) eller båda — hoppas över som standard, så ett namnbyte aldrig strippar bort bekräftade namn. Förhandsgranskningen visar hur många som skyddas. Två kryssrutor:
+
+- **Inkludera undermappar** — scanna även undermappar (av som standard; valet sparas).
+- **Döp även om redan namngivna filer** — en varnings-kryssruta som tar med redan namngivna filer ändå och tar bort deras namnsuffix. Startar alltid urbockad; förhandsgranskningen varnar med antalet som berörs.
+
+**Återställ namn… (SHA1)** — om bekräftade namn av misstag strippats (eller filer bytt namn utanför appen) slår den här åtgärden upp varje NEF via sitt SHA1 i databasen och döper tillbaka den till det bekräftade namnet (+ `.xmp`-sidecar). Skriver aldrig över; tvillingar som delar namn får `-N`. Förhandsgranska → **Återställ**, som övriga namnbytesflöden.
+
 ### 1. Lägg till filer
 
 1. Klicka `+` i Filkö eller `Cmd+O`

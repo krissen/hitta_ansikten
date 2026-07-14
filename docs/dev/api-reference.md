@@ -1066,17 +1066,27 @@ EXIF-based NEF renaming (`YYMMDD_HHMMSS.NEF`) with preview/confirm. Backs the
 ### `POST /api/v1/rename-nef/preview`
 
 Dry-run: resolve NEFs (folder/glob) and return the EXIF-derived rename mapping.
-Request `{ roots, globs, recursive }`.
+Request `{ roots, globs, recursive, include_named }` (`recursive` and
+`include_named` both default `false`).
 
 **Response:**
 ```json
 {
   "items": [ { "original_path": "…/DSC0001.NEF", "original": "DSC0001.NEF", "new_name": "250601_100000.NEF" } ],
-  "total_files": 12, "to_rename": 10, "already_named": 1, "no_date": ["DSC9999.NEF"]
+  "total_files": 12, "to_rename": 10, "already_named": 1, "named_affected": 0, "no_date": ["DSC9999.NEF"]
 }
 ```
 `no_date` = files without a usable `CreateDate` (never renamed). Identical
 timestamps are disambiguated with `-NN`.
+
+**Already-named files are protected by default.** A file whose stem already
+carries its EXIF timestamp — bare, or with a `-N` burst / `_Name` suffix
+(`260713_110145_Elis.NEF`) — is treated as already named and excluded from the
+plan, so a rename never strips a confirmed name. `already_named` counts the
+protected (and bare-timestamp no-op) files. Set `include_named: true` to rename
+them anyway (stripping the suffix); `named_affected` then reports how many
+already-named files the plan would rename. The same protection applies to the
+CLI (`rename_nef.py`, opt out with `--include-named`).
 
 ### `POST /api/v1/rename-nef/execute`
 
@@ -1095,9 +1105,20 @@ during the EXIF phase:
 
 `400` if no input or exiftool is missing.
 
----
+### `POST /api/v1/rename-nef/restore-names/preview` · `…/restore-names/execute`
 
-## WebSocket
+Recovery: re-apply confirmed names after an accidental strip (or any external
+rename). Request `{ roots, globs, recursive }`. Each NEF is hashed (SHA1) and
+matched against `processed_files.jsonl`; matches are renamed back to their
+confirmed name (+ `.xmp` sidecar to the same stem). **Never overwrites**;
+two-pass via temp files with restore-on-collision. Twins whose two hashes
+recorded the same name are `-N` disambiguated, and each restored file's DB entry
+is synced to its actual on-disk name. Emits `restore-names-progress` (same shape
+as `rename-nef-progress`) during the hashing phase.
+
+**Preview response:** `{ "items": [...], "total_files": N, "to_restore": N, "already_correct": N, "no_record": ["random.NEF"] }`
+(`already_correct` = stem already matches the DB name; `no_record` = no SHA1
+match). **Execute response:** same shape as `execute` above.
 
 ### `ws://127.0.0.1:5001/ws/progress`
 
@@ -1114,6 +1135,7 @@ Real-time progress updates during processing.
 | `error` | `{ message }` | Processing error |
 | `import-progress` | `{ phase: "transfer", current, total, file, percent }` / `{ phase: "done", transferred, skipped, errors, ejected, eject_error, destination, total }` | Card import per-file progress + terminal summary |
 | `rename-nef-progress` | `{ phase, current, total, percent }` | EXIF read progress during NEF rename preview/execute |
+| `restore-names-progress` | `{ phase, current, total, percent }` | SHA1 hashing progress during restore-names preview/execute |
 
 **Example client:**
 ```javascript

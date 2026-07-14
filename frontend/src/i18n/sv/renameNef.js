@@ -12,9 +12,12 @@ module.exports = {
   "emptyPromptAction": "Förhandsgranska",
   "emptyPromptSuffix": ".",
   "summaryCount": "att byta namn på",
-  "alreadyNamedSuffix": " · {count} redan namngivna",
+  "alreadyNamedSuffix": " · {count} redan namngivna (skyddas)",
   "noDateSuffix": " · {count} utan CreateDate",
   "nothingToRename": "Inget att byta namn på.",
+  "recursiveLabel": "Inkludera undermappar",
+  "includeNamedLabel": "Döp även om redan namngivna filer (tar bort namnsuffix) — jag vet vad jag gör",
+  "namedAffectedWarning": "Varning: {count} redan namngivna filer får sitt namnsuffix borttaget.",
   "tableOriginal": "Original",
   "tableNewName": "Nytt namn",
   "noDateSummary": "{count} utan CreateDate (hoppas över)",
@@ -27,5 +30,18 @@ module.exports = {
     "other": "Bytte namn på {count} filer"
   },
   "errorPrefix": "Fel: {message}",
-  "reviewFaces": "Granska ansikten…"
+  "reviewFaces": "Granska ansikten…",
+  "restore": "Återställ namn…",
+  "restoreExecute": "Återställ",
+  "restoreEmptyPrompt": "Slår upp varje NEF via SHA1 och återställer det bekräftade namnet.",
+  "restoreSummaryCount": "att återställa",
+  "restoreCorrectSuffix": " · {count} redan korrekta",
+  "restoreNoRecordSuffix": " · {count} utan bekräftat namn",
+  "restoreNothing": "Inget att återställa.",
+  "restoreNoRecordSummary": "{count} utan bekräftat namn (hoppas över)",
+  "restored": "återställda",
+  "restoreDoneToast": {
+    "one": "Återställde {count} fil",
+    "other": "Återställde {count} filer"
+  }
 };
