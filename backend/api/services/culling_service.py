@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from cli_config import load_config, save_config
+from core import fs_ops
 from core.playerstats import (
     bucket_counter,
     parse_filename,
@@ -186,6 +187,7 @@ class CullingService:
         TRASH_DIR.mkdir(parents=True, exist_ok=True)
         trashed: list[dict] = []
         errors: list[dict] = []
+        batch_id = fs_ops.new_batch_id()
 
         for p in paths:
             src = Path(p)
@@ -199,6 +201,8 @@ class CullingService:
                 # gone from its folder, so the manifest entry below must always be
                 # written to keep it restorable.
                 shutil.move(str(src), str(TRASH_DIR / stored_name))
+                fs_ops.record(op="trash", tool="culling", batch_id=batch_id,
+                              src=src, dst=TRASH_DIR / stored_name)
             except Exception as e:
                 logger.exception("Failed to trash %s", p)
                 errors.append({"path": p, "error": str(e)})
@@ -273,39 +277,18 @@ class CullingService:
                 raise ValueError("En sidecar-fil med målnamnet finns redan")
             sidecar_moves.append((sc, sc_dst))
 
-        # Atomic: if a sidecar move fails (e.g. a locked .xmp on Windows), roll
-        # back every move so we never return success with an orphaned sidecar.
-        self._safe_rename(src, dst)
-        done = [(src, dst)]
+        # Atomic move of the main file + sidecars (rollback on any failure) plus
+        # a journal entry for the main rename. The Swedish sidecar preflight above
+        # already rejects collisions; a mid-move OSError here is wrapped so the
+        # caller always sees a ValueError with a user-facing reason.
         try:
-            for sc, sc_dst in sidecar_moves:
-                self._safe_rename(sc, sc_dst)
-                done.append((sc, sc_dst))
+            fs_ops.rename_with_sidecars(
+                src, dst, sidecar_moves, tool="culling", journal_op="rename")
         except Exception:
-            logger.exception("Sidecar rename failed; rolling back %s", src)
-            for moved_src, moved_dst in reversed(done):
-                try:
-                    self._safe_rename(moved_dst, moved_src)
-                except Exception:
-                    logger.exception("Rollback failed for %s", moved_dst)
+            logger.exception("Rename failed; rolled back %s", src)
             raise ValueError("Kunde inte byta namn på en sidecar-fil; ändringen återställdes")
 
         return {"path": str(dst), "basename": dst.name}
-
-    @staticmethod
-    def _safe_rename(src: Path, dst: Path) -> None:
-        """Rename src→dst, handling case-only renames cross-platform.
-
-        On a case-insensitive filesystem dst "exists" (it is src), and a direct
-        os.rename raises FileExistsError on Windows. Go via a temp name so the
-        capitalization change applies everywhere.
-        """
-        if dst.exists() and dst.samefile(src):
-            tmp = src.with_name(f".{uuid.uuid4().hex}.rename.tmp")
-            src.rename(tmp)
-            tmp.rename(dst)
-        else:
-            src.rename(dst)
 
     def list_trash(self) -> dict:
         """Return active trash entries, newest first."""
@@ -324,6 +307,7 @@ class CullingService:
         restored: list[dict] = []
         errors: list[dict] = []
         keep = list(entries)
+        batch_id = fs_ops.new_batch_id()
 
         for tid in ids:
             entry = by_id.get(tid)
@@ -332,6 +316,8 @@ class CullingService:
                 continue
             try:
                 dest = self._restore_one(entry["original_path"], entry["stored_name"])
+                fs_ops.record(op="restore", tool="culling", batch_id=batch_id,
+                              src=TRASH_DIR / entry["stored_name"], dst=dest)
                 # Sidecars must land beside the *actual* restored image: when the
                 # original path was occupied and the image came back as
                 # <stem>-restored, its .xmp must follow to <stem>-restored.xmp,

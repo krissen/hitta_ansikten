@@ -171,3 +171,46 @@ async def test_import_journals_transfers(journal, tmp_path, monkeypatch, mode, e
     assert all(r["tool"] == "import" for r in rows)
     assert all(r["op"] == expected_op for r in rows)
     assert {Path(r["dst"]).name for r in rows} == {"DSC0001.NEF", "DSC0002.NEF"}
+
+
+# ----- culling_service: rename / trash / restore -----------------------------
+
+def test_culling_rename_journals(journal, tmp_path):
+    from api.services.culling_service import CullingService
+
+    img = tmp_path / "260626_191003_Milian,_Valter.jpg"
+    img.write_bytes(b"jpg")
+
+    CullingService().rename(str(img), "260626_191003_Milian.jpg")
+
+    rows = _rows(journal)
+    assert len(rows) == 1
+    assert rows[0]["tool"] == "culling"
+    assert rows[0]["op"] == "rename"
+    assert rows[0]["src"] == str(img)
+    assert rows[0]["dst"] == str(tmp_path / "260626_191003_Milian.jpg")
+
+
+def test_culling_trash_and_restore_journal(journal, tmp_path, monkeypatch):
+    import api.services.culling_service as cs
+    from api.services.culling_service import CullingService
+
+    trash = tmp_path / "trash"
+    trash.mkdir()
+    monkeypatch.setattr(cs, "TRASH_DIR", trash)
+    monkeypatch.setattr(cs, "MANIFEST_PATH", trash / "manifest.jsonl")
+
+    svc = CullingService()
+    img = tmp_path / "pic.jpg"
+    img.write_bytes(b"jpg")
+
+    tid = svc.trash([str(img)])["trashed"][0]["id"]
+    svc.restore([tid])
+
+    rows = _rows(journal)
+    ops = [r["op"] for r in rows]
+    assert ops == ["trash", "restore"]
+    assert all(r["tool"] == "culling" for r in rows)
+    # Trash: original -> trash store. Restore: trash store -> back to original.
+    assert rows[0]["src"] == str(img)
+    assert rows[1]["dst"] == str(img)
