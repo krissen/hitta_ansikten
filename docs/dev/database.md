@@ -25,6 +25,7 @@ Override with `$XDG_DATA_HOME` environment variable.
 | `manual_suffixes.json` | JSON | Free-text filename suffixes keyed by content hash |
 | `distinct_pairs.json` | JSON | Confirmed-distinct name pairs (e.g. twins) |
 | `config.json` | JSON | User configuration |
+| `rename_journal.jsonl` | JSONL | Append-only log of every rename/move/trash/restore |
 | `ansikten.log` | text | Debug/error log |
 
 The four writable collections — `encodings.pkl`, `ignored.pkl`, `hardneg.pkl`,
@@ -150,6 +151,45 @@ Detailed log of all processing attempts.
   - `confidence`: Match confidence (0-1)
 - `attempt`: Resolution attempt (1-3)
 - `resolution`: "downsample", "midsample", or "fullres"
+
+### rename_journal.jsonl
+
+Append-only record of every filesystem move the app performs — GUI renames,
+EXIF rename-nef, restore-names, card import, and culling trash/restore — written
+by `core.fs_ops`. One JSON object per line; the file grows monotonically and is
+**never rotated or rewritten** (rows are tiny, a few hundred bytes each). It is
+the source of truth for the "undo last batch" feature.
+
+```jsonl
+{"ts": "2026-07-14T08:15:00.123456+00:00", "op": "rename", "tool": "rename-nef", "batch_id": "9f3c…", "src": "/photos/DSC0001.NEF", "dst": "/photos/260714_101500.NEF", "sidecars": [{"src": "/photos/DSC0001.xmp", "dst": "/photos/260714_101500.xmp"}]}
+{"ts": "2026-07-14T08:16:02.001000+00:00", "op": "move", "tool": "import", "batch_id": "a1b2…", "src": "/Volumes/CARD/DSC0002.NEF", "dst": "/photos/DSC0002.NEF", "sidecars": []}
+```
+
+**Fields:**
+- `ts`: tz-aware ISO 8601 timestamp in UTC (`datetime.now(timezone.utc).isoformat()`, ends `+00:00`)
+- `op`: `rename` | `move` | `copy` | `trash` | `restore`
+- `tool`: originating flow — `rename`, `rename-nef`, `rename-nef-cli`,
+  `restore-names`, `import`, `culling`
+- `batch_id`: `uuid4().hex` shared by all rows written in one batch operation
+  (the unit an undo reverses)
+- `src`, `dst`: absolute source/destination paths (of the main file)
+- `sidecars`: list of `{src, dst}` for the sidecars (`.xmp`) that **actually
+  moved** with the main file — empty list when none did
+
+**Sidecar policy — a row describes exactly what moved.** The row lists the
+sidecars that actually followed the main file (their real `src`/`dst`), not a
+deterministic rule to be re-derived. A sidecar whose target was already taken,
+or whose move failed, is left out of the row entirely. This is the invariant
+undo depends on: it replays `src → dst` plus each listed sidecar literally and
+never touches a pre-existing file that merely shared the target stem. `import`
+records one row per transferred NEF (op `move` or `copy` to mirror the transfer
+mode; an import `copy` is logged for completeness even though undoing a copy —
+deleting it — is out of scope here). `trash`/`restore` rows carry the sidecars
+the app moved into / out of the trash (mirroring the trash `manifest.jsonl`).
+
+**Best-effort.** A journal write can never fail the filesystem operation it
+describes: `fs_ops.record` swallows and logs any write error rather than raising,
+because the move has already happened on disk.
 
 ### db_meta.json
 

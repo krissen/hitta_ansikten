@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from cli_config import load_config, save_config
+from core import fs_ops
 from core.playerstats import (
     bucket_counter,
     parse_filename,
@@ -186,6 +187,7 @@ class CullingService:
         TRASH_DIR.mkdir(parents=True, exist_ok=True)
         trashed: list[dict] = []
         errors: list[dict] = []
+        batch_id = fs_ops.new_batch_id()
 
         for p in paths:
             src = Path(p)
@@ -214,6 +216,15 @@ class CullingService:
                     stored_sidecars.append({"original_path": str(sc), "stored_name": sc_stored})
                 except Exception:
                     logger.exception("Failed to trash sidecar %s", sc)
+
+            # Journal after the sidecars are settled, listing the ones that
+            # actually moved into the trash (mirrors the manifest entry).
+            fs_ops.record(
+                op="trash", tool="culling", batch_id=batch_id,
+                src=src, dst=TRASH_DIR / stored_name,
+                sidecars=[(sc["original_path"], TRASH_DIR / sc["stored_name"])
+                          for sc in stored_sidecars],
+            )
 
             entry = {
                 "id": tid,
@@ -273,39 +284,18 @@ class CullingService:
                 raise ValueError("En sidecar-fil med målnamnet finns redan")
             sidecar_moves.append((sc, sc_dst))
 
-        # Atomic: if a sidecar move fails (e.g. a locked .xmp on Windows), roll
-        # back every move so we never return success with an orphaned sidecar.
-        self._safe_rename(src, dst)
-        done = [(src, dst)]
+        # Atomic move of the main file + sidecars (rollback on any failure) plus
+        # a journal entry for the main rename. The Swedish sidecar preflight above
+        # already rejects collisions; a mid-move OSError here is wrapped so the
+        # caller always sees a ValueError with a user-facing reason.
         try:
-            for sc, sc_dst in sidecar_moves:
-                self._safe_rename(sc, sc_dst)
-                done.append((sc, sc_dst))
+            fs_ops.rename_with_sidecars(
+                src, dst, sidecar_moves, tool="culling", journal_op="rename")
         except Exception:
-            logger.exception("Sidecar rename failed; rolling back %s", src)
-            for moved_src, moved_dst in reversed(done):
-                try:
-                    self._safe_rename(moved_dst, moved_src)
-                except Exception:
-                    logger.exception("Rollback failed for %s", moved_dst)
+            logger.exception("Rename failed; rolled back %s", src)
             raise ValueError("Kunde inte byta namn på en sidecar-fil; ändringen återställdes")
 
         return {"path": str(dst), "basename": dst.name}
-
-    @staticmethod
-    def _safe_rename(src: Path, dst: Path) -> None:
-        """Rename src→dst, handling case-only renames cross-platform.
-
-        On a case-insensitive filesystem dst "exists" (it is src), and a direct
-        os.rename raises FileExistsError on Windows. Go via a temp name so the
-        capitalization change applies everywhere.
-        """
-        if dst.exists() and dst.samefile(src):
-            tmp = src.with_name(f".{uuid.uuid4().hex}.rename.tmp")
-            src.rename(tmp)
-            tmp.rename(dst)
-        else:
-            src.rename(dst)
 
     def list_trash(self) -> dict:
         """Return active trash entries, newest first."""
@@ -317,13 +307,18 @@ class CullingService:
         """Move trashed files (+ sidecars) back to their original locations.
 
         Never overwrites: if the original path is occupied, restores alongside as
-        ``<stem>-restored<suffix>``. Returns {restored: [...], errors: [...]}.
+        ``<stem>-restored<suffix>``. Returns {restored: [...], partial: [...],
+        errors: [...]}. ``partial`` holds sidecar-only leftovers created when the
+        main image came back but a sidecar could not — each a brand-new trash
+        entry (own id) so the caller/UI can keep it visible without a reload.
         """
         entries = self._load_manifest()
         by_id = {e["id"]: e for e in entries}
         restored: list[dict] = []
+        partial: list[dict] = []
         errors: list[dict] = []
         keep = list(entries)
+        batch_id = fs_ops.new_batch_id()
 
         for tid in ids:
             entry = by_id.get(tid)
@@ -332,22 +327,65 @@ class CullingService:
                 continue
             try:
                 dest = self._restore_one(entry["original_path"], entry["stored_name"])
-                # Sidecars must land beside the *actual* restored image: when the
-                # original path was occupied and the image came back as
-                # <stem>-restored, its .xmp must follow to <stem>-restored.xmp,
-                # not the original name (which would orphan the metadata).
-                for sc in entry.get("sidecars", []):
-                    sc_suffix = Path(sc["original_path"]).suffix
-                    sc_target = dest.with_name(dest.stem + sc_suffix)
-                    self._restore_one(str(sc_target), sc["stored_name"])
-                keep = [e for e in keep if e["id"] != tid]
-                restored.append({"id": tid, "restored_path": str(dest)})
             except Exception as e:
+                # The main image couldn't come back — nothing moved, report and
+                # leave the entry in the trash for a retry.
                 logger.exception("Failed to restore %s", tid)
                 errors.append({"id": tid, "error": str(e)})
+                continue
+
+            # Main image is back. Sidecars are best-effort: a missing/locked
+            # sidecar must not abort — and must not swallow — the main restore,
+            # else the completed move would go unjournaled. Land beside the
+            # *actual* restored image (which may be <stem>-restored), collecting
+            # the ones that made it so the journal row is the real delta.
+            restored_sidecars: list[tuple] = []
+            failed_sidecars: list[dict] = []
+            for sc in entry.get("sidecars", []):
+                sc_suffix = Path(sc["original_path"]).suffix
+                sc_target = dest.with_name(dest.stem + sc_suffix)
+                try:
+                    sc_dest = self._restore_one(str(sc_target), sc["stored_name"])
+                    restored_sidecars.append((TRASH_DIR / sc["stored_name"], sc_dest))
+                except Exception:
+                    logger.exception("Failed to restore sidecar %s for %s",
+                                     sc.get("stored_name"), tid)
+                    failed_sidecars.append(sc)
+
+            # Journal the actual delta (main + sidecars that landed).
+            fs_ops.record(op="restore", tool="culling", batch_id=batch_id,
+                          src=TRASH_DIR / entry["stored_name"], dst=dest,
+                          sidecars=restored_sidecars)
+
+            # Only drop the manifest entry once every stored file is accounted
+            # for. A failed sidecar whose stored file is still in the trash would
+            # otherwise be orphaned (invisible to list/empty/purge). Keep those as
+            # a sidecar-only entry (promote the first to the main slot) so they
+            # stay recoverable and purgeable; a failed sidecar whose stored file
+            # is already gone leaves nothing to keep.
+            leftover = [sc for sc in failed_sidecars
+                        if (TRASH_DIR / sc["stored_name"]).exists()]
+            keep = [e for e in keep if e["id"] != tid]
+            if leftover:
+                head, rest = leftover[0], leftover[1:]
+                # A brand-new id: the original entry is genuinely "restored" (its
+                # main image is back), so callers/UI that drop the restored id
+                # would otherwise hide this leftover. As a distinct new trash
+                # item it stays visible and is separately restorable/purgeable.
+                sidecar_only = {
+                    "id": uuid.uuid4().hex,
+                    "original_path": head["original_path"],
+                    "stored_name": head["stored_name"],
+                    "basename": Path(head["original_path"]).name,
+                    "sidecars": rest,
+                    "trashed_at": entry.get("trashed_at", datetime.now().isoformat()),
+                }
+                keep.append(sidecar_only)
+                partial.append(sidecar_only)
+            restored.append({"id": tid, "restored_path": str(dest)})
 
         self._rewrite_manifest(keep)
-        return {"restored": restored, "errors": errors}
+        return {"restored": restored, "partial": partial, "errors": errors}
 
     def _restore_one(self, original_path: str, stored_name: str) -> Path:
         """Move one stored file back to original_path, never overwriting.
