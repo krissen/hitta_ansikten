@@ -55,12 +55,15 @@ def test_rename_service_journals_moves(journal, tmp_path, monkeypatch):
     assert (tmp_path / "250101_120000_Anna.xmp").read_text() == "side"
 
     rows = _rows(journal)
-    # Only the main file is journaled; the sidecar follows deterministically.
+    # One row for the main, listing the sidecar that moved with it.
     assert len(rows) == 1
     assert rows[0]["tool"] == "rename"
     assert rows[0]["op"] == "rename"
     assert rows[0]["src"] == str(img)
     assert rows[0]["dst"] == str(dst)
+    assert rows[0]["sidecars"] == [
+        {"src": str(tmp_path / "IMG_0001.xmp"), "dst": str(tmp_path / "250101_120000_Anna.xmp")}
+    ]
 
 
 def test_rename_service_toctou_guard_skips_occupied_target(journal, tmp_path, monkeypatch):
