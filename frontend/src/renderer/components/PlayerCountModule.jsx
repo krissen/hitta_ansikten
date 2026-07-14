@@ -16,6 +16,12 @@ import { useContextMenu } from '../hooks/useContextMenu.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
 import { getWorkingFolder } from '../shared/workingFolder.js';
 import {
+  DEFAULTS as COUNT_DEFAULTS,
+  getCountSettings,
+  setCountSettings,
+  subscribeCountSettings,
+} from '../shared/countSettings.js';
+import {
   getPlayerSession,
   playerSessionParams,
   movePlayerSession,
@@ -30,8 +36,10 @@ import './PlayerCountModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
 
-// Default counting options, mirroring the CLI's argparse defaults.
-export const DEFAULT_OPTIONS = { gapMinutes: 30, baseline: 'median', minImages: 3 };
+// Default counting options, mirroring the CLI's argparse defaults. The canonical
+// definition now lives in the shared countSettings store; re-exported here for
+// backward compatibility (buildCountParams fallback + unit tests).
+export const DEFAULT_OPTIONS = COUNT_DEFAULTS;
 
 // Build the /players/count request body. Pure + exported for unit tests.
 // `exclOverride` is { tranare, publik } to override the config/env exclusion
@@ -72,8 +80,10 @@ export function PlayerCountModule() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasRun, setHasRun] = useState(false);
 
-  // Counting options (CLI parity: gap_minutes / baseline / min_images).
-  const [options, setOptions] = useState(DEFAULT_OPTIONS);
+  // Counting options (CLI parity: gap_minutes / baseline / min_images). Seeded
+  // from the shared countSettings store so the choice persists across remounts
+  // and stays in sync with the culling stats panel.
+  const [options, setOptions] = useState(getCountSettings);
   // Per-request coach/audience exclusion overrides (apply live to the current
   // count); sent as an override only once the user edits them.
   const [exclusions, setExclusions] = useState({ tranare: [], publik: [] });
@@ -238,12 +248,44 @@ export function PlayerCountModule() {
 
   // Counting-option changes apply immediately (like the InputBar selects), but
   // only once a query has run. Thread the new options explicitly so we don't
-  // race the async state update.
+  // race the async state update. Also publish to the shared store so the culling
+  // stats panel (and a later remount of this tab) picks up the same choice.
+  // Tracks the live options so the store subscription can tell a self-originated
+  // update (applyOptions, below) from an external one and avoid a double count.
+  // Updated synchronously by applyOptions because setCountSettings notifies
+  // subscribers before React re-renders (a render-time sync would be stale).
+  const optionsRef = useRef(options);
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
+
   const applyOptions = useCallback(
     (next) => {
+      optionsRef.current = next;
       setOptions(next);
+      setCountSettings(next); // publish to the shared store (culling stats panel)
       if (lastParamsRef.current) submitWith(input, perMatch, next);
     },
+    [submitWith, input, perMatch]
+  );
+
+  // Adopt external counting-settings changes (from the culling stats panel).
+  // Update the local options and re-run the active query, mirroring the session
+  // subscribe effect: skip self-originated updates and counts that haven't run.
+  useEffect(
+    () =>
+      subscribeCountSettings((next) => {
+        if (
+          next.gapMinutes === optionsRef.current.gapMinutes &&
+          next.baseline === optionsRef.current.baseline &&
+          next.minImages === optionsRef.current.minImages
+        ) {
+          return; // already reflected locally (self-originated)
+        }
+        optionsRef.current = next;
+        setOptions(next);
+        if (lastParamsRef.current) submitWith(input, perMatch, next);
+      }),
     [submitWith, input, perMatch]
   );
 
