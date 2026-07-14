@@ -1043,10 +1043,18 @@ after a zero-error transfer. Emits `import-progress` over the WebSocket.
 
 **Response:**
 ```json
-{ "transferred": ["…/DSC0001.NEF"], "skipped": [{"path":"…","reason":"finns redan i målmappen"}], "errors": [], "ejected": true, "total": 312 }
+{ "transferred": ["…/DSC0001.NEF"], "skipped": [{"path":"…","reason":"finns redan i målmappen"}], "errors": [], "ejected": true, "eject_error": null, "total": 312 }
 ```
+`eject_error` is `null` on success, or a short reason string when eject was
+attempted and failed (e.g. the card is held by another process).
 
-WebSocket event `import-progress`: `{ "phase": "transfer", "current": 5, "total": 312, "file": "DSC0005.NEF", "percent": 2 }`.
+A large import can take minutes; the client sends this request **without a
+timeout**. Should the HTTP response be lost, the terminal WebSocket event below
+carries the same summary so the UI can still complete.
+
+WebSocket event `import-progress`:
+- Per-file: `{ "phase": "transfer", "current": 5, "total": 312, "file": "DSC0005.NEF", "percent": 2 }`.
+- Terminal (once, after the transfer loop): `{ "phase": "done", "transferred": 312, "skipped": 0, "errors": 0, "ejected": true, "eject_error": null, "destination": "/Users/…/nerladdat", "total": 312 }` — counts (not the full path lists), the destination written to, and eject outcome.
 
 ---
 
@@ -1104,7 +1112,7 @@ Real-time progress updates during processing.
 | `face-detected` | `{ file, faces }` | Face detected |
 | `complete` | `{ filesProcessed }` | Batch complete |
 | `error` | `{ message }` | Processing error |
-| `import-progress` | `{ phase, current, total, file, percent }` | Card import transfer progress |
+| `import-progress` | `{ phase: "transfer", current, total, file, percent }` / `{ phase: "done", transferred, skipped, errors, ejected, eject_error, destination, total }` | Card import per-file progress + terminal summary |
 | `rename-nef-progress` | `{ phase, current, total, percent }` | EXIF read progress during NEF rename preview/execute |
 
 **Example client:**
