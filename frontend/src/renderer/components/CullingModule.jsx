@@ -78,6 +78,9 @@ export function CullingModule({ node }) {
   // Live per-player counts for the current scope (from /players/count), shown in
   // the left stats column and refreshed as files are culled.
   const [stats, setStats] = useState(null);
+  // In-flight flag for the stats column, so the header can show a small spinner
+  // while a /players/count refetch is pending (e.g. after a baseline change).
+  const [statsLoading, setStatsLoading] = useState(false);
   // Shared counting settings (baseline / min_images), synced with Räkna spelare.
   // A ref mirrors the value so the many stats-loading callbacks can read it fresh
   // without listing it as a dependency (like playerSessionParams() below).
@@ -267,6 +270,7 @@ export function CullingModule({ node }) {
     async (scope) => {
       if (!scope) return;
       const seq = ++statsSeqRef.current;
+      setStatsLoading(true);
       try {
         // Carry the shared session-only right-click moves (read fresh per
         // request) so the live column agrees with Räkna spelare.
@@ -278,6 +282,10 @@ export function CullingModule({ node }) {
         setStats(data);
       } catch {
         if (seq === statsSeqRef.current) setStats(null);
+      } finally {
+        // Only the latest request clears the flag, so a superseded response
+        // can't hide the spinner while a newer refetch is still in flight.
+        if (seq === statsSeqRef.current) setStatsLoading(false);
       }
     },
     [api]
@@ -1198,6 +1206,7 @@ export function CullingModule({ node }) {
         <div className="culling-body" ref={bodyRef}>
           <CullingStats
             stats={stats}
+            loading={statsLoading}
             mode={viewMode}
             selected={viewMode === 'grid' ? highlightPlayer : player}
             width={statsWidth}

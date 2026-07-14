@@ -18,6 +18,8 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 - **Gallra spelare och Räkna spelare förväljer eventmappen.** Öppnas endera modulen utan en delad scan-scope att ärva förväljs mappfältet från arbetsmapp-ankaret (satt av import/namnbyte) — enbart som förval, aldrig en automatisk skanning/körning (användaren trycker själv på kör-kontrollen). En befintlig scan-scope vinner alltid över ankaret.
 
 ### Changed
+- **Förklarande tooltip på Δ%-kolumnen.** Peka på Δ%-kolumnens huvud eller celler (i både Räkna spelare-tabellen och Gallra-vyns levande räknekolumn) för en förklaring: Δ% är avvikelsen från baslinjen — medianen eller medelvärdet av bildantalet för de inkluderade spelarna (positivt = fler bilder än baslinjen, negativt = färre).
+- **Omläsnings-snurra i gallringens räknekolumn.** Räknekolumnens huvud visar nu en liten snurra medan `POST /players/count` läses om (t.ex. efter ett baslinjebyte); slotten har fast storlek så den aldrig knuffar kontrollerna bredvid.
 - **Progressindikator vid NEF-namnbyte.** Både **Förhandsgranska** och **Byt namn** visar nu en förloppsindikator ("Läser EXIF… {klart}/{totalt}") medan EXIF läses, i stället för enbart disablade knappar. EXIF-läsningen delas upp i batchar så förloppet kan rapporteras löpande över WebSocket i stället för en enda lång paus; batcharna slås ihop och sorteras om deterministiskt så suffixen (-NN) för dubbletter av tidsstämplar blir oförändrade. **Byt namn** återanvänder dessutom förhandsgranskningens plan när filerna är oförändrade (samma request och oförändrad mtime/storlek per fil) och hoppar då över EXIF-omläsningen helt; vid minsta avvikelse görs en full omläsning.
 
 ### Fixed

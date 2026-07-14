@@ -77,6 +77,7 @@ module.exports = {
       "delta": "Δ%",
       "distribution": "Fördelning"
     },
+    "deltaTitle": "Avvikelse från baslinjen — medianen eller medelvärdet av bildantalet för de inkluderade spelarna. Positivt = fler bilder än baslinjen, negativt = färre.",
     "excludedLabels": {
       "tranare": "Tränare",
       "grupp": "Gruppbilder",

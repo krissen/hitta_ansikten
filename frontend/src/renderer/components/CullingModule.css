@@ -116,6 +116,23 @@
   color: var(--text-tertiary, var(--text-secondary));
 }
 
+/* Fixed-size slot for the stats refetch spinner: reserving the space means
+   toggling the spinner on/off never reflows the header controls next to it. */
+.culling-stats-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.culling-stats-loading .loading-spinner--sm {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
 .culling-stats-empty {
   padding: 8px 10px;
   color: var(--text-secondary);

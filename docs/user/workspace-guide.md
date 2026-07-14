@@ -261,7 +261,8 @@ antal.
 1. Öppna **Räkna spelare** (`Cmd+Shift+K`). Ange en mapp och/eller ett wildcard
    i balken högst upp, välj filtyp (vanligen `jpg / jpeg`) och ev. datum-span,
    och klicka **Räkna**. Tabellen visar antal bilder per spelare, andel, avvikelse
-   från medianen i procent (Δ%, grön/gul/röd) och antal (ΔN), en fördelningsstapel
+   från baslinjen i procent (Δ%, grön/gul/röd — peka på kolumnen för en
+   förklaring) och antal (ΔN), en fördelningsstapel
    relativt baslinjen (baslinjen = halva stapeln) samt en **tidslinje** som visar
    när spelarens bilder togs under passet. Bocka i **Per match** för samma
    uppställning per automatiskt detekterad match — varje match visar även en
@@ -320,7 +321,9 @@ antal.
    antal förändras. I räknekolumnens huvud finns en liten **Baslinje**-väljare
    (Median/Medel) som styr referensen för över-/underrepresentation; den delar
    inställning med Räkna spelare-fliken (ändrar du här ändras även den, och
-   valet kvarstår mellan omstarter). Även de **exkluderade grupperna**
+   valet kvarstår mellan omstarter). En liten snurra i kolumnhuvudet visas
+   medan räkningen läses om (t.ex. efter ett baslinjebyte). Även de
+   **exkluderade grupperna**
    (tränare/gruppbilder/publik/under tröskeln) är klickbara där för att
    filtrera/markera personen,
    och **högerklick på ett namn** (spelare eller exkluderad) ger samma
