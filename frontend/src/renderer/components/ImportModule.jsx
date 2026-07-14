@@ -85,6 +85,9 @@ export function ImportModule() {
         setImportedDest(data.destination);
         setWorkingFolder({ roots: [data.destination], step: 'import' });
       }
+      // Clear any error banner raised by a lost HTTP response — the transfer
+      // completed server-side, so the summary must not sit under a stale error.
+      setError(null);
       setRunning(false);
       setProgress(null);
       return;
@@ -163,10 +166,14 @@ export function ImportModule() {
       });
       loadVolumes(); // card is likely gone after eject; refresh the list
     } catch (err) {
-      // A lost/timed-out HTTP response is not a failure: the transfer is still
-      // running server-side and the WS "done" event owns the final summary.
-      // Only a genuine error (e.g. a 4xx/5xx from the backend) surfaces here.
-      if (err?.isTimeout) {
+      // A lost response — timed out, offline, or a reset connection — is not a
+      // failure: the transfer is still running server-side and the WS "done"
+      // event owns the final summary. Such errors carry no HTTP status
+      // (`statusCode == null`); only a genuine backend response (4xx/5xx, which
+      // sets `statusCode`) surfaces as an error here. Without this a dropped
+      // connection would show a false error and re-enable the button mid-import,
+      // and the WS summary would later render under a stale error banner.
+      if (err?.statusCode == null) {
         ongoing = true;
       } else {
         setError(err.message || String(err));

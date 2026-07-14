@@ -229,6 +229,36 @@ describe('APIClient error detail extraction', () => {
     expect(err.statusCode).toBe(422);
     expect(err.message).toBe('HTTP 422: Unprocessable Entity');
   });
+
+  // ImportModule discriminates "still running server-side" (a lost/reset
+  // connection) from a genuine backend rejection by `statusCode == null`. These
+  // lock that invariant so the discriminator stays valid.
+  it('leaves statusCode null for a reset/dropped connection (TypeError from fetch)', async () => {
+    global.fetch = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+
+    const err = await client.post('/api/v1/import/run', {}).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBeNull();
+    expect(err.isOffline).toBe(true);
+  });
+
+  it('leaves statusCode null for a request timeout', async () => {
+    client._requestTimeout = 10;
+    global.fetch = hangingFetch();
+
+    const err = await client.post('/api/v1/import/run', {}).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBeNull();
+    expect(err.isTimeout).toBe(true);
+  });
+
+  it('sets statusCode for a genuine backend response (so it surfaces as an error)', async () => {
+    global.fetch = httpErrorFetch(500, 'Internal Server Error');
+
+    const err = await client.post('/api/v1/import/run', {}).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.statusCode).toBe(500);
+  });
 });
 
 describe('APIClient.clearCache', () => {
