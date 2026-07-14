@@ -160,7 +160,7 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
   // ============================================
 
   const render = useCallback(() => {
-    if (!canvasRef.current || !image) return;
+    if (!canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d'); // Allow transparency for themed background
@@ -173,6 +173,13 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
     // reallocating the backing store (the resize effect owns canvas.width/height).
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+    // Clear-then-bail: when the image goes away (decode error, source cleared)
+    // the canvas must go transparent instead of retaining the last-painted
+    // frame — the absolutely-positioned canvas paints above the host's static
+    // loading/error/empty overlays, so a stale frame would hide them and keep
+    // showing the previous photo.
+    if (!image) return;
 
     let scale, x, y;
     if (zoomMode === 'auto') {

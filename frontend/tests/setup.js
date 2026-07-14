@@ -23,6 +23,39 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   });
 }
 
+// jsdom's HTMLCanvasElement.getContext throws "Not implemented" (it needs the
+// optional `canvas` package). CanvasImageView acquires a 2D context on every
+// render — including the no-image render, which clears the canvas so a stale
+// frame can't hide its host's overlays — so component tests that mount it need
+// a working getContext. Provide a minimal no-op 2D context, one per canvas
+// element. Tests that assert on draw calls (e.g. canvasImageView.test.jsx)
+// override getContext with their own spies.
+if (typeof HTMLCanvasElement !== 'undefined') {
+  const noop = () => {};
+  HTMLCanvasElement.prototype.getContext = function getContext() {
+    if (!this.__testCtx2d) {
+      this.__testCtx2d = {
+        canvas: this,
+        setTransform: noop,
+        clearRect: noop,
+        drawImage: noop,
+        strokeRect: noop,
+        fillRect: noop,
+        fillText: noop,
+        measureText: () => ({ width: 0 }),
+        beginPath: noop,
+        moveTo: noop,
+        lineTo: noop,
+        stroke: noop,
+        fill: noop,
+        save: noop,
+        restore: noop
+      };
+    }
+    return this.__testCtx2d;
+  };
+}
+
 if (typeof HTMLDialogElement !== 'undefined') {
   const proto = HTMLDialogElement.prototype;
 
