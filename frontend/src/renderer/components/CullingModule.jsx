@@ -1349,7 +1349,13 @@ export function CullingModule({ node }) {
                 zoom/pan state) persist. The overlays below layer on top for the
                 empty/error/loading states; the canvas is transparent when it has
                 no image. */}
-            {current && <CanvasImageView ref={loupeViewRef} image={loupeImage} />}
+            {current && (
+              <CanvasImageView
+                ref={loupeViewRef}
+                image={loupeImage}
+                ariaLabel={current.basename}
+              />
+            )}
             {!current ? (
               <EmptyState title={t('culling.empty.noImageSelected')} />
             ) : previewError ? (

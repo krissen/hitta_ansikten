@@ -59,4 +59,20 @@ describe('CanvasImageView', () => {
     render(<CanvasImageView image={null} />);
     expect(ctx.drawImage).not.toHaveBeenCalled();
   });
+
+  it('exposes role="img" + aria-label on the canvas when ariaLabel is given', () => {
+    const { container } = render(
+      <CanvasImageView image={fakeImage} ariaLabel="250601_120000_anna.jpg" />
+    );
+    const canvas = container.querySelector('canvas');
+    expect(canvas.getAttribute('role')).toBe('img');
+    expect(canvas.getAttribute('aria-label')).toBe('250601_120000_anna.jpg');
+  });
+
+  it('leaves the canvas unnamed when ariaLabel is omitted', () => {
+    const { container } = render(<CanvasImageView image={fakeImage} />);
+    const canvas = container.querySelector('canvas');
+    expect(canvas.hasAttribute('role')).toBe(false);
+    expect(canvas.hasAttribute('aria-label')).toBe(false);
+  });
 });

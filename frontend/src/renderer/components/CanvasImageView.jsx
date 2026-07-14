@@ -15,6 +15,11 @@
  *   output changes so the view repaints (e.g. include your overlay state in the
  *   useCallback deps).
  * - className: optional extra class on the container.
+ * - ariaLabel: optional accessible name for the displayed photo. When provided
+ *   the canvas gets role="img" + aria-label (e.g. the file's basename) so
+ *   screen readers announce what is shown — the equivalent of an <img alt>.
+ *   When omitted the canvas stays unnamed (hosts like ImageViewer never named
+ *   their canvas; don't invent a label for them).
  *
  * Imperative handle (via ref):
  * - zoom(factor, centerX?, centerY?): multiplicative zoom; center defaults to
@@ -44,7 +49,7 @@ import { ZOOM_STEP, computeZoom, centerPan } from '../shared/canvasViewport.js';
 import './CanvasImageView.css';
 
 export const CanvasImageView = forwardRef(function CanvasImageView(
-  { image, drawOverlay, className },
+  { image, drawOverlay, className, ariaLabel },
   ref
 ) {
   const containerRef = useRef(null);
@@ -305,6 +310,8 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
     <div ref={containerRef} className={className ? `canvas-image-view ${className}` : 'canvas-image-view'}>
       <canvas
         ref={canvasRef}
+        role={ariaLabel ? 'img' : undefined}
+        aria-label={ariaLabel || undefined}
         style={{ cursor: zoomMode === 'manual' ? 'grab' : 'default' }}
       />
     </div>
