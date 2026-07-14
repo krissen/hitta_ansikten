@@ -85,16 +85,36 @@ def is_already_named(name: str, ts: str) -> bool:
     return _NAMED_REST.fullmatch(stem[len(ts):]) is not None
 
 
+# Sentinel for the bare-timestamp slot (`ts.NEF`), distinct from integer -N slots.
+_BARE_SLOT = "bare"
+
+
+def timestamp_slot(name: str, ts: str) -> "str | int":
+    """Which numbering slot `name` occupies within timestamp `ts`.
+
+    A file occupies its timestamp slot regardless of any name suffix, because
+    the downstream review-rename preserves the timestamp prefix: `ts.NEF` and
+    `ts_Name.NEF` both occupy the bare slot; `ts-N.NEF` and `ts-N_Name.NEF` both
+    occupy index N. So an unnamed sibling planned into a free slot can never be
+    named into a collision with a protected named neighbor later.
+
+    Returns ``_BARE_SLOT`` or the integer index. Assumes `is_already_named`.
+    """
+    rest = Path(name).stem[len(ts):]
+    m = re.match(r"-(\d+)", rest)
+    return int(m.group(1)) if m else _BARE_SLOT
+
+
 def compute_renames(
     entries: list[tuple[str, int, Path]],
     include_named: bool = False,
 ) -> list[tuple[Path, Path, Path]]:
     # By default, already-named files (stem already carries the EXIF timestamp)
     # keep their name — but they are NOT simply dropped: a same-second unnamed
-    # file must not be planned onto a target the protected file already occupies.
-    # So we partition them out of the rename set yet still (a) count them toward
-    # the per-timestamp total that decides bare-vs-burst and zero-pad width, and
-    # (b) reserve their on-disk names so allocation skips to the next free -N.
+    # file must not be planned into a slot a protected file already holds, or a
+    # later prefix-preserving review-rename could collide with it. So we
+    # partition them out of the rename set yet reserve their timestamp SLOTS
+    # (bare or index N) and hand unnamed files the next free slot.
     # include_named=True renames everything (stripping any suffix).
     if include_named:
         to_rename = list(entries)
@@ -105,44 +125,39 @@ def compute_renames(
             (protected if is_already_named(e[2].name, e[0]) else to_rename).append(e)
 
     # Bare-vs-burst and zero-pad width are decided by the files actually being
-    # renamed. A protected file only matters where its name would collide with a
-    # generated target: a bare `ts.NEF` or `ts-N.NEF` occupies that exact slot,
-    # while a `ts_Name.NEF` / `ts-N_Name.NEF` lives in a different namespace and
-    # never blocks. So we don't count protected files toward the burst decision —
-    # we only reserve their names and let allocation skip any occupied slot.
+    # renamed; protected files only reserve slots.
     ts_counts: dict[str, int] = defaultdict(int)
     for ts, _, _ in to_rename:
         ts_counts[ts] += 1
 
     ts_digits = {ts: max(1, len(str(count - 1))) for ts, count in ts_counts.items()}
-    ts_seen: dict[str, int] = defaultdict(int)
 
-    # Names already taken by protected files, per (parent, ext). Including the
-    # `ts_Name` forms is harmless — they are never generated as a target.
-    occupied: dict[tuple[Path, str], set[str]] = defaultdict(set)
-    for _ts, _sub, src in protected:
-        occupied[(src.parent, src.suffix or ".NEF")].add(src.name)
+    # Slots taken by protected files, per (parent, ext, ts). Each timestamp has
+    # its own slot namespace (a `-0` under one second is unrelated to another's).
+    occupied: dict[tuple[Path, str, str], set] = defaultdict(set)
+    for ts, _sub, src in protected:
+        occupied[(src.parent, src.suffix or ".NEF", ts)].add(timestamp_slot(src.name, ts))
 
     renames = []
     stamp = f"{os.getpid()}.{hash(str(entries)) % 10000}"
 
     for i, (ts, _, src) in enumerate(to_rename):
         ext = src.suffix or ".NEF"
-        key = (src.parent, ext)
+        key = (src.parent, ext, ts)
+        taken = occupied[key]
 
-        # Sole holder of this timestamp AND the bare name is free → bare name.
-        # Otherwise (shared timestamp, or the bare slot taken by a protected
-        # file) allocate the next free -N.
-        if ts_counts[ts] == 1 and f"{ts}{ext}" not in occupied[key]:
+        # Sole holder of this timestamp AND the bare slot is free → bare name.
+        # Otherwise (shared timestamp, or the bare slot held by a protected
+        # file) take the lowest free -N index.
+        if ts_counts[ts] == 1 and _BARE_SLOT not in taken:
             dst_base = ts
+            taken.add(_BARE_SLOT)
         else:
-            while True:
-                idx = ts_seen[ts]
-                ts_seen[ts] += 1
-                idx_str = str(idx).zfill(ts_digits[ts])
-                dst_base = f"{ts}-{idx_str}"
-                if f"{dst_base}{ext}" not in occupied[key]:
-                    break
+            n = 0
+            while n in taken:
+                n += 1
+            taken.add(n)
+            dst_base = f"{ts}-{str(n).zfill(ts_digits[ts])}"
 
         dst = src.parent / f"{dst_base}{ext}"
         tmp = src.parent / f".rename_tmp_{stamp}_{i}{ext}"
@@ -150,8 +165,6 @@ def compute_renames(
         if src.name == dst.name:
             continue
 
-        # Reserve the assigned name so a later same-timestamp file skips it.
-        occupied[key].add(dst.name)
         renames.append((src, dst, tmp))
 
     return renames

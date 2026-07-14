@@ -217,7 +217,12 @@ async def test_concurrent_execute_is_serialized(tmp_path, monkeypatch):
 
 # ----- protecting already-named files ---------------------------------------
 
-from rename_nef import compute_renames, is_already_named  # noqa: E402
+from rename_nef import (  # noqa: E402
+    _BARE_SLOT,
+    compute_renames,
+    is_already_named,
+    timestamp_slot,
+)
 
 
 @pytest.mark.parametrize("name,ts,expected", [
@@ -253,11 +258,26 @@ def test_compute_renames_include_named_strips_suffix():
 
 
 # --- reservation matrix: protected form × same-timestamp unnamed file ---------
-# A protected file must never let a same-second unnamed file be planned onto an
-# occupied name (which would be skipped at execute). The bare `ts` and `ts-N`
-# forms occupy the numbering namespace; the `_Name` forms do not.
+# A protected file occupies its timestamp SLOT regardless of name suffix, so a
+# same-second unnamed file is handed the next FREE slot. Slot occupancy (not the
+# exact filename) is what matters: the downstream review-rename preserves the
+# `ts` prefix, so an unnamed file left in a protected named file's slot could be
+# named into `ts_Name.NEF` and collide with it later. Occupancy:
+#   ts.NEF   and ts_Name.NEF   -> bare slot
+#   ts-N.NEF and ts-N_Name.NEF -> index N
 
 TS = "260713_112041"
+
+
+@pytest.mark.parametrize("name,expected", [
+    (f"{TS}.NEF", _BARE_SLOT),          # bare
+    (f"{TS}_Elis.NEF", _BARE_SLOT),     # _Name → still the bare slot
+    (f"{TS}-0.NEF", 0),                 # burst index
+    (f"{TS}-3.NEF", 3),
+    (f"{TS}-2_Elis.NEF", 2),            # -N_Name → index N
+])
+def test_timestamp_slot(name, expected):
+    assert timestamp_slot(name, TS) == expected
 
 
 def _plan(*entries):
@@ -267,8 +287,7 @@ def _plan(*entries):
 
 
 def test_reserve_protected_bare_ts_pushes_unnamed_to_free_burst():
-    # Protected bare `ts.NEF` occupies the bare slot → unnamed must NOT plan onto
-    # `ts.NEF`; it gets the next free -N instead of being silently skipped.
+    # Protected bare `ts.NEF` holds the bare slot → unnamed gets the lowest free -N.
     dsts = _plan(
         (TS, 0, Path(f"/p/{TS}.NEF")),      # protected (bare)
         (TS, 1, Path("/p/DSC_9.NEF")),      # unnamed, same second
@@ -277,8 +296,7 @@ def test_reserve_protected_bare_ts_pushes_unnamed_to_free_burst():
 
 
 def test_reserve_protected_burst_leaves_bare_free_for_unnamed():
-    # Protected `ts-1.NEF` does NOT occupy the bare slot → the lone unnamed file
-    # takes the free bare `ts.NEF`.
+    # Protected `ts-1.NEF` holds index 1, not the bare slot → unnamed takes bare.
     dsts = _plan(
         (TS, 0, Path(f"/p/{TS}-1.NEF")),    # protected (burst)
         (TS, 1, Path("/p/DSC_9.NEF")),      # unnamed
@@ -286,22 +304,33 @@ def test_reserve_protected_burst_leaves_bare_free_for_unnamed():
     assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
 
 
-def test_reserve_protected_named_does_not_block_bare():
-    # `ts_Name.NEF` lives in a different namespace → bare stays free.
+def test_reserve_protected_named_holds_bare_slot():
+    # `ts_Name.NEF` holds the BARE slot (slot semantics) → unnamed gets -0, NOT
+    # bare `ts`, so it can never be named into a clash with `ts_Name.NEF` later.
     dsts = _plan(
-        (TS, 0, Path(f"/p/{TS}_Elis.NEF")),   # protected (_Name)
+        (TS, 0, Path(f"/p/{TS}_Elis.NEF")),   # protected (_Name → bare slot)
         (TS, 1, Path("/p/DSC_9.NEF")),        # unnamed
     )
-    assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
+    assert dsts == {"DSC_9.NEF": f"{TS}-0.NEF"}
 
 
-def test_reserve_protected_burst_named_does_not_block_bare():
-    # `ts-N_Name.NEF` likewise does not occupy `ts` or `ts-N` → bare stays free.
+def test_reserve_protected_burst_named_holds_index_leaves_bare_free():
+    # `ts-1_Name.NEF` holds index 1, not the bare slot → unnamed takes bare `ts`.
     dsts = _plan(
-        (TS, 0, Path(f"/p/{TS}-1_Elis.NEF")),  # protected (-N_Name)
+        (TS, 0, Path(f"/p/{TS}-1_Elis.NEF")),  # protected (-N_Name → index 1)
         (TS, 1, Path("/p/DSC_9.NEF")),         # unnamed
     )
     assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
+
+
+def test_reserve_mixed_named_slots_push_unnamed_to_lowest_free():
+    # Bare slot held by `ts_Elis`, index 1 held by `ts-1_Alva` → lowest free is 0.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}_Elis.NEF")),     # bare slot
+        (TS, 1, Path(f"/p/{TS}-1_Alva.NEF")),   # index 1
+        (TS, 2, Path("/p/DSC_9.NEF")),          # unnamed
+    )
+    assert dsts == {"DSC_9.NEF": f"{TS}-0.NEF"}
 
 
 def test_reserve_multiple_unnamed_skip_occupied_burst_slots():
