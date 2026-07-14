@@ -31,6 +31,7 @@ import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
 import { useDecodedImage } from '../hooks/useDecodedImage.js';
 import { CanvasImageView } from './CanvasImageView.jsx';
+import { ZOOM_STEP } from '../shared/canvasViewport.js';
 import { CullingContextMenu } from './culling/ContextMenu.jsx';
 import { CullingFilterBar } from './culling/FilterBar.jsx';
 import { ContextMenu } from './shared';
@@ -799,6 +800,29 @@ export function CullingModule({ node }) {
         return;
       }
 
+      // Loupe zoom (parity with ImageViewer's bindings): +/- step in/out,
+      // = resets to 1:1, 0 returns to auto-fit. Only meaningful in single view
+      // with a drawable image on the canvas — the grid has nothing to zoom, and
+      // an empty/error/loading loupe should ignore the keys. Held +/- repeats
+      // via native key-repeat (no hold/double-tap layer like ImageViewer's).
+      if (viewModeRef.current === 'single' && loupeImageRef.current) {
+        if (e.key === '+' || e.key === '-') {
+          e.preventDefault();
+          loupeViewRef.current?.zoom(e.key === '+' ? ZOOM_STEP : 1 / ZOOM_STEP);
+          return;
+        }
+        if (e.key === '=') {
+          e.preventDefault();
+          loupeViewRef.current?.resetZoom();
+          return;
+        }
+        if (e.key === '0') {
+          e.preventDefault();
+          loupeViewRef.current?.autoFit();
+          return;
+        }
+      }
+
       if (!e.altKey && (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x')) {
         // Ignore the cull shortcut while a query is loading — `files` still
         // holds the previous filter, so culling now would trash the wrong file.
@@ -1174,6 +1198,12 @@ export function CullingModule({ node }) {
   // the drawable: an in-place re-export of the same file (folder watch →
   // bumpPreview) swaps the drawable but must keep the user's zoom/pan.
   const loupeViewRef = useRef(null);
+  // Mirror of the decoded drawable for the window keydown handler above: the
+  // zoom shortcuts must be a no-op while nothing is drawable (empty/error/
+  // loading states), and reading through a ref avoids re-subscribing the
+  // handler on every decode.
+  const loupeImageRef = useRef(null);
+  loupeImageRef.current = loupeImage;
   const lastFitPathRef = useRef(null);
   useEffect(() => {
     if (!loupeImage) return;
