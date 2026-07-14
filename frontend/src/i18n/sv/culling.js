@@ -69,6 +69,8 @@ module.exports = {
     "baselineSelectLabel": "Baslinje",
     "baselineMedian": "Median",
     "baselineMean": "Medel",
+    "minImagesLabel": "Min bilder",
+    "minImagesTitle": "Minsta antal bilder för att räknas som spelare",
     "empty": "—",
     "columns": {
       "name": "Namn",

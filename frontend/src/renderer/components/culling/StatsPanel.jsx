@@ -6,7 +6,7 @@
  * groups, and owns the loupe/grid click-vs-doubleclick debounce.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { t } from '../../../i18n/index.js';
 import { LoadingSpinner } from '../shared/ProgressBar.jsx';
 
@@ -63,6 +63,9 @@ function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
  * `width` is the column's pixel width (resizable via the stats divider).
  * `baseline`/`onBaselineChange` back the median/mean select in the header — the
  * shared counting setting, so changing it here also changes Räkna spelare.
+ * `minImages`/`onMinImagesChange` back the "Min bilder" number input, likewise
+ * shared: it commits on blur/Enter (not per keystroke) so typing doesn't refetch
+ * the count on every digit, mirroring the Räkna spelare number inputs.
  *
  * Row clicks are mode-dependent (`mode`): in the loupe a single click filters
  * the list to the player (`onSelect`); in the grid a single click highlights the
@@ -74,10 +77,27 @@ function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
  * capture-phase Enter/Esc handler yields to a focused role="button" so a keyed
  * Enter here filters instead of starting a rename.
  */
-export function CullingStats({ stats, loading, selected, onSelect, onActivate, mode, width, baseline, onBaselineChange, onNameContextMenu }) {
+export function CullingStats({ stats, loading, selected, onSelect, onActivate, mode, width, baseline, onBaselineChange, minImages, onMinImagesChange, onNameContextMenu }) {
   const players = stats?.players || [];
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const clickTimerRef = useRef(null);
+
+  // Local draft for the "Min bilder" input so typing previews without refetching
+  // the count on every keystroke — the value is committed (published to the
+  // shared store) only on blur / Enter, matching the Räkna spelare number inputs.
+  // Re-seed the draft when the shared setting changes externally (e.g. edited in
+  // the Räkna spelare tab) so the input reflects the live value.
+  const [minDraft, setMinDraft] = useState(minImages ?? 3);
+  useEffect(() => {
+    setMinDraft(minImages ?? 3);
+  }, [minImages]);
+  const commitMinImages = () => {
+    if (!onMinImagesChange) return;
+    const n = parseInt(minDraft, 10);
+    const clamped = Number.isNaN(n) ? 1 : Math.max(1, n);
+    setMinDraft(clamped);
+    if (clamped !== minImages) onMinImagesChange(clamped);
+  };
   useEffect(() => () => clearTimeout(clickTimerRef.current), []);
   // Cancel a pending single-click when the mode changes, so a debounced grid
   // highlight can't fire after the user has switched to the loupe.
@@ -127,6 +147,21 @@ export function CullingStats({ stats, loading, selected, onSelect, onActivate, m
             <option value="median">{t('culling.stats.baselineMedian')}</option>
             <option value="mean">{t('culling.stats.baselineMean')}</option>
           </select>
+        )}
+        {onMinImagesChange && (
+          <input
+            className="form-input culling-stats-minimages-input"
+            type="number"
+            min="1"
+            value={minDraft}
+            onChange={(e) => setMinDraft(e.target.value)}
+            onBlur={commitMinImages}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitMinImages();
+            }}
+            title={t('culling.stats.minImagesTitle')}
+            aria-label={t('culling.stats.minImagesLabel')}
+          />
         )}
         {stats?.baseline != null && (
           <span className="culling-stats-baseline" title={t('culling.stats.baselineTitle')}>

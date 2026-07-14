@@ -111,6 +111,16 @@
   width: auto;
 }
 
+/* Compact "Min bilder" number input in the stats header (reuses .form-input
+   theming). Kept narrow so the header stays tidy at small column widths. */
+.culling-stats-minimages-input {
+  font-size: inherit;
+  padding: 1px 4px;
+  height: auto;
+  min-height: 0;
+  width: 48px;
+}
+
 .culling-stats-baseline {
   font-variant-numeric: tabular-nums;
   color: var(--text-tertiary, var(--text-secondary));

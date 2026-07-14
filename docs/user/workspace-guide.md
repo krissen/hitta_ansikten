@@ -319,11 +319,14 @@ antal.
    Längst till vänster visas en **levande spelarräkning** för det aktuella
    urvalet som uppdateras direkt när du gallrar — så du ser hur varje spelares
    antal förändras. I räknekolumnens huvud finns en liten **Baslinje**-väljare
-   (Median/Medel) som styr referensen för över-/underrepresentation; den delar
-   inställning med Räkna spelare-fliken (ändrar du här ändras även den, och
-   valet kvarstår mellan omstarter). En liten snurra i kolumnhuvudet visas
-   medan räkningen läses om (t.ex. efter ett baslinjebyte). Även de
-   **exkluderade grupperna**
+   (Median/Medel) som styr referensen för över-/underrepresentation, och ett
+   litet **Min bilder**-fält (minsta antal bilder för att räknas som spelare —
+   färre hamnar under "Under tröskeln"). Fältet skrivs in medan du skriver men
+   räknar om först vid blur/Enter (så "12" inte kör tre omräkningar). Båda
+   kontrollerna delar inställning med Räkna spelare-fliken (ändrar du här ändras
+   även den, och valet kvarstår mellan omstarter). **Matchgap** styrs kvar från
+   Räkna spelare-fliken. En liten snurra i kolumnhuvudet visas medan räkningen
+   läses om (t.ex. efter ett baslinjebyte). Även de **exkluderade grupperna**
    (tränare/gruppbilder/publik/under tröskeln) är klickbara där för att
    filtrera/markera personen,
    och **högerklick på ett namn** (spelare eller exkluderad) ger samma
