@@ -1150,16 +1150,26 @@ export function CullingModule({ node }) {
   // Decode the resolved preview URL into a canvas-ready drawable so the loupe
   // gets the same zoom/pan viewer as the review workflow. useCullingPreview owns
   // the URL (JPEG stat-settle / NEF conversion / re-export nonce); this only
-  // decodes whatever URL it currently exposes.
+  // decodes whatever URL it currently exposes. Grid mode doesn't render the
+  // loupe, so decoding is suspended there (null URL) — otherwise every grid
+  // click/arrow would decode a full-res image nobody sees. Entering single view
+  // hands the current URL back in and the decode runs then.
   const { image: loupeImage, loading: decodeLoading, error: decodeError } =
-    useDecodedImage(previewUrl);
+    useDecodedImage(viewMode === 'single' ? previewUrl : null);
 
-  // Imperative handle to the loupe viewer; reset to auto-fit on each new image
-  // so stepping to another file starts fitted (matches ImageViewer's load).
+  // Imperative handle to the loupe viewer; reset to auto-fit when a new FILE's
+  // image arrives (matches ImageViewer's load). Keyed on currentPath, not on
+  // the drawable: an in-place re-export of the same file (folder watch →
+  // bumpPreview) swaps the drawable but must keep the user's zoom/pan.
   const loupeViewRef = useRef(null);
+  const lastFitPathRef = useRef(null);
   useEffect(() => {
-    if (loupeImage) loupeViewRef.current?.autoFit();
-  }, [loupeImage]);
+    if (!loupeImage) return;
+    if (currentPath !== lastFitPathRef.current) {
+      lastFitPathRef.current = currentPath;
+      loupeViewRef.current?.autoFit();
+    }
+  }, [loupeImage, currentPath]);
 
   return (
     <div className="module-container culling">
@@ -1348,7 +1358,10 @@ export function CullingModule({ node }) {
               <EmptyState title={isRaw(currentPath) ? t('culling.preview.converting') : t('culling.preview.loading')} />
             ) : decodeError ? (
               <Alert variant="error" className="culling-preview-error">{t('culling.errors.imageLoadFailed')}</Alert>
-            ) : !loupeImage ? (
+            ) : decodeLoading && !loupeImage ? (
+              // Decode in flight with nothing on screen yet (first image after a
+              // mount or view switch). A seamless step keeps the previous frame
+              // (loupeImage non-null), so no placeholder flashes then.
               <EmptyState title={t('culling.preview.loading')} />
             ) : null}
           </div>
