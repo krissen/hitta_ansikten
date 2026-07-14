@@ -311,3 +311,33 @@ def test_culling_trash_restore_journal_with_sidecar(journal, tmp_path, monkeypat
     assert len(restore_row["sidecars"]) == 1
     assert restore_row["sidecars"][0]["dst"] == str(tmp_path / "260626_191003_Milian.xmp")
     assert restore_row["sidecars"][0]["src"].startswith(str(trash))
+
+
+def test_culling_restore_journals_main_even_when_sidecar_fails(journal, tmp_path, monkeypatch):
+    # Mirror of the "don't overpromise" invariant: a sidecar that can't come back
+    # AFTER the main image was already restored must not swallow the row — the
+    # completed main restore is journaled with only the sidecars that landed.
+    import api.services.culling_service as cs
+    from api.services.culling_service import CullingService
+
+    svc, trash = _culling_svc(cs, CullingService, tmp_path, monkeypatch)
+    img = tmp_path / "260626_191003_Milian.jpg"
+    img.write_bytes(b"jpg")
+    (tmp_path / "260626_191003_Milian.xmp").write_text("side")
+
+    tid = svc.trash([str(img)])["trashed"][0]["id"]
+    # Lose the stored sidecar so its restore raises (main image still comes back).
+    sc_stored = svc._load_manifest()[0]["sidecars"][0]["stored_name"]
+    (trash / sc_stored).unlink()
+
+    result = svc.restore([tid])
+
+    # Main restored + reported, entry cleared from the trash, no hard error.
+    assert result["restored"] and not result["errors"]
+    assert img.exists()
+    assert svc._load_manifest() == []
+    # Row carries the main delta with an empty sidecars list (none landed).
+    restore_rows = [r for r in _rows(journal) if r["op"] == "restore"]
+    assert len(restore_rows) == 1
+    assert restore_rows[0]["dst"] == str(img)
+    assert restore_rows[0]["sidecars"] == []

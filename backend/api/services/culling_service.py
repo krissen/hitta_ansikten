@@ -323,25 +323,35 @@ class CullingService:
                 continue
             try:
                 dest = self._restore_one(entry["original_path"], entry["stored_name"])
-                # Sidecars must land beside the *actual* restored image: when the
-                # original path was occupied and the image came back as
-                # <stem>-restored, its .xmp must follow to <stem>-restored.xmp,
-                # not the original name (which would orphan the metadata).
-                restored_sidecars: list[tuple] = []
-                for sc in entry.get("sidecars", []):
-                    sc_suffix = Path(sc["original_path"]).suffix
-                    sc_target = dest.with_name(dest.stem + sc_suffix)
-                    sc_dest = self._restore_one(str(sc_target), sc["stored_name"])
-                    restored_sidecars.append((TRASH_DIR / sc["stored_name"], sc_dest))
-                # Journal after sidecars settle, listing their actual restored dsts.
-                fs_ops.record(op="restore", tool="culling", batch_id=batch_id,
-                              src=TRASH_DIR / entry["stored_name"], dst=dest,
-                              sidecars=restored_sidecars)
-                keep = [e for e in keep if e["id"] != tid]
-                restored.append({"id": tid, "restored_path": str(dest)})
             except Exception as e:
+                # The main image couldn't come back — nothing moved, report and
+                # leave the entry in the trash for a retry.
                 logger.exception("Failed to restore %s", tid)
                 errors.append({"id": tid, "error": str(e)})
+                continue
+
+            # Main image is back. Sidecars are best-effort: a missing/locked
+            # sidecar must not abort — and must not swallow — the main restore,
+            # else the completed move would go unjournaled. Land beside the
+            # *actual* restored image (which may be <stem>-restored), collecting
+            # the ones that made it so the journal row is the real delta.
+            restored_sidecars: list[tuple] = []
+            for sc in entry.get("sidecars", []):
+                sc_suffix = Path(sc["original_path"]).suffix
+                sc_target = dest.with_name(dest.stem + sc_suffix)
+                try:
+                    sc_dest = self._restore_one(str(sc_target), sc["stored_name"])
+                    restored_sidecars.append((TRASH_DIR / sc["stored_name"], sc_dest))
+                except Exception:
+                    logger.exception("Failed to restore sidecar %s for %s",
+                                     sc.get("stored_name"), tid)
+
+            # Journal the actual delta (main + sidecars that landed).
+            fs_ops.record(op="restore", tool="culling", batch_id=batch_id,
+                          src=TRASH_DIR / entry["stored_name"], dst=dest,
+                          sidecars=restored_sidecars)
+            keep = [e for e in keep if e["id"] != tid]
+            restored.append({"id": tid, "restored_path": str(dest)})
 
         self._rewrite_manifest(keep)
         return {"restored": restored, "errors": errors}
