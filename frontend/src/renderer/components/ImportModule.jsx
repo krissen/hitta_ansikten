@@ -166,14 +166,16 @@ export function ImportModule() {
       });
       loadVolumes(); // card is likely gone after eject; refresh the list
     } catch (err) {
-      // A lost response — timed out, offline, or a reset connection — is not a
+      // A lost response — timed out or a dropped/offline connection — is not a
       // failure: the transfer is still running server-side and the WS "done"
-      // event owns the final summary. Such errors carry no HTTP status
-      // (`statusCode == null`); only a genuine backend response (4xx/5xx, which
-      // sets `statusCode`) surfaces as an error here. Without this a dropped
-      // connection would show a false error and re-enable the button mid-import,
-      // and the WS summary would later render under a stale error banner.
-      if (err?.statusCode == null) {
+      // event owns the final summary. Treat ONLY those as ongoing. A genuine
+      // backend response (4xx/5xx, incl. an early ValueError from run_import)
+      // sets `statusCode` and sends no terminal "done" event, so treating it as
+      // ongoing would hang the panel in `running` forever — it must surface as
+      // an error. Without the ongoing case, a dropped connection would instead
+      // show a false error, re-enable the button mid-import, and later render
+      // the WS summary under a stale error banner.
+      if (err?.statusCode == null && (err?.isTimeout || err?.isOffline)) {
         ongoing = true;
       } else {
         setError(err.message || String(err));
