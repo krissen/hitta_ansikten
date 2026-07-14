@@ -57,6 +57,31 @@ def test_record_never_raises_on_error(monkeypatch):
     fs_ops.record(op="rename", tool="t", batch_id="b", src="/1", dst="/2")  # no raise
 
 
+def test_record_absolutises_relative_paths(journal, tmp_path, monkeypatch):
+    # A relative path (as the CLI passes from its cwd) is stored absolute so undo
+    # can replay it from any directory.
+    monkeypatch.chdir(tmp_path)
+    fs_ops.record(op="rename", tool="rename-nef-cli", batch_id="b", src="a.NEF", dst="b.NEF")
+    row = _rows(journal)[0]
+    assert row["src"] == str(tmp_path / "a.NEF")
+    assert row["dst"] == str(tmp_path / "b.NEF")
+
+
+def test_record_does_not_resolve_symlinks(journal, tmp_path):
+    # os.path.abspath must NOT follow symlinks (unlike Path.resolve): the project
+    # uses symlinks actively and the journal should record the user's path.
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    fs_ops.record(op="rename", tool="t", batch_id="b",
+                  src=link / "a.NEF", dst=link / "b.NEF")
+    row = _rows(journal)[0]
+    # The symlinked path is preserved verbatim, not rewritten to .../real/...
+    assert row["src"] == str(link / "a.NEF")
+    assert "real" not in row["src"]
+
+
 # ----- rename_with_sidecars (atomic unit) ------------------------------------
 
 def test_rename_with_sidecars_moves_and_journals(journal, tmp_path):
@@ -144,6 +169,47 @@ def test_two_pass_renames_and_journals_mains(journal, tmp_path):
     rows = _rows(journal)
     assert {r["dst"] for r in rows} == {str(tmp_path / "1.NEF"), str(tmp_path / "2.NEF")}
     assert all(r["tool"] == "rename-nef" for r in rows)
+
+
+def test_two_pass_preserves_stale_temp_from_crashed_batch(journal, tmp_path):
+    # A leftover temp from an earlier interrupted batch must survive: the per-batch
+    # uuid keeps this run's temp names distinct, so pass 1 never renames onto it.
+    a = tmp_path / "a.NEF"
+    a.write_bytes(b"A")
+    stale = tmp_path / ".rename_tmp_12345_0.NEF"  # plausible leftover name
+    stale.write_bytes(b"STALE")
+
+    res = fs_ops.two_pass_rename([(a, tmp_path / "1.NEF")], tool="rename-nef")
+
+    assert res["errors"] == []
+    assert (tmp_path / "1.NEF").read_bytes() == b"A"
+    assert stale.read_bytes() == b"STALE"  # untouched
+
+
+def test_two_pass_refuses_occupied_temp_name(journal, tmp_path, monkeypatch):
+    # Force the (astronomically unlikely) case where the generated temp name
+    # already exists: the guard must skip the file with an error, not clobber it.
+    monkeypatch.setattr(fs_ops.os, "getpid", lambda: 999)
+
+    class _FixedUUID:
+        hex = "deadbeef"
+
+    monkeypatch.setattr(fs_ops.uuid, "uuid4", lambda: _FixedUUID())
+
+    a = tmp_path / "a.NEF"
+    a.write_bytes(b"A")
+    # The exact temp name two_pass_rename will generate for the first main entry.
+    occupied = tmp_path / ".rename_tmp_999_deadbeef_0.NEF"
+    occupied.write_bytes(b"OCCUPIED")
+
+    res = fs_ops.two_pass_rename([(a, tmp_path / "1.NEF")], tool="rename-nef")
+
+    assert res["renamed"] == []
+    assert len(res["errors"]) == 1
+    assert "temp-namn upptaget" in res["errors"][0]["error"]
+    assert a.read_bytes() == b"A"  # source untouched
+    assert occupied.read_bytes() == b"OCCUPIED"  # stale temp untouched
+    assert not journal.exists()
 
 
 def test_two_pass_swaps_via_temp(journal, tmp_path):

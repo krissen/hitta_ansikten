@@ -67,6 +67,12 @@ def record(*, op: str, tool: str, batch_id: str, src, dst) -> None:
     A row is ``{ts, op, tool, batch_id, src, dst}`` with absolute paths as
     strings. Journalling must not be able to fail the filesystem operation it
     describes, so every error here is swallowed (logged, not raised).
+
+    Paths are absolutised with ``os.path.abspath`` (which normalises against the
+    current cwd) so a relative path from the CLI — ``./rename_nef.py *.NEF`` — is
+    replayable from any directory. ``Path.resolve`` is deliberately NOT used: it
+    also resolves symlinks, and this project uses them actively, so it would
+    record a different path than the user's.
     """
     try:
         path = journal_path()
@@ -76,8 +82,8 @@ def record(*, op: str, tool: str, batch_id: str, src, dst) -> None:
             "op": op,
             "tool": tool,
             "batch_id": batch_id,
-            "src": str(src),
-            "dst": str(dst),
+            "src": os.path.abspath(str(src)),
+            "dst": os.path.abspath(str(dst)),
         }
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -191,7 +197,11 @@ def two_pass_rename(
     "errors": [...]}`` (Swedish reason/error strings, matching the prior
     per-service implementations).
     """
-    stamp = str(os.getpid())
+    # A per-batch uuid (not just the pid) makes the temp names exclusive: a
+    # leftover ``.<tmp_prefix>_<pid>_..._<n>`` from an earlier crashed batch
+    # carries a different uuid, so pass 1's ``src.rename(tmp)`` (which silently
+    # replaces an existing file on POSIX) can never destroy it.
+    stamp = f"{os.getpid()}_{uuid.uuid4().hex}"
     batch_id = new_batch_id()
 
     # Build the flat move list: each main plus its sidecars, each with a fresh
@@ -216,6 +226,12 @@ def two_pass_rename(
     # Pass 1: src -> temp.
     moved: list[tuple[Path, Path, Path, bool]] = []
     for src, dst, tmp, is_main in full:
+        # Defensive backstop to the uuid stamp: never move onto an occupied
+        # temp name (a rename would clobber it), refuse and report instead.
+        if tmp.exists():
+            logger.error("[%s] temp name occupied, skipping: %s -> %s", log_prefix, src, tmp)
+            errors.append({"path": str(src), "error": f"temp-namn upptaget: {tmp.name}"})
+            continue
         try:
             src.rename(tmp)
             moved.append((src, dst, tmp, is_main))
