@@ -46,6 +46,11 @@ export function useDecodedImage(url) {
     const img = new Image();
 
     const finalize = async () => {
+      // Already stale (the user stepped past this file before onload ran):
+      // skip the decode entirely — createImageBitmap on a full-res photo is
+      // exactly the expensive work cancellation exists to avoid.
+      if (cancelled) return;
+
       let drawable = img;
       try {
         if (typeof createImageBitmap === 'function') {
@@ -80,7 +85,15 @@ export function useDecodedImage(url) {
 
     img.src = url;
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Abort the in-flight load (standard idiom: detach handlers and blank
+      // src) so the browser stops fetching/decoding a file the user already
+      // stepped past, instead of finishing it just to be discarded.
+      img.onload = null;
+      img.onerror = null;
+      img.src = '';
+    };
   }, [url]);
 
   // Close the committed drawable when it is replaced or on unmount.

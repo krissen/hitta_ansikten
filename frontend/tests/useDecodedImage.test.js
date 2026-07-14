@@ -97,7 +97,7 @@ describe('useDecodedImage', () => {
     expect(result.current.error).toBeInstanceOf(Error);
   });
 
-  it('cancels a stale decode on url change and closes the leaked bitmap', async () => {
+  it('never decodes a url cancelled before its load completes', async () => {
     installFakes();
     const { result, rerender } = renderHook(({ url }) => useDecodedImage(url), {
       initialProps: { url: 'file:///first.jpg' }
@@ -105,22 +105,58 @@ describe('useDecodedImage', () => {
 
     const first = images[0];
 
-    // Switch URL before the first image finishes loading.
+    // Switch URL before the first image finishes loading: cleanup must abort
+    // the in-flight load (handlers detached, src blanked) so no decode work is
+    // ever queued for the skipped file.
     rerender({ url: 'file:///second.jpg' });
     const second = images[1];
 
-    // The first now resolves late: its bitmap must be closed, not committed.
+    expect(first.onload).toBe(null);
+    expect(first.onerror).toBe(null);
+    expect(first.src).toBe('');
+
+    // Even a late load "arriving" for the first image is a no-op.
     await act(async () => { first.fireLoad(); });
     await act(async () => { second.fireLoad(); });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // Two bitmaps were created; the stale (first) one is closed.
-    expect(bitmaps).toHaveLength(2);
-    expect(bitmaps[0].close).toHaveBeenCalledTimes(1);
-    // The committed image is the second decode.
-    expect(result.current.image).toBe(bitmaps[1]);
-    expect(bitmaps[1].close).not.toHaveBeenCalled();
+    // Only the second image was decoded; no bitmap was created for the first.
+    expect(bitmaps).toHaveLength(1);
+    expect(result.current.image).toBe(bitmaps[0]);
+    expect(bitmaps[0].close).not.toHaveBeenCalled();
+    expect(createImageBitmap).toHaveBeenCalledTimes(1);
+    expect(createImageBitmap).toHaveBeenCalledWith(
+      second,
+      { imageOrientation: 'from-image' }
+    );
+  });
+
+  it('closes a bitmap whose decode was overtaken mid-flight', async () => {
+    installFakes();
+    // Deferred createImageBitmap: the decode is in progress when the URL
+    // changes, so the cancelled path must close the finished bitmap.
+    let resolveBitmap;
+    const bmp = { width: 10, height: 10, close: vi.fn() };
+    globalThis.createImageBitmap = vi.fn(
+      () => new Promise((resolve) => { resolveBitmap = () => resolve(bmp); })
+    );
+
+    const { result, rerender } = renderHook(({ url }) => useDecodedImage(url), {
+      initialProps: { url: 'file:///first.jpg' }
+    });
+
+    // The first image loads and its decode starts (promise pending).
+    await act(async () => { images[0].fireLoad(); });
+    expect(createImageBitmap).toHaveBeenCalledTimes(1);
+
+    // Cancel while the decode is in flight, then let it finish.
+    rerender({ url: 'file:///second.jpg' });
+    await act(async () => { resolveBitmap(); });
+
+    // The late bitmap is closed, never committed.
+    expect(bmp.close).toHaveBeenCalledTimes(1);
+    expect(result.current.image).toBe(null);
   });
 
   it('closes the committed bitmap on unmount', async () => {
