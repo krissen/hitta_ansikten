@@ -190,6 +190,26 @@ def test_rename_with_sidecars_rejects_main_dst_equal_sidecar_dst(journal, tmp_pa
     assert not journal.exists()
 
 
+def test_rename_with_sidecars_rejects_case_insensitive_dst_collision(journal, tmp_path):
+    # main_dst "B.XMP" and sidecar_dst "B.xmp" are the same file on a
+    # case-insensitive FS — must be rejected before anything moves (raw-string
+    # keying would have let this clobber the just-moved photo).
+    img = tmp_path / "a.NEF"
+    img.write_bytes(b"photo")
+    sc = tmp_path / "a.xmp"
+    sc.write_text("side")
+
+    with pytest.raises(FileExistsError):
+        fs_ops.rename_with_sidecars(
+            img, tmp_path / "B.XMP", [(sc, tmp_path / "B.xmp")], tool="rename")
+
+    assert img.read_bytes() == b"photo"
+    assert sc.read_text() == "side"
+    assert not (tmp_path / "B.XMP").exists()
+    assert not (tmp_path / "B.xmp").exists()
+    assert not journal.exists()
+
+
 def test_rename_with_sidecars_rejects_duplicate_sidecar_dsts(journal, tmp_path):
     img = tmp_path / "a.NEF"
     img.write_bytes(b"photo")

@@ -145,6 +145,13 @@ def rename_with_sidecars(
     rename with an orphaned sidecar. Journals ``main_src -> main_dst`` only on
     full success.
 
+    The unit's destinations must be pairwise distinct under a case-insensitive
+    comparison (``casefold``): a unit whose targets differ only in case is never
+    intended and is rejected unconditionally (raising ``FileExistsError``),
+    regardless of the filesystem's own case sensitivity — deterministic
+    cross-platform behaviour beats a per-directory probe. This does not affect a
+    legitimate case-only rename of a single file (that is a src↔dst change).
+
     Returns the list of ``(src, dst)`` pairs actually moved (main first). Raises
     the underlying error (``FileExistsError`` for an occupied target, ``OSError``
     for a failed move) after rolling back.
@@ -153,11 +160,18 @@ def rename_with_sidecars(
     # same target (e.g. a filenamePattern that gives the main a sidecar
     # extension, or two sidecars colliding) would silently clobber each other
     # since a target that doesn't exist yet passes the per-entry guard below.
-    # Reject up front, before anything moves.
+    # Reject up front, before anything moves. Keys are casefolded so a pair that
+    # differs only in case (``B.XMP`` vs ``B.xmp`` — the same file on a
+    # case-insensitive filesystem) is rejected too; we do this unconditionally
+    # (even on a case-sensitive filesystem) since a unit whose destinations
+    # differ only in case is never intended, and deterministic cross-platform
+    # behaviour beats a per-directory filesystem probe. This compares
+    # destinations to each other, never src to dst, so a legitimate case-only
+    # *rename* of one file is unaffected.
     all_dsts = [main_dst, *(sc_dst for _sc_src, sc_dst in sidecar_pairs)]
     seen: set[str] = set()
     for d in all_dsts:
-        key = str(d)
+        key = str(d).casefold()
         if key in seen:
             raise FileExistsError(f"målnamn krockar inom operationen: {d.name}")
         seen.add(key)
