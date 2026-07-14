@@ -171,6 +171,45 @@ def test_rename_with_sidecars_case_only(journal, tmp_path):
     assert (tmp_path / "Anna.jpg").exists()
 
 
+def test_rename_with_sidecars_rejects_main_dst_equal_sidecar_dst(journal, tmp_path):
+    # A filenamePattern that gives the main a sidecar extension makes sc_dst equal
+    # the main's new path — the sidecar would clobber the just-moved photo.
+    img = tmp_path / "a.NEF"
+    img.write_bytes(b"photo")
+    sc = tmp_path / "a.xmp"
+    sc.write_text("side")
+
+    with pytest.raises(FileExistsError):
+        fs_ops.rename_with_sidecars(
+            img, tmp_path / "b.xmp", [(sc, tmp_path / "b.xmp")], tool="rename")
+
+    # Nothing moved, nothing journaled.
+    assert img.read_bytes() == b"photo"
+    assert sc.read_text() == "side"
+    assert not (tmp_path / "b.xmp").exists()
+    assert not journal.exists()
+
+
+def test_rename_with_sidecars_rejects_duplicate_sidecar_dsts(journal, tmp_path):
+    img = tmp_path / "a.NEF"
+    img.write_bytes(b"photo")
+    sc1 = tmp_path / "a.xmp"
+    sc1.write_text("one")
+    sc2 = tmp_path / "a.dng"
+    sc2.write_text("two")
+
+    # Two sidecars targeting the same destination.
+    with pytest.raises(FileExistsError):
+        fs_ops.rename_with_sidecars(
+            img, tmp_path / "b.NEF",
+            [(sc1, tmp_path / "b.xmp"), (sc2, tmp_path / "b.xmp")], tool="rename")
+
+    assert img.read_bytes() == b"photo"
+    assert sc1.read_text() == "one" and sc2.read_text() == "two"
+    assert not (tmp_path / "b.NEF").exists()
+    assert not journal.exists()
+
+
 # ----- two_pass_rename -------------------------------------------------------
 
 def test_two_pass_renames_and_journals_mains(journal, tmp_path):

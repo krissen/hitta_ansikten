@@ -149,6 +149,19 @@ def rename_with_sidecars(
     the underlying error (``FileExistsError`` for an occupied target, ``OSError``
     for a failed move) after rolling back.
     """
+    # The unit's destinations must be pairwise distinct: two entries writing the
+    # same target (e.g. a filenamePattern that gives the main a sidecar
+    # extension, or two sidecars colliding) would silently clobber each other
+    # since a target that doesn't exist yet passes the per-entry guard below.
+    # Reject up front, before anything moves.
+    all_dsts = [main_dst, *(sc_dst for _sc_src, sc_dst in sidecar_pairs)]
+    seen: set[str] = set()
+    for d in all_dsts:
+        key = str(d)
+        if key in seen:
+            raise FileExistsError(f"målnamn krockar inom operationen: {d.name}")
+        seen.add(key)
+
     _guard_target(main_src, main_dst)
     for sc_src, sc_dst in sidecar_pairs:
         _guard_target(sc_src, sc_dst)
