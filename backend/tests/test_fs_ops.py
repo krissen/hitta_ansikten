@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -41,7 +42,15 @@ def test_record_writes_row(journal):
     assert row["batch_id"] == "b1"
     assert row["src"] == "/a.NEF"
     assert row["dst"] == "/b.NEF"
+    assert row["sidecars"] == []  # none passed → empty list, never absent
     assert "ts" in row
+
+
+def test_record_lists_moved_sidecars(journal):
+    fs_ops.record(op="rename", tool="t", batch_id="b", src="/a.NEF", dst="/b.NEF",
+                  sidecars=[("/a.xmp", "/b.xmp")])
+    row = _rows(journal)[0]
+    assert row["sidecars"] == [{"src": "/a.xmp", "dst": "/b.xmp"}]
 
 
 def test_record_ts_is_tz_aware_utc(journal):
@@ -266,9 +275,42 @@ def test_two_pass_carries_sidecars(journal, tmp_path):
 
     assert {r["to"] for r in res["renamed"]} == {"1.NEF", "1.xmp"}
     assert (tmp_path / "1.xmp").read_text() == "side"
-    # Sidecar is not journaled — only the main file.
+    # One row for the main, carrying the sidecar that actually moved with it.
     rows = _rows(journal)
-    assert [r["dst"] for r in rows] == [str(tmp_path / "1.NEF")]
+    assert len(rows) == 1
+    assert rows[0]["dst"] == str(tmp_path / "1.NEF")
+    assert rows[0]["sidecars"] == [
+        {"src": str(tmp_path / "a.xmp"), "dst": str(tmp_path / "1.xmp")}
+    ]
+
+
+def test_two_pass_sidecar_move_failure_kept_out_of_row(journal, tmp_path, monkeypatch):
+    # If the sidecar's final move fails, the main is still renamed + journaled but
+    # the row must NOT list the sidecar (it didn't land).
+    a = tmp_path / "a.NEF"
+    a.write_bytes(b"A")
+    (tmp_path / "a.xmp").write_text("side")
+
+    real_rename = Path.rename
+
+    def flaky(self, target):
+        # Fail only the sidecar's temp -> final move (target basename "1.xmp").
+        if str(target).endswith("1.xmp"):
+            raise OSError("locked")
+        return real_rename(self, target)
+
+    monkeypatch.setattr(Path, "rename", flaky)
+
+    res = fs_ops.two_pass_rename(
+        [(a, tmp_path / "1.NEF")], tool="rename-nef",
+        sidecar_exts=["xmp"], find_sidecars=_find_sidecars)
+
+    assert {r["to"] for r in res["renamed"]} == {"1.NEF"}
+    assert len(res["errors"]) == 1
+    rows = _rows(journal)
+    assert len(rows) == 1
+    assert rows[0]["dst"] == str(tmp_path / "1.NEF")
+    assert rows[0]["sidecars"] == []  # sidecar didn't land → absent from the row
 
 
 def test_two_pass_sidecar_restored_when_main_target_taken(journal, tmp_path):
@@ -313,9 +355,11 @@ def test_two_pass_sidecar_target_taken_keeps_main(journal, tmp_path):
     assert len(res["skipped"]) == 1
     assert (tmp_path / "a.xmp").read_text() == "side"
     assert occupied.read_text() == "KEEP"
-    # Only the main file is journaled.
+    # The row lists the main only — the skipped sidecar is not in it.
     rows = _rows(journal)
-    assert [r["dst"] for r in rows] == [str(tmp_path / "1.NEF")]
+    assert len(rows) == 1
+    assert rows[0]["dst"] == str(tmp_path / "1.NEF")
+    assert rows[0]["sidecars"] == []
 
 
 # ----- import target resolution ----------------------------------------------

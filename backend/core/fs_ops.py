@@ -61,12 +61,21 @@ def journal_path() -> Path:
     return db.BASE_DIR / "rename_journal.jsonl"
 
 
-def record(*, op: str, tool: str, batch_id: str, src, dst) -> None:
+def record(*, op: str, tool: str, batch_id: str, src, dst,
+           sidecars: Iterable[tuple] = ()) -> None:
     """Append one journal row. Best-effort — never raises into the caller.
 
-    A row is ``{ts, op, tool, batch_id, src, dst}`` with absolute paths as
-    strings. Journalling must not be able to fail the filesystem operation it
-    describes, so every error here is swallowed (logged, not raised).
+    A row is ``{ts, op, tool, batch_id, src, dst, sidecars}`` with absolute
+    paths as strings. ``sidecars`` is a list of ``{"src", "dst"}`` objects for
+    the sidecars that **actually moved** alongside the main file (empty list
+    when none did). The invariant: a row describes exactly the filesystem delta,
+    so undo (PR 2) can replay ``src→dst`` plus each listed sidecar literally and
+    never touch a pre-existing file that merely shared the target stem.
+
+    Callers must therefore write the row *after* the whole unit's moves are
+    decided, passing only the sidecars that landed. Journalling must not be able
+    to fail the filesystem operation it describes, so every error here is
+    swallowed (logged, not raised).
 
     Paths are absolutised with ``os.path.abspath`` (which normalises against the
     current cwd) so a relative path from the CLI — ``./rename_nef.py *.NEF`` — is
@@ -84,6 +93,10 @@ def record(*, op: str, tool: str, batch_id: str, src, dst) -> None:
             "batch_id": batch_id,
             "src": os.path.abspath(str(src)),
             "dst": os.path.abspath(str(dst)),
+            "sidecars": [
+                {"src": os.path.abspath(str(s)), "dst": os.path.abspath(str(d))}
+                for s, d in sidecars
+            ],
         }
         with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -155,8 +168,9 @@ def rename_with_sidecars(
                 logger.exception("[fs_ops] rollback failed for %s", moved_dst)
         raise
 
+    # Atomic unit: on success every sidecar pair moved, so record them all.
     record(op=journal_op, tool=tool, batch_id=batch_id or new_batch_id(),
-           src=main_src, dst=main_dst)
+           src=main_src, dst=main_dst, sidecars=list(sidecar_pairs))
     return done
 
 
@@ -194,10 +208,11 @@ def two_pass_rename(
     never left orphaned at the new stem. The reverse does not hold: a sidecar's
     own target collision skips just that sidecar and never fells its main.
 
-    Journals ``src -> dst`` for each main file whose move completes (never for
-    sidecars). Returns ``{"renamed": [{from, to}], "skipped": [...],
-    "errors": [...]}`` (Swedish reason/error strings, matching the prior
-    per-service implementations).
+    Journals one row per main file whose move completes, carrying the sidecars
+    that actually landed with it (a skipped/failed sidecar is left out of the
+    row, matching the on-disk delta). Returns ``{"renamed": [{from, to}],
+    "skipped": [...], "errors": [...]}`` (Swedish reason/error strings, matching
+    the prior per-service implementations).
     """
     # A per-batch uuid (not just the pid) makes the temp names exclusive: a
     # leftover ``.<tmp_prefix>_<pid>_..._<n>`` from an earlier crashed batch
@@ -268,10 +283,11 @@ def two_pass_rename(
             _restore_moved_sidecars(sidecars, sc_moved, log_prefix, errors)
             continue
 
-        # Main placed — journal it, then place its sidecars. A sidecar collision
-        # or failure skips just that sidecar (the main stays put).
+        # Main placed — place its sidecars, then journal main + the sidecars that
+        # actually landed. A sidecar collision or failure skips just that sidecar
+        # (the main stays put) and keeps it out of the row.
         renamed.append({"from": src.name, "to": dst.name})
-        record(op=journal_op, tool=tool, batch_id=batch_id, src=src, dst=dst)
+        landed_sidecars: list[tuple[Path, Path]] = []
         for (sc_src, sc_dst, sc_tmp), was_moved in zip(sidecars, sc_moved):
             if not was_moved:
                 continue
@@ -285,6 +301,7 @@ def two_pass_rename(
             try:
                 sc_tmp.rename(sc_dst)
                 renamed.append({"from": sc_src.name, "to": sc_dst.name})
+                landed_sidecars.append((sc_src, sc_dst))
             except OSError as e:
                 logger.error("[%s] sidecar to-final failed: %s -> %s: %s", log_prefix, sc_tmp, sc_dst, e)
                 if _restore_tmp(sc_tmp, sc_src, log_prefix):
@@ -292,6 +309,8 @@ def two_pass_rename(
                 else:
                     errors.append({"path": str(sc_tmp),
                                    "error": f"{e}; kunde ej återställa (fil kvar som {sc_tmp.name})"})
+        record(op=journal_op, tool=tool, batch_id=batch_id, src=src, dst=dst,
+               sidecars=landed_sidecars)
 
     return {"renamed": renamed, "skipped": skipped, "errors": errors}
 
