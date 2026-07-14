@@ -1,9 +1,10 @@
 """Per-flow migration tests: each rename/move/trash flow writes journal rows
 with the right ``tool``/``op`` via core.fs_ops.
 
-The journal is redirected under ``tmp_path`` (monkeypatching ``core.db.BASE_DIR``,
-mirroring ``test_culling_retention``'s dir redirection) so no real ~/.local
-writes happen and the rows can be read back.
+The journal is redirected under ``tmp_path`` for *every* test by the autouse
+``_redirect_rename_journal`` fixture in ``conftest.py`` (it patches
+``fs_ops.journal_path``), so no test can touch the developer's real journal. The
+``journal`` fixture below just names that same path for reading the rows back.
 """
 
 import json
@@ -13,10 +14,37 @@ import pytest
 
 
 @pytest.fixture
-def journal(tmp_path, monkeypatch):
-    import core.db as db
-    monkeypatch.setattr(db, "BASE_DIR", tmp_path)
+def journal(tmp_path):
+    # Same path the autouse conftest fixture redirects fs_ops.journal_path to.
     return tmp_path / "rename_journal.jsonl"
+
+
+def test_autouse_fixture_keeps_journal_off_real_data_dir(tmp_path, monkeypatch):
+    # A migrated flow run WITHOUT an explicit journal-redirect fixture must not
+    # write under the XDG data dir — the autouse conftest fixture guarantees the
+    # row lands under the test's tmp_path instead.
+    import api.services.culling_service as cs
+    import core.fs_ops as fs_ops
+    from api.services.culling_service import CullingService
+
+    fake_home = tmp_path / "xdg"
+    monkeypatch.setenv("XDG_DATA_HOME", str(fake_home))
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    trash = tmp_path / "trash"
+    trash.mkdir()
+    monkeypatch.setattr(cs, "TRASH_DIR", trash)
+    monkeypatch.setattr(cs, "MANIFEST_PATH", trash / "manifest.jsonl")
+
+    img = tmp_path / "pic.jpg"
+    img.write_bytes(b"jpg")
+    CullingService().trash([str(img)])
+
+    # The row went to the redirected journal, and the XDG-derived faceid dir is
+    # untouched (never even created).
+    assert fs_ops.journal_path() == tmp_path / "rename_journal.jsonl"
+    assert _rows(fs_ops.journal_path())  # a trash row was written there
+    assert not (fake_home / "faceid" / "rename_journal.jsonl").exists()
 
 
 def _rows(path):
