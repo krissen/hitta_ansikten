@@ -333,8 +333,10 @@ def test_culling_restore_journals_main_even_when_sidecar_fails(journal, tmp_path
     result = svc.restore([tid])
 
     # Main restored + reported. The failed sidecar's stored file is GONE (we
-    # deleted it), so there is nothing left to keep → the entry is fully dropped.
+    # deleted it), so there is nothing left to keep → the entry is fully dropped
+    # and no partial leftover is reported.
     assert result["restored"] and not result["errors"]
+    assert result["partial"] == []
     assert img.exists()
     assert svc._load_manifest() == []
     # Row carries the main delta with an empty sidecars list (none landed).
@@ -346,8 +348,9 @@ def test_culling_restore_journals_main_even_when_sidecar_fails(journal, tmp_path
 
 def test_culling_restore_keeps_orphaned_sidecar_as_recoverable_entry(journal, tmp_path, monkeypatch):
     # P3: when the main image restores but a sidecar restore fails while its
-    # stored file REMAINS in the trash, the manifest entry must survive as a
-    # sidecar-only leftover (not be dropped) so the file stays visible + purgeable.
+    # stored file REMAINS in the trash, a sidecar-only leftover survives as a
+    # NEW trash entry (own id) that is reported in `partial`, so the UI keeps it
+    # visible; it is separately restorable + purgeable.
     import api.services.culling_service as cs
     from api.services.culling_service import CullingService
 
@@ -372,19 +375,27 @@ def test_culling_restore_keeps_orphaned_sidecar_as_recoverable_entry(journal, tm
 
     result = svc.restore([tid])
 
-    assert result["restored"] and not result["errors"]
     assert img.exists()
-    # Entry survives as a sidecar-only leftover (same id), stored file intact.
+    # The original id is reported restored; the leftover is reported in `partial`
+    # under a NEW id (so a UI that drops restored ids doesn't hide it).
+    assert [r["id"] for r in result["restored"]] == [tid]
+    assert not result["errors"]
+    assert len(result["partial"]) == 1
+    leftover = result["partial"][0]
+    new_id = leftover["id"]
+    assert new_id != tid
+    assert leftover["stored_name"] == sc_stored
+    assert leftover["basename"] == "260626_191003_Milian.xmp"
+    assert leftover["sidecars"] == []
+
+    # Manifest holds exactly the leftover (new id), stored file intact + listed.
     left = svc._load_manifest()
     assert len(left) == 1
-    assert left[0]["id"] == tid
-    assert left[0]["stored_name"] == sc_stored
-    assert left[0]["basename"] == "260626_191003_Milian.xmp"
-    assert left[0]["sidecars"] == []
+    assert left[0]["id"] == new_id
     assert (trash / sc_stored).exists()
-    assert any(it["id"] == tid for it in svc.list_trash()["items"])
+    assert any(it["id"] == new_id for it in svc.list_trash()["items"])
 
-    # And it is now purgeable — empty removes the orphaned stored file.
-    svc.empty([tid])
+    # And it is purgeable under its new id.
+    svc.empty([new_id])
     assert not (trash / sc_stored).exists()
     assert svc._load_manifest() == []

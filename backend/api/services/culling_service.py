@@ -307,11 +307,15 @@ class CullingService:
         """Move trashed files (+ sidecars) back to their original locations.
 
         Never overwrites: if the original path is occupied, restores alongside as
-        ``<stem>-restored<suffix>``. Returns {restored: [...], errors: [...]}.
+        ``<stem>-restored<suffix>``. Returns {restored: [...], partial: [...],
+        errors: [...]}. ``partial`` holds sidecar-only leftovers created when the
+        main image came back but a sidecar could not — each a brand-new trash
+        entry (own id) so the caller/UI can keep it visible without a reload.
         """
         entries = self._load_manifest()
         by_id = {e["id"]: e for e in entries}
         restored: list[dict] = []
+        partial: list[dict] = []
         errors: list[dict] = []
         keep = list(entries)
         batch_id = fs_ops.new_batch_id()
@@ -361,23 +365,27 @@ class CullingService:
             # is already gone leaves nothing to keep.
             leftover = [sc for sc in failed_sidecars
                         if (TRASH_DIR / sc["stored_name"]).exists()]
+            keep = [e for e in keep if e["id"] != tid]
             if leftover:
                 head, rest = leftover[0], leftover[1:]
+                # A brand-new id: the original entry is genuinely "restored" (its
+                # main image is back), so callers/UI that drop the restored id
+                # would otherwise hide this leftover. As a distinct new trash
+                # item it stays visible and is separately restorable/purgeable.
                 sidecar_only = {
-                    "id": tid,
+                    "id": uuid.uuid4().hex,
                     "original_path": head["original_path"],
                     "stored_name": head["stored_name"],
                     "basename": Path(head["original_path"]).name,
                     "sidecars": rest,
                     "trashed_at": entry.get("trashed_at", datetime.now().isoformat()),
                 }
-                keep = [sidecar_only if e["id"] == tid else e for e in keep]
-            else:
-                keep = [e for e in keep if e["id"] != tid]
+                keep.append(sidecar_only)
+                partial.append(sidecar_only)
             restored.append({"id": tid, "restored_path": str(dest)})
 
         self._rewrite_manifest(keep)
-        return {"restored": restored, "errors": errors}
+        return {"restored": restored, "partial": partial, "errors": errors}
 
     def _restore_one(self, original_path: str, stored_name: str) -> Path:
         """Move one stored file back to original_path, never overwriting.

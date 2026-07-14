@@ -57,7 +57,14 @@ export function TrashPanel({ onAfterChange }) {
       try {
         const res = await api.post('/api/v1/culling/restore', { ids: [id] });
         if (res.restored && res.restored.length > 0) {
-          setItems((prev) => prev.filter((it) => it.id !== id));
+          // A partial restore (main image back, a sidecar could not be) leaves a
+          // sidecar-only leftover as a NEW trash entry. Drop the restored id but
+          // append any leftovers so they stay visible without a reload.
+          const leftovers = res.partial || [];
+          setItems((prev) => {
+            const next = prev.filter((it) => it.id !== id);
+            return leftovers.length > 0 ? [...next, ...leftovers] : next;
+          });
           onAfterChange?.('restore', [id]);
         } else {
           // 200 with errors[] (unwritable folder, missing stored file): the item
