@@ -8,15 +8,17 @@
 
 import { RAW_EXTS } from '../../shared/fileExts.js';
 
-// The live stats panel counts every player in the folder, so it uses the
-// scan scope only — not the player/name_glob filter that narrows the file list.
-// It deliberately keeps the count endpoint's defaults (min_images, exclusions)
-// so the included-player set matches `rakna_spelare.py` and the Räkna spelare
-// page exactly — coaches/audience and below-threshold names land in `excluded`,
-// not in the live count.
-export function statsScopeFromQuery(q) {
+// The live stats panel counts every player in the folder, so it uses the scan
+// scope only — not the player/name_glob filter that narrows the file list.
+// `countSettings` (the shared { baseline, minImages } store) is folded in when
+// provided so the stats panel's baseline choice and min_images match the Räkna
+// spelare page; omitted (e.g. when the result feeds setScanScope, which must stay
+// pure scan-scope) it leaves those out and the backend defaults apply. Exclusions
+// still come from the count endpoint's config so coaches/audience/below-threshold
+// names land in `excluded`, not in the live count.
+export function statsScopeFromQuery(q, countSettings) {
   if (!q) return null;
-  return {
+  const scope = {
     roots: q.roots,
     globs: q.globs,
     extension_preset: q.extension_preset,
@@ -24,6 +26,11 @@ export function statsScopeFromQuery(q) {
     date_from: q.date_from,
     date_to: q.date_to,
   };
+  if (countSettings) {
+    scope.baseline = countSettings.baseline;
+    scope.min_images = countSettings.minImages;
+  }
+  return scope;
 }
 
 export function isRaw(p) {
