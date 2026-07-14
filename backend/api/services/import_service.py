@@ -145,9 +145,10 @@ class ImportService:
     ) -> dict:
         """Transfer NEFs (+ sidecars) from the volume to destination, then eject.
 
-        Returns {transferred, skipped, errors, ejected, total}. Never raises on a
-        single-file error (collected in `errors`); ejects only after a zero-error
-        transfer.
+        Returns {transferred, skipped, errors, ejected, eject_error, total}, and
+        broadcasts a terminal `import-progress` event with `phase: "done"`. Never
+        raises on a single-file error (collected in `errors`); ejects only after a
+        zero-error transfer.
         """
         if not volume_mount or not destination:
             raise ValueError("volume_mount och destination krävs.")
@@ -199,24 +200,43 @@ class ImportService:
             })
 
         ejected = False
+        eject_error: str | None = None
         if eject and not errors:
             # Re-validate ejectable here (defense-in-depth): keep the "never the
             # internal/boot disk" guarantee local to the destructive call, not only
             # in list_volumes.
             if self._is_ejectable(self._diskutil_info(volume_mount)):
-                ejected = await self._eject(volume_mount)
+                ejected, eject_error = await self._eject(volume_mount)
             else:
+                eject_error = "volymen kan inte matas ut"
                 logger.warning("[Import] eject skipped — volume not ejectable: %s", volume_mount)
+
+        # Terminal event: lets the UI show the final summary even if the HTTP
+        # response was lost (a long import can outlive the request). Carries
+        # counts (not the full path lists), the destination, and eject outcome.
+        await broadcast_event("import-progress", {
+            "phase": "done",
+            "transferred": len(transferred),
+            "skipped": len(skipped),
+            "errors": len(errors),
+            "ejected": ejected,
+            "eject_error": eject_error,
+            "destination": str(dest),
+            "total": total,
+        })
 
         return {
             "transferred": transferred,
             "skipped": skipped,
             "errors": errors,
             "ejected": ejected,
+            "eject_error": eject_error,
             "total": total,
         }
 
-    async def _eject(self, mount: str) -> bool:
+    async def _eject(self, mount: str) -> tuple[bool, str | None]:
+        """Eject the volume. Returns (ejected, error) — error is a short reason
+        string on failure (surfaced to the UI), None on success."""
         loop = asyncio.get_event_loop()
         try:
             res = await loop.run_in_executor(
@@ -224,11 +244,13 @@ class ImportService:
                 lambda: subprocess.run(["diskutil", "eject", mount], capture_output=True, timeout=60),
             )
             if res.returncode != 0:
-                logger.warning("[Import] eject failed for %s: %s", mount, res.stderr.decode(errors="replace"))
-            return res.returncode == 0
+                reason = res.stderr.decode(errors="replace").strip()
+                logger.warning("[Import] eject failed for %s: %s", mount, reason)
+                return False, reason or "diskutil eject misslyckades"
+            return True, None
         except Exception as e:
             logger.warning("[Import] eject error for %s: %s", mount, e)
-            return False
+            return False, str(e)
 
 
 # Lazy singleton — construction is deferred so importing this module has no
