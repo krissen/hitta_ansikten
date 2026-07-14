@@ -1216,6 +1216,8 @@ export function CullingModule({ node }) {
             width={statsWidth}
             baseline={countSettings.baseline}
             onBaselineChange={(baseline) => setCountSettings({ baseline })}
+            minImages={countSettings.minImages}
+            onMinImagesChange={(minImages) => setCountSettings({ minImages })}
             onNameContextMenu={handleNameContextMenu}
             onSelect={(name) => {
               if (viewMode === 'grid') {
