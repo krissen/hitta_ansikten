@@ -500,8 +500,12 @@ export function CullingModule({ node }) {
         setHasRun(false);
         // The discarded adopt load left isLoading true (its finally skips the
         // seq-mismatched response); reset it so the cleared workspace shows the
-        // "välj mapp" hint instead of a stuck "…".
+        // "välj mapp" hint instead of a stuck "…". Same for the stats spinner:
+        // an in-flight /players/count is seq-fenced by the bump above, so its
+        // finally never clears the flag — reset it here or the header spinner
+        // sticks forever in the emptied workspace.
         setIsLoading(false);
+        setStatsLoading(false);
         lastQueryRef.current = null;
         // Clear the shared scope too, so Räkna spelare (or a culling remount)
         // doesn't adopt the now-discarded selection.
