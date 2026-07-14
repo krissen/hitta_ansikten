@@ -8,6 +8,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { t } from '../../../i18n/index.js';
+import { LoadingSpinner } from '../shared/ProgressBar.jsx';
 
 const EXCLUDED_KEYS = ['tranare', 'grupp', 'publik', 'below_threshold'];
 
@@ -73,7 +74,7 @@ function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
  * capture-phase Enter/Esc handler yields to a focused role="button" so a keyed
  * Enter here filters instead of starting a rename.
  */
-export function CullingStats({ stats, selected, onSelect, onActivate, mode, width, baseline, onBaselineChange, onNameContextMenu }) {
+export function CullingStats({ stats, loading, selected, onSelect, onActivate, mode, width, baseline, onBaselineChange, onNameContextMenu }) {
   const players = stats?.players || [];
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const clickTimerRef = useRef(null);
@@ -110,6 +111,11 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
     <div className="culling-stats" style={{ flex: `0 0 ${width}px` }}>
       <div className="culling-stats-header">
         <span>{t('culling.stats.header')}</span>
+        {/* Fixed-width slot so the spinner appearing/disappearing never shifts
+            the controls next to it. */}
+        <span className="culling-stats-loading" aria-hidden={!loading}>
+          {loading && <LoadingSpinner size="sm" />}
+        </span>
         {onBaselineChange && (
           <select
             className="form-select culling-stats-baseline-select"
@@ -139,7 +145,7 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
                 <th>{t('culling.stats.columns.name')}</th>
                 <th className="num">{t('culling.stats.columns.count')}</th>
                 <th className="num">{t('culling.stats.columns.pct')}</th>
-                <th className="num">{t('culling.stats.columns.delta')}</th>
+                <th className="num" title={t('culling.stats.deltaTitle')}>{t('culling.stats.columns.delta')}</th>
                 <th className="bar-col">{t('culling.stats.columns.distribution')}</th>
               </tr>
             </thead>
@@ -175,7 +181,7 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
                   <td className="culling-stat-name">{p.name}</td>
                   <td className="num">{p.count}</td>
                   <td className="num">{p.pct}%</td>
-                  <td className={`num delta delta-${p.level || 'ok'}`}>
+                  <td className={`num delta delta-${p.level || 'ok'}`} title={t('culling.stats.deltaTitle')}>
                     {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
                   </td>
                   <td className="bar-col">
