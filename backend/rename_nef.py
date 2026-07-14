@@ -89,43 +89,71 @@ def compute_renames(
     entries: list[tuple[str, int, Path]],
     include_named: bool = False,
 ) -> list[tuple[Path, Path, Path]]:
-    # By default, drop files that are already named (their stem already carries
-    # the EXIF timestamp) so their name/burst suffix is never stripped. Filtering
-    # before the duplicate-timestamp count keeps the -N disambiguation clean for
-    # the files that actually get renamed. include_named=True restores the old
-    # behavior (rename everything, stripping any suffix).
-    if not include_named:
-        entries = [e for e in entries if not is_already_named(e[2].name, e[0])]
+    # By default, already-named files (stem already carries the EXIF timestamp)
+    # keep their name — but they are NOT simply dropped: a same-second unnamed
+    # file must not be planned onto a target the protected file already occupies.
+    # So we partition them out of the rename set yet still (a) count them toward
+    # the per-timestamp total that decides bare-vs-burst and zero-pad width, and
+    # (b) reserve their on-disk names so allocation skips to the next free -N.
+    # include_named=True renames everything (stripping any suffix).
+    if include_named:
+        to_rename = list(entries)
+        protected: list[tuple[str, int, Path]] = []
+    else:
+        to_rename, protected = [], []
+        for e in entries:
+            (protected if is_already_named(e[2].name, e[0]) else to_rename).append(e)
 
+    # Bare-vs-burst and zero-pad width are decided by the files actually being
+    # renamed. A protected file only matters where its name would collide with a
+    # generated target: a bare `ts.NEF` or `ts-N.NEF` occupies that exact slot,
+    # while a `ts_Name.NEF` / `ts-N_Name.NEF` lives in a different namespace and
+    # never blocks. So we don't count protected files toward the burst decision —
+    # we only reserve their names and let allocation skip any occupied slot.
     ts_counts: dict[str, int] = defaultdict(int)
-    for ts, _, _ in entries:
+    for ts, _, _ in to_rename:
         ts_counts[ts] += 1
-    
+
     ts_digits = {ts: max(1, len(str(count - 1))) for ts, count in ts_counts.items()}
     ts_seen: dict[str, int] = defaultdict(int)
-    
+
+    # Names already taken by protected files, per (parent, ext). Including the
+    # `ts_Name` forms is harmless — they are never generated as a target.
+    occupied: dict[tuple[Path, str], set[str]] = defaultdict(set)
+    for _ts, _sub, src in protected:
+        occupied[(src.parent, src.suffix or ".NEF")].add(src.name)
+
     renames = []
     stamp = f"{os.getpid()}.{hash(str(entries)) % 10000}"
-    
-    for i, (ts, _, src) in enumerate(entries):
+
+    for i, (ts, _, src) in enumerate(to_rename):
         ext = src.suffix or ".NEF"
-        
-        if ts_counts[ts] == 1:
+        key = (src.parent, ext)
+
+        # Sole holder of this timestamp AND the bare name is free → bare name.
+        # Otherwise (shared timestamp, or the bare slot taken by a protected
+        # file) allocate the next free -N.
+        if ts_counts[ts] == 1 and f"{ts}{ext}" not in occupied[key]:
             dst_base = ts
         else:
-            idx = ts_seen[ts]
-            ts_seen[ts] += 1
-            idx_str = str(idx).zfill(ts_digits[ts])
-            dst_base = f"{ts}-{idx_str}"
-        
+            while True:
+                idx = ts_seen[ts]
+                ts_seen[ts] += 1
+                idx_str = str(idx).zfill(ts_digits[ts])
+                dst_base = f"{ts}-{idx_str}"
+                if f"{dst_base}{ext}" not in occupied[key]:
+                    break
+
         dst = src.parent / f"{dst_base}{ext}"
         tmp = src.parent / f".rename_tmp_{stamp}_{i}{ext}"
-        
+
         if src.name == dst.name:
             continue
-        
+
+        # Reserve the assigned name so a later same-timestamp file skips it.
+        occupied[key].add(dst.name)
         renames.append((src, dst, tmp))
-    
+
     return renames
 
 

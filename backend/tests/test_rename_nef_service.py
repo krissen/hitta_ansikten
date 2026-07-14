@@ -252,6 +252,90 @@ def test_compute_renames_include_named_strips_suffix():
     assert dsts == {"260713_110145_ArvidW,_Elis.NEF": "260713_110145.NEF"}
 
 
+# --- reservation matrix: protected form × same-timestamp unnamed file ---------
+# A protected file must never let a same-second unnamed file be planned onto an
+# occupied name (which would be skipped at execute). The bare `ts` and `ts-N`
+# forms occupy the numbering namespace; the `_Name` forms do not.
+
+TS = "260713_112041"
+
+
+def _plan(*entries):
+    """compute_renames over pre-sorted (ts, subsec, path) entries → {src: dst}."""
+    renames = compute_renames(list(entries))
+    return {src.name: dst.name for src, dst, _ in renames}
+
+
+def test_reserve_protected_bare_ts_pushes_unnamed_to_free_burst():
+    # Protected bare `ts.NEF` occupies the bare slot → unnamed must NOT plan onto
+    # `ts.NEF`; it gets the next free -N instead of being silently skipped.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}.NEF")),      # protected (bare)
+        (TS, 1, Path("/p/DSC_9.NEF")),      # unnamed, same second
+    )
+    assert dsts == {"DSC_9.NEF": f"{TS}-0.NEF"}
+
+
+def test_reserve_protected_burst_leaves_bare_free_for_unnamed():
+    # Protected `ts-1.NEF` does NOT occupy the bare slot → the lone unnamed file
+    # takes the free bare `ts.NEF`.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}-1.NEF")),    # protected (burst)
+        (TS, 1, Path("/p/DSC_9.NEF")),      # unnamed
+    )
+    assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
+
+
+def test_reserve_protected_named_does_not_block_bare():
+    # `ts_Name.NEF` lives in a different namespace → bare stays free.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}_Elis.NEF")),   # protected (_Name)
+        (TS, 1, Path("/p/DSC_9.NEF")),        # unnamed
+    )
+    assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
+
+
+def test_reserve_protected_burst_named_does_not_block_bare():
+    # `ts-N_Name.NEF` likewise does not occupy `ts` or `ts-N` → bare stays free.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}-1_Elis.NEF")),  # protected (-N_Name)
+        (TS, 1, Path("/p/DSC_9.NEF")),         # unnamed
+    )
+    assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
+
+
+def test_reserve_multiple_unnamed_skip_occupied_burst_slots():
+    # Two protected burst files + two unnamed: unnamed get the next free indices.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}-0.NEF")),   # protected
+        (TS, 1, Path(f"/p/{TS}-1.NEF")),   # protected
+        (TS, 2, Path("/p/DSC_A.NEF")),     # unnamed
+        (TS, 3, Path("/p/DSC_B.NEF")),     # unnamed
+    )
+    assert dsts == {"DSC_A.NEF": f"{TS}-2.NEF", "DSC_B.NEF": f"{TS}-3.NEF"}
+
+
+def test_reserve_bare_protected_with_two_unnamed():
+    # Protected bare `ts.NEF` + two unnamed → both go to burst, distinct & free.
+    dsts = _plan(
+        (TS, 0, Path(f"/p/{TS}.NEF")),     # protected (bare)
+        (TS, 1, Path("/p/DSC_A.NEF")),     # unnamed
+        (TS, 2, Path("/p/DSC_B.NEF")),     # unnamed
+    )
+    assert dsts == {"DSC_A.NEF": f"{TS}-0.NEF", "DSC_B.NEF": f"{TS}-1.NEF"}
+
+
+def test_include_named_true_ignores_reservation():
+    # With include_named the protected file is renamed too (old behavior): both
+    # share the timestamp, so both are burst-numbered, no reservation carve-out.
+    renames = compute_renames([
+        (TS, 0, Path(f"/p/{TS}-0.NEF")),
+        (TS, 1, Path("/p/DSC_9.NEF")),
+    ], include_named=True)
+    dsts = {src.name: dst.name for src, dst, _ in renames}
+    assert dsts == {"DSC_9.NEF": f"{TS}-1.NEF"}  # ts-0 is the existing file's no-op target
+
+
 @pytest.mark.asyncio
 async def test_preview_reports_protected_and_affected(tmp_path, monkeypatch):
     # One raw file + one already-named file, sharing no timestamp.
