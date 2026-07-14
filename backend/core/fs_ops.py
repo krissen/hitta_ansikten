@@ -189,8 +189,10 @@ def two_pass_rename(
     resolve without spurious collisions.
 
     Each ``.<sidecar-ext>`` sidecar of a source (found via ``find_sidecars``) is
-    carried to the destination's stem, as an independent entry — a sidecar
-    collision skips that sidecar without disturbing its main file.
+    carried to the destination's stem, **grouped with its main file's fate**: if
+    the main is skipped (target taken) or fails, its sidecars are restored too —
+    never left orphaned at the new stem. The reverse does not hold: a sidecar's
+    own target collision skips just that sidecar and never fells its main.
 
     Journals ``src -> dst`` for each main file whose move completes (never for
     sidecars). Returns ``{"renamed": [{from, to}], "skipped": [...],
@@ -204,55 +206,58 @@ def two_pass_rename(
     stamp = f"{os.getpid()}_{uuid.uuid4().hex}"
     batch_id = new_batch_id()
 
-    # Build the flat move list: each main plus its sidecars, each with a fresh
-    # unique temp name. ``is_main`` marks the entries to journal.
-    full: list[tuple[Path, Path, Path, bool]] = []
+    # Build move units: each main paired with its sidecars, each entry given a
+    # fresh unique temp name. Grouping (vs a flat list) is what lets a sidecar
+    # share its main's pass-2 fate.
+    units: list[dict] = []
     ctr = 0
     for src, dst in pairs:
-        full.append((src, dst, src.parent / f"{tmp_prefix}_{stamp}_{ctr}{src.suffix}", True))
+        main = (src, dst, src.parent / f"{tmp_prefix}_{stamp}_{ctr}{src.suffix}")
         ctr += 1
+        sidecars: list[tuple[Path, Path, Path]] = []
         if sidecar_exts and find_sidecars is not None:
             for sc in find_sidecars(src, sidecar_exts):
                 sc_dst = dst.with_name(f"{dst.stem}{sc.suffix}")
                 if sc.name == sc_dst.name:
                     continue
-                full.append((sc, sc_dst, sc.parent / f"{tmp_prefix}_{stamp}_{ctr}{sc.suffix}", False))
+                sidecars.append((sc, sc_dst, sc.parent / f"{tmp_prefix}_{stamp}_{ctr}{sc.suffix}"))
                 ctr += 1
+        units.append({"main": main, "sidecars": sidecars})
 
     renamed: list[dict] = []
     skipped: list[dict] = []
     errors: list[dict] = []
 
-    # Pass 1: src -> temp.
-    moved: list[tuple[Path, Path, Path, bool]] = []
-    for src, dst, tmp, is_main in full:
-        # Defensive backstop to the uuid stamp: never move onto an occupied
-        # temp name (a rename would clobber it), refuse and report instead.
-        if tmp.exists():
-            logger.error("[%s] temp name occupied, skipping: %s -> %s", log_prefix, src, tmp)
-            errors.append({"path": str(src), "error": f"temp-namn upptaget: {tmp.name}"})
-            continue
-        try:
-            src.rename(tmp)
-            moved.append((src, dst, tmp, is_main))
-        except OSError as e:
-            logger.error("[%s] to-temp failed: %s -> %s: %s", log_prefix, src, tmp, e)
-            errors.append({"path": str(src), "error": str(e)})
+    # Pass 1: src -> temp, for every entry. Record per-entry whether it moved so
+    # pass 2 only touches temps that exist.
+    for unit in units:
+        unit["main_moved"] = _move_to_temp(*unit["main"], log_prefix, errors)
+        unit["sc_moved"] = [_move_to_temp(*sc, log_prefix, errors) for sc in unit["sidecars"]]
 
-    # Pass 2: temp -> dst, never overwriting; restore the original on collision.
-    for src, dst, tmp, is_main in moved:
+    # Pass 2: temp -> dst, never overwriting; restore on collision. Sidecars
+    # follow their main: only placed if the main lands, restored if it doesn't.
+    for unit in units:
+        src, dst, tmp = unit["main"]
+        sidecars = unit["sidecars"]
+        sc_moved = unit["sc_moved"]
+
+        if not unit["main_moved"]:
+            # Main never reached its temp (pass-1 error already recorded); its
+            # sidecars must not move without it.
+            _restore_moved_sidecars(sidecars, sc_moved, log_prefix, errors)
+            continue
+
         if dst.exists():
             if _restore_tmp(tmp, src, log_prefix):
                 skipped.append({"path": str(src), "reason": f"målnamn upptaget: {dst.name}"})
             else:
                 errors.append({"path": str(tmp),
                                "error": f"kan ej återställa: {src.name} upptaget — fil kvar som {tmp.name}"})
+            _restore_moved_sidecars(sidecars, sc_moved, log_prefix, errors)
             continue
+
         try:
             tmp.rename(dst)
-            renamed.append({"from": src.name, "to": dst.name})
-            if is_main:
-                record(op=journal_op, tool=tool, batch_id=batch_id, src=src, dst=dst)
         except OSError as e:
             logger.error("[%s] to-final failed: %s -> %s: %s", log_prefix, tmp, dst, e)
             if _restore_tmp(tmp, src, log_prefix):
@@ -260,8 +265,62 @@ def two_pass_rename(
             else:
                 errors.append({"path": str(tmp),
                                "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
+            _restore_moved_sidecars(sidecars, sc_moved, log_prefix, errors)
+            continue
+
+        # Main placed — journal it, then place its sidecars. A sidecar collision
+        # or failure skips just that sidecar (the main stays put).
+        renamed.append({"from": src.name, "to": dst.name})
+        record(op=journal_op, tool=tool, batch_id=batch_id, src=src, dst=dst)
+        for (sc_src, sc_dst, sc_tmp), was_moved in zip(sidecars, sc_moved):
+            if not was_moved:
+                continue
+            if sc_dst.exists():
+                if _restore_tmp(sc_tmp, sc_src, log_prefix):
+                    skipped.append({"path": str(sc_src), "reason": f"målnamn upptaget: {sc_dst.name}"})
+                else:
+                    errors.append({"path": str(sc_tmp),
+                                   "error": f"kan ej återställa: {sc_src.name} upptaget — fil kvar som {sc_tmp.name}"})
+                continue
+            try:
+                sc_tmp.rename(sc_dst)
+                renamed.append({"from": sc_src.name, "to": sc_dst.name})
+            except OSError as e:
+                logger.error("[%s] sidecar to-final failed: %s -> %s: %s", log_prefix, sc_tmp, sc_dst, e)
+                if _restore_tmp(sc_tmp, sc_src, log_prefix):
+                    errors.append({"path": str(sc_src), "error": str(e)})
+                else:
+                    errors.append({"path": str(sc_tmp),
+                                   "error": f"{e}; kunde ej återställa (fil kvar som {sc_tmp.name})"})
 
     return {"renamed": renamed, "skipped": skipped, "errors": errors}
+
+
+def _move_to_temp(src: Path, dst: Path, tmp: Path, log_prefix: str, errors: list) -> bool:
+    """Rename src→tmp (pass 1). Returns True on success; records an error else.
+
+    Never moves onto an occupied temp name (a backstop to the uuid stamp — a
+    rename would silently clobber it on POSIX).
+    """
+    if tmp.exists():
+        logger.error("[%s] temp name occupied, skipping: %s -> %s", log_prefix, src, tmp)
+        errors.append({"path": str(src), "error": f"temp-namn upptaget: {tmp.name}"})
+        return False
+    try:
+        src.rename(tmp)
+        return True
+    except OSError as e:
+        logger.error("[%s] to-temp failed: %s -> %s: %s", log_prefix, src, tmp, e)
+        errors.append({"path": str(src), "error": str(e)})
+        return False
+
+
+def _restore_moved_sidecars(sidecars, sc_moved, log_prefix: str, errors: list) -> None:
+    """Restore every sidecar that reached its temp back to its original name."""
+    for (sc_src, _sc_dst, sc_tmp), was_moved in zip(sidecars, sc_moved):
+        if was_moved and not _restore_tmp(sc_tmp, sc_src, log_prefix):
+            errors.append({"path": str(sc_tmp),
+                           "error": f"kan ej återställa: {sc_src.name} — fil kvar som {sc_tmp.name}"})
 
 
 def _restore_tmp(tmp: Path, src: Path, log_prefix: str) -> bool:

@@ -271,6 +271,53 @@ def test_two_pass_carries_sidecars(journal, tmp_path):
     assert [r["dst"] for r in rows] == [str(tmp_path / "1.NEF")]
 
 
+def test_two_pass_sidecar_restored_when_main_target_taken(journal, tmp_path):
+    # Main dst occupied, sidecar dst free: the sidecar must NOT be placed at the
+    # new stem — it follows the main and is restored alongside it.
+    a = tmp_path / "a.NEF"
+    a.write_bytes(b"A")
+    (tmp_path / "a.xmp").write_text("side")
+    occupied = tmp_path / "1.NEF"
+    occupied.write_bytes(b"KEEP")  # main target taken; 1.xmp is free
+
+    res = fs_ops.two_pass_rename(
+        [(a, tmp_path / "1.NEF")], tool="rename-nef",
+        sidecar_exts=["xmp"], find_sidecars=_find_sidecars)
+
+    assert res["renamed"] == []
+    assert len(res["skipped"]) == 1
+    # Both main and sidecar restored to their originals; no orphan at 1.xmp.
+    assert a.read_bytes() == b"A"
+    assert (tmp_path / "a.xmp").read_text() == "side"
+    assert not (tmp_path / "1.xmp").exists()
+    assert occupied.read_bytes() == b"KEEP"
+    assert not journal.exists()
+
+
+def test_two_pass_sidecar_target_taken_keeps_main(journal, tmp_path):
+    # Sidecar dst occupied, main dst free: the main is renamed + journaled and
+    # only the sidecar is skipped (a sidecar collision never fells its main).
+    a = tmp_path / "a.NEF"
+    a.write_bytes(b"A")
+    (tmp_path / "a.xmp").write_text("side")
+    occupied = tmp_path / "1.xmp"
+    occupied.write_text("KEEP")  # sidecar target taken; 1.NEF is free
+
+    res = fs_ops.two_pass_rename(
+        [(a, tmp_path / "1.NEF")], tool="rename-nef",
+        sidecar_exts=["xmp"], find_sidecars=_find_sidecars)
+
+    assert {r["to"] for r in res["renamed"]} == {"1.NEF"}
+    assert (tmp_path / "1.NEF").read_bytes() == b"A"
+    # Sidecar skipped and restored; the occupying 1.xmp untouched.
+    assert len(res["skipped"]) == 1
+    assert (tmp_path / "a.xmp").read_text() == "side"
+    assert occupied.read_text() == "KEEP"
+    # Only the main file is journaled.
+    rows = _rows(journal)
+    assert [r["dst"] for r in rows] == [str(tmp_path / "1.NEF")]
+
+
 # ----- import target resolution ----------------------------------------------
 
 def test_resolve_import_target_free_name(tmp_path):
