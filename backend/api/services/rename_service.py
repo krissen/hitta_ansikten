@@ -479,6 +479,14 @@ def build_new_filename_with_config(
     if prefix_source == "none":
         # No prefix - empty string (pattern should handle this)
         prefix = ""
+    elif prefix_source == "filename":
+        # Keep the filename's own timestamp INCLUDING any -N burst marker and
+        # photographer suffix. Reformatting via the parsed datetime would drop
+        # the -N, collapsing burst-disambiguated twins to the same
+        # YYMMDD_HHMMSS_Name — they then collide and the DB records both under
+        # one name. extract_prefix_suffix preserves -N (and any -N_Name form).
+        old_prefix, _ = extract_prefix_suffix(fname)
+        prefix = old_prefix if old_prefix else original_stem
     elif file_path and file_path.exists():
         dt = get_prefix_datetime(file_path, config)
         if dt:
