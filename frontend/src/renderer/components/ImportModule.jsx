@@ -91,6 +91,10 @@ export function ImportModule() {
       setError(null);
       setRunning(false);
       setProgress(null);
+      // When this is the only completion path (HTTP response lost), the card is
+      // likely ejected/gone — refresh the list so a stale selection can't post
+      // against an unmounted volume, mirroring the HTTP-success path.
+      loadVolumes();
       return;
     }
     setProgress(data.percent ?? null);
@@ -99,7 +103,7 @@ export function ImportModule() {
       total: data.total,
       file: data.file || '',
     }));
-  }, []);
+  }, [loadVolumes]);
   useWebSocket('import-progress', onProgress);
 
   const pickDestination = useCallback(async () => {
