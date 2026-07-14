@@ -1,8 +1,15 @@
 /**
- * ImageViewer - React component for canvas-based image viewing
+ * ImageViewer - Review-workflow image viewer module.
+ *
+ * Thin, event-driven wrapper around the presentational <CanvasImageView>. This
+ * module owns everything application-specific: the image loading / NEF pipeline,
+ * module-event wiring (load-image, faces-detected, active-face-changed,
+ * sync-zoom, …), global keyboard shortcuts, menu-state sync, the face bounding
+ * box overlay, and the file-info / loading overlays. All zoom/pan/canvas
+ * mechanics live in CanvasImageView and are driven through its imperative ref.
  *
  * Features:
- * - Canvas-based rendering with zoom/pan support
+ * - Canvas-based rendering with zoom/pan support (via CanvasImageView)
  * - Face bounding box overlay
  * - NEF file support (via IPC conversion)
  * - Keyboard shortcuts for zoom and navigation
@@ -11,23 +18,20 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.js';
-import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { debug, debugError } from '../shared/debug.js';
 import { toFileUrl } from '../shared/fileUrl.js';
-import { computeFitTransform } from '../shared/fitTransform.js';
+import { ZOOM_STEP } from '../shared/canvasViewport.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
+import { CanvasImageView } from './CanvasImageView.jsx';
 import { LoadingOverlay } from './shared/ProgressBar.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { t } from '../../i18n/index.js';
 import './ImageViewer.css';
 
 // Constants (will be user-configurable in Phase 4)
-const ZOOM_STEP = 1.15;
 const ZOOM_HOLD_DELAY = 200;
 const CONTINUOUS_ZOOM_FACTOR = 1.012;
-const MIN_ZOOM = 0.01;
-const MAX_ZOOM = 10;
 const LABEL_BUFFER_RATIO = 0.005;
 const LABEL_MIN_BUFFER = 10;
 
@@ -35,23 +39,13 @@ const LABEL_MIN_BUFFER = 10;
  * ImageViewer Component
  */
 export function ImageViewer() {
-  const containerRef = useRef(null);
-  const canvasRef = useRef(null);
+  // Imperative handle to the canvas viewer (zoom/pan/fit/center).
+  const viewRef = useRef(null);
 
   // Image state
   const [image, setImage] = useState(null);
   const [imagePath, setImagePath] = useState(null);
   const [originalImagePath, setOriginalImagePath] = useState(null);
-
-  // Zoom/pan state
-  const [zoomMode, setZoomMode] = useState('auto');
-  const [zoomFactor, setZoomFactor] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-
-  // Panning state (refs for performance - avoid re-renders during pan)
-  const isPanningRef = useRef(false);
-  const lastPanPointRef = useRef(null);
-  const mousePosRef = useRef({ x: 0, y: 0 });
 
   // Face detection state
   const [faces, setFaces] = useState([]);
@@ -79,13 +73,6 @@ export function ImageViewer() {
   // File info overlay state
   const [showFileInfo, setShowFileInfo] = useState(() => preferences.get('imageViewer.showFileInfo') ?? true);
   const [queueStatus, setQueueStatus] = useState(null);
-
-  // Canvas dimensions
-  const dimensions = useCanvasDimensions(containerRef);
-
-  // Device pixel ratio — tracked in state so a monitor move (DPR change) both
-  // resizes the backing store and repaints.
-  const [dpr, setDpr] = useState(() => window.devicePixelRatio || 1);
 
   // Cached face-box theme colors (read from CSS vars). Invalidated on theme
   // change; `themeVersion` bumps to force a repaint with the new colors.
@@ -176,9 +163,8 @@ export function ImageViewer() {
         setImage(drawable);
         setImagePath(loadPath);
         setOriginalImagePath(originalPath);
-        setZoomMode('auto');
-        setZoomFactor(1);
-        setPan({ x: 0, y: 0 });
+        // Reset the viewer to auto-fit for the new image.
+        viewRef.current?.autoFit();
         setIsLoading(false);
 
         resolve({ img: drawable, loadPath, originalPath });
@@ -212,47 +198,7 @@ export function ImageViewer() {
   }, []);
 
   // ============================================
-  // Canvas Rendering
-  // ============================================
-
-  const render = useCallback(() => {
-    if (!canvasRef.current || !image) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');  // Allow transparency for themed background
-
-    const canvasWidth = dimensions.width;
-    const canvasHeight = dimensions.height;
-
-    // Map CSS pixels to device pixels. setTransform replaces the whole matrix,
-    // so this both applies the DPR scale and resets any prior transform without
-    // reallocating the backing store (the resize effect owns canvas.width/height).
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-
-    let imageScale, imageX, imageY;
-
-    if (zoomMode === 'auto') {
-      // Auto-fit mode
-      const fit = computeFitTransform(image.width, image.height, canvasWidth, canvasHeight);
-      imageScale = fit.scale;
-      imageX = fit.x;
-      imageY = fit.y;
-    } else {
-      // Manual zoom mode
-      imageScale = zoomFactor;
-      imageX = pan.x;
-      imageY = pan.y;
-    }
-
-    ctx.drawImage(image, imageX, imageY, image.width * imageScale, image.height * imageScale);
-
-    // Draw face bounding boxes
-    drawFaceBoxes(ctx, canvasWidth, canvasHeight, imageScale, imageX, imageY);
-  }, [image, dimensions, dpr, zoomMode, zoomFactor, pan, faces, faceBoxMode, activeFaceIndex, themeVersion]);
-
-  // ============================================
-  // Face Box Rendering
+  // Face Box Overlay
   // ============================================
 
   const drawFaceBoxes = useCallback((ctx, canvasWidth, canvasHeight, imageScale, imageX, imageY) => {
@@ -464,97 +410,12 @@ export function ImageViewer() {
         ctx.lineWidth = 3;
       }
     });
-  }, [image, faces, faceBoxMode, activeFaceIndex]);
+  }, [image, faces, faceBoxMode, activeFaceIndex, themeVersion]);
 
-  // ============================================
-  // Zoom Functions
-  // ============================================
-
-  const zoom = useCallback((factor, centerX = null, centerY = null) => {
-    if (!image) return;
-
-    let newZoomFactor = zoomFactor;
-    let newPan = { ...pan };
-    let newZoomMode = zoomMode;
-
-    if (zoomMode === 'auto') {
-      // Switch to manual mode
-      newZoomMode = 'manual';
-
-      const canvasWidth = dimensions.width;
-      const canvasHeight = dimensions.height;
-      const imgRatio = image.width / image.height;
-      const canvasRatio = canvasWidth / canvasHeight;
-
-      let currentScale, currentX, currentY;
-
-      if (imgRatio > canvasRatio) {
-        currentScale = canvasWidth / image.width;
-        currentX = 0;
-        currentY = (canvasHeight - image.height * currentScale) / 2;
-      } else {
-        currentScale = canvasHeight / image.height;
-        currentX = (canvasWidth - image.width * currentScale) / 2;
-        currentY = 0;
-      }
-
-      newZoomFactor = currentScale;
-      newPan = { x: currentX, y: currentY };
-    }
-
-    const oldZoom = newZoomFactor;
-    newZoomFactor = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoomFactor * factor));
-
-    if (centerX !== null && centerY !== null) {
-      const zoomRatio = newZoomFactor / oldZoom;
-      newPan.x = centerX - (centerX - newPan.x) * zoomRatio;
-      newPan.y = centerY - (centerY - newPan.y) * zoomRatio;
-    }
-
-    setZoomMode(newZoomMode);
-    setZoomFactor(newZoomFactor);
-    setPan(newPan);
-  }, [image, zoomMode, zoomFactor, pan, dimensions]);
-
-  const resetZoom = useCallback(() => {
-    if (!image) return;
-
-    const canvasWidth = dimensions.width;
-    const canvasHeight = dimensions.height;
-
-    setZoomMode('manual');
-    setZoomFactor(1);
-
-    const face = faces[activeFaceIndex];
-    if (face?.bounding_box) {
-      const bbox = face.bounding_box;
-      const faceCenterX = bbox.x + bbox.width / 2;
-      const faceCenterY = bbox.y + bbox.height / 2;
-      setPan({
-        x: canvasWidth / 2 - faceCenterX,
-        y: canvasHeight / 2 - faceCenterY
-      });
-    } else {
-      setPan({
-        x: (canvasWidth - image.width) / 2,
-        y: (canvasHeight - image.height) / 2
-      });
-    }
-  }, [image, dimensions, faces, activeFaceIndex]);
-
-  const autoFit = useCallback(() => {
-    setZoomMode('auto');
-    setPan({ x: 0, y: 0 });
-  }, []);
-
-  // Refs for zoom functions — useModuleEvent captures handlers at subscription
-  // time, so without refs the handlers would use stale closures from mount
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
-  const resetZoomRef = useRef(resetZoom);
-  resetZoomRef.current = resetZoom;
-  const autoFitRef = useRef(autoFit);
-  autoFitRef.current = autoFit;
+  // Overlay callback handed to CanvasImageView; drawn after the image each frame.
+  const drawOverlay = useCallback((ctx, { scale, x, y, canvasWidth, canvasHeight }) => {
+    drawFaceBoxes(ctx, canvasWidth, canvasHeight, scale, x, y);
+  }, [drawFaceBoxes]);
 
   // ============================================
   // Menu State Sync Helper
@@ -604,46 +465,19 @@ export function ImageViewer() {
   }, [updateMenuState]);
 
   // ============================================
-  // Auto-center on face
+  // Reset / auto-center helpers
   // ============================================
 
-  const centerOnActiveFace = useCallback((faceIndex = null) => {
-    // Debug: Log why centering might be skipped
-    if (!faces || faces.length === 0) {
-      debug('ImageViewer', 'centerOnActiveFace: No faces');
-      return;
-    }
-    if (zoomMode === 'auto') {
-      debug('ImageViewer', 'centerOnActiveFace: Skipped (zoom mode is auto-fit, zoom in first)');
-      return;
-    }
-    if (!image) {
-      debug('ImageViewer', 'centerOnActiveFace: No image loaded');
-      return;
-    }
+  // 1:1 zoom, centered on the active face if there is one (else image center).
+  const resetView = useCallback(() => {
+    const face = faces[activeFaceIndex];
+    viewRef.current?.resetZoom(face?.bounding_box || null);
+  }, [faces, activeFaceIndex]);
 
-    // Use provided index or fall back to current activeFaceIndex
-    const indexToUse = faceIndex !== null ? faceIndex : activeFaceIndex;
-    const face = faces[indexToUse];
-    if (!face) {
-      debug('ImageViewer', 'centerOnActiveFace: Face not found at index', indexToUse);
-      return;
-    }
-
-    const bbox = face.bounding_box;
-    const faceCenterX = bbox.x + bbox.width / 2;
-    const faceCenterY = bbox.y + bbox.height / 2;
-
-    const viewportCenterX = dimensions.width / 2;
-    const viewportCenterY = dimensions.height / 2;
-
-    const newPan = {
-      x: viewportCenterX - (faceCenterX * zoomFactor),
-      y: viewportCenterY - (faceCenterY * zoomFactor)
-    };
-    debug('ImageViewer', `Centering on face ${indexToUse}: pan to`, newPan);
-    setPan(newPan);
-  }, [faces, activeFaceIndex, zoomMode, zoomFactor, dimensions, image]);
+  // Ref so module-event handlers (captured at subscription time) always call the
+  // latest closure over faces/activeFaceIndex.
+  const resetViewRef = useRef(resetView);
+  resetViewRef.current = resetView;
 
   const toggleAutoCenterOnFace = useCallback((enable) => {
     const newValue = enable === undefined ? !autoCenterOnFace : enable;
@@ -652,66 +486,10 @@ export function ImageViewer() {
     // Sync menu state
     updateMenuState('auto-center', newValue);
     if (newValue) {
-      centerOnActiveFace();
+      const face = faces[activeFaceIndex];
+      if (face?.bounding_box) viewRef.current?.centerOnRect(face.bounding_box);
     }
-  }, [autoCenterOnFace, centerOnActiveFace, updateMenuState]);
-
-  // ============================================
-  // Event Handlers
-  // ============================================
-
-  // Mouse events for panning
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-
-    const handleMouseDown = (e) => {
-      if (e.button === 0 && zoomMode === 'manual') {
-        isPanningRef.current = true;
-        lastPanPointRef.current = { x: e.clientX, y: e.clientY };
-        canvas.style.cursor = 'grabbing';
-      }
-    };
-
-    const handleMouseMove = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      mousePosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-
-      if (isPanningRef.current && lastPanPointRef.current) {
-        const dx = e.clientX - lastPanPointRef.current.x;
-        const dy = e.clientY - lastPanPointRef.current.y;
-
-        setPan(p => ({ x: p.x + dx, y: p.y + dy }));
-        lastPanPointRef.current = { x: e.clientX, y: e.clientY };
-      }
-    };
-
-    const handleMouseUp = () => {
-      isPanningRef.current = false;
-      lastPanPointRef.current = null;
-      canvas.style.cursor = zoomMode === 'manual' ? 'grab' : 'default';
-    };
-
-    const handleWheel = (e) => {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP;
-      zoom(delta, mousePosRef.current.x, mousePosRef.current.y);
-    };
-
-    canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mousemove', handleMouseMove);
-    canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('mouseleave', handleMouseUp);
-    canvas.addEventListener('wheel', handleWheel, { passive: false });
-
-    return () => {
-      canvas.removeEventListener('mousedown', handleMouseDown);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      canvas.removeEventListener('mouseup', handleMouseUp);
-      canvas.removeEventListener('mouseleave', handleMouseUp);
-      canvas.removeEventListener('wheel', handleWheel);
-    };
-  }, [zoomMode, zoom]);
+  }, [autoCenterOnFace, updateMenuState, faces, activeFaceIndex]);
 
   // ============================================
   // Keyboard Shortcuts
@@ -721,25 +499,25 @@ export function ImageViewer() {
   // Single tap: zoom step, Hold: continuous zoom, Double-tap +: 100% zoom
   useKeyHold('+', {
     onStart: () => {},
-    onHold: () => zoom(CONTINUOUS_ZOOM_FACTOR, mousePosRef.current.x, mousePosRef.current.y),
+    onHold: () => viewRef.current?.zoom(CONTINUOUS_ZOOM_FACTOR),
     onEnd: (_, wasHolding) => {
       if (!wasHolding) {
-        zoom(ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y);
+        viewRef.current?.zoom(ZOOM_STEP);
       }
     },
-    onDoubleTap: () => resetZoom() // Double-tap + → 100% (1:1) zoom
+    onDoubleTap: () => resetView() // Double-tap + → 100% (1:1) zoom
   }, { holdDelay: ZOOM_HOLD_DELAY });
 
   // Single tap: zoom step, Hold: continuous zoom, Double-tap -: fit-to-window
   useKeyHold('-', {
     onStart: () => {},
-    onHold: () => zoom(1 / CONTINUOUS_ZOOM_FACTOR, mousePosRef.current.x, mousePosRef.current.y),
+    onHold: () => viewRef.current?.zoom(1 / CONTINUOUS_ZOOM_FACTOR),
     onEnd: (_, wasHolding) => {
       if (!wasHolding) {
-        zoom(1 / ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y);
+        viewRef.current?.zoom(1 / ZOOM_STEP);
       }
     },
-    onDoubleTap: () => autoFit() // Double-tap - → fit-to-window
+    onDoubleTap: () => viewRef.current?.autoFit() // Double-tap - → fit-to-window
   }, { holdDelay: ZOOM_HOLD_DELAY });
 
   const toggleFileInfo = useCallback((enable) => {
@@ -750,8 +528,8 @@ export function ImageViewer() {
   }, [showFileInfo, updateMenuState]);
 
   useKeyboardShortcuts({
-    '=': resetZoom,
-    '0': autoFit,
+    '=': resetView,
+    '0': () => viewRef.current?.autoFit(),
     'b': toggleSingleAll,
     'B': toggleOnOff,
     'c': () => toggleAutoCenterOnFace(true),
@@ -815,18 +593,17 @@ export function ImageViewer() {
     debug('ImageViewer', `active-face-changed: index=${index}, autoCenterOnFace=${autoCenterOnFace}`);
     setActiveFaceIndex(index);
     if (autoCenterOnFace) {
-      debug('ImageViewer', 'Centering on face', index);
-      centerOnActiveFace(index);
+      const face = faces[index];
+      if (face?.bounding_box) {
+        debug('ImageViewer', 'Centering on face', index);
+        viewRef.current?.centerOnRect(face.bounding_box);
+      }
     }
-  }, [autoCenterOnFace, centerOnActiveFace]);
+  }, [autoCenterOnFace, faces]);
 
   // Listen for sync-zoom events
   useModuleEvent('sync-zoom', ({ zoomFactor: newZoom, pan: newPan }) => {
-    setZoomMode('manual');
-    setZoomFactor(newZoom);
-    if (newPan) {
-      setPan(newPan);
-    }
+    viewRef.current?.applyTransform({ zoomFactor: newZoom, pan: newPan });
   });
 
   // Re-emit the current image on request (Review's late-mount recovery asks for
@@ -851,10 +628,10 @@ export function ImageViewer() {
   useModuleEvent('boxes-hide', () => setBoxMode('none'));
   useModuleEvent('boxes-all', () => setBoxMode('all'));
   useModuleEvent('boxes-single', () => setBoxMode('single'));
-  useModuleEvent('zoom-in', () => zoomRef.current(ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y));
-  useModuleEvent('zoom-out', () => zoomRef.current(1 / ZOOM_STEP, mousePosRef.current.x, mousePosRef.current.y));
-  useModuleEvent('reset-zoom', () => resetZoomRef.current());
-  useModuleEvent('auto-fit', () => autoFitRef.current());
+  useModuleEvent('zoom-in', () => viewRef.current?.zoom(ZOOM_STEP));
+  useModuleEvent('zoom-out', () => viewRef.current?.zoom(1 / ZOOM_STEP));
+  useModuleEvent('reset-zoom', () => resetViewRef.current());
+  useModuleEvent('auto-fit', () => viewRef.current?.autoFit());
   useModuleEvent('auto-center-enable', () => toggleAutoCenterOnFace(true));
   useModuleEvent('auto-center-disable', () => toggleAutoCenterOnFace(false));
   useModuleEvent('file-info-show', () => toggleFileInfo(true));
@@ -876,43 +653,15 @@ export function ImageViewer() {
   }, []); // Only on mount
 
   // ============================================
-  // Canvas resize (backing store) — split from the draw path
+  // Theme invalidation for cached face-box colors
   // ============================================
-
-  // Own the canvas backing store. Reassigning canvas.width/height reallocates
-  // and clears it, so this must run ONLY when the size actually changes
-  // (dimensions or DPR) — never on pan/zoom. The draw effect below repaints
-  // afterwards because `render` also depends on [dimensions, dpr].
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-    canvas.width = dimensions.width * dpr;
-    canvas.height = dimensions.height * dpr;
-  }, [dimensions, dpr]);
-
-  // Track DPR changes (e.g. dragging the window between monitors of different
-  // pixel density). matchMedia fires once per change, so re-arm on each event.
-  useEffect(() => {
-    let mql;
-    const listener = () => {
-      const next = window.devicePixelRatio || 1;
-      setDpr(next);
-      arm(); // re-arm against the new DPR
-    };
-    const arm = () => {
-      if (mql) mql.removeEventListener('change', listener);
-      mql = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
-      mql.addEventListener('change', listener);
-    };
-    arm();
-    return () => { if (mql) mql.removeEventListener('change', listener); };
-  }, []);
 
   // Invalidate the cached face-box colors when the theme changes. Two triggers
   // are needed: theme-manager fires a `theme-changed` event and flips the
   // `data-theme` attribute, while the ThemeEditor live preview writes inline
   // CSS vars on <html> with no event — a MutationObserver on data-theme + style
-  // covers both. Bumping themeVersion forces render() to repaint.
+  // covers both. Bumping themeVersion changes drawOverlay's identity, forcing
+  // CanvasImageView to repaint with the new colors.
   useEffect(() => {
     const invalidate = () => {
       themeColorsRef.current = null;
@@ -941,23 +690,12 @@ export function ImageViewer() {
   }, [image]);
 
   // ============================================
-  // Draw on state change
-  // ============================================
-
-  useEffect(() => {
-    render();
-  }, [render]);
-
-  // ============================================
   // Render
   // ============================================
 
   return (
-    <div ref={containerRef} className="image-viewer" tabIndex={-1}>
-      <canvas
-        ref={canvasRef}
-        style={{ cursor: zoomMode === 'manual' ? 'grab' : 'default' }}
-      />
+    <div className="image-viewer" tabIndex={-1}>
+      <CanvasImageView ref={viewRef} image={image} drawOverlay={drawOverlay} />
       <LoadingOverlay visible={isLoading} message={loadingMessage} />
       {!image && !isLoading && (
         <div className="image-viewer-placeholder">
