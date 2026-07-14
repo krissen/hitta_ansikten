@@ -10,7 +10,6 @@ degrades to an empty volume list / disabled eject elsewhere.
 """
 
 import asyncio
-import filecmp
 import logging
 import os
 import plistlib
@@ -19,18 +18,12 @@ import subprocess
 import threading
 from pathlib import Path
 
+from core import fs_ops
+
 from ..websocket.progress import broadcast_event
 from .rename_service import find_sidecar_files
 
 logger = logging.getLogger(__name__)
-
-
-def _same_file(a: Path, b: Path) -> bool:
-    """True if two files are byte-identical (filecmp short-circuits on size)."""
-    try:
-        return filecmp.cmp(str(a), str(b), shallow=False)
-    except OSError:
-        return False
 
 VOLUMES_ROOT = Path("/Volumes")
 SIDECAR_EXTENSIONS = ["xmp"]
@@ -110,30 +103,6 @@ class ImportService:
             pass
         return count, size
 
-    @staticmethod
-    def _resolve_target(dest: Path, name: str, src: Path) -> Path | None:
-        """Where to write `src`, or None if an identical copy is already present.
-
-        Skips byte-identical re-imports — checking the base name AND any earlier
-        `-N` disambiguation variant (so re-importing is idempotent, no dupes) — and
-        otherwise returns the next free `DSC0001-N.NEF`, so a distinct same-named
-        frame is never dropped.
-        """
-        target = dest / name
-        if not target.exists():
-            return target
-        if _same_file(src, target):
-            return None
-        stem, suffix = os.path.splitext(name)
-        i = 1
-        while True:
-            cand = dest / f"{stem}-{i}{suffix}"
-            if not cand.exists():
-                return cand
-            if _same_file(src, cand):
-                return None
-            i += 1
-
     # ----- transfer -----------------------------------------------------
 
     async def run_import(
@@ -168,17 +137,23 @@ class ImportService:
         skipped: list[dict] = []
         errors: list[dict] = []
         op = shutil.move if mode == "move" else shutil.copy2
+        # Journal op mirrors the transfer mode: a move is reversible by moving
+        # back; a copy is recorded too (undo-of-copy semantics deferred to PR 2).
+        journal_op = "move" if mode == "move" else "copy"
+        batch_id = fs_ops.new_batch_id()
         loop = asyncio.get_event_loop()
 
         for i, src in enumerate(nefs, 1):
             try:
-                target = await loop.run_in_executor(None, self._resolve_target, dest, src.name, src)
+                target = await loop.run_in_executor(None, fs_ops.resolve_import_target, dest, src.name, src)
                 if target is None:
                     # Byte-identical copy already present (base or a -N variant) —
                     # safe to skip; re-import is idempotent.
                     skipped.append({"path": str(src), "reason": "identisk fil finns redan"})
                 else:
                     await loop.run_in_executor(None, op, str(src), str(target))
+                    fs_ops.record(op=journal_op, tool="import", batch_id=batch_id,
+                                  src=src, dst=target)
                     # Carry .xmp sidecars, named after the (possibly renamed) target.
                     for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
                         sc_target = dest / f"{target.stem}{sc.suffix}"

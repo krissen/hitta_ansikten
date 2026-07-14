@@ -7,6 +7,7 @@ writes happen and the rows can be read back.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -141,3 +142,32 @@ async def test_restore_names_execute_journals(journal, tmp_path):
     assert rows[0]["tool"] == "restore-names"
     assert rows[0]["op"] == "rename"
     assert rows[0]["dst"] == str(tmp_path / "260713_110145_Elis.NEF")
+
+
+# ----- import_service.run_import ---------------------------------------------
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode,expected_op", [("move", "move"), ("copy", "copy")])
+async def test_import_journals_transfers(journal, tmp_path, monkeypatch, mode, expected_op):
+    from api.services import import_service
+    from api.services.import_service import ImportService
+
+    async def _noop(event, payload):
+        pass
+
+    monkeypatch.setattr(import_service, "broadcast_event", _noop)
+
+    src = tmp_path / "card"
+    src.mkdir()
+    (src / "DSC0001.NEF").write_bytes(b"raw-1")
+    (src / "DSC0002.NEF").write_bytes(b"raw-2")
+    dest = tmp_path / "dest"
+
+    await ImportService().run_import(
+        volume_mount=str(src), destination=str(dest), mode=mode, eject=False)
+
+    rows = _rows(journal)
+    assert len(rows) == 2
+    assert all(r["tool"] == "import" for r in rows)
+    assert all(r["op"] == expected_op for r in rows)
+    assert {Path(r["dst"]).name for r in rows} == {"DSC0001.NEF", "DSC0002.NEF"}
