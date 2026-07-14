@@ -66,6 +66,7 @@ module.exports = {
     "count": "Antal",
     "pct": "%",
     "deltaPct": "Δ%",
+    "deltaTitle": "Avvikelse från baslinjen — medianen eller medelvärdet av bildantalet för de inkluderade spelarna. Positivt = fler bilder än baslinjen, negativt = färre.",
     "deltaN": "ΔN",
     "distribution": "Fördelning",
     "timeline": "Tidslinje",

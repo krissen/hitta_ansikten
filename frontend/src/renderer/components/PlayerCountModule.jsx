@@ -858,7 +858,7 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick, onNameContex
           <th>{t('playerCount.table.name')}</th>
           <th className="num">{t('playerCount.table.count')}</th>
           <th className="num">{t('playerCount.table.pct')}</th>
-          <th className="num">{t('playerCount.table.deltaPct')}</th>
+          <th className="num" title={t('playerCount.table.deltaTitle')}>{t('playerCount.table.deltaPct')}</th>
           <th className="num">{t('playerCount.table.deltaN')}</th>
           <th className="bar-col">{t('playerCount.table.distribution')}</th>
           <th className="spark-col">{t('playerCount.table.timeline')}</th>
@@ -888,7 +888,7 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick, onNameContex
             <td>{p.name}</td>
             <td className="num">{p.count}</td>
             <td className="num">{p.pct}%</td>
-            <td className={`num delta delta-${p.level}`}>
+            <td className={`num delta delta-${p.level}`} title={t('playerCount.table.deltaTitle')}>
               {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
             </td>
             <td className={`num delta delta-${p.level}`}>
