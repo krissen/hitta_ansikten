@@ -31,6 +31,7 @@ import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
 import { useDecodedImage } from '../hooks/useDecodedImage.js';
 import { CanvasImageView } from './CanvasImageView.jsx';
+import { ZOOM_STEP } from '../shared/canvasViewport.js';
 import { CullingContextMenu } from './culling/ContextMenu.jsx';
 import { CullingFilterBar } from './culling/FilterBar.jsx';
 import { ContextMenu } from './shared';
@@ -944,6 +945,47 @@ export function CullingModule({ node }) {
     return () => document.removeEventListener('keydown', onKeyCapture, true);
   }, [node, showTrash, currentIndex, beginEdit]);
 
+  // Loupe zoom (parity with ImageViewer's bindings): +/- step in/out, = resets
+  // to 1:1, 0 returns to auto-fit. CAPTURE phase with stopImmediatePropagation,
+  // like the Enter/Esc handler above: ImageViewer binds the same four keys via
+  // an ungated document-level listener (useKeyboardShortcuts), so when culling
+  // is the active tabset next to a mounted ImageViewer tab, a bubble-phase
+  // handler would zoom BOTH viewers on one keystroke. The keys are claimed only
+  // when culling would actually act on them — active tabset, single view with a
+  // drawable image (the grid has nothing to zoom; an empty/error/loading loupe
+  // ignores the keys), no text-field focus, no confirm dialog, trash closed and
+  // no modifiers (⌘0/⌘- etc. stay app shortcuts) — otherwise the event
+  // propagates untouched and ImageViewer keeps working when culling is
+  // inactive. Held +/- repeats via native key-repeat (no hold/double-tap layer
+  // like ImageViewer's).
+  useEffect(() => {
+    const onZoomKeyCapture = (e) => {
+      if (e.key !== '+' && e.key !== '-' && e.key !== '=' && e.key !== '0') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!isTabsetActive(node)) return;
+      if (showTrash) return;
+      if (confirmNavRef.current) return; // the confirm dialog owns the keyboard
+      const tag = e.target?.tagName;
+      // Text entry (rename input, glob, dropdown) must keep the keys — "+",
+      // "-", "0" and "=" are all typeable characters there.
+      if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (viewModeRef.current !== 'single' || !loupeImageRef.current) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      if (e.key === '+' || e.key === '-') {
+        loupeViewRef.current?.zoom(e.key === '+' ? ZOOM_STEP : 1 / ZOOM_STEP);
+      } else if (e.key === '=') {
+        loupeViewRef.current?.resetZoom();
+      } else {
+        loupeViewRef.current?.autoFit();
+      }
+    };
+    document.addEventListener('keydown', onZoomKeyCapture, true);
+    return () => document.removeEventListener('keydown', onZoomKeyCapture, true);
+  }, [node, showTrash]);
+
   // Dismiss the context menu on any click, a fresh right-click elsewhere,
   // scroll, resize, or Escape.
   useEffect(() => {
@@ -1174,6 +1216,12 @@ export function CullingModule({ node }) {
   // the drawable: an in-place re-export of the same file (folder watch →
   // bumpPreview) swaps the drawable but must keep the user's zoom/pan.
   const loupeViewRef = useRef(null);
+  // Mirror of the decoded drawable for the window keydown handler above: the
+  // zoom shortcuts must be a no-op while nothing is drawable (empty/error/
+  // loading states), and reading through a ref avoids re-subscribing the
+  // handler on every decode.
+  const loupeImageRef = useRef(null);
+  loupeImageRef.current = loupeImage;
   const lastFitPathRef = useRef(null);
   useEffect(() => {
     if (!loupeImage) return;

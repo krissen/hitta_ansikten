@@ -93,15 +93,19 @@ Gallra spelare har två vyer: **enkelbild** (loupe, standard) och **översikt**
 
 Enkelbildsvyn använder samma canvas-bildvisare som Granska ansikten: **rulla med
 mushjulet** för att zooma in/ut mot pekaren och **dra** för att panorera när du
-zoomat in. Varje ny bild börjar autoanpassad (fit-to-window), så att stega mellan
-filer nollställer zoomen automatiskt. NEF/RAW visas via samma konvertering som
-tidigare.
+zoomat in. Även bildvisarens zoomtangenter fungerar här: `+`/`-` zoomar in/ut,
+`=` återställer till 1:1 och `0` autoanpassar till fönstret. Varje ny bild
+börjar autoanpassad (fit-to-window), så att stega mellan filer nollställer
+zoomen automatiskt. NEF/RAW visas via samma konvertering som tidigare.
 
 | Genväg | Funktion |
 |--------|----------|
 | `↑` / `↓` (`k` / `j`) | **Enkelbild:** föregående/nästa. **Rutnät:** upp/ned en rad |
 | `←` / `→` | **Rutnät:** en miniatyr åt vänster/höger (enkelbild: föregående/nästa) |
 | `Alt`+pil | Bläddra sidvis (10 bilder, resp. 3 rader i rutnätet) |
+| `+` / `-` | **Enkelbild:** zooma in/ut |
+| `=` | **Enkelbild:** återställ till 1:1 |
+| `0` | **Enkelbild:** anpassa till fönster |
 | `x` / `Delete` / `Cmd+⌫` | Flytta bilden till papperskorgen och gå vidare (`Cmd+⌫` följer Finder) |
 | Dubbelklick / `Enter` | **Rutnät:** öppna miniatyren i enkelbild. **Enkelbild:** byt namn manuellt |
 | `Esc` | **Enkelbild:** tillbaka till översikten (om inget redigeras). Annars: kasta förhandsgranskningens avbockade namn |
