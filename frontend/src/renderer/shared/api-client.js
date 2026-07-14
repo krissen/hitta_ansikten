@@ -134,8 +134,14 @@ export class APIClient {
   }
 
   async _fetchWithTimeout(url, options = {}) {
+    // Per-call timeout override: `options.timeout` (ms) wins over the default,
+    // and `0` disables the timeout entirely — for long-running calls (e.g. a
+    // multi-minute card import) that must not be aborted mid-flight. `timeout`
+    // is stripped here so it is never forwarded to fetch as a request option.
+    const { timeout, ...fetchOptions } = options;
+    const effectiveTimeout = timeout != null ? timeout : this._requestTimeout;
     const controller = new AbortController();
-    const externalSignal = options.signal;
+    const externalSignal = fetchOptions.signal;
 
     // Honour a signal that is already aborted before the request starts.
     if (externalSignal?.aborted) {
@@ -149,14 +155,16 @@ export class APIClient {
       externalSignal.addEventListener('abort', onExternalAbort, { once: true });
     }
 
-    const timeoutId = setTimeout(() => controller.abort(), this._requestTimeout);
+    const timeoutId = effectiveTimeout > 0
+      ? setTimeout(() => controller.abort(), effectiveTimeout)
+      : null;
 
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
       this._setOffline(false);
       return response;
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId !== null) clearTimeout(timeoutId);
       if (externalSignal) {
         externalSignal.removeEventListener('abort', onExternalAbort);
       }

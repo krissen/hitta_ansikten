@@ -122,6 +122,52 @@ describe('APIClient._fetchWithTimeout', () => {
   });
 });
 
+describe('APIClient per-call timeout override', () => {
+  let client;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    client = new APIClient('http://127.0.0.1:9999');
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('honours a per-call timeout override shorter than the default', async () => {
+    client._requestTimeout = 60000; // default would not fire in this test window
+    global.fetch = hangingFetch();
+
+    const err = await client.post('/api/v1/import/run', {}, { timeout: 10 }).catch(e => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err.isTimeout).toBe(true);
+  });
+
+  it('disables the timeout entirely when timeout is 0 (long-running import)', async () => {
+    client._requestTimeout = 10; // would abort almost immediately if not overridden
+    global.fetch = hangingFetch();
+
+    const req = client
+      .post('/api/v1/import/run', {}, { timeout: 0 })
+      .then(() => 'resolved', () => 'rejected');
+    // If the timeout were still active it would abort at 10ms; give it 50ms and
+    // assert the request is still pending.
+    const sentinel = new Promise(resolve => setTimeout(() => resolve('pending'), 50));
+
+    await expect(Promise.race([req, sentinel])).resolves.toBe('pending');
+  });
+
+  it('does not forward the timeout option to fetch', async () => {
+    global.fetch = okFetch({ ok: true });
+
+    await client.post('/api/v1/import/run', {}, { timeout: 0 });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch.mock.calls[0][1]).not.toHaveProperty('timeout');
+  });
+});
+
 // A non-ok response whose JSON body carries a FastAPI-style { detail }.
 function detailErrorFetch(status, detail, statusText = 'Error') {
   return vi.fn(() => Promise.resolve({
