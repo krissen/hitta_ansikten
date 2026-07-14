@@ -30,7 +30,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
@@ -78,7 +78,7 @@ def record(*, op: str, tool: str, batch_id: str, src, dst) -> None:
         path = journal_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         row = {
-            "ts": datetime.now().isoformat(),
+            "ts": datetime.now(timezone.utc).isoformat(),
             "op": op,
             "tool": tool,
             "batch_id": batch_id,

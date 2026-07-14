@@ -161,12 +161,12 @@ by `core.fs_ops`. One JSON object per line; the file grows monotonically and is
 the source of truth for the "undo last batch" feature.
 
 ```jsonl
-{"ts": "2026-07-14T10:15:00.123456", "op": "rename", "tool": "rename-nef", "batch_id": "9f3c…", "src": "/photos/DSC0001.NEF", "dst": "/photos/260714_101500.NEF"}
-{"ts": "2026-07-14T10:16:02.001000", "op": "move", "tool": "import", "batch_id": "a1b2…", "src": "/Volumes/CARD/DSC0002.NEF", "dst": "/photos/DSC0002.NEF"}
+{"ts": "2026-07-14T08:15:00.123456+00:00", "op": "rename", "tool": "rename-nef", "batch_id": "9f3c…", "src": "/photos/DSC0001.NEF", "dst": "/photos/260714_101500.NEF"}
+{"ts": "2026-07-14T08:16:02.001000+00:00", "op": "move", "tool": "import", "batch_id": "a1b2…", "src": "/Volumes/CARD/DSC0002.NEF", "dst": "/photos/DSC0002.NEF"}
 ```
 
 **Fields:**
-- `ts`: ISO 8601 timestamp (`datetime.now().isoformat()`)
+- `ts`: tz-aware ISO 8601 timestamp in UTC (`datetime.now(timezone.utc).isoformat()`, ends `+00:00`)
 - `op`: `rename` | `move` | `copy` | `trash` | `restore`
 - `tool`: originating flow — `rename`, `rename-nef`, `rename-nef-cli`,
   `restore-names`, `import`, `culling`

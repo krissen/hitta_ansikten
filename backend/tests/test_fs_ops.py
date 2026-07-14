@@ -1,6 +1,7 @@
 """Tests for core.fs_ops: safe move primitives + the append-only journal."""
 
 import json
+from datetime import datetime
 
 import pytest
 
@@ -41,6 +42,15 @@ def test_record_writes_row(journal):
     assert row["src"] == "/a.NEF"
     assert row["dst"] == "/b.NEF"
     assert "ts" in row
+
+
+def test_record_ts_is_tz_aware_utc(journal):
+    fs_ops.record(op="rename", tool="t", batch_id="b", src="/1", dst="/2")
+    ts = _rows(journal)[0]["ts"]
+    parsed = datetime.fromisoformat(ts)
+    assert parsed.tzinfo is not None  # tz-aware, not naive
+    assert parsed.utcoffset().total_seconds() == 0  # UTC
+    assert ts.endswith("+00:00")
 
 
 def test_record_is_append_only(journal):
