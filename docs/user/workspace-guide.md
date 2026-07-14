@@ -305,6 +305,11 @@ antal.
    > fil-urval (mappar, globbar, datumspann, filtyp). Öppnar du den ena med
    > ett urval aktivt i den andra ärvs det automatiskt — du slipper ange om
    > samma mapp. (Spelar-/namnfiltret i Gallra ärvs inte; Räkna räknar alla.)
+   > **Delad baslinje:** även räkne-inställningen **Baslinje** (median/medel)
+   > delas mellan de två — byter du median/medel i den ena följer den andra
+   > med direkt (även om båda är öppna samtidigt), och valet sparas mellan
+   > omstarter (till skillnad från det sessions-bundna urvalet). Detsamma
+   > gäller **Min bilder** och **Matchgap**.
 3. Bläddra i fillistan i mitten — `→`/`↓` nästa, `←`/`↑` föregående (`Alt`+pil
    hoppar 10 i taget); bilden visas maximerad till höger. **Högerklicka** en fil
    för en meny med navigering, byt namn, gallra och ångra — varje rad visar sitt
@@ -312,8 +317,12 @@ antal.
    genvägshjälpen (`?`).
    Längst till vänster visas en **levande spelarräkning** för det aktuella
    urvalet som uppdateras direkt när du gallrar — så du ser hur varje spelares
-   antal förändras. Även de **exkluderade grupperna** (tränare/gruppbilder/
-   publik/under tröskeln) är klickbara där för att filtrera/markera personen,
+   antal förändras. I räknekolumnens huvud finns en liten **Baslinje**-väljare
+   (Median/Medel) som styr referensen för över-/underrepresentation; den delar
+   inställning med Räkna spelare-fliken (ändrar du här ändras även den, och
+   valet kvarstår mellan omstarter). Även de **exkluderade grupperna**
+   (tränare/gruppbilder/publik/under tröskeln) är klickbara där för att
+   filtrera/markera personen,
    och **högerklick på ett namn** (spelare eller exkluderad) ger samma
    session-/permanent-meny som i Räkna spelare — flytta t.ex. en
    publikmarkerad person till spelare för sessionen, direkt medan du gallrar. Tryck `x` (eller `Delete`) för att flytta bilden till

@@ -873,6 +873,12 @@ override the coach/audience/group exclusion lists for this request only (`null`
 keeps the config/env defaults); the configured always-markers (default `Laget`/
 `FBK` group, `Klacken` audience) are merged in regardless.
 
+The culling module's live stats panel calls this endpoint too and now sends
+`baseline` and `min_images` from the shared front-end counting settings (the
+Baslinje select in its header), so its numbers match the Räkna spelare page
+instead of falling back to the endpoint defaults. Omitting the fields still
+yields the defaults (`median` / `3`).
+
 `spelare`/`session_tranare`/`session_publik`/`session_grupp` are per-request
 **pins** that win over everything (config, env, overrides, even always-markers):
 a pinned name is removed from all exclusion sets and lands only in its pinned
