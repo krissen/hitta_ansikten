@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from api.services.db_store import get_db_store
+from core import fs_ops
 from core.exiftool import find_exiftool
 from core.files import SUPPORTED_EXTENSIONS
 from core.naming import normalize_name
@@ -944,6 +945,7 @@ class RenameService:
         renamed = []
         skipped = []
         errors = []
+        batch_id = fs_ops.new_batch_id()
 
         for item in preview["items"]:
             if item["status"] != "ok":
@@ -957,26 +959,29 @@ class RenameService:
             old_path = Path(item["original_path"])
             new_path = old_path.parent / item["new_name"]
 
-            try:
-                # Rename sidecar files first (from preview)
-                sidecars_renamed = []
-                for sidecar_path_str in item.get("sidecars", []):
-                    sidecar_path = Path(sidecar_path_str)
-                    if sidecar_path.exists():
-                        new_sidecar = sidecar_path.parent / f"{new_path.stem}{sidecar_path.suffix}"
-                        os.rename(sidecar_path, new_sidecar)
-                        sidecars_renamed.append({
-                            "original": str(sidecar_path),
-                            "new": str(new_sidecar)
-                        })
-                        logger.info(f"[RenameService] Renamed sidecar: {sidecar_path.name} -> {new_sidecar.name}")
+            # Pair each existing sidecar with its destination stem. The move is
+            # atomic (main + sidecars): fs_ops rechecks the target exists (TOCTOU
+            # guard — the preview may be stale) and rolls back every move if any
+            # step fails, so a rename never half-applies with an orphaned sidecar.
+            sidecar_pairs = []
+            for sidecar_path_str in item.get("sidecars", []):
+                sidecar_path = Path(sidecar_path_str)
+                if sidecar_path.exists():
+                    new_sidecar = sidecar_path.parent / f"{new_path.stem}{sidecar_path.suffix}"
+                    sidecar_pairs.append((sidecar_path, new_sidecar))
 
-                # Rename main file
-                os.rename(old_path, new_path)
+            try:
+                fs_ops.rename_with_sidecars(
+                    old_path, new_path, sidecar_pairs,
+                    tool="rename", journal_op="rename", batch_id=batch_id,
+                )
                 renamed.append({
                     "original": str(old_path),
                     "new": str(new_path),
-                    "sidecars": sidecars_renamed
+                    "sidecars": [
+                        {"original": str(sc), "new": str(sc_dst)}
+                        for sc, sc_dst in sidecar_pairs
+                    ],
                 })
                 logger.info(f"[RenameService] Renamed: {old_path.name} -> {new_path.name}")
             except Exception as e:
