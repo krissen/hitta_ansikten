@@ -33,6 +33,7 @@ import { CullingContextMenu } from './culling/ContextMenu.jsx';
 import { CullingFilterBar } from './culling/FilterBar.jsx';
 import { ContextMenu } from './shared';
 import { useContextMenu } from '../hooks/useContextMenu.js';
+import { useCountSettings } from '../hooks/useCountSettings.js';
 import {
   playerSessionParams,
   subscribePlayerSession,
@@ -77,6 +78,12 @@ export function CullingModule({ node }) {
   // Live per-player counts for the current scope (from /players/count), shown in
   // the left stats column and refreshed as files are culled.
   const [stats, setStats] = useState(null);
+  // Shared counting settings (baseline / min_images), synced with Räkna spelare.
+  // A ref mirrors the value so the many stats-loading callbacks can read it fresh
+  // without listing it as a dependency (like playerSessionParams() below).
+  const [countSettings, setCountSettings] = useCountSettings();
+  const countSettingsRef = useRef(countSettings);
+  countSettingsRef.current = countSettings;
   const [preset, setPreset] = useState('jpg'); // jpg | nef | raw
   // Scope carried from the stats module (glob-only runs, date span, recursion).
   // The culling bar has no date inputs, so we keep these to honour the count's
@@ -281,7 +288,7 @@ export function CullingModule({ node }) {
   const refreshStatsDebounced = useCallback(() => {
     if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
     statsDebounceRef.current = setTimeout(() => {
-      loadStats(statsScopeFromQuery(lastQueryRef.current));
+      loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
     }, REFRESH_DEBOUNCE_MS);
   }, [loadStats]);
 
@@ -290,10 +297,24 @@ export function CullingModule({ node }) {
   useEffect(
     () =>
       subscribePlayerSession(() => {
-        if (lastQueryRef.current) loadStats(statsScopeFromQuery(lastQueryRef.current));
+        if (lastQueryRef.current) loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
       }),
     [loadStats]
   );
+
+  // Refetch the stats column when the shared counting settings change (baseline
+  // select here, or an option change in Räkna spelare). useCountSettings only
+  // yields a new object on a real change, so an identity compare skips the mount
+  // and no-op renders — and keying the effect solely on countSettings avoids
+  // re-running on loadStats identity churn (which would refetch every render).
+  const lastCountSettingsRef = useRef(countSettings);
+  const loadStatsRef = useRef(loadStats);
+  loadStatsRef.current = loadStats;
+  useEffect(() => {
+    if (lastCountSettingsRef.current === countSettings) return;
+    lastCountSettingsRef.current = countSettings;
+    if (lastQueryRef.current) loadStatsRef.current(statsScopeFromQuery(lastQueryRef.current, countSettings));
+  }, [countSettings]);
 
   // Right-click on a name in the stats column: session bucket moves +
   // permanent publik (shared semantics with Räkna spelare).
@@ -318,7 +339,7 @@ export function CullingModule({ node }) {
     const query = buildQuery(overrides);
     lastQueryRef.current = query;
     loadList(query);
-    loadStats(statsScopeFromQuery(query));
+    loadStats(statsScopeFromQuery(query, countSettingsRef.current));
     updateWatches(watchDirs());
   }, [buildQuery, loadList, loadStats, updateWatches, watchDirs]);
 
@@ -329,7 +350,7 @@ export function CullingModule({ node }) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         loadList(lastQueryRef.current, { keepIndex: true });
-        loadStats(statsScopeFromQuery(lastQueryRef.current));
+        loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
         // Re-check the current file too — if it was re-exported in place, the
         // preview needs to reload the new bytes (same path, changed content).
         bumpPreview();
@@ -417,7 +438,7 @@ export function CullingModule({ node }) {
       };
       lastQueryRef.current = query;
       loadList(query);
-      loadStats(statsScopeFromQuery(query));
+      loadStats(statsScopeFromQuery(query, countSettingsRef.current));
 
       const dirs = new Set(nextRoots);
       for (const g of nextGlobs) {
@@ -493,7 +514,7 @@ export function CullingModule({ node }) {
       };
       lastQueryRef.current = query;
       loadList(query);
-      loadStats(statsScopeFromQuery(query));
+      loadStats(statsScopeFromQuery(query, countSettingsRef.current));
       updateWatches(new Set(nextRoots));
     },
     [roots, preset, loadList, loadStats, updateWatches]
@@ -542,7 +563,7 @@ export function CullingModule({ node }) {
     };
     lastQueryRef.current = query;
     loadList(query);
-    loadStats(statsScopeFromQuery(query));
+    loadStats(statsScopeFromQuery(query, countSettingsRef.current));
     // Watch roots AND each path-glob's base dir, so a glob-only mirrored scope
     // (e.g. adopted from Räkna spelare) still auto-refreshes on file changes.
     const dirs = new Set(s.roots || []);
@@ -1180,6 +1201,8 @@ export function CullingModule({ node }) {
             mode={viewMode}
             selected={viewMode === 'grid' ? highlightPlayer : player}
             width={statsWidth}
+            baseline={countSettings.baseline}
+            onBaselineChange={(baseline) => setCountSettings({ baseline })}
             onNameContextMenu={handleNameContextMenu}
             onSelect={(name) => {
               if (viewMode === 'grid') {

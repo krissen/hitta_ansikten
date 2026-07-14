@@ -60,6 +60,8 @@ function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
  * so the same numbers are in front of the user while culling. `stats` is the
  * /players/count response (or null); `selected` highlights the active player;
  * `width` is the column's pixel width (resizable via the stats divider).
+ * `baseline`/`onBaselineChange` back the median/mean select in the header — the
+ * shared counting setting, so changing it here also changes Räkna spelare.
  *
  * Row clicks are mode-dependent (`mode`): in the loupe a single click filters
  * the list to the player (`onSelect`); in the grid a single click highlights the
@@ -71,7 +73,7 @@ function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
  * capture-phase Enter/Esc handler yields to a focused role="button" so a keyed
  * Enter here filters instead of starting a rename.
  */
-export function CullingStats({ stats, selected, onSelect, onActivate, mode, width, onNameContextMenu }) {
+export function CullingStats({ stats, selected, onSelect, onActivate, mode, width, baseline, onBaselineChange, onNameContextMenu }) {
   const players = stats?.players || [];
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const clickTimerRef = useRef(null);
@@ -108,6 +110,18 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
     <div className="culling-stats" style={{ flex: `0 0 ${width}px` }}>
       <div className="culling-stats-header">
         <span>{t('culling.stats.header')}</span>
+        {onBaselineChange && (
+          <select
+            className="form-select culling-stats-baseline-select"
+            value={baseline || 'median'}
+            onChange={(e) => onBaselineChange(e.target.value)}
+            title={t('culling.stats.baselineSelectTitle')}
+            aria-label={t('culling.stats.baselineSelectLabel')}
+          >
+            <option value="median">{t('culling.stats.baselineMedian')}</option>
+            <option value="mean">{t('culling.stats.baselineMean')}</option>
+          </select>
+        )}
         {stats?.baseline != null && (
           <span className="culling-stats-baseline" title={t('culling.stats.baselineTitle')}>
             ~{Math.round(stats.baseline)}

@@ -64,7 +64,11 @@ module.exports = {
   },
   "stats": {
     "header": "Spelare",
-    "baselineTitle": "Baslinje (median)",
+    "baselineTitle": "Baslinjevärde",
+    "baselineSelectTitle": "Baslinje: referens för över-/underrepresentation",
+    "baselineSelectLabel": "Baslinje",
+    "baselineMedian": "Median",
+    "baselineMean": "Medel",
     "empty": "—",
     "columns": {
       "name": "Namn",

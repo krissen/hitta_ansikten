@@ -89,11 +89,26 @@
 .culling-stats-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
+  gap: 6px;
   padding: 6px 10px;
   font-size: 0.85em;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Push the baseline select + numeric value to the right of the "Spelare" label. */
+.culling-stats-header > span:first-child {
+  margin-right: auto;
+}
+
+/* Compact median/mean select in the stats header (reuses .form-select theming). */
+.culling-stats-baseline-select {
+  font-size: inherit;
+  padding: 1px 4px;
+  height: auto;
+  min-height: 0;
+  width: auto;
 }
 
 .culling-stats-baseline {
