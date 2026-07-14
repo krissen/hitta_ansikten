@@ -20,6 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from rename_nef import compute_renames, get_exif_data, is_already_named  # noqa: E402
 
+from core import fs_ops  # noqa: E402
+
 from ..websocket.progress import broadcast_event  # noqa: E402
 from .file_resolver import preset_extensions, resolve_files  # noqa: E402
 from .rename_service import find_sidecar_files  # noqa: E402
@@ -201,52 +203,18 @@ class RenameNefService:
                 renames, _no_date, _valid, _named = await self._plan(
                     files, phase="execute", include_named=include_named)
 
-            # Build the full move list: each NEF plus its .xmp sidecar, with fresh
-            # unique temp names (two-pass avoids intra-batch collisions).
-            stamp = str(os.getpid())
-            full: list[tuple[Path, Path, Path]] = []
-            ctr = 0
-            for src, dst, _tmp in renames:
-                full.append((src, dst, src.parent / f".rename_tmp_{stamp}_{ctr}{src.suffix}"))
-                ctr += 1
-                for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
-                    sc_dst = dst.with_name(f"{dst.stem}{sc.suffix}")
-                    if sc.name == sc_dst.name:
-                        continue
-                    full.append((sc, sc_dst, sc.parent / f".rename_tmp_{stamp}_{ctr}{sc.suffix}"))
-                    ctr += 1
-
-            renamed: list[dict] = []
-            skipped: list[dict] = []
-            errors: list[dict] = []
-
-            # Pass 1: src -> temp.
-            moved: list[tuple[Path, Path, Path]] = []
-            for src, dst, tmp in full:
-                try:
-                    src.rename(tmp)
-                    moved.append((src, dst, tmp))
-                except OSError as e:
-                    logger.error("[RenameNef] to-temp failed: %s -> %s: %s", src, tmp, e)
-                    errors.append({"path": str(src), "error": str(e)})
-
-            # Pass 2: temp -> dst, never overwriting; restore the original on collision.
-            for src, dst, tmp in moved:
-                if dst.exists():
-                    if self._restore(tmp, src):
-                        skipped.append({"path": str(src), "reason": f"målnamn upptaget: {dst.name}"})
-                    else:
-                        errors.append({"path": str(tmp), "error": f"kan ej återställa: {src.name} upptaget — fil kvar som {tmp.name}"})
-                    continue
-                try:
-                    tmp.rename(dst)
-                    renamed.append({"from": src.name, "to": dst.name})
-                except OSError as e:
-                    logger.error("[RenameNef] to-final failed: %s -> %s: %s", tmp, dst, e)
-                    if self._restore(tmp, src):
-                        errors.append({"path": str(src), "error": str(e)})
-                    else:
-                        errors.append({"path": str(tmp), "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
+            # Two-pass src->temp->dst over the whole batch (temp indirection lets
+            # burst-renumbering targets that clash with other sources resolve),
+            # carrying .xmp sidecars and journalling each renamed NEF.
+            result = fs_ops.two_pass_rename(
+                [(src, dst) for src, dst, _tmp in renames],
+                tool="rename-nef", journal_op="rename",
+                sidecar_exts=SIDECAR_EXTENSIONS, find_sidecars=find_sidecar_files,
+                tmp_prefix=".rename_tmp", log_prefix="RenameNef",
+            )
+            renamed = result["renamed"]
+            skipped = result["skipped"]
+            errors = result["errors"]
 
             # The plan is consumed and the files on disk have changed names — drop
             # the cache so a later preview/execute can't match a stale signature.
@@ -259,23 +227,6 @@ class RenameNefService:
                 "percent": 100,
             })
             return {"renamed": renamed, "skipped": skipped, "errors": errors}
-
-    @staticmethod
-    def _restore(tmp: Path, src: Path) -> bool:
-        """Move a temp back to its original name, NEVER overwriting an existing file.
-
-        Returns False (leaving the temp in place) if `src` is occupied — better a
-        recoverable hidden temp than silently clobbering a sibling already placed
-        at that name in this same pass.
-        """
-        if src.exists():
-            return False
-        try:
-            tmp.rename(src)
-            return True
-        except OSError as e:
-            logger.error("[RenameNef] restore failed: %s -> %s: %s", tmp, src, e)
-            return False
 
     # ----- batch re-apply confirmed names ---------------------------------
     #
@@ -420,52 +371,18 @@ class RenameNefService:
             renames, _correct, _no_record = await self._plan_restore(
                 files, phase="execute")
 
-            # Build the move list: each NEF plus its .xmp sidecar, with fresh
-            # unique temp names (two-pass avoids intra-batch collisions).
-            stamp = str(os.getpid())
-            full: list[tuple[Path, Path, Path]] = []
-            ctr = 0
-            for src, dst, _h in renames:
-                full.append((src, dst, src.parent / f".restore_tmp_{stamp}_{ctr}{src.suffix}"))
-                ctr += 1
-                for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
-                    sc_dst = dst.with_name(f"{dst.stem}{sc.suffix}")
-                    if sc.name == sc_dst.name:
-                        continue
-                    full.append((sc, sc_dst, sc.parent / f".restore_tmp_{stamp}_{ctr}{sc.suffix}"))
-                    ctr += 1
-
-            renamed: list[dict] = []
-            skipped: list[dict] = []
-            errors: list[dict] = []
-
-            # Pass 1: src -> temp.
-            moved: list[tuple[Path, Path, Path]] = []
-            for src, dst, tmp in full:
-                try:
-                    src.rename(tmp)
-                    moved.append((src, dst, tmp))
-                except OSError as e:
-                    logger.error("[RestoreNames] to-temp failed: %s -> %s: %s", src, tmp, e)
-                    errors.append({"path": str(src), "error": str(e)})
-
-            # Pass 2: temp -> dst, never overwriting; restore the original on collision.
-            for src, dst, tmp in moved:
-                if dst.exists():
-                    if self._restore(tmp, src):
-                        skipped.append({"path": str(src), "reason": f"målnamn upptaget: {dst.name}"})
-                    else:
-                        errors.append({"path": str(tmp), "error": f"kan ej återställa: {src.name} upptaget — fil kvar som {tmp.name}"})
-                    continue
-                try:
-                    tmp.rename(dst)
-                    renamed.append({"from": src.name, "to": dst.name})
-                except OSError as e:
-                    logger.error("[RestoreNames] to-final failed: %s -> %s: %s", tmp, dst, e)
-                    if self._restore(tmp, src):
-                        errors.append({"path": str(src), "error": str(e)})
-                    else:
-                        errors.append({"path": str(tmp), "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
+            # Two-pass src->temp->dst over the whole batch, carrying .xmp
+            # sidecars and journalling each restored NEF (op rename, tool
+            # restore-names).
+            result = fs_ops.two_pass_rename(
+                [(src, dst) for src, dst, _h in renames],
+                tool="restore-names", journal_op="rename",
+                sidecar_exts=SIDECAR_EXTENSIONS, find_sidecars=find_sidecar_files,
+                tmp_prefix=".restore_tmp", log_prefix="RestoreNames",
+            )
+            renamed = result["renamed"]
+            skipped = result["skipped"]
+            errors = result["errors"]
 
             # Sync processed_files so each restored NEF's DB entry reflects the
             # actual on-disk name — chiefly the -N-disambiguated twin, whose two

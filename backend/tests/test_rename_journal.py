@@ -91,3 +91,53 @@ def test_rename_service_toctou_guard_skips_occupied_target(journal, tmp_path, mo
     assert img.read_bytes() == b"raw"
     assert occupied.read_bytes() == b"KEEP"
     assert _rows(journal) == []
+
+
+# ----- rename_nef_service.execute --------------------------------------------
+
+@pytest.mark.asyncio
+async def test_rename_nef_execute_journals(journal, tmp_path, monkeypatch):
+    from api.services import rename_nef_service
+    from api.services.rename_nef_service import RenameNefService
+
+    (tmp_path / "a.NEF").write_bytes(b"A")
+    exif = {"a.NEF": ("250101_120000", 0)}
+
+    def fake(chunk):
+        out = [(exif[p.name][0], exif[p.name][1], p) for p in chunk if p.name in exif]
+        out.sort(key=lambda e: (e[0], e[1], str(e[2])))
+        return out
+
+    monkeypatch.setattr(rename_nef_service, "get_exif_data", fake)
+    svc = RenameNefService()
+    await svc.execute(roots=[str(tmp_path)])
+
+    rows = _rows(journal)
+    assert len(rows) == 1
+    assert rows[0]["tool"] == "rename-nef"
+    assert rows[0]["op"] == "rename"
+    assert rows[0]["dst"] == str(tmp_path / "250101_120000.NEF")
+
+
+# ----- rename_nef_service.restore_names_execute ------------------------------
+
+@pytest.mark.asyncio
+async def test_restore_names_execute_journals(journal, tmp_path):
+    import hashlib
+
+    from api.services.rename_nef_service import RenameNefService
+
+    (tmp_path / "260713_110145.NEF").write_bytes(b"A")
+    h = hashlib.sha1(b"A").hexdigest()
+
+    svc = RenameNefService()
+    svc._read_hash_to_name = lambda: {h: "260713_110145_Elis.NEF"}
+    svc._sync_processed_names = lambda m: len(m)
+
+    await svc.restore_names_execute(roots=[str(tmp_path)])
+
+    rows = _rows(journal)
+    assert len(rows) == 1
+    assert rows[0]["tool"] == "restore-names"
+    assert rows[0]["op"] == "rename"
+    assert rows[0]["dst"] == str(tmp_path / "260713_110145_Elis.NEF")
