@@ -559,9 +559,13 @@ def _place_unit_strict(unit, *, tool, journal_op, batch_id, log_prefix,
     """Pass-2 placement for one all-or-nothing unit (main + explicit sidecars).
 
     Restores the whole unit and skips (no journal row) if any destination is
-    occupied, and rolls the whole unit back on a mid-placement failure — so a
-    reverted main never lands while one of its sidecars is left at the old name
-    (or paired with an unrelated file already at the target stem).
+    occupied, and on a mid-placement failure restores the whole unit — the
+    members that already landed (final → source) AND every member still sitting at
+    its temp (the one whose rename raised and any not-yet-attempted), so a locked
+    or permission error never leaves hidden ``.undo_tmp*`` files behind while
+    their visible original names are gone. So a reverted main never lands while
+    one of its sidecars is left at the old name (or paired with an unrelated file
+    already at the target stem).
     """
     src, dst, tmp = unit["main"]
     sidecars = unit["sidecars"]
@@ -576,15 +580,20 @@ def _place_unit_strict(unit, *, tool, journal_op, batch_id, log_prefix,
     moved = [(sc_src, sc_dst, sc_tmp)
              for (sc_src, sc_dst, sc_tmp), was in zip(sidecars, sc_moved) if was]
 
-    def _restore_unit():
-        _restore_tmp(tmp, src, log_prefix)
-        for sc_src, _sc_dst, sc_tmp in moved:
-            _restore_tmp(sc_tmp, sc_src, log_prefix)
+    # Every unit member as (original_src, temp) — all currently sit at their temp.
+    unit_entries: list[tuple[Path, Path]] = [(src, tmp),
+                                             *((sc_src, sc_tmp) for sc_src, _sc_dst, sc_tmp in moved)]
+
+    def _restore_all_temps():
+        # Every member is still at its temp — move each back to its source,
+        # never overwriting (a source taken → leave the temp, reported by caller).
+        for original_src, temp in unit_entries:
+            _restore_tmp(temp, original_src, log_prefix)
 
     # A sidecar that couldn't even reach its temp makes the all-or-nothing unit
     # unfulfillable — restore what moved and fail the whole unit.
     if not all(sc_moved):
-        _restore_unit()
+        _restore_all_temps()
         errors.append({"path": str(src),
                        "error": "kan ej ångra hela enheten — en sidecar saknas"})
         return
@@ -596,11 +605,15 @@ def _place_unit_strict(unit, *, tool, journal_op, batch_id, log_prefix,
     else:
         blocker = next((sc_dst for _s, sc_dst, _t in moved if sc_dst.exists()), None)
     if blocker is not None:
-        _restore_unit()
+        _restore_all_temps()
         skipped.append({"path": str(src), "reason": f"målnamn upptaget: {blocker.name}"})
         return
 
-    # Place main + sidecars; roll the whole unit back on any failure.
+    # Place main + sidecars; on any failure roll the WHOLE unit back — both the
+    # members that already landed (final -> source) AND every member still at its
+    # temp: the one whose rename raised and any not-yet-attempted. Otherwise a
+    # locked/permission error would leave hidden `.undo_tmp*` files while their
+    # visible original names are gone, orphaning files despite all-or-nothing.
     placed: list[tuple[Path, Path]] = []  # (final_path, original_src)
     try:
         tmp.rename(dst)
@@ -610,11 +623,15 @@ def _place_unit_strict(unit, *, tool, journal_op, batch_id, log_prefix,
             placed.append((sc_dst, sc_src))
     except OSError as e:
         logger.error("[%s] strict unit placement failed: %s -> %s: %s", log_prefix, tmp, dst, e)
+        placed_srcs = {original_src for _final, original_src in placed}
+        # (a) reverse the members that landed: final -> source (never overwrite).
         for final_path, original_src in reversed(placed):
-            try:
-                final_path.rename(original_src)  # originals were freed by pass 1
-            except OSError:
-                logger.exception("[%s] strict rollback failed for %s", log_prefix, final_path)
+            _restore_tmp(final_path, original_src, log_prefix)
+        # (b)+(c) the failing member and any not-yet-placed members are still at
+        # their temps: restore those too.
+        for original_src, temp in unit_entries:
+            if original_src not in placed_srcs:
+                _restore_tmp(temp, original_src, log_prefix)
         errors.append({"path": str(src), "error": str(e)})
         return
 

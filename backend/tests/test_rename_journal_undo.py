@@ -270,6 +270,44 @@ def test_undo_strict_reverts_unit_with_sidecar_grouped_row(journal, tmp_path):
     assert len(undo_batch["rows"][0]["sidecars"]) == 1
 
 
+def test_undo_strict_rolls_back_whole_unit_on_placement_failure(journal, tmp_path, monkeypatch):
+    # If placing a unit member raises mid-way (locked file), the WHOLE unit must
+    # come back to its visible current names — no hidden .undo_tmp* left behind
+    # (the failing member's temp and any not-yet-placed temps included).
+    (tmp_path / "b.NEF").write_bytes(b"img")
+    (tmp_path / "b.xmp").write_text("side")
+    fs_ops.record(op="rename", tool="rename", batch_id="u",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF",
+                  sidecars=[(tmp_path / "a.xmp", tmp_path / "b.xmp")])
+
+    # Fail exactly the sidecar's final placement (temp -> a.xmp); the main lands
+    # first, then this raises, exercising the mid-unit rollback.
+    real_rename = Path.rename
+    target = tmp_path / "a.xmp"
+
+    def flaky(self, dst):
+        if Path(dst) == target:
+            raise OSError("locked")
+        return real_rename(self, dst)
+
+    monkeypatch.setattr(Path, "rename", flaky)
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    result = fs_ops.revert_batch(batch["rows"])
+
+    # Reported as an error, nothing reverted.
+    assert result["reverted"] == 0 and result["errors"] >= 1
+    # Every file is back at its visible current name; the originals never landed.
+    assert (tmp_path / "b.NEF").read_bytes() == b"img"
+    assert (tmp_path / "b.xmp").read_text() == "side"
+    assert not (tmp_path / "a.NEF").exists()
+    assert not (tmp_path / "a.xmp").exists()
+    # No orphaned temp files anywhere in the directory.
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".undo_tmp")]
+    # No undo batch was journaled (the whole unit failed).
+    assert [b["batch_id"] for b in fs_ops.group_batches(fs_ops.read_rows())] == ["u"]
+
+
 # ----- preview mirrors execute (strict units) --------------------------------
 
 def _preview_and_execute(batch_rows):
