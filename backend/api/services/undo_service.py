@@ -129,15 +129,18 @@ class UndoService:
 
         ``reverted_mains`` is the ``[{"original", "new"}, ...]`` list from
         ``revert_batch`` — ``original`` the renamed path the DB still points at,
-        ``new`` the restored original path. Handing it straight to the forward
-        rename's ``_update_database_paths`` builds the basename map
-        (renamed → original) and updates both collections in one store mutation.
+        ``new`` the restored original path, both absolute. Handed to the forward
+        rename's ``_update_database_paths`` in ``match="fullpath"`` mode so it
+        keys on the whole path (not the basename) — undoing a rename in one
+        folder never touches a DB entry that merely shares a basename in another
+        folder — and updates both collections in one store mutation.
         """
         if not reverted_mains:
             return 0
         from .rename_service import get_rename_service
 
-        return get_rename_service()._update_database_paths(reverted_mains)
+        return get_rename_service()._update_database_paths(
+            reverted_mains, match="fullpath")
 
 
 # Lazy singleton — no import-time construction / side effects.

@@ -25,6 +25,36 @@ def _rows(path):
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+def _redirect_db(monkeypatch, tmp_path):
+    """Bind core.db paths + a fresh FaceDBStore to a temp faceid dir."""
+    import faceid_db
+    from api.services import db_store as db_store_mod
+
+    base = tmp_path / "faceid"
+    base.mkdir(exist_ok=True)
+    for attr, fname in [
+        ("BASE_DIR", None), ("ENCODING_PATH", "encodings.pkl"),
+        ("IGNORED_PATH", "ignored.pkl"), ("HARDNEG_PATH", "hardneg.pkl"),
+        ("PROCESSED_PATH", "processed_files.jsonl"),
+        ("ATTEMPT_LOG_PATH", "attempt_stats.jsonl"), ("LOGGING_PATH", "ansikten.log"),
+    ]:
+        monkeypatch.setattr(faceid_db, attr, base if fname is None else base / fname)
+    monkeypatch.setattr(db_store_mod, "_store", None)  # fresh process-wide store
+    return faceid_db, db_store_mod
+
+
+def _face_entry(file_path):
+    import hashlib
+
+    import numpy as np
+    vec = np.asarray([1.0, 2.0], dtype=float)
+    return {
+        "encoding": vec, "file": str(file_path), "hash": None, "backend": "insightface",
+        "backend_version": "unknown", "created_at": None,
+        "encoding_hash": hashlib.sha1(vec.tobytes()).hexdigest(),
+    }
+
+
 # ----- fs_ops: read / group --------------------------------------------------
 
 def test_group_batches_orders_and_flags_undoable(journal, tmp_path):
@@ -296,36 +326,14 @@ async def test_undo_repairs_known_faces_and_processed_paths(journal, tmp_path, m
     # processed_files[*].name; undo must repair both, or face encodings keep
     # pointing at a renamed name that no longer exists. Round-trip through the
     # real RenameService + FaceDBStore (temp-redirected), no stubbed DB sync.
-    import hashlib
-
-    import numpy as np
-
-    import faceid_db
-    from api.services import db_store as db_store_mod
     from api.services.rename_service import RenameService
     from api.services.undo_service import UndoService
 
-    base = tmp_path / "faceid"
-    base.mkdir()
-    for attr, fname in [
-        ("BASE_DIR", None), ("ENCODING_PATH", "encodings.pkl"),
-        ("IGNORED_PATH", "ignored.pkl"), ("HARDNEG_PATH", "hardneg.pkl"),
-        ("PROCESSED_PATH", "processed_files.jsonl"),
-        ("ATTEMPT_LOG_PATH", "attempt_stats.jsonl"), ("LOGGING_PATH", "ansikten.log"),
-    ]:
-        monkeypatch.setattr(faceid_db, attr, base if fname is None else base / fname)
-    # Fresh process-wide store bound to the temp DB.
-    monkeypatch.setattr(db_store_mod, "_store", None)
+    faceid_db, db_store_mod = _redirect_db(monkeypatch, tmp_path)
 
     img = tmp_path / "IMG_0001.NEF"
     img.write_bytes(b"raw")
-    vec = np.asarray([1.0, 2.0], dtype=float)
-    entry = {
-        "encoding": vec, "file": str(img), "hash": "h1", "backend": "insightface",
-        "backend_version": "unknown", "created_at": None,
-        "encoding_hash": hashlib.sha1(vec.tobytes()).hexdigest(),
-    }
-    faceid_db.save_database({"Anna": [entry]}, [], {}, [{"name": str(img), "hash": "h1"}])
+    faceid_db.save_database({"Anna": [_face_entry(img)]}, [], {}, [{"name": str(img), "hash": "h1"}])
 
     # Forward rename (real _update_database_paths runs against the store).
     svc = RenameService()
@@ -351,6 +359,49 @@ async def test_undo_repairs_known_faces_and_processed_paths(journal, tmp_path, m
     assert result["reverted"] == 1
     assert img.exists() and not renamed.exists()
     assert db_names() == ("IMG_0001.NEF", "IMG_0001.NEF")
+
+
+@pytest.mark.asyncio
+async def test_undo_db_repair_matches_full_path_not_basename(journal, tmp_path, monkeypatch):
+    # Two files share a basename in different folders. Undoing the rename in one
+    # folder must only touch that folder's DB entries — not the same-basename
+    # entry in the other folder (the pre-existing basename-collision weakness,
+    # fixed at the undo callsite via match="fullpath").
+    from api.services.undo_service import UndoService
+
+    faceid_db, db_store_mod = _redirect_db(monkeypatch, tmp_path)
+
+    d1 = tmp_path / "one"
+    d2 = tmp_path / "two"
+    d1.mkdir()
+    d2.mkdir()
+    renamed1 = d1 / "260101_120000.NEF"   # will be undone → IMG_0001.NEF
+    renamed1.write_bytes(b"a")
+    other2 = d2 / "260101_120000.NEF"     # unrelated, same basename, NOT in batch
+    other2.write_bytes(b"b")
+
+    faceid_db.save_database(
+        {"P": [_face_entry(renamed1), _face_entry(other2)]}, [], {},
+        [{"name": str(renamed1), "hash": "h1"}, {"name": str(other2), "hash": "h2"}])
+
+    # Journal only folder one's rename.
+    fs_ops.record(op="rename", tool="rename", batch_id="b",
+                  src=d1 / "IMG_0001.NEF", dst=renamed1)
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    await UndoService().undo(batch["batch_id"], execute=True)
+
+    known_files, proc_names = db_store_mod.get_db_store().read(
+        lambda known, ignored, hardneg, processed: (
+            {e["file"] for e in known["P"]},
+            {p["name"] for p in processed},
+        ))
+    # Folder one's entry repointed; folder two's same-basename entry untouched.
+    assert str(d1 / "IMG_0001.NEF") in known_files
+    assert str(other2) in known_files            # NOT rewritten
+    assert str(renamed1) not in known_files
+    assert str(d1 / "IMG_0001.NEF") in proc_names
+    assert str(other2) in proc_names             # NOT rewritten
 
 
 # ----- API level -------------------------------------------------------------
