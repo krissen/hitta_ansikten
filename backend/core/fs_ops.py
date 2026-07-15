@@ -105,6 +105,136 @@ def record(*, op: str, tool: str, batch_id: str, src, dst,
 
 
 # ---------------------------------------------------------------------------
+# Journal reading / batch grouping (backing the "undo last batch" feature)
+# ---------------------------------------------------------------------------
+
+# Only these ops describe a plain relocation whose undo is a move back. ``copy``
+# would need a delete (out of scope in PR 2), and ``trash``/``restore`` already
+# have their own undo via the culling trash manifest — so a batch of those is
+# reported non-undoable and refused by the undo endpoint.
+UNDOABLE_OPS = ("rename", "move")
+
+
+def read_rows() -> list[dict]:
+    """Read every journal row in chronological (file) order; ``[]`` if absent.
+
+    Malformed lines are skipped (logged) rather than raising — a single corrupt
+    append must not make the whole history unreadable.
+    """
+    path = journal_path()
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    logger.warning("[fs_ops] skipping malformed journal line")
+    except OSError:
+        logger.exception("[fs_ops] journal read failed")
+        return []
+    return rows
+
+
+def group_batches(rows: Sequence[dict]) -> list[dict]:
+    """Group rows by ``batch_id``, preserving first-seen (chronological) order.
+
+    Each batch is ``{batch_id, ts, tool, op, count, undoable, rows}`` where ``ts``
+    is the first row's timestamp, ``tool``/``op`` are the single shared value or
+    ``"mixed"`` if a batch somehow spans several, and ``undoable`` is true only
+    when every row's op is in ``UNDOABLE_OPS``. ``rows`` carries the raw journal
+    rows (undo replays them); the API layer drops it from the wire payload.
+    """
+    order: list[str] = []
+    by_id: dict[str, dict] = {}
+    for r in rows:
+        bid = r.get("batch_id")
+        b = by_id.get(bid)
+        if b is None:
+            b = by_id[bid] = {
+                "batch_id": bid, "ts": r.get("ts"),
+                "rows": [], "tools": set(), "ops": set(),
+            }
+            order.append(bid)
+        b["rows"].append(r)
+        b["tools"].add(r.get("tool"))
+        b["ops"].add(r.get("op"))
+    batches = []
+    for bid in order:
+        b = by_id[bid]
+        ops, tools = b["ops"], b["tools"]
+        batches.append({
+            "batch_id": bid,
+            "ts": b["ts"],
+            "tool": next(iter(tools)) if len(tools) == 1 else "mixed",
+            "op": next(iter(ops)) if len(ops) == 1 else "mixed",
+            "count": len(b["rows"]),
+            "undoable": bool(ops) and ops <= set(UNDOABLE_OPS),
+            "rows": b["rows"],
+        })
+    return batches
+
+
+def _flatten_reverse_moves(batch_rows: Sequence[dict]) -> list[tuple[Path, Path, bool]]:
+    """Flatten a batch to per-file ``(from, to, is_main)`` move-back tuples.
+
+    ``from`` is the recorded ``dst`` (where the file sits now), ``to`` the recorded
+    ``src`` (its original path). Sidecars follow their main but are **literal** —
+    only the exact paths the row recorded, never re-derived from a stem rule.
+    """
+    moves: list[tuple[Path, Path, bool]] = []
+    for row in batch_rows:
+        moves.append((Path(row["dst"]), Path(row["src"]), True))
+        for sc in row.get("sidecars", []) or []:
+            moves.append((Path(sc["dst"]), Path(sc["src"]), False))
+    return moves
+
+
+def _is_case_only_same(a: Path, b: Path) -> bool:
+    """True if ``a`` exists and is the same inode as ``b`` (a case-only rename)."""
+    try:
+        return a.exists() and a.samefile(b)
+    except OSError:
+        return False
+
+
+def preview_revert(batch_rows: Sequence[dict]) -> list[dict]:
+    """Per-file dry-run of reversing a batch — no filesystem change.
+
+    Returns one item per move-back ``{from, to, from_name, to_name, status, reason}``
+    with ``status`` ``"ok"`` (would revert) or ``"skip"``. A move is skipped when
+    the recorded ``dst`` no longer exists (already moved/deleted) or its original
+    path is now occupied by an unrelated file. The occupied check treats the
+    batch's own recorded ``dst`` paths as free, since they vacate when reverted —
+    matching the two-pass mover's own source-exclusion.
+
+    Path-state only: the journal carries no content fingerprint, so this verifies
+    the move is *safe to replay*, not that the bytes are byte-for-byte the batch
+    output (see docs/dev/database.md).
+    """
+    sources = {str(frm) for frm, _to, _m in _flatten_reverse_moves(batch_rows)}
+    items = []
+    for frm, to, _is_main in _flatten_reverse_moves(batch_rows):
+        if not frm.exists():
+            status, reason = "skip", "filen saknas — redan flyttad eller borttagen"
+        elif to.exists() and str(to) not in sources and not _is_case_only_same(to, frm):
+            status, reason = "skip", "originalplatsen är upptagen"
+        else:
+            status, reason = "ok", None
+        items.append({
+            "from": str(frm), "to": str(to),
+            "from_name": frm.name, "to_name": to.name,
+            "status": status, "reason": reason,
+        })
+    return items
+
+
+# ---------------------------------------------------------------------------
 # Low-level move
 # ---------------------------------------------------------------------------
 
@@ -421,3 +551,70 @@ def resolve_import_target(dest: Path, name: str, src: Path) -> Path | None:
         if same_file(src, cand):
             return None
         i += 1
+
+
+# ---------------------------------------------------------------------------
+# Undo: replay a batch's recorded moves backwards
+# ---------------------------------------------------------------------------
+
+def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
+    """Reverse a batch's recorded moves (``dst → src``), literally, then journal.
+
+    Each row's main move and every listed sidecar is replayed backwards. A move
+    whose recorded ``dst`` no longer exists is skipped up front (nothing to move);
+    the rest run through the shared two-pass mover, so within-batch chains (burst
+    renumbering, where one file's original name is another's current name) resolve
+    cleanly and no original path is ever overwritten. Sidecars are **literal** —
+    only the exact paths the row recorded are touched, never re-derived.
+
+    The successful reversals are journaled by ``two_pass_rename`` as a fresh batch
+    (op ``rename``, the given ``tool``, one row per file), so the undo is itself
+    undoable (redo). Returns::
+
+        {"results": [{path, status: reverted|skipped|error, reason}],
+         "reverted": int, "skipped": int, "errors": int,
+         "reverted_mains": [restored_path, ...]}
+
+    ``reverted_mains`` lists the original paths of the main files that came back,
+    for the caller to re-sync the face DB's per-hash names.
+    """
+    results: list[dict] = []
+    eligible: list[tuple[Path, Path, bool]] = []
+    for frm, to, is_main in _flatten_reverse_moves(batch_rows):
+        if not frm.exists():
+            results.append({"path": str(frm), "status": "skipped",
+                            "reason": "filen saknas — redan flyttad eller borttagen"})
+            continue
+        eligible.append((frm, to, is_main))
+
+    move_res = two_pass_rename(
+        [(frm, to) for frm, to, _ in eligible],
+        tool=tool, journal_op="rename",
+        tmp_prefix=".undo_tmp", log_prefix="Undo",
+    )
+    skipped_by_path = {s["path"]: s["reason"] for s in move_res["skipped"]}
+    errors_by_path = {e["path"]: e["error"] for e in move_res["errors"]}
+
+    reverted_mains: list[str] = []
+    for frm, to, is_main in eligible:
+        key = str(frm)
+        if key in errors_by_path:
+            results.append({"path": key, "status": "error", "reason": errors_by_path.pop(key)})
+        elif key in skipped_by_path:
+            results.append({"path": key, "status": "skipped", "reason": skipped_by_path[key]})
+        else:
+            results.append({"path": key, "status": "reverted", "reason": None})
+            if is_main:
+                reverted_mains.append(str(to))
+    # Any remaining errors are keyed by a leftover temp path (a rare
+    # restore-after-failure) — surface them so nothing is hidden.
+    for key, err in errors_by_path.items():
+        results.append({"path": key, "status": "error", "reason": err})
+
+    return {
+        "results": results,
+        "reverted": sum(1 for r in results if r["status"] == "reverted"),
+        "skipped": sum(1 for r in results if r["status"] == "skipped"),
+        "errors": sum(1 for r in results if r["status"] == "error"),
+        "reverted_mains": reverted_mains,
+    }

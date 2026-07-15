@@ -73,6 +73,7 @@ def _reset_service_singletons():
         "api.services.culling_service",
         "api.services.rename_nef_service",
         "api.services.import_service",
+        "api.services.undo_service",
     ]
     attr_by_module = {
         "api.services.detection_service": "_detection_service",
@@ -81,6 +82,7 @@ def _reset_service_singletons():
         "api.services.culling_service": "_culling_service",
         "api.services.rename_nef_service": "_rename_nef_service",
         "api.services.import_service": "_import_service",
+        "api.services.undo_service": "_undo_service",
     }
     import sys
 

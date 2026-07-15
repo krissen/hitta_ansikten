@@ -1,0 +1,239 @@
+"""Undo of a rename batch: round-trip, partial undo, refusal, redo.
+
+The journal is redirected under ``tmp_path`` by the autouse
+``_redirect_rename_journal`` fixture in ``conftest.py``, so these tests never
+touch the developer's real journal. Each test drives a *real* fs_ops move to
+populate the journal, then reverses it through the undo service / helpers.
+"""
+
+import json
+
+import pytest
+
+from core import fs_ops
+
+
+@pytest.fixture
+def journal(tmp_path):
+    return tmp_path / "rename_journal.jsonl"
+
+
+def _rows(path):
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
+# ----- fs_ops: read / group --------------------------------------------------
+
+def test_group_batches_orders_and_flags_undoable(journal, tmp_path):
+    # Two distinct batches: a rename (undoable) and an import copy (not).
+    fs_ops.record(op="rename", tool="rename-nef", batch_id="b1",
+                  src=tmp_path / "a", dst=tmp_path / "b")
+    fs_ops.record(op="copy", tool="import", batch_id="b2",
+                  src=tmp_path / "c", dst=tmp_path / "d")
+
+    batches = fs_ops.group_batches(fs_ops.read_rows())
+    assert [b["batch_id"] for b in batches] == ["b1", "b2"]  # chronological
+    assert batches[0]["undoable"] is True and batches[0]["op"] == "rename"
+    assert batches[1]["undoable"] is False and batches[1]["op"] == "copy"
+    assert batches[0]["count"] == 1
+
+
+# ----- round-trip: rename then undo ------------------------------------------
+
+def test_undo_round_trip_restores_names_and_sidecars(journal, tmp_path, monkeypatch):
+    from api.services.rename_service import RenameService
+
+    img = tmp_path / "IMG_0001.NEF"
+    img.write_bytes(b"raw")
+    (tmp_path / "IMG_0001.xmp").write_text("side")
+
+    svc = RenameService()
+    monkeypatch.setattr(svc, "preview_rename", lambda *a, **k: {
+        "items": [{
+            "original_path": str(img),
+            "new_name": "250101_120000_Anna.NEF",
+            "status": "ok",
+            "sidecars": [str(tmp_path / "IMG_0001.xmp")],
+        }],
+        "name_map": {},
+    })
+    monkeypatch.setattr(svc, "_update_database_paths", lambda renamed: 0)
+    svc.execute_rename([str(img)])
+
+    dst = tmp_path / "250101_120000_Anna.NEF"
+    assert dst.exists() and not img.exists()
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    result = fs_ops.revert_batch(batch["rows"])
+
+    # Original name + sidecar are back; the renamed target is gone.
+    assert img.read_bytes() == b"raw"
+    assert (tmp_path / "IMG_0001.xmp").read_text() == "side"
+    assert not dst.exists()
+    assert not (tmp_path / "250101_120000_Anna.xmp").exists()
+    assert result["reverted"] == 2 and result["skipped"] == 0 and result["errors"] == 0
+    assert str(img) in result["reverted_mains"]
+
+
+def test_undo_burst_chain_resolves_without_collision(journal, tmp_path):
+    # A chain where one file's original name is another's current name — the
+    # two-pass mover must resolve it. Simulate a burst renumber 1->2, 2->3.
+    (tmp_path / "2.NEF").write_bytes(b"one")   # was "1", renamed to "2"
+    (tmp_path / "3.NEF").write_bytes(b"two")   # was "2", renamed to "3"
+    fs_ops.record(op="rename", tool="rename-nef", batch_id="chain",
+                  src=tmp_path / "1.NEF", dst=tmp_path / "2.NEF")
+    fs_ops.record(op="rename", tool="rename-nef", batch_id="chain",
+                  src=tmp_path / "2.NEF", dst=tmp_path / "3.NEF")
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    result = fs_ops.revert_batch(batch["rows"])
+
+    assert result["reverted"] == 2 and result["errors"] == 0
+    assert (tmp_path / "1.NEF").read_bytes() == b"one"
+    assert (tmp_path / "2.NEF").read_bytes() == b"two"
+    assert not (tmp_path / "3.NEF").exists()
+
+
+# ----- partial undo: one file moved away -------------------------------------
+
+def test_partial_undo_skips_missing_and_reverts_rest(journal, tmp_path):
+    (tmp_path / "b1.NEF").write_bytes(b"one")
+    (tmp_path / "b2.NEF").write_bytes(b"two")
+    fs_ops.record(op="rename", tool="rename", batch_id="p",
+                  src=tmp_path / "a1.NEF", dst=tmp_path / "b1.NEF")
+    fs_ops.record(op="rename", tool="rename", batch_id="p",
+                  src=tmp_path / "a2.NEF", dst=tmp_path / "b2.NEF")
+
+    # One renamed file was moved away/deleted since the batch.
+    (tmp_path / "b2.NEF").unlink()
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    result = fs_ops.revert_batch(batch["rows"])
+
+    assert result["reverted"] == 1 and result["skipped"] == 1
+    assert (tmp_path / "a1.NEF").read_bytes() == b"one"
+    assert not (tmp_path / "a2.NEF").exists()
+    statuses = {r["path"]: r["status"] for r in result["results"]}
+    assert statuses[str(tmp_path / "b1.NEF")] == "reverted"
+    assert statuses[str(tmp_path / "b2.NEF")] == "skipped"
+
+
+def test_undo_never_overwrites_occupied_original(journal, tmp_path):
+    (tmp_path / "b.NEF").write_bytes(b"renamed")
+    (tmp_path / "a.NEF").write_bytes(b"KEEP")  # original path now occupied
+    fs_ops.record(op="rename", tool="rename", batch_id="o",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF")
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    result = fs_ops.revert_batch(batch["rows"])
+
+    # The occupied original survives; the batch output stays put; reported skipped.
+    assert (tmp_path / "a.NEF").read_bytes() == b"KEEP"
+    assert (tmp_path / "b.NEF").read_bytes() == b"renamed"
+    assert result["reverted"] == 0 and result["skipped"] == 1
+
+
+# ----- undo is itself journaled and redoable ---------------------------------
+
+def test_undo_is_journaled_and_redoable(journal, tmp_path):
+    (tmp_path / "b.NEF").write_bytes(b"data")
+    fs_ops.record(op="rename", tool="rename-nef", batch_id="first",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF")
+
+    first = fs_ops.group_batches(fs_ops.read_rows())[0]
+    fs_ops.revert_batch(first["rows"])
+    assert (tmp_path / "a.NEF").exists() and not (tmp_path / "b.NEF").exists()
+
+    # A new 'undo' batch was journaled. Redo it -> back to the renamed state.
+    batches = fs_ops.group_batches(fs_ops.read_rows())
+    undo_batch = batches[-1]
+    assert undo_batch["tool"] == "undo" and undo_batch["undoable"] is True
+    assert undo_batch["batch_id"] != "first"
+
+    fs_ops.revert_batch(undo_batch["rows"])
+    assert (tmp_path / "b.NEF").read_bytes() == b"data"
+    assert not (tmp_path / "a.NEF").exists()
+
+
+# ----- service level ---------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_service_refuses_non_undoable_batch(journal, tmp_path):
+    from api.services.undo_service import UndoService
+
+    fs_ops.record(op="copy", tool="import", batch_id="cp",
+                  src=tmp_path / "s", dst=tmp_path / "d")
+    svc = UndoService()
+    with pytest.raises(ValueError, match="kan inte ångras"):
+        await svc.undo("cp", execute=False)
+
+
+@pytest.mark.asyncio
+async def test_service_unknown_batch_raises(journal, tmp_path):
+    from api.services.undo_service import UndoService
+
+    with pytest.raises(ValueError, match="finns inte"):
+        await UndoService().undo("nope", execute=True)
+
+
+@pytest.mark.asyncio
+async def test_service_preview_then_execute(journal, tmp_path, monkeypatch):
+    from api.services.undo_service import UndoService
+
+    (tmp_path / "b.NEF").write_bytes(b"data")
+    fs_ops.record(op="rename", tool="rename-nef", batch_id="x",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF")
+
+    # Stub the DB sync — no real face DB in this test.
+    monkeypatch.setattr(UndoService, "_sync_reverted_names", staticmethod(lambda mains: len(mains)))
+
+    svc = UndoService()
+    preview = await svc.undo("x", execute=False)
+    assert preview["to_revert"] == 1 and preview["to_skip"] == 0
+    assert preview["items"][0]["to_name"] == "a.NEF"
+    # Preview must not move anything.
+    assert (tmp_path / "b.NEF").exists() and not (tmp_path / "a.NEF").exists()
+
+    result = await svc.undo("x", execute=True)
+    assert result["reverted"] == 1
+    assert (tmp_path / "a.NEF").exists() and not (tmp_path / "b.NEF").exists()
+
+
+# ----- API level -------------------------------------------------------------
+
+def test_api_batches_and_undo(journal, tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from api.server import app
+
+    (tmp_path / "b.NEF").write_bytes(b"data")
+    fs_ops.record(op="rename", tool="rename-nef", batch_id="api1",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF")
+
+    from api.services.undo_service import UndoService
+    monkeypatch.setattr(UndoService, "_sync_reverted_names", staticmethod(lambda mains: 0))
+
+    client = TestClient(app)
+    listing = client.get("/api/v1/rename-journal/batches")
+    assert listing.status_code == 200
+    ids = [b["batch_id"] for b in listing.json()["batches"]]
+    assert "api1" in ids
+
+    resp = client.post("/api/v1/rename-journal/undo",
+                       json={"batch_id": "api1", "execute": True})
+    assert resp.status_code == 200
+    assert resp.json()["reverted"] == 1
+    assert (tmp_path / "a.NEF").exists()
+
+
+def test_api_undo_unknown_batch_404(journal, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from api.server import app
+
+    client = TestClient(app)
+    resp = client.post("/api/v1/rename-journal/undo",
+                       json={"batch_id": "missing", "execute": True})
+    assert resp.status_code == 404
