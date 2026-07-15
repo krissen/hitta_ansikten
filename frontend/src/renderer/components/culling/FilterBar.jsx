@@ -18,6 +18,8 @@ import { Button } from '../shared/index.js';
 
 export function CullingFilterBar({
   addFolders,
+  clearWorkspace,
+  canClear,
   preset,
   setPreset,
   runFilter,
@@ -39,6 +41,9 @@ export function CullingFilterBar({
   return (
     <div className="culling-filterbar">
       <Button variant="secondary" onClick={addFolders}>{t('culling.filterBar.addFolder')}</Button>
+      <Button variant="secondary" onClick={clearWorkspace} disabled={!canClear}>
+        {t('culling.filterBar.clear')}
+      </Button>
       <select
         className="form-select"
         value={preset}

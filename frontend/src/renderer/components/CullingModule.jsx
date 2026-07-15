@@ -222,6 +222,42 @@ export function CullingModule({ node }) {
     watchedDirsRef.current = desired;
   }, []);
 
+  // Empty the culling workspace back to the "pick a folder" state: drop the scan
+  // scope (roots/globs/dates/player/glob), the file list + stats, all cached
+  // thumbnails and folder watches, and the shared scan scope so neither Räkna
+  // spelare nor a culling remount re-adopts the discarded selection. Shared by
+  // the CLI `--clear` hand-off and the Rensa button. Bumps the request seqs so an
+  // in-flight mount-adopt load/stats is discarded when it returns instead of
+  // repopulating the just-cleared workspace; resets the loading flags because
+  // those seq-fenced responses skip their own `finally` cleanup.
+  const clearWorkspace = useCallback(() => {
+    ++reqSeqRef.current;
+    ++statsSeqRef.current;
+    setRoots([]);
+    setCarriedGlobs([]);
+    setPlayer('');
+    setGlob('');
+    setDateFrom(null);
+    setDateTo(null);
+    setRecursive(true);
+    setFiles([]);
+    // Free the grid's cached thumbnail blobs so a later scope doesn't inherit
+    // stale entries (guarded against any in-flight fetch by the cache's
+    // generation counter).
+    gridThumbnailCache.clear();
+    setCurrentIndex(-1);
+    setStats(null);
+    // Forget the scan-scope key so a later reload of the SAME scope still
+    // re-blanks the panel (loadStats compares against this ref).
+    lastStatsScopeKeyRef.current = null;
+    setHasRun(false);
+    setIsLoading(false);
+    setStatsLoading(false);
+    lastQueryRef.current = null;
+    setScanScope(null);
+    updateWatches(new Set());
+  }, [updateWatches]);
+
   // ----- listing ------------------------------------------------------
   const loadList = useCallback(
     async (query, { keepIndex = false, advancePastPath = null } = {}) => {
@@ -371,6 +407,32 @@ export function CullingModule({ node }) {
     updateWatches(watchDirs());
   }, [buildQuery, loadList, loadStats, updateWatches, watchDirs]);
 
+  // Remove one folder chip. Removing the last chip empties the workspace;
+  // otherwise re-scan with the remaining roots (same failure class as the stats
+  // module's chips, which used to only setRoots without re-querying). The re-scan
+  // is skipped until a query has actually run — while the user is still
+  // assembling the folder set (e.g. a working-folder prefill) there's nothing to
+  // recompute yet.
+  const removeRoot = useCallback((r) => {
+    const remaining = roots.filter((x) => x !== r);
+    if (remaining.length === 0) {
+      clearWorkspace();
+      return;
+    }
+    setRoots(remaining);
+    if (!lastQueryRef.current) return;
+    const query = buildQuery({ roots: remaining });
+    lastQueryRef.current = query;
+    loadList(query);
+    loadStats(statsScopeFromQuery(query, countSettingsRef.current));
+    const dirs = new Set(remaining);
+    for (const g of carriedGlobs) {
+      const base = globBaseDir(g);
+      if (base) dirs.add(base);
+    }
+    updateWatches(dirs);
+  }, [roots, carriedGlobs, buildQuery, loadList, loadStats, updateWatches, clearWorkspace]);
+
   // Auto-refresh on folder change.
   useEffect(() => {
     const unsubscribe = window.ansiktenAPI.onFolderChanged?.(() => {
@@ -489,6 +551,13 @@ export function CullingModule({ node }) {
       const nextRoots = data.clear
         ? incoming
         : Array.from(new Set([...roots, ...incoming]));
+
+      if (nextRoots.length === 0) {
+        // Bare --clear: empty the workspace back to the "pick a folder" state.
+        clearWorkspace();
+        return;
+      }
+
       // CLI controls recursion explicitly (default off — just the named
       // folder); reflect it in the toggle so the user sees the active scope.
       const nextRecursive = data.recursive ?? false;
@@ -502,40 +571,6 @@ export function CullingModule({ node }) {
       setGlob('');
       setDateFrom(null);
       setDateTo(null);
-
-      if (nextRoots.length === 0) {
-        // Bare --clear: empty the list and stop watching. Bump the request seqs
-        // so an in-flight load/stats from the mount-adopt (which fires when this
-        // tab freshly mounts and a prior shared scope exists) is discarded when
-        // it returns — otherwise it would repopulate the just-cleared workspace.
-        ++reqSeqRef.current;
-        ++statsSeqRef.current;
-        setFiles([]);
-        // Working set is being emptied — free the grid's cached thumbnail blobs
-        // so a later scope doesn't inherit stale entries (guarded against any
-        // in-flight fetch by the cache's generation counter).
-        gridThumbnailCache.clear();
-        setCurrentIndex(-1);
-        setStats(null);
-        // Forget the scan-scope key so a later reload of the SAME scope still
-        // re-blanks the panel (loadStats compares against this ref).
-        lastStatsScopeKeyRef.current = null;
-        setHasRun(false);
-        // The discarded adopt load left isLoading true (its finally skips the
-        // seq-mismatched response); reset it so the cleared workspace shows the
-        // "välj mapp" hint instead of a stuck "…". Same for the stats spinner:
-        // an in-flight /players/count is seq-fenced by the bump above, so its
-        // finally never clears the flag — reset it here or the header spinner
-        // sticks forever in the emptied workspace.
-        setIsLoading(false);
-        setStatsLoading(false);
-        lastQueryRef.current = null;
-        // Clear the shared scope too, so Räkna spelare (or a culling remount)
-        // doesn't adopt the now-discarded selection.
-        setScanScope(null);
-        updateWatches(new Set());
-        return;
-      }
 
       const query = {
         roots: nextRoots,
@@ -552,7 +587,7 @@ export function CullingModule({ node }) {
       loadStats(statsScopeFromQuery(query, countSettingsRef.current));
       updateWatches(new Set(nextRoots));
     },
-    [roots, preset, loadList, loadStats, updateWatches]
+    [roots, preset, loadList, loadStats, updateWatches, clearWorkspace]
   );
 
   // On open, adopt the shared scan scope (e.g. coming from Räkna spelare) when
@@ -1255,6 +1290,8 @@ export function CullingModule({ node }) {
     <div className="module-container culling">
       <CullingFilterBar
         addFolders={addFolders}
+        clearWorkspace={clearWorkspace}
+        canClear={roots.length > 0 || hasRun || files.length > 0}
         preset={preset}
         setPreset={setPreset}
         runFilter={runFilter}
@@ -1285,7 +1322,7 @@ export function CullingModule({ node }) {
                 variant="ghost"
                 size="sm"
                 className="culling-chip-x"
-                onClick={() => setRoots((rs) => rs.filter((x) => x !== r))}
+                onClick={() => removeRoot(r)}
               />
             </span>
           ))}
