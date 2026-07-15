@@ -1149,9 +1149,12 @@ the move is safe to replay, not that the bytes are unchanged.
 
 **Execute response:** `{ "batch_id", "reverted": N, "skipped": N, "errors": N, "results": [ { "path", "status": "reverted"|"skipped"|"error", "reason" } ] }`.
 Reversals run through the shared two-pass mover (never-overwrite; within-batch
-chains resolve), and each reverted main file's `processed_files.jsonl` name is
-re-synced. The undo is itself journaled as a fresh `undo` batch, so it is
-redoable. Only one undo runs at a time (serialized).
+chains resolve), and the face DB is then repaired the same way the forward
+face-rename does (`RenameService._update_database_paths`) with the reversed
+mapping — both `known_faces[*].file` and `processed_files[*].name` are repointed
+off the renamed name back onto the original (a no-op for names not in the DB, so
+it runs for every tool's batch). The undo is itself journaled as a fresh `undo`
+batch, so it is redoable. Only one undo runs at a time (serialized).
 
 `404` if the batch id is unknown; `400` if the batch is not undoable.
 

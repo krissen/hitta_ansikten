@@ -573,10 +573,13 @@ def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
 
         {"results": [{path, status: reverted|skipped|error, reason}],
          "reverted": int, "skipped": int, "errors": int,
-         "reverted_mains": [restored_path, ...]}
+         "reverted_mains": [{"original": renamed_path, "new": restored_path}, ...]}
 
-    ``reverted_mains`` lists the original paths of the main files that came back,
-    for the caller to re-sync the face DB's per-hash names.
+    ``reverted_mains`` lists the main files that came back, in the
+    ``{"original", "new"}`` shape the face-DB path repair expects — ``original``
+    is where the file sat (the recorded ``dst``), ``new`` its restored original
+    path — so the caller can repoint ``known_faces``/``processed_files`` entries
+    off the now-gone renamed name and back onto the original.
     """
     results: list[dict] = []
     eligible: list[tuple[Path, Path, bool]] = []
@@ -595,7 +598,7 @@ def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
     skipped_by_path = {s["path"]: s["reason"] for s in move_res["skipped"]}
     errors_by_path = {e["path"]: e["error"] for e in move_res["errors"]}
 
-    reverted_mains: list[str] = []
+    reverted_mains: list[dict] = []
     for frm, to, is_main in eligible:
         key = str(frm)
         if key in errors_by_path:
@@ -605,7 +608,7 @@ def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
         else:
             results.append({"path": key, "status": "reverted", "reason": None})
             if is_main:
-                reverted_mains.append(str(to))
+                reverted_mains.append({"original": key, "new": str(to)})
     # Any remaining errors are keyed by a leftover temp path (a rare
     # restore-after-failure) — surface them so nothing is hidden.
     for key, err in errors_by_path.items():

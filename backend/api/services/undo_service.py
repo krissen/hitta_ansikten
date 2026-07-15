@@ -11,6 +11,11 @@ Scope (PR 2): only ``rename`` / ``move`` batches are undoable. A ``copy`` batch
 have their own undo via the culling trash manifest — those are reported
 non-undoable and refused here with a clear Swedish message.
 
+After the moves, the face DB is repaired the same way the forward face-rename
+does (``RenameService._update_database_paths``) but with the reversed mapping, so
+both ``known_faces[*].file`` and ``processed_files[*].name`` are repointed off
+the renamed name back onto the original — not just one collection.
+
 The undo is itself journaled as a fresh batch (tool ``undo``), so it shows up in
 the history and can be redone.
 """
@@ -90,11 +95,17 @@ class UndoService:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, fs_ops.revert_batch, rows)
 
-            # Point each reverted main file's DB entry back at its restored name
-            # (mirrors restore-names' processed_files sync). Sidecars aren't in
-            # the face DB, so only mains are re-synced.
-            await loop.run_in_executor(None, self._sync_reverted_names,
-                                       result["reverted_mains"])
+            # Repair the face DB the SAME way the forward face-rename does, with
+            # the reversed mapping: repoint BOTH known_faces[*].file and
+            # processed_files[*].name off the renamed basename back onto the
+            # original. Reusing RenameService._update_database_paths (rather than
+            # a second, partial sync) keeps the two directions symmetric — the
+            # forward rename updates both collections, so undo must too, or face
+            # encodings keep pointing at a name that no longer exists. It is a
+            # no-op for basenames not in the DB, so it runs generally for every
+            # tool's batch (rename-nef / import / culling), not gated on tool.
+            await loop.run_in_executor(
+                None, self._repair_db_paths, result["reverted_mains"])
 
             return {
                 "batch_id": batch_id,
@@ -105,29 +116,20 @@ class UndoService:
             }
 
     @staticmethod
-    def _sync_reverted_names(reverted_mains: list[str]) -> int:
-        """Re-sync processed_files names for the reverted main files.
+    def _repair_db_paths(reverted_mains: list[dict]) -> int:
+        """Repoint known_faces/processed_files entries off the reverted names.
 
-        Hash each restored file and, via the shared ``_sync_processed_names``
-        mechanism, point its per-hash entry at the on-disk (original) basename —
-        so a file whose DB name had been advanced by the original rename is
-        pointed back. Files not in processed_files are simply no-ops.
+        ``reverted_mains`` is the ``[{"original", "new"}, ...]`` list from
+        ``revert_batch`` — ``original`` the renamed path the DB still points at,
+        ``new`` the restored original path. Handing it straight to the forward
+        rename's ``_update_database_paths`` builds the basename map
+        (renamed → original) and updates both collections in one store mutation.
         """
         if not reverted_mains:
             return 0
-        from faceid_db import get_file_hash
+        from .rename_service import get_rename_service
 
-        from .rename_nef_service import RenameNefService
-
-        final_by_hash: dict[str, str] = {}
-        for path_str in reverted_mains:
-            p = Path(path_str)
-            if not p.exists():
-                continue
-            h = get_file_hash(p)
-            if h:
-                final_by_hash[h] = p.name
-        return RenameNefService._sync_processed_names(final_by_hash)
+        return get_rename_service()._update_database_paths(reverted_mains)
 
 
 # Lazy singleton — no import-time construction / side effects.

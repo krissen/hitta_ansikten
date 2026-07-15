@@ -7,6 +7,7 @@ populate the journal, then reverses it through the undo service / helpers.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -74,7 +75,7 @@ def test_undo_round_trip_restores_names_and_sidecars(journal, tmp_path, monkeypa
     assert not dst.exists()
     assert not (tmp_path / "250101_120000_Anna.xmp").exists()
     assert result["reverted"] == 2 and result["skipped"] == 0 and result["errors"] == 0
-    assert str(img) in result["reverted_mains"]
+    assert {"original": str(dst), "new": str(img)} in result["reverted_mains"]
 
 
 def test_undo_burst_chain_resolves_without_collision(journal, tmp_path):
@@ -187,7 +188,7 @@ async def test_service_preview_then_execute(journal, tmp_path, monkeypatch):
                   src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF")
 
     # Stub the DB sync — no real face DB in this test.
-    monkeypatch.setattr(UndoService, "_sync_reverted_names", staticmethod(lambda mains: len(mains)))
+    monkeypatch.setattr(UndoService, "_repair_db_paths", staticmethod(lambda mains: len(mains)))
 
     svc = UndoService()
     preview = await svc.undo("x", execute=False)
@@ -199,6 +200,71 @@ async def test_service_preview_then_execute(journal, tmp_path, monkeypatch):
     result = await svc.undo("x", execute=True)
     assert result["reverted"] == 1
     assert (tmp_path / "a.NEF").exists() and not (tmp_path / "b.NEF").exists()
+
+
+# ----- DB repair: known_faces AND processed_files (P1) -----------------------
+
+@pytest.mark.asyncio
+async def test_undo_repairs_known_faces_and_processed_paths(journal, tmp_path, monkeypatch):
+    # Forward face-rename updates BOTH known_faces[*].file and
+    # processed_files[*].name; undo must repair both, or face encodings keep
+    # pointing at a renamed name that no longer exists. Round-trip through the
+    # real RenameService + FaceDBStore (temp-redirected), no stubbed DB sync.
+    import hashlib
+
+    import numpy as np
+
+    import faceid_db
+    from api.services import db_store as db_store_mod
+    from api.services.rename_service import RenameService
+    from api.services.undo_service import UndoService
+
+    base = tmp_path / "faceid"
+    base.mkdir()
+    for attr, fname in [
+        ("BASE_DIR", None), ("ENCODING_PATH", "encodings.pkl"),
+        ("IGNORED_PATH", "ignored.pkl"), ("HARDNEG_PATH", "hardneg.pkl"),
+        ("PROCESSED_PATH", "processed_files.jsonl"),
+        ("ATTEMPT_LOG_PATH", "attempt_stats.jsonl"), ("LOGGING_PATH", "ansikten.log"),
+    ]:
+        monkeypatch.setattr(faceid_db, attr, base if fname is None else base / fname)
+    # Fresh process-wide store bound to the temp DB.
+    monkeypatch.setattr(db_store_mod, "_store", None)
+
+    img = tmp_path / "IMG_0001.NEF"
+    img.write_bytes(b"raw")
+    vec = np.asarray([1.0, 2.0], dtype=float)
+    entry = {
+        "encoding": vec, "file": str(img), "hash": "h1", "backend": "insightface",
+        "backend_version": "unknown", "created_at": None,
+        "encoding_hash": hashlib.sha1(vec.tobytes()).hexdigest(),
+    }
+    faceid_db.save_database({"Anna": [entry]}, [], {}, [{"name": str(img), "hash": "h1"}])
+
+    # Forward rename (real _update_database_paths runs against the store).
+    svc = RenameService()
+    monkeypatch.setattr(svc, "preview_rename", lambda *a, **k: {
+        "items": [{"original_path": str(img), "new_name": "250101_120000_Anna.NEF",
+                   "status": "ok", "sidecars": []}],
+        "name_map": {},
+    })
+    svc.execute_rename([str(img)])
+    renamed = tmp_path / "250101_120000_Anna.NEF"
+
+    def db_names():
+        return db_store_mod.get_db_store().read(
+            lambda known, ignored, hardneg, processed: (
+                Path(known["Anna"][0]["file"]).name,
+                Path(processed[0]["name"]).name,
+            ))
+    assert db_names() == ("250101_120000_Anna.NEF", "250101_120000_Anna.NEF")
+
+    # Undo → BOTH collections point back at the original name.
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    result = await UndoService().undo(batch["batch_id"], execute=True)
+    assert result["reverted"] == 1
+    assert img.exists() and not renamed.exists()
+    assert db_names() == ("IMG_0001.NEF", "IMG_0001.NEF")
 
 
 # ----- API level -------------------------------------------------------------
@@ -213,7 +279,7 @@ def test_api_batches_and_undo(journal, tmp_path, monkeypatch):
                   src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF")
 
     from api.services.undo_service import UndoService
-    monkeypatch.setattr(UndoService, "_sync_reverted_names", staticmethod(lambda mains: 0))
+    monkeypatch.setattr(UndoService, "_repair_db_paths", staticmethod(lambda mains: 0))
 
     client = TestClient(app)
     listing = client.get("/api/v1/rename-journal/batches")
