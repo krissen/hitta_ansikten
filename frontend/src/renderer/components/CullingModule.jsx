@@ -148,6 +148,13 @@ export function CullingModule({ node }) {
   // list drives which files `x`/Delete trashes.
   const reqSeqRef = useRef(0);
   const statsSeqRef = useRef(0);
+  // Last scan scope the stats panel was loaded for (a stable key of ONLY the
+  // scanning fields — roots/globs/recursive/dates/preset). When the scan scope
+  // changes we clear the panel immediately, so the previous selection's players
+  // can't linger next to the new file list until the slow /players/count lands.
+  // Deliberately excludes baseline/min_images/player: those refetch in place and
+  // must keep the numbers visible (spinner only), not blank the panel.
+  const lastStatsScopeKeyRef = useRef(null);
   // New path of a just-renamed file to advance past, honored by whichever
   // loadList resolves last so a racing folder-watch refresh can't clobber the
   // auto-advance. Consumed (cleared) by that reload.
@@ -272,6 +279,23 @@ export function CullingModule({ node }) {
   const loadStats = useCallback(
     async (scope) => {
       if (!scope) return;
+      // Blank the panel the instant the SCAN scope changes, so the previous
+      // selection's player rows don't sit next to the freshly-loaded file list
+      // until the slow /players/count for the new scope returns. Keyed on the
+      // scanning fields only — a player-filter click, a cull/rename refresh, or a
+      // baseline/min-images change keeps the numbers up (with the header spinner).
+      const scopeKey = JSON.stringify({
+        roots: scope.roots || [],
+        globs: scope.globs || [],
+        recursive: scope.recursive ?? null,
+        date_from: scope.date_from ?? null,
+        date_to: scope.date_to ?? null,
+        extension_preset: scope.extension_preset ?? null,
+      });
+      if (scopeKey !== lastStatsScopeKeyRef.current) {
+        setStats(null);
+        lastStatsScopeKeyRef.current = scopeKey;
+      }
       const seq = ++statsSeqRef.current;
       setStatsLoading(true);
       try {
@@ -500,6 +524,9 @@ export function CullingModule({ node }) {
         gridThumbnailCache.clear();
         setCurrentIndex(-1);
         setStats(null);
+        // Forget the scan-scope key so a later reload of the SAME scope still
+        // re-blanks the panel (loadStats compares against this ref).
+        lastStatsScopeKeyRef.current = null;
         setHasRun(false);
         // The discarded adopt load left isLoading true (its finally skips the
         // seq-mismatched response); reset it so the cleared workspace shows the
