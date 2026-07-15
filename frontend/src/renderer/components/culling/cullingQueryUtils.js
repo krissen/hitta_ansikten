@@ -16,21 +16,35 @@ import { RAW_EXTS } from '../../shared/fileExts.js';
 // pure scan-scope) it leaves those out and the backend defaults apply. Exclusions
 // still come from the count endpoint's config so coaches/audience/below-threshold
 // names land in `excluded`, not in the live count.
+// The scanning dimensions that define WHICH files a count scans. Single source of
+// truth shared by statsScopeFromQuery (which builds the scope from these fields)
+// and scanScopeKey (which keys the live-stats blank-on-scope-change guard). Adding
+// a new scanning dimension here updates both, so the panel can't silently stop
+// blanking on a new field. Deliberately excludes baseline/min_images (counting
+// options, appended separately) and player (a file-list filter, not a scan field).
+export const SCAN_SCOPE_FIELDS = ['roots', 'globs', 'extension_preset', 'recursive', 'date_from', 'date_to'];
+
 export function statsScopeFromQuery(q, countSettings) {
   if (!q) return null;
-  const scope = {
-    roots: q.roots,
-    globs: q.globs,
-    extension_preset: q.extension_preset,
-    recursive: q.recursive,
-    date_from: q.date_from,
-    date_to: q.date_to,
-  };
+  const scope = {};
+  for (const f of SCAN_SCOPE_FIELDS) scope[f] = q[f];
   if (countSettings) {
     scope.baseline = countSettings.baseline;
     scope.min_images = countSettings.minImages;
   }
   return scope;
+}
+
+// Stable key over ONLY the scan fields of a scope, for detecting a scan-scope
+// change (the live stats panel blanks when it changes). Fields are read in the
+// fixed SCAN_SCOPE_FIELDS order so the key is order-stable; a missing field
+// normalizes to null so absent vs. explicit-null don't key differently. Arrays
+// (roots/globs) compare by value via JSON.stringify.
+export function scanScopeKey(scope) {
+  if (!scope) return null;
+  const norm = {};
+  for (const f of SCAN_SCOPE_FIELDS) norm[f] = scope[f] ?? null;
+  return JSON.stringify(norm);
 }
 
 export function isRaw(p) {

@@ -26,7 +26,7 @@ import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } f
 import { getWorkingFolder } from '../shared/workingFolder.js';
 import { isTabsetActive } from '../hooks/useActiveTabset.js';
 import { extOf } from '../shared/fileExts.js';
-import { statsScopeFromQuery, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
+import { statsScopeFromQuery, scanScopeKey, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
 import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
 import { useDecodedImage } from '../hooks/useDecodedImage.js';
@@ -284,14 +284,7 @@ export function CullingModule({ node }) {
       // until the slow /players/count for the new scope returns. Keyed on the
       // scanning fields only — a player-filter click, a cull/rename refresh, or a
       // baseline/min-images change keeps the numbers up (with the header spinner).
-      const scopeKey = JSON.stringify({
-        roots: scope.roots || [],
-        globs: scope.globs || [],
-        recursive: scope.recursive ?? null,
-        date_from: scope.date_from ?? null,
-        date_to: scope.date_to ?? null,
-        extension_preset: scope.extension_preset ?? null,
-      });
+      const scopeKey = scanScopeKey(scope);
       if (scopeKey !== lastStatsScopeKeyRef.current) {
         setStats(null);
         lastStatsScopeKeyRef.current = scopeKey;
