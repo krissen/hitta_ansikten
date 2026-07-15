@@ -1325,7 +1325,7 @@ export function CullingModule({ node }) {
       <CullingFilterBar
         addFolders={addFolders}
         clearWorkspace={clearWorkspace}
-        canClear={roots.length > 0 || hasRun || files.length > 0}
+        canClear={roots.length > 0 || carriedGlobs.length > 0 || hasRun || files.length > 0 || isLoading}
         preset={preset}
         setPreset={setPreset}
         runFilter={runFilter}

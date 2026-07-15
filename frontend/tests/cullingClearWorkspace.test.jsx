@@ -285,3 +285,49 @@ describe('CullingModule — clear/chip state consistency (Codex round 3)', () =>
     expect(container.querySelectorAll('.culling-files li').length).toBeGreaterThan(0);
   });
 });
+
+describe('CullingModule — clear enabled during in-flight adopt (Codex round 4)', () => {
+  // Fynd 7: adopting a glob-only scope (globs, no roots) starts an active scan
+  // while roots/files are empty and hasRun is still false. canClear must not be
+  // disabled during that expensive scan — the user has to be able to clear it.
+  it('keeps Rensa enabled while a glob-only adopt scan is in flight, and clearing fences it', async () => {
+    // /culling/files hangs so the adopt scan stays in flight.
+    let resolveFiles;
+    h.api.post.mockImplementation((path) => {
+      if (path.includes('/culling/files')) return new Promise((res) => { resolveFiles = res; });
+      if (path.includes('/players/count')) return Promise.resolve(h.nextStats);
+      return Promise.resolve({});
+    });
+    // A glob-only shared scope to adopt on mount (no roots).
+    setScanScope({
+      roots: [],
+      globs: ['*.jpg'],
+      recursive: true,
+      date_from: null,
+      date_to: null,
+      extension_preset: 'jpg',
+    });
+
+    const { container } = await mountCulling();
+
+    // Mid-scan: no roots, no files, hasRun false — but a glob scope + an active
+    // scan mean there IS something to clear. Rensa must be enabled.
+    expect(container.querySelectorAll('.culling-files li')).toHaveLength(0);
+    const rensa = findButton(container, 'Rensa');
+    expect(rensa.disabled).toBe(false);
+
+    // Clearing fences the in-flight scan (per the earlier sweep).
+    await act(async () => {
+      fireEvent.click(rensa);
+      await Promise.resolve();
+    });
+    // The hung scan resolves AFTER the clear: it must not repopulate.
+    await act(async () => {
+      resolveFiles(h.nextFiles);
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('.culling-files li')).toBeNull();
+    expect(getScanScope()).toBeNull();
+  });
+});
