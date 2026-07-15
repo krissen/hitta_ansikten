@@ -6,6 +6,9 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+### Fixed
+- **Innehållsmix i Gallra-vyns räknekolumn.** Fillistan (`/culling/files`) och spelarräkningen (`POST /players/count`) är två oberoende anrop — listan resolvar snabbt, räkne-skanningen långsamt — så vid ett scope-byte (nytt urval/mapp/datumspann) visade räknekolumnen förra urvalets spelare bredvid den nya fillistan tills skanningen hann klart. Panelen nollställs nu direkt när skanningsscopet ändras (roots/globs/rekursiv/datum/filtypsförval), medan ändringar som inte rör skanningsscopet — spelarfilter-klick, cull/rename-omläsning och baslinje-/min-bilder-byte — behåller siffrorna med enbart huvudets snurra.
+
 ## [1.6.0] - 2026-07-15
 
 ### Added
