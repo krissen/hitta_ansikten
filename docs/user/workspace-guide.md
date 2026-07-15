@@ -234,6 +234,8 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 
 **Återställ namn… (SHA1)** — om bekräftade namn av misstag strippats (eller filer bytt namn utanför appen) slår den här åtgärden upp varje NEF via sitt SHA1 i databasen och döper tillbaka den till det bekräftade namnet (+ `.xmp`-sidecar). Skriver aldrig över; tvillingar som delar namn får `-N`. Förhandsgranska → **Återställ**, som övriga namnbytesflöden.
 
+**Ångra senaste namnbyte…** — ångrar hela den senaste namnbytes- eller flyttbatchen (GUI-namnbyte, EXIF-namnbyte, återställ-namn eller kortimport-flytt) genom att spela filoperationerna baklänges från journalen. Åtgärden hämtar de senaste ångringsbara batcharna, förvälj den senaste och visar en förhandsgranskning `nuvarande namn → ursprungligt namn`; filer som saknas eller vars ursprungsplats är upptagen markeras som överhoppade med orsak. Finns flera batchar kan en tidigare väljas i listan (visar verktyg, antal och tidpunkt). **Ångra** utför; befintliga filer skrivs aldrig över, och resultatet rapporteras per fil. Själva ångringen journalförs också, så den i sin tur kan ångras (redo). Kopior (kortimport med kopiering) och gallringens papperskorg kan inte ångras här — papperskorgen har sin egen återställning.
+
 ### 1. Lägg till filer
 
 1. Klicka `+` i Filkö eller `Cmd+O`

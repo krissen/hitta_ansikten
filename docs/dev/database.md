@@ -191,6 +191,20 @@ the app moved into / out of the trash (mirroring the trash `manifest.jsonl`).
 describes: `fs_ops.record` swallows and logs any write error rather than raising,
 because the move has already happened on disk.
 
+**Undo (reverse a batch).** `core.fs_ops` reads the journal back
+(`read_rows` → `group_batches`) and reverses a chosen batch (`revert_batch`),
+replaying each recorded `dst → src` move (main + listed sidecars, literally)
+through the shared two-pass mover — never-overwrite, within-batch chains resolve.
+Only `rename`/`move` batches are undoable: a `copy` (import copy) would need a
+delete, and `trash`/`restore` already undo via the trash manifest, so those are
+reported non-undoable. The undo is journaled as a fresh `undo` batch, so it is
+itself redoable. **Path-state verification only:** the row carries no size/mtime
+/hash, so undo checks that the recorded `dst` still exists and the original path
+is free — it does *not* verify the bytes are still the batch output. Adding a
+content fingerprint to enable true tamper-detection on undo is future work (see
+ROADMAP). Exposed via `GET /rename-journal/batches` + `POST /rename-journal/undo`
+(see [API Reference](api-reference.md#rename-journal-undo)).
+
 ### db_meta.json
 
 Schema marker written after the encoding collections are normalized to the

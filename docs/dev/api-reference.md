@@ -1120,6 +1120,41 @@ as `rename-nef-progress`) during the hashing phase.
 (`already_correct` = stem already matches the DB name; `no_record` = no SHA1
 match). **Execute response:** same shape as `execute` above.
 
+## Rename Journal (Undo)
+
+Undo the last rename/move batch, replaying the append-only journal
+(`rename_journal.jsonl`; see [Database](database.md#rename_journaljsonl)) in
+reverse. The journal is the sole source of truth — undo replays exactly what a
+batch recorded, never re-derives sidecars.
+
+### `GET /api/v1/rename-journal/batches`
+
+List recent journal batches, newest first. Query param `limit` (default `20`).
+
+**Response:** `{ "batches": [ { "batch_id": "9f3c…", "ts": "2026-07-14T08:15:00+00:00", "tool": "rename-nef", "op": "rename", "count": 12, "undoable": true } ] }`.
+`undoable` is true only when every row's op is `rename` or `move`. A `copy`
+batch (import copy → undo would delete) and `trash`/`restore` batches (already
+undoable via the culling trash manifest) are reported `undoable: false`.
+
+### `POST /api/v1/rename-journal/undo`
+
+Request `{ "batch_id": "9f3c…", "execute": false }`. With `execute: false`
+(default) this is a dry-run.
+
+**Preview response:** `{ "batch_id", "tool", "op", "count", "to_revert": N, "to_skip": N, "items": [ { "from", "to", "from_name", "to_name", "status": "ok"|"skip", "reason" } ] }`.
+A move is skipped when the recorded `dst` no longer exists (already moved/deleted)
+or its original path is now occupied by an unrelated file. Verification is
+path-state only — the journal carries no content fingerprint, so undo confirms
+the move is safe to replay, not that the bytes are unchanged.
+
+**Execute response:** `{ "batch_id", "reverted": N, "skipped": N, "errors": N, "results": [ { "path", "status": "reverted"|"skipped"|"error", "reason" } ] }`.
+Reversals run through the shared two-pass mover (never-overwrite; within-batch
+chains resolve), and each reverted main file's `processed_files.jsonl` name is
+re-synced. The undo is itself journaled as a fresh `undo` batch, so it is
+redoable. Only one undo runs at a time (serialized).
+
+`404` if the batch id is unknown; `400` if the batch is not undoable.
+
 ### `ws://127.0.0.1:5001/ws/progress`
 
 Real-time progress updates during processing.
