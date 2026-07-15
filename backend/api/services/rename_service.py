@@ -16,7 +16,7 @@ from api.services.db_store import get_db_store
 from core import fs_ops
 from core.exiftool import find_exiftool
 from core.files import SUPPORTED_EXTENSIONS
-from core.naming import normalize_name
+from core.naming import normalize_name, record_previous_name
 from faceid_db import (
     get_file_hash,
     load_attempt_log,
@@ -1084,8 +1084,11 @@ class RenameService:
                     if matched:
                         updated_count += 1
                         if apply_changes:
-                            logger.debug(f"[RenameService] Updated processed entry: {pf['name']} -> {new_value}")
-                            pf["name"] = new_value
+                            old_name = pf["name"]
+                            if new_value != old_name:
+                                logger.debug(f"[RenameService] Updated processed entry: {old_name} -> {new_value}")
+                                record_previous_name(pf, old_name)
+                                pf["name"] = new_value
 
             return updated_count
 
