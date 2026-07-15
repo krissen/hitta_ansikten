@@ -438,15 +438,18 @@ export function CullingModule({ node }) {
     updateWatches(watchDirs());
   }, [buildQuery, loadList, loadStats, updateWatches, watchDirs]);
 
-  // Remove one folder chip. Removing the last chip empties the workspace;
-  // otherwise re-scan with the remaining roots (same failure class as the stats
-  // module's chips, which used to only setRoots without re-querying). The re-scan
-  // is skipped until a query has actually run — while the user is still
-  // assembling the folder set (e.g. a working-folder prefill) there's nothing to
-  // recompute yet.
+  // Remove one folder chip and re-scan with the remaining scan sources (same
+  // failure class as the stats module's chips, which used to only setRoots
+  // without re-querying). Clear the workspace only when NOTHING is left to scan
+  // — no remaining roots AND no carried path-globs. A glob-only scope (roots
+  // emptied but carriedGlobs adopted from a Räkna spelare count that mixed
+  // folders + a wildcard) is still a valid source, so removing the last root
+  // must keep scanning the glob, not discard the selection. The re-scan is
+  // skipped until a query has actually run — while the user is still assembling
+  // the folder set (e.g. a working-folder prefill) there's nothing to recompute.
   const removeRoot = useCallback((r) => {
     const remaining = roots.filter((x) => x !== r);
-    if (remaining.length === 0) {
+    if (remaining.length === 0 && carriedGlobs.length === 0) {
       clearWorkspace();
       return;
     }

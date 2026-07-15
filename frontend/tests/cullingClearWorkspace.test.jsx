@@ -253,4 +253,35 @@ describe('CullingModule — clear/chip state consistency (Codex round 3)', () =>
     const selectAfter = container.querySelectorAll('.culling-filterbar select.form-select')[1];
     expect([...selectAfter.options].map((o) => o.value)).toEqual(['']);
   });
+
+  // Fynd 6: removing the last root chip while a carried path-glob (adopted from a
+  // Räkna spelare count that mixed folders + a wildcard) is still present must
+  // re-scan the glob-only scope, not clear the workspace.
+  it('keeps a glob-only carried scope when the last root chip is removed', async () => {
+    const { container } = await mountCulling();
+    // cull-player hand-off carries both a root and a path-glob.
+    const cullPlayer = h.registry.get('cull-player');
+    await act(async () => {
+      await cullPlayer({ roots: ['/a'], globs: ['*.jpg'], recursive: true, name: '' });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelectorAll('.culling-chip-x')).toHaveLength(1);
+    expect(getScanScope()).not.toBeNull();
+    const before = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+
+    // Remove the only root chip.
+    const remove = container.querySelector('.culling-chip-x');
+    await act(async () => {
+      fireEvent.click(remove.closest('button'));
+      await Promise.resolve();
+    });
+
+    // Re-scanned as a glob-only scope (roots empty, glob kept) — NOT cleared.
+    const after = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+    expect(after).toBe(before + 1);
+    expect(lastPost('/culling/files')).toMatchObject({ roots: [], globs: ['*.jpg'] });
+    expect(getScanScope()).not.toBeNull();
+    expect(container.querySelectorAll('.culling-files li').length).toBeGreaterThan(0);
+  });
 });
