@@ -245,6 +245,7 @@ export function CullingModule({ node }) {
     pendingAdvanceRef.current = null;
     ++reqSeqRef.current;
     ++statsSeqRef.current;
+    // Scan scope (the query the workspace describes).
     setRoots([]);
     setCarriedGlobs([]);
     setPlayer('');
@@ -252,12 +253,25 @@ export function CullingModule({ node }) {
     setDateFrom(null);
     setDateTo(null);
     setRecursive(true);
+    // Player dropdown options: these came from the discarded scan. Leaving them
+    // lets the user pick a stale name, which selectPlayer turns into a *name*
+    // glob → canFilter true → Visa POSTs /culling/files with no roots/globs
+    // (empty-scope 400). Empty the list with the working set.
+    setPlayers([]);
+    // File list + selection + grid highlight (all describe the discarded set).
     setFiles([]);
+    setCurrentIndex(-1);
+    setHighlightPlayer('');
+    // Any open inline rename / context menu points at a file that's now gone.
+    setEditPath(null);
+    setEditValue('');
+    setMenu(null);
+    // Stale error from the discarded scan.
+    setError(null);
     // Free the grid's cached thumbnail blobs so a later scope doesn't inherit
     // stale entries (guarded against any in-flight fetch by the cache's
     // generation counter).
     gridThumbnailCache.clear();
-    setCurrentIndex(-1);
     setStats(null);
     // Forget the scan-scope key so a later reload of the SAME scope still
     // re-blanks the panel (loadStats compares against this ref).
@@ -268,6 +282,11 @@ export function CullingModule({ node }) {
     lastQueryRef.current = null;
     setScanScope(null);
     updateWatches(new Set());
+    // Deliberately NOT reset (not workspace scope): undoStackRef (a just-trashed
+    // file can still be restored after clearing — undo keys on file id, not the
+    // scan scope); showTrash (view toggle); preset (the file-type filter is a
+    // sticky choice, re-applied to the next scope); viewMode / column widths /
+    // countSettings (persisted user prefs shared beyond this workspace).
   }, [updateWatches]);
 
   // ----- listing ------------------------------------------------------

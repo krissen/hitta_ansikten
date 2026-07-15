@@ -232,3 +232,25 @@ describe('CullingModule — clear cancels pending refreshes (Codex round 2)', ()
     expect(getScanScope()).toBeNull();
   });
 });
+
+describe('CullingModule — clear/chip state consistency (Codex round 3)', () => {
+  // Fynd 5: clearWorkspace must empty the player dropdown too — a stale name
+  // would let selectPlayer set a *name* glob (canFilter true) and Visa would
+  // then POST /culling/files with no roots/globs (empty-scope 400).
+  it('empties the player dropdown on Rensa (no stale names to pick)', async () => {
+    const { container } = await mountCulling();
+    await loadFiles(['/p']); // players: ['Alice', 'Bob']
+    const selectBefore = container.querySelectorAll('.culling-filterbar select.form-select')[1];
+    expect([...selectBefore.options].map((o) => o.value)).toContain('Alice');
+
+    const rensa = findButton(container, 'Rensa');
+    await act(async () => {
+      fireEvent.click(rensa);
+      await Promise.resolve();
+    });
+
+    // Only the "Alla spelare" placeholder (value '') remains.
+    const selectAfter = container.querySelectorAll('.culling-filterbar select.form-select')[1];
+    expect([...selectAfter.options].map((o) => o.value)).toEqual(['']);
+  });
+});
