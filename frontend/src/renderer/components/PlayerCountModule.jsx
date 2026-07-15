@@ -242,9 +242,23 @@ export function PlayerCountModule() {
   const handleAutoApply = useCallback(
     (nextInput) => {
       setInput(nextInput);
+      // Deselecting every folder (and no glob) clears the count instead of
+      // POSTing an empty query — an empty selection would otherwise count the
+      // backend's whole default set. Reset our result and publish an empty scan
+      // scope so Gallra spelare mirrors the cleared selection (it adopts on its
+      // next mount). No /players/count call with empty roots.
+      if (nextInput.roots.length === 0 && nextInput.glob.trim() === '') {
+        lastParamsRef.current = null;
+        setResult(null);
+        setError(null);
+        setHasRun(false);
+        setScanScope(null);
+        updateWatches(new Set());
+        return;
+      }
       if (lastParamsRef.current) submitWith(nextInput, perMatch);
     },
-    [submitWith, perMatch]
+    [submitWith, perMatch, updateWatches]
   );
 
   // Counting-option changes apply immediately (like the InputBar selects), but
