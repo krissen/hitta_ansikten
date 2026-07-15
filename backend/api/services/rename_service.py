@@ -1018,7 +1018,12 @@ class RenameService:
                 "fullpath" (undo): match on the whole path (abspath-normalised,
                     symlinks NOT resolved) and rewrite it to the full new path,
                     so undoing a rename in one folder never rewrites a DB entry
-                    that merely shares a basename in another folder.
+                    that merely shares a basename in another folder. A DB entry
+                    that carries NO directory component (a bare basename — how
+                    ordinary review writes processed_files, `Path(image_path).name`)
+                    has no directory to be exact against, so it is matched and
+                    rewritten by basename and KEPT in bare-basename form (the same
+                    global-basename semantics as the forward path).
 
         Returns:
             Number of database entries updated
@@ -1028,17 +1033,27 @@ class RenameService:
 
         full = match == "fullpath"
         # basename mode: old basename -> new basename (parent kept per entry).
-        # fullpath mode: abspath(old full path) -> new full path (verbatim).
+        # fullpath mode: abspath(old full path) -> new full path (verbatim), PLUS
+        # a basename fallback for DB entries stored without any directory.
         rename_map = {}
+        base_map = {}
         for item in renamed_files:
             if full:
                 rename_map[os.path.abspath(item["original"])] = item["new"]
+                base_map[Path(item["original"]).name] = Path(item["new"]).name
             else:
                 rename_map[Path(item["original"]).name] = Path(item["new"]).name
 
         def _lookup(stored: str):
             """Return (matched, new_value) for a stored path string, or (False, None)."""
             if full:
+                # A bare basename (no directory component) can't be matched on the
+                # full path; fall back to basename and keep the bare form.
+                if os.path.dirname(stored) == "":
+                    base = Path(stored).name
+                    if base in base_map:
+                        return True, base_map[base]
+                    return False, None
                 key = os.path.abspath(stored)
                 if key in rename_map:
                     return True, rename_map[key]

@@ -496,6 +496,39 @@ async def test_undo_db_repair_matches_full_path_not_basename(journal, tmp_path, 
     assert str(other2) in proc_names             # NOT rewritten
 
 
+@pytest.mark.asyncio
+async def test_undo_db_repair_handles_basename_processed_entries(journal, tmp_path, monkeypatch):
+    # Ordinary review writes processed_files as BARE basenames (Path(x).name),
+    # while known_faces carries full paths. Fullpath-mode undo must still update a
+    # bare-basename entry (by basename, kept in bare form) — otherwise
+    # processed_files stays pointed at the renamed name and restore-names/stats
+    # break.
+    from api.services.undo_service import UndoService
+
+    faceid_db, db_store_mod = _redirect_db(monkeypatch, tmp_path)
+
+    renamed = tmp_path / "250101_120000_Anna.NEF"  # will be undone → IMG_0001.NEF
+    renamed.write_bytes(b"a")
+
+    faceid_db.save_database(
+        {"Anna": [_face_entry(renamed)]}, [], {},
+        [{"name": "250101_120000_Anna.NEF", "hash": "h1"}])  # BARE basename
+
+    fs_ops.record(op="rename", tool="rename", batch_id="b",
+                  src=tmp_path / "IMG_0001.NEF", dst=renamed)
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    await UndoService().undo(batch["batch_id"], execute=True)
+
+    known_file, proc_name = db_store_mod.get_db_store().read(
+        lambda known, ignored, hardneg, processed: (
+            known["Anna"][0]["file"], processed[0]["name"]))
+    # known_faces (full path) repointed to the full original path.
+    assert known_file == str(tmp_path / "IMG_0001.NEF")
+    # processed_files (bare basename) repointed and kept in bare-basename form.
+    assert proc_name == "IMG_0001.NEF"
+
+
 # ----- API level -------------------------------------------------------------
 
 def test_api_batches_and_undo(journal, tmp_path, monkeypatch):
