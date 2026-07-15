@@ -231,6 +231,18 @@ export function CullingModule({ node }) {
   // repopulating the just-cleared workspace; resets the loading flags because
   // those seq-fenced responses skip their own `finally` cleanup.
   const clearWorkspace = useCallback(() => {
+    // Cancel every pending refresh BEFORE nulling lastQueryRef: both debounced
+    // callbacks read lastQueryRef.current live at fire time, so a scheduled
+    // folder-change refresh (debounceRef) would call loadList(null) → POST
+    // /culling/files with a null body → error instead of the cleared state, and
+    // a scheduled cull/restore stats refresh (statsDebounceRef) would loadStats
+    // a null scope. A scope *change* is self-healing (the ref points at the new
+    // query); only a clear nulls the ref, so this cancellation lives here.
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
+    // Drop any pending rename-advance so a future scan can't inherit a stale
+    // target path from the discarded working set.
+    pendingAdvanceRef.current = null;
     ++reqSeqRef.current;
     ++statsSeqRef.current;
     setRoots([]);
