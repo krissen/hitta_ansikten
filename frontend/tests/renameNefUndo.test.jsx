@@ -40,6 +40,7 @@ const UNDO_PREVIEW = {
   batch_id: 'b1',
   tool: 'rename-nef',
   op: 'rename',
+  ts: '2026-07-14T08:15:00+00:00',
   count: 2,
   to_revert: 1,
   to_skip: 1,
@@ -112,6 +113,11 @@ describe('RenameNefModule — undo flow', () => {
     expect(container.textContent).toContain('DSC_1.NEF');
     expect(container.querySelector('.rename-nef-row-skip')).toBeTruthy();
 
+    // The header names the action being undone with a Swedish tool label.
+    const header = container.querySelector('.rename-nef-undo-header');
+    expect(header).toBeTruthy();
+    expect(header.textContent).toContain(t('renameNef.undoToolRenameNef'));
+
     // The non-undoable import/copy batch is filtered out of the selector.
     const options = [...container.querySelectorAll('select option')];
     // Only one undoable batch → selector is hidden entirely.
@@ -130,6 +136,28 @@ describe('RenameNefModule — undo flow', () => {
     );
     expect(container.textContent).toContain(t('renameNef.undone'));
     expect(h.showToast).toHaveBeenCalled();
+  });
+
+  it('labels an import move batch as "Import (flytt)" in the header', async () => {
+    h.api.get.mockResolvedValue({
+      batches: [{ batch_id: 'mv', ts: '2026-07-14T09:00:00+00:00', tool: 'import', op: 'move', count: 4, undoable: true }],
+    });
+    h.api.post.mockImplementation((path, body) => {
+      if (path.includes('/rename-journal/undo') && !body.execute) {
+        return Promise.resolve({
+          batch_id: 'mv', tool: 'import', op: 'move', ts: '2026-07-14T09:00:00+00:00',
+          count: 4, to_revert: 4, to_skip: 0,
+          items: [{ from: '/dst/x.NEF', to: '/card/x.NEF', from_name: 'x.NEF', to_name: 'x.NEF', status: 'ok', reason: null }],
+        });
+      }
+      return Promise.resolve({});
+    });
+    const { container } = await mountRename();
+    await clickButton(container, t('renameNef.undo'));
+
+    const header = container.querySelector('.rename-nef-undo-header');
+    expect(header.textContent).toContain(t('renameNef.undoToolImport'));
+    expect(header.textContent).toContain(t('renameNef.undoOpMoveSuffix').trim());
   });
 
   it('shows a toast and no preview when there is no undoable batch', async () => {

@@ -525,13 +525,20 @@ export function RenameNefModule() {
                   {undoBatches.map((b) => (
                     <option key={b.batch_id} value={b.batch_id}>
                       {t('renameNef.undoBatchOption', {
-                        tool: b.tool, count: b.count, time: formatTime(b.ts),
+                        label: undoLabel(b.tool, b.op), count: b.count, time: formatTime(b.ts),
                       })}
                     </option>
                   ))}
                 </select>
               </label>
             )}
+            <div className="rename-nef-undo-header">
+              {t('renameNef.undoPreviewHeader', {
+                label: undoLabel(undoPreview.tool, undoPreview.op),
+                count: undoPreview.count,
+                time: formatTime(undoPreview.ts),
+              })}
+            </div>
             <div className="rename-nef-summary">
               <strong>{undoPreview.to_revert}</strong> {t('renameNef.undoSummaryPrefix')}
               {undoPreview.to_skip > 0 && t('renameNef.undoSkipSuffix', { count: undoPreview.to_skip })}
@@ -595,6 +602,25 @@ function basename(p) {
 function formatTime(ts) {
   const d = new Date(ts);
   return Number.isNaN(d.getTime()) ? String(ts || '') : d.toLocaleString('sv-SE');
+}
+
+// Swedish label for an undo batch so the header/selector name the action being
+// undone (e.g. "Namnbyte (NEF)", "Import (flytt)") rather than a raw tool slug —
+// an import move surfacing under "Ångra senaste namnbyte…" would otherwise be a
+// surprising scope. The op suffix only applies to a move/copy (import).
+function undoLabel(tool, op) {
+  const base = {
+    'rename': t('renameNef.undoToolRename'),
+    'rename-nef': t('renameNef.undoToolRenameNef'),
+    'restore-names': t('renameNef.undoToolRestoreNames'),
+    'import': t('renameNef.undoToolImport'),
+    'culling': t('renameNef.undoToolCulling'),
+    'undo': t('renameNef.undoToolUndo'),
+    'mixed': t('renameNef.undoToolMixed'),
+  }[tool] || t('renameNef.undoToolUnknown');
+  if (op === 'move') return base + t('renameNef.undoOpMoveSuffix');
+  if (op === 'copy') return base + t('renameNef.undoOpCopySuffix');
+  return base;
 }
 
 export default RenameNefModule;

@@ -143,3 +143,9 @@
   opacity: 0.5;
   text-decoration: line-through;
 }
+
+.rename-nef-undo-header {
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}

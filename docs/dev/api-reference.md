@@ -1129,7 +1129,12 @@ batch recorded, never re-derives sidecars.
 
 ### `GET /api/v1/rename-journal/batches`
 
-List recent journal batches, newest first. Query param `limit` (default `20`).
+List recent journal batches, newest first. Query params `limit` (default `20`)
+and `undoable_only` (default `true`). With `undoable_only=true` the undoable
+filter is applied **before** the limit, so a run of newer non-undoable batches
+(imports, trash/restore) can't bury an older undoable rename past the cap (which
+would look like "nothing to undo" in the GUI). Pass `undoable_only=false` to list
+every batch.
 
 **Response:** `{ "batches": [ { "batch_id": "9f3c…", "ts": "2026-07-14T08:15:00+00:00", "tool": "rename-nef", "op": "rename", "count": 12, "undoable": true } ] }`.
 `undoable` is true only when every row's op is `rename` or `move`. A `copy`
@@ -1141,7 +1146,8 @@ undoable via the culling trash manifest) are reported `undoable: false`.
 Request `{ "batch_id": "9f3c…", "execute": false }`. With `execute: false`
 (default) this is a dry-run.
 
-**Preview response:** `{ "batch_id", "tool", "op", "count", "to_revert": N, "to_skip": N, "items": [ { "from", "to", "from_name", "to_name", "status": "ok"|"skip", "reason" } ] }`.
+**Preview response:** `{ "batch_id", "tool", "op", "ts", "count", "to_revert": N, "to_skip": N, "items": [ { "from", "to", "from_name", "to_name", "status": "ok"|"skip", "reason" } ] }`.
+(`tool`/`op`/`ts` let the GUI label which action is being undone.)
 A move is skipped when the recorded `dst` no longer exists (already moved/deleted)
 or its original path is now occupied by an unrelated file. Verification is
 path-state only — the journal carries no content fingerprint, so undo confirms

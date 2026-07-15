@@ -43,14 +43,21 @@ class UndoService:
         # second would run its moves against paths the first already reverted.
         self._lock = asyncio.Lock()
 
-    def list_batches(self, limit: int = 20) -> dict:
+    def list_batches(self, limit: int = 20, undoable_only: bool = True) -> dict:
         """Recent batches, newest first, capped at ``limit``.
 
         Each entry is ``{batch_id, ts, tool, op, count, undoable}`` — the raw
         journal rows are kept server-side only (undo reads them fresh by id).
+
+        ``undoable_only`` (default) filters to undoable batches **before** the
+        limit, so a wall of newer non-undoable batches (imports, trash/restore)
+        can't push an older undoable rename past the cap and hide it (a false
+        "nothing to undo" in the GUI). Pass ``False`` to list every batch.
         """
         batches = fs_ops.group_batches(fs_ops.read_rows())
         batches.reverse()  # chronological -> newest first
+        if undoable_only:
+            batches = [b for b in batches if b["undoable"]]
         wire = [
             {k: b[k] for k in ("batch_id", "ts", "tool", "op", "count", "undoable")}
             for b in batches[: max(0, limit)]
@@ -86,6 +93,7 @@ class UndoService:
                     "batch_id": batch_id,
                     "tool": batch["tool"],
                     "op": batch["op"],
+                    "ts": batch["ts"],
                     "count": batch["count"],
                     "to_revert": sum(1 for it in items if it["status"] == "ok"),
                     "to_skip": sum(1 for it in items if it["status"] == "skip"),

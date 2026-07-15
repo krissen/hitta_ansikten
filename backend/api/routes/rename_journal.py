@@ -17,10 +17,15 @@ router = APIRouter()
 
 
 @router.get("/rename-journal/batches")
-async def batches(limit: int = 20):
-    """Recent journal batches, newest first (each with an ``undoable`` flag)."""
+async def batches(limit: int = 20, undoable_only: bool = True):
+    """Recent journal batches, newest first (each with an ``undoable`` flag).
+
+    ``undoable_only`` (default true) filters to undoable batches before the
+    limit, so a run of newer non-undoable batches can't bury an older undoable
+    one. Pass ``undoable_only=false`` to list every batch.
+    """
     try:
-        return get_undo_service().list_batches(limit=limit)
+        return get_undo_service().list_batches(limit=limit, undoable_only=undoable_only)
     except Exception as e:
         logger.exception("rename-journal batches failed")
         raise HTTPException(status_code=500, detail=str(e))

@@ -41,6 +41,44 @@ def test_group_batches_orders_and_flags_undoable(journal, tmp_path):
     assert batches[0]["count"] == 1
 
 
+def test_list_batches_undoable_filter_before_limit(journal, tmp_path):
+    # An older undoable rename followed by many newer non-undoable imports must
+    # not be buried past the limit: undoable_only filters BEFORE the cap.
+    from api.services.undo_service import UndoService
+
+    fs_ops.record(op="rename", tool="rename-nef", batch_id="old-rename",
+                  src=tmp_path / "a", dst=tmp_path / "b")
+    for i in range(5):
+        fs_ops.record(op="copy", tool="import", batch_id=f"imp{i}",
+                      src=tmp_path / f"s{i}", dst=tmp_path / f"d{i}")
+
+    svc = UndoService()
+    # Default (undoable_only=True) with a small limit still surfaces the rename.
+    default = svc.list_batches(limit=2)
+    assert [b["batch_id"] for b in default["batches"]] == ["old-rename"]
+    # Listing everything is still possible, newest first, respecting the limit.
+    all_batches = svc.list_batches(limit=2, undoable_only=False)
+    assert [b["batch_id"] for b in all_batches["batches"]] == ["imp4", "imp3"]
+
+
+def test_api_batches_undoable_only_param(journal, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from api.server import app
+
+    fs_ops.record(op="rename", tool="rename-nef", batch_id="r1",
+                  src=tmp_path / "a", dst=tmp_path / "b")
+    fs_ops.record(op="copy", tool="import", batch_id="c1",
+                  src=tmp_path / "c", dst=tmp_path / "d")
+
+    client = TestClient(app)
+    default_ids = [b["batch_id"] for b in client.get("/api/v1/rename-journal/batches").json()["batches"]]
+    assert default_ids == ["r1"]  # copy filtered out by default
+    all_ids = {b["batch_id"] for b in client.get(
+        "/api/v1/rename-journal/batches?undoable_only=false").json()["batches"]}
+    assert all_ids == {"r1", "c1"}
+
+
 # ----- round-trip: rename then undo ------------------------------------------
 
 def test_undo_round_trip_restores_names_and_sidecars(journal, tmp_path, monkeypatch):
