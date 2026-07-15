@@ -126,13 +126,20 @@ matrices (rebuilt whenever a `touches={"hardneg"}` mutation bumps the store vers
 One JSON object per line, tracking processed files.
 
 ```jsonl
-{"name": "250101_120000.NEF", "hash": "abc123def456..."}
+{"name": "250101_120000_Anna.NEF", "hash": "abc123def456...", "previous_names": ["250101_120000.NEF"]}
 {"name": "250101_120001.NEF", "hash": "def456abc123..."}
 ```
 
 **Fields:**
-- `name`: Original filename
+- `name`: Current filename
 - `hash`: SHA1 hash of file content
+- `previous_names` (optional): append-only log of every prior `name`, oldest
+  first, most recent last. Whenever a write path replaces `name` with a
+  different value, the old value is appended here first, so a name is never
+  overwritten without a trace (belt-and-braces alongside the rename journal).
+  It is a log, not a stack: an undo that reverts a rename goes through the same
+  write path and appends the reverted name too. The field is created on demand
+  and read by nothing in the load path, so it is safe to omit on older entries.
 
 ### attempt_stats.jsonl
 

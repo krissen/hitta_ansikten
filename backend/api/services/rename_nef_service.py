@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from core import fs_ops  # noqa: E402
+from core.naming import record_previous_name  # noqa: E402
 from rename_nef import compute_renames, get_exif_data, is_already_named  # noqa: E402
 
 from ..websocket.progress import broadcast_event  # noqa: E402
@@ -412,6 +413,7 @@ class RenameNefService:
                 if isinstance(pf, dict):
                     h = pf.get("hash")
                     if h in final_by_hash and Path(pf.get("name", "")).name != final_by_hash[h]:
+                        record_previous_name(pf, pf.get("name", ""))
                         pf["name"] = final_by_hash[h]
                         count += 1
             return count
