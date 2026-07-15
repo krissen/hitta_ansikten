@@ -203,35 +203,87 @@ def _is_case_only_same(a: Path, b: Path) -> bool:
         return False
 
 
+def _plan_revert(batch_rows: Sequence[dict]) -> list[dict]:
+    """Predict the per-file outcome of reverting a batch — the SAME all-or-nothing
+    unit decision ``revert_batch``'s strict execution makes, so a preview never
+    promises a revert the execute then skips. Pure (no filesystem change).
+
+    Each journal row is one unit (main + its recorded sidecars). A file whose
+    recorded ``dst`` no longer exists is skipped: a missing main skips its whole
+    row; a missing sidecar is dropped from the unit (its main can still come back)
+    and reported skipped. A unit is skipped if any of its original destinations is
+    occupied by an *unrelated* file — a destination taken only by another batch
+    source is free, since that source moves away first (the temp indirection),
+    which is how burst-renumber chains resolve. Otherwise the whole unit reverts.
+
+    Returns ``{path, from, to, from_name, to_name, status, reason}`` per file,
+    ``status`` ``"reverted"`` or ``"skipped"``. Path-state only: the journal
+    carries no content fingerprint (see docs/dev/database.md).
+    """
+    # Every current source that will move away; a destination occupied only by
+    # one of these is free (mirrors the two-pass mover's pass-1 source vacation).
+    sources = {str(frm) for frm, _to, _m in _flatten_reverse_moves(batch_rows) if frm.exists()}
+
+    plan: list[dict] = []
+
+    def _emit(frm: Path, to: Path, status: str, reason):
+        plan.append({"path": str(frm), "from": str(frm), "to": str(to),
+                     "from_name": frm.name, "to_name": to.name,
+                     "status": status, "reason": reason})
+
+    for row in batch_rows:
+        main_frm, main_to = Path(row["dst"]), Path(row["src"])
+        row_sidecars = [(Path(sc["dst"]), Path(sc["src"])) for sc in row.get("sidecars", []) or []]
+
+        if not main_frm.exists():
+            # The whole row can't be reverted (nothing to move the main from).
+            _emit(main_frm, main_to, "skipped", "filen saknas — redan flyttad eller borttagen")
+            for sc_frm, sc_to in row_sidecars:
+                _emit(sc_frm, sc_to, "skipped", "hoppas över — huvudfilen kunde inte ångras")
+            continue
+
+        present = [(f, t) for f, t in row_sidecars if f.exists()]
+        missing = [(f, t) for f, t in row_sidecars if not f.exists()]
+
+        # Unit destinations (main first, then present sidecars): the unit reverts
+        # only if none is blocked by an unrelated file. A destination that exists
+        # but is a batch source, or a case-only self-rename, is not a blocker.
+        blocker = None
+        for frm, to in [(main_frm, main_to), *present]:
+            if to.exists() and str(to) not in sources and not _is_case_only_same(to, frm):
+                blocker = to
+                break
+        if blocker is not None:
+            status, reason = "skipped", f"målnamn upptaget: {blocker.name}"
+        else:
+            status, reason = "reverted", None
+
+        _emit(main_frm, main_to, status, reason)
+        for sc_frm, sc_to in present:
+            _emit(sc_frm, sc_to, status, reason)
+        # A missing sidecar is skipped regardless of the unit's fate.
+        for sc_frm, sc_to in missing:
+            _emit(sc_frm, sc_to, "skipped", "filen saknas — redan flyttad eller borttagen")
+
+    return plan
+
+
 def preview_revert(batch_rows: Sequence[dict]) -> list[dict]:
     """Per-file dry-run of reversing a batch — no filesystem change.
 
-    Returns one item per move-back ``{from, to, from_name, to_name, status, reason}``
-    with ``status`` ``"ok"`` (would revert) or ``"skip"``. A move is skipped when
-    the recorded ``dst`` no longer exists (already moved/deleted) or its original
-    path is now occupied by an unrelated file. The occupied check treats the
-    batch's own recorded ``dst`` paths as free, since they vacate when reverted —
-    matching the two-pass mover's own source-exclusion.
-
-    Path-state only: the journal carries no content fingerprint, so this verifies
-    the move is *safe to replay*, not that the bytes are byte-for-byte the batch
-    output (see docs/dev/database.md).
+    Thin wrapper over the shared ``_plan_revert`` predictor (the same decision the
+    strict execute makes), mapping its ``reverted``/``skipped`` status to the UI's
+    ``ok``/``skip``. Grouping by journal row is what keeps the preview honest: a
+    unit whose main is gone, or any of whose destinations is blocked, is shown
+    fully skipped rather than promising a partial revert the execute won't do.
     """
-    sources = {str(frm) for frm, _to, _m in _flatten_reverse_moves(batch_rows)}
-    items = []
-    for frm, to, _is_main in _flatten_reverse_moves(batch_rows):
-        if not frm.exists():
-            status, reason = "skip", "filen saknas — redan flyttad eller borttagen"
-        elif to.exists() and str(to) not in sources and not _is_case_only_same(to, frm):
-            status, reason = "skip", "originalplatsen är upptagen"
-        else:
-            status, reason = "ok", None
-        items.append({
-            "from": str(frm), "to": str(to),
-            "from_name": frm.name, "to_name": to.name,
-            "status": status, "reason": reason,
-        })
-    return items
+    return [
+        {"from": p["from"], "to": p["to"],
+         "from_name": p["from_name"], "to_name": p["to_name"],
+         "status": "ok" if p["status"] == "reverted" else "skip",
+         "reason": p["reason"]}
+        for p in _plan_revert(batch_rows)
+    ]
 
 
 # ---------------------------------------------------------------------------

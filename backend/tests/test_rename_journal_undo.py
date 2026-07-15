@@ -179,7 +179,8 @@ def test_partial_undo_skips_missing_and_reverts_rest(journal, tmp_path):
     (tmp_path / "b2.NEF").unlink()
 
     batch = fs_ops.group_batches(fs_ops.read_rows())[0]
-    result = fs_ops.revert_batch(batch["rows"])
+    preview_map, execute_map, result = _preview_and_execute(batch["rows"])
+    assert preview_map == execute_map
 
     assert result["reverted"] == 1 and result["skipped"] == 1
     assert (tmp_path / "a1.NEF").read_bytes() == b"one"
@@ -196,7 +197,8 @@ def test_undo_never_overwrites_occupied_original(journal, tmp_path):
                   src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF")
 
     batch = fs_ops.group_batches(fs_ops.read_rows())[0]
-    result = fs_ops.revert_batch(batch["rows"])
+    preview_map, execute_map, result = _preview_and_execute(batch["rows"])
+    assert preview_map == execute_map
 
     # The occupied original survives; the batch output stays put; reported skipped.
     assert (tmp_path / "a.NEF").read_bytes() == b"KEEP"
@@ -219,7 +221,8 @@ def test_undo_strict_skips_whole_unit_when_sidecar_dst_blocked(journal, tmp_path
                   sidecars=[(tmp_path / "a.xmp", tmp_path / "b.xmp")])
 
     batch = fs_ops.group_batches(fs_ops.read_rows())[0]
-    result = fs_ops.revert_batch(batch["rows"])
+    preview_map, execute_map, result = _preview_and_execute(batch["rows"])
+    assert preview_map == execute_map
 
     assert result["reverted"] == 0 and result["skipped"] == 2
     assert (tmp_path / "b.NEF").read_bytes() == b"img"       # main not moved
@@ -240,7 +243,8 @@ def test_undo_strict_reverts_unit_with_sidecar_grouped_row(journal, tmp_path):
                   sidecars=[(tmp_path / "a.xmp", tmp_path / "b.xmp")])
 
     batch = fs_ops.group_batches(fs_ops.read_rows())[0]
-    result = fs_ops.revert_batch(batch["rows"])
+    preview_map, execute_map, result = _preview_and_execute(batch["rows"])
+    assert preview_map == execute_map
 
     assert result["reverted"] == 2 and result["skipped"] == 0
     assert (tmp_path / "a.NEF").read_bytes() == b"img"
@@ -250,6 +254,80 @@ def test_undo_strict_reverts_unit_with_sidecar_grouped_row(journal, tmp_path):
     undo_batch = fs_ops.group_batches(fs_ops.read_rows())[-1]
     assert undo_batch["tool"] == "undo" and len(undo_batch["rows"]) == 1
     assert len(undo_batch["rows"][0]["sidecars"]) == 1
+
+
+# ----- preview mirrors execute (strict units) --------------------------------
+
+def _preview_and_execute(batch_rows):
+    """Run preview then execute on the same state; return their per-file maps.
+
+    Preview must not mutate the filesystem, so it runs first; both maps are keyed
+    by path -> (status, reason) with preview's ok/skip mapped to the execute
+    vocabulary (reverted/skipped) so they can be compared directly.
+    """
+    preview = fs_ops.preview_revert(batch_rows)
+    preview_map = {
+        it["from"]: ("reverted" if it["status"] == "ok" else "skipped", it["reason"])
+        for it in preview
+    }
+    result = fs_ops.revert_batch(batch_rows)
+    execute_map = {r["path"]: (r["status"], r["reason"]) for r in result["results"]}
+    return preview_map, execute_map, result
+
+
+def test_preview_matches_execute_main_missing_sidecar_present(journal, tmp_path):
+    # (a) main's current file is gone but a sidecar remains: preview must show the
+    # WHOLE unit skipped (no false to_revert), matching execute.
+    (tmp_path / "b.xmp").write_text("side")  # sidecar present; main b.NEF absent
+    fs_ops.record(op="rename", tool="rename", batch_id="u",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF",
+                  sidecars=[(tmp_path / "a.xmp", tmp_path / "b.xmp")])
+
+    preview = fs_ops.preview_revert(fs_ops.group_batches(fs_ops.read_rows())[0]["rows"])
+    assert all(it["status"] == "skip" for it in preview)  # nothing offered
+
+    preview_map, execute_map, _ = _preview_and_execute(
+        fs_ops.group_batches(fs_ops.read_rows())[0]["rows"])
+    assert preview_map == execute_map
+
+
+def test_preview_matches_execute_sidecar_dst_blocked(journal, tmp_path):
+    # (b) a sidecar's original path is occupied: preview shows the whole unit
+    # skipped (not just the sidecar), matching execute.
+    (tmp_path / "b.NEF").write_bytes(b"img")
+    (tmp_path / "b.xmp").write_text("real-side")
+    (tmp_path / "a.xmp").write_text("UNRELATED")
+    fs_ops.record(op="rename", tool="rename", batch_id="u",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF",
+                  sidecars=[(tmp_path / "a.xmp", tmp_path / "b.xmp")])
+
+    rows = fs_ops.group_batches(fs_ops.read_rows())[0]["rows"]
+    preview = fs_ops.preview_revert(rows)
+    assert all(it["status"] == "skip" for it in preview)
+
+    preview_map, execute_map, result = _preview_and_execute(rows)
+    assert preview_map == execute_map
+    assert result["reverted"] == 0  # unit skipped, main not reverted
+
+
+def test_preview_matches_execute_chain_dest_freed_within_batch(journal, tmp_path):
+    # (c) a burst chain (1->2, 2->3): each unit's destination is another unit's
+    # current source, freed by the temp indirection — preview must show both
+    # REVERTED (no false skip), matching execute.
+    (tmp_path / "2.NEF").write_bytes(b"one")
+    (tmp_path / "3.NEF").write_bytes(b"two")
+    fs_ops.record(op="rename", tool="rename", batch_id="chain",
+                  src=tmp_path / "1.NEF", dst=tmp_path / "2.NEF")
+    fs_ops.record(op="rename", tool="rename", batch_id="chain",
+                  src=tmp_path / "2.NEF", dst=tmp_path / "3.NEF")
+
+    rows = fs_ops.group_batches(fs_ops.read_rows())[0]["rows"]
+    preview = fs_ops.preview_revert(rows)
+    assert all(it["status"] == "ok" for it in preview)  # both reverted
+
+    preview_map, execute_map, result = _preview_and_execute(rows)
+    assert preview_map == execute_map
+    assert result["reverted"] == 2
 
 
 # ----- undo is itself journaled and redoable ---------------------------------

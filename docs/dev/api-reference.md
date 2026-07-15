@@ -1148,10 +1148,16 @@ Request `{ "batch_id": "9f3c…", "execute": false }`. With `execute: false`
 
 **Preview response:** `{ "batch_id", "tool", "op", "ts", "count", "to_revert": N, "to_skip": N, "items": [ { "from", "to", "from_name", "to_name", "status": "ok"|"skip", "reason" } ] }`.
 (`tool`/`op`/`ts` let the GUI label which action is being undone.)
-A move is skipped when the recorded `dst` no longer exists (already moved/deleted)
-or its original path is now occupied by an unrelated file. Verification is
-path-state only — the journal carries no content fingerprint, so undo confirms
-the move is safe to replay, not that the bytes are unchanged.
+The preview groups each journal row as one all-or-nothing unit (main + its
+recorded sidecars) and reports the **same** decision the execute makes: a unit is
+skipped if the main's file is gone, or any of the unit's original destinations is
+occupied by an unrelated file (a destination taken only by another batch source
+is free — that source moves away first, which is how burst-renumber chains
+resolve). A missing sidecar is dropped from its unit (the main can still revert)
+and reported skipped. So the preview never offers a partial revert the execute
+then skips. Verification is path-state only — the journal carries no content
+fingerprint, so undo confirms the move is safe to replay, not that the bytes are
+unchanged.
 
 **Execute response:** `{ "batch_id", "reverted": N, "skipped": N, "errors": N, "results": [ { "path", "status": "reverted"|"skipped"|"error", "reason" } ] }`.
 Reversals run through the shared two-pass mover (never-overwrite; within-batch
