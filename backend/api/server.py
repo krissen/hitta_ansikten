@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Ansikten Backend API",
     description="Face detection and annotation API for Ansikten image viewer",
-    version="1.5.0",
+    version="1.6.0",
     lifespan=lifespan
 )
 
@@ -202,6 +202,7 @@ from .routes import (
     player_count,
     preprocessing,
     refinement,
+    rename_journal,
     rename_nef,
     startup,
     statistics,
@@ -216,6 +217,7 @@ app.include_router(player_count.router, prefix=API_V1_PREFIX, tags=["players"])
 app.include_router(culling.router, prefix=API_V1_PREFIX, tags=["culling"])
 app.include_router(imports.router, prefix=API_V1_PREFIX, tags=["import"])
 app.include_router(rename_nef.router, prefix=API_V1_PREFIX, tags=["rename-nef"])
+app.include_router(rename_journal.router, prefix=API_V1_PREFIX, tags=["rename-journal"])
 app.include_router(management.router, prefix=API_V1_PREFIX, tags=["management"])
 app.include_router(refinement.router, prefix=API_V1_PREFIX, tags=["refinement"])
 app.include_router(preprocessing.router, prefix=f"{API_V1_PREFIX}/preprocessing", tags=["preprocessing"])

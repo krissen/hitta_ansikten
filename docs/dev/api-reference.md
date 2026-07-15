@@ -831,7 +831,12 @@ median-baseline over/under-representation statistics.
   "min_images": 3,
   "per_match": false,
   "tranare": null,
-  "publik": null
+  "publik": null,
+  "grupp": null,
+  "spelare": null,
+  "session_tranare": null,
+  "session_publik": null,
+  "session_grupp": null
 }
 ```
 
@@ -863,10 +868,23 @@ At least one of `roots`/`globs` is required.
 is populated only when `per_match` is true.
 
 `gap_minutes` (match split), `baseline` (`median`/`mean`) and `min_images` map to
-the CLI's `--gap-minutes`/`--baseline`/`--min-images`. `tranare`/`publik` override
-the coach/audience exclusion lists for this request only (`null` keeps the
-config/env defaults); the built-in always-markers (`Laget`/`FBK` group, `Klacken`
-audience) are merged in regardless and can't be overridden.
+the CLI's `--gap-minutes`/`--baseline`/`--min-images`. `tranare`/`publik`/`grupp`
+override the coach/audience/group exclusion lists for this request only (`null`
+keeps the config/env defaults); the configured always-markers (default `Laget`/
+`FBK` group, `Klacken` audience) are merged in regardless.
+
+The culling module's live stats panel calls this endpoint too and now sends
+`baseline` and `min_images` from the shared front-end counting settings (the
+Baslinje select in its header), so its numbers match the Räkna spelare page
+instead of falling back to the endpoint defaults. Omitting the fields still
+yields the defaults (`median` / `3`).
+
+`spelare`/`session_tranare`/`session_publik`/`session_grupp` are per-request
+**pins** that win over everything (config, env, overrides, even always-markers):
+a pinned name is removed from all exclusion sets and lands only in its pinned
+bucket. `spelare` pins to the players bucket and also bypasses `min_images`.
+They back the GUI's session-only right-click moves (Räkna spelare + the culling
+stats column) and are never persisted.
 
 ### `GET /api/v1/players/exclusions`
 
@@ -880,6 +898,7 @@ always-markers), so the GUI can pre-fill its editor.
   "publik": ["Klacken"],
   "grupp": ["FBK", "Laget"],
   "always": { "publik": ["Klacken"], "grupp": ["FBK", "Laget"] },
+  "config": { "tranare": ["Coach"], "publik": [], "grupp": [] },
   "env_active": false,
   "env_keys": []
 }
@@ -887,9 +906,11 @@ always-markers), so the GUI can pre-fill its editor.
 
 `always` is the **configured** always-excluded set (grupp/publik), defaulting to
 the built-ins `Laget`/`FBK` and `Klacken` when the config doesn't override them —
-it's now editable, not a fixed built-in. `env_active`/`env_keys` report which
-`RAKNA_*` env vars are shadowing the config (so the GUI can warn that "save as
-default" won't take effect).
+it's now editable, not a fixed built-in. `config` mirrors the **raw persisted**
+lists (no env values, no always-markers) — targeted saves (the GUI's "Gör publik
+permanent") build on it so transient `RAKNA_*` env lists are never echoed into
+the file. `env_active`/`env_keys` report which `RAKNA_*` env vars are shadowing
+the config (so the GUI can warn that "save as default" won't take effect).
 
 ### `POST /api/v1/players/exclusions`
 
@@ -1022,10 +1043,18 @@ after a zero-error transfer. Emits `import-progress` over the WebSocket.
 
 **Response:**
 ```json
-{ "transferred": ["…/DSC0001.NEF"], "skipped": [{"path":"…","reason":"finns redan i målmappen"}], "errors": [], "ejected": true, "total": 312 }
+{ "transferred": ["…/DSC0001.NEF"], "skipped": [{"path":"…","reason":"finns redan i målmappen"}], "errors": [], "ejected": true, "eject_error": null, "total": 312 }
 ```
+`eject_error` is `null` on success, or a short reason string when eject was
+attempted and failed (e.g. the card is held by another process).
 
-WebSocket event `import-progress`: `{ "phase": "transfer", "current": 5, "total": 312, "file": "DSC0005.NEF", "percent": 2 }`.
+A large import can take minutes; the client sends this request **without a
+timeout**. Should the HTTP response be lost, the terminal WebSocket event below
+carries the same summary so the UI can still complete.
+
+WebSocket event `import-progress`:
+- Per-file: `{ "phase": "transfer", "current": 5, "total": 312, "file": "DSC0005.NEF", "percent": 2 }`.
+- Terminal (once, after the transfer loop): `{ "phase": "done", "transferred": 312, "skipped": 0, "errors": 0, "ejected": true, "eject_error": null, "destination": "/Users/…/nerladdat", "total": 312 }` — counts (not the full path lists), the destination written to, and eject outcome.
 
 ---
 
@@ -1037,31 +1066,110 @@ EXIF-based NEF renaming (`YYMMDD_HHMMSS.NEF`) with preview/confirm. Backs the
 ### `POST /api/v1/rename-nef/preview`
 
 Dry-run: resolve NEFs (folder/glob) and return the EXIF-derived rename mapping.
-Request `{ roots, globs, recursive }`.
+Request `{ roots, globs, recursive, include_named }` (`recursive` and
+`include_named` both default `false`).
 
 **Response:**
 ```json
 {
   "items": [ { "original_path": "…/DSC0001.NEF", "original": "DSC0001.NEF", "new_name": "250601_100000.NEF" } ],
-  "total_files": 12, "to_rename": 10, "already_named": 1, "no_date": ["DSC9999.NEF"]
+  "total_files": 12, "to_rename": 10, "already_named": 1, "named_affected": 0, "no_date": ["DSC9999.NEF"]
 }
 ```
 `no_date` = files without a usable `CreateDate` (never renamed). Identical
 timestamps are disambiguated with `-NN`.
 
+**Already-named files are protected by default.** A file whose stem already
+carries its EXIF timestamp — bare, or with a `-N` burst / `_Name` suffix
+(`260713_110145_Elis.NEF`) — is treated as already named and excluded from the
+plan, so a rename never strips a confirmed name. `already_named` counts the
+protected (and bare-timestamp no-op) files. Set `include_named: true` to rename
+them anyway (stripping the suffix); `named_affected` then reports how many
+already-named files the plan would rename. The same protection applies to the
+CLI (`rename_nef.py`, opt out with `--include-named`).
+
 ### `POST /api/v1/rename-nef/execute`
 
-Rename the NEFs (+ `.xmp` sidecars) from EXIF. Recomputes from current EXIF (no
-stale plan); two-pass via temp files; **never overwrites** — on a target-name
-collision the original is restored and reported as skipped.
+Rename the NEFs (+ `.xmp` sidecars) from EXIF. Reuses the preview's plan when
+the request and every file's `(mtime_ns, size)` signature are unchanged
+(skipping the EXIF re-read); any divergence — added/removed file, mtime/size
+change — forces a full re-read. Concurrent executes are serialized with a
+per-service lock. Two-pass via temp files; **never overwrites** — on a
+target-name collision the original is restored and reported as skipped.
+
+Both `preview` and `execute` emit `rename-nef-progress` over the WebSocket
+during the EXIF phase:
+`{ "phase": "preview"|"execute", "current": 50, "total": 312, "percent": 16 }`.
 
 **Response:** `{ "renamed": [{"from":"DSC0001.NEF","to":"250601_100000.NEF"}], "skipped": [{"path":"…","reason":"…"}], "errors": [] }`.
 
 `400` if no input or exiftool is missing.
 
----
+### `POST /api/v1/rename-nef/restore-names/preview` · `…/restore-names/execute`
 
-## WebSocket
+Recovery: re-apply confirmed names after an accidental strip (or any external
+rename). Request `{ roots, globs, recursive }`. Each NEF is hashed (SHA1) and
+matched against `processed_files.jsonl`; matches are renamed back to their
+confirmed name (+ `.xmp` sidecar to the same stem). **Never overwrites**;
+two-pass via temp files with restore-on-collision. Twins whose two hashes
+recorded the same name are `-N` disambiguated, and each restored file's DB entry
+is synced to its actual on-disk name. Emits `restore-names-progress` (same shape
+as `rename-nef-progress`) during the hashing phase.
+
+**Preview response:** `{ "items": [...], "total_files": N, "to_restore": N, "already_correct": N, "no_record": ["random.NEF"] }`
+(`already_correct` = stem already matches the DB name; `no_record` = no SHA1
+match). **Execute response:** same shape as `execute` above.
+
+## Rename Journal (Undo)
+
+Undo the last rename/move batch, replaying the append-only journal
+(`rename_journal.jsonl`; see [Database](database.md#rename_journaljsonl)) in
+reverse. The journal is the sole source of truth — undo replays exactly what a
+batch recorded, never re-derives sidecars.
+
+### `GET /api/v1/rename-journal/batches`
+
+List recent journal batches, newest first. Query params `limit` (default `20`)
+and `undoable_only` (default `true`). With `undoable_only=true` the undoable
+filter is applied **before** the limit, so a run of newer non-undoable batches
+(imports, trash/restore) can't bury an older undoable rename past the cap (which
+would look like "nothing to undo" in the GUI). Pass `undoable_only=false` to list
+every batch.
+
+**Response:** `{ "batches": [ { "batch_id": "9f3c…", "ts": "2026-07-14T08:15:00+00:00", "tool": "rename-nef", "op": "rename", "count": 12, "undoable": true } ] }`.
+`undoable` is true only when every row's op is `rename`. Import batches (`move`,
+often cross-device — `Path.rename` would `EXDEV`; or `copy` → undo would delete)
+and `trash`/`restore` batches (already undoable via the culling trash manifest)
+are reported `undoable: false`.
+
+### `POST /api/v1/rename-journal/undo`
+
+Request `{ "batch_id": "9f3c…", "execute": false }`. With `execute: false`
+(default) this is a dry-run.
+
+**Preview response:** `{ "batch_id", "tool", "op", "ts", "count", "to_revert": N, "to_skip": N, "items": [ { "from", "to", "from_name", "to_name", "status": "ok"|"skip", "reason" } ] }`.
+(`tool`/`op`/`ts` let the GUI label which action is being undone.)
+The preview groups each journal row as one all-or-nothing unit (main + its
+recorded sidecars) and reports the **same** decision the execute makes: a unit is
+skipped if the main's file is gone, or any of the unit's original destinations is
+occupied by an unrelated file (a destination taken only by another batch source
+is free — that source moves away first, which is how burst-renumber chains
+resolve). A missing sidecar is dropped from its unit (the main can still revert)
+and reported skipped. So the preview never offers a partial revert the execute
+then skips. Verification is path-state only — the journal carries no content
+fingerprint, so undo confirms the move is safe to replay, not that the bytes are
+unchanged.
+
+**Execute response:** `{ "batch_id", "reverted": N, "skipped": N, "errors": N, "results": [ { "path", "status": "reverted"|"skipped"|"error", "reason" } ] }`.
+Reversals run through the shared two-pass mover (never-overwrite; within-batch
+chains resolve), and the face DB is then repaired the same way the forward
+face-rename does (`RenameService._update_database_paths`) with the reversed
+mapping — both `known_faces[*].file` and `processed_files[*].name` are repointed
+off the renamed name back onto the original (a no-op for names not in the DB, so
+it runs for every tool's batch). The undo is itself journaled as a fresh `undo`
+batch, so it is redoable. Only one undo runs at a time (serialized).
+
+`404` if the batch id is unknown; `400` if the batch is not undoable.
 
 ### `ws://127.0.0.1:5001/ws/progress`
 
@@ -1076,6 +1184,9 @@ Real-time progress updates during processing.
 | `face-detected` | `{ file, faces }` | Face detected |
 | `complete` | `{ filesProcessed }` | Batch complete |
 | `error` | `{ message }` | Processing error |
+| `import-progress` | `{ phase: "transfer", current, total, file, percent }` / `{ phase: "done", transferred, skipped, errors, ejected, eject_error, destination, total }` | Card import per-file progress + terminal summary |
+| `rename-nef-progress` | `{ phase, current, total, percent }` | EXIF read progress during NEF rename preview/execute |
+| `restore-names-progress` | `{ phase, current, total, percent }` | SHA1 hashing progress during restore-names preview/execute |
 
 **Example client:**
 ```javascript

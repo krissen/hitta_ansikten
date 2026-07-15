@@ -40,6 +40,24 @@ def _redirect_app_log(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _redirect_rename_journal(tmp_path, monkeypatch):
+    """Keep the test suite from writing the real rename journal.
+
+    ``core.fs_ops`` appends every rename/move/trash to
+    ``<BASE_DIR>/rename_journal.jsonl``. Any test that drives a migrated flow
+    (rename, rename-nef, import, culling) without redirecting the data dir would
+    otherwise append rows to the developer's real journal. Point ``journal_path``
+    at a per-test tmp file — surgically, leaving ``core.db.BASE_DIR`` alone so
+    tests that set it for other reasons are unaffected. Tests that need to read
+    the journal back use the same ``tmp_path / "rename_journal.jsonl"``.
+    """
+    import core.fs_ops as fs_ops
+    monkeypatch.setattr(
+        fs_ops, "journal_path", lambda: tmp_path / "rename_journal.jsonl"
+    )
+
+
+@pytest.fixture(autouse=True)
 def _reset_service_singletons():
     """Reset lazy service singletons between tests.
 
@@ -55,6 +73,7 @@ def _reset_service_singletons():
         "api.services.culling_service",
         "api.services.rename_nef_service",
         "api.services.import_service",
+        "api.services.undo_service",
     ]
     attr_by_module = {
         "api.services.detection_service": "_detection_service",
@@ -63,6 +82,7 @@ def _reset_service_singletons():
         "api.services.culling_service": "_culling_service",
         "api.services.rename_nef_service": "_rename_nef_service",
         "api.services.import_service": "_import_service",
+        "api.services.undo_service": "_undo_service",
     }
     import sys
 

@@ -91,11 +91,21 @@ Gallra spelare har två vyer: **enkelbild** (loupe, standard) och **översikt**
 (rutnät/contact sheet). Växla med **Rutnät**-knappen i filterraden (markerad när
 översikten är aktiv; valet sparas mellan omstarter).
 
+Enkelbildsvyn använder samma canvas-bildvisare som Granska ansikten: **rulla med
+mushjulet** för att zooma in/ut mot pekaren och **dra** för att panorera när du
+zoomat in. Även bildvisarens zoomtangenter fungerar här: `+`/`-` zoomar in/ut,
+`=` återställer till 1:1 och `0` autoanpassar till fönstret. Varje ny bild
+börjar autoanpassad (fit-to-window), så att stega mellan filer nollställer
+zoomen automatiskt. NEF/RAW visas via samma konvertering som tidigare.
+
 | Genväg | Funktion |
 |--------|----------|
 | `↑` / `↓` (`k` / `j`) | **Enkelbild:** föregående/nästa. **Rutnät:** upp/ned en rad |
 | `←` / `→` | **Rutnät:** en miniatyr åt vänster/höger (enkelbild: föregående/nästa) |
 | `Alt`+pil | Bläddra sidvis (10 bilder, resp. 3 rader i rutnätet) |
+| `+` / `-` | **Enkelbild:** zooma in/ut |
+| `=` | **Enkelbild:** återställ till 1:1 |
+| `0` | **Enkelbild:** anpassa till fönster |
 | `x` / `Delete` / `Cmd+⌫` | Flytta bilden till papperskorgen och gå vidare (`Cmd+⌫` följer Finder) |
 | Dubbelklick / `Enter` | **Rutnät:** öppna miniatyren i enkelbild. **Enkelbild:** byt namn manuellt |
 | `Esc` | **Enkelbild:** tillbaka till översikten (om inget redigeras). Annars: kasta förhandsgranskningens avbockade namn |
@@ -196,24 +206,45 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 > automatiskt) — övriga är alltid valbara. Startsidan försvinner så fort du
 > öppnar en vy eller laddar en bild, och **kommer tillbaka om du stänger alla
 > öppna moduler** så arbetsytan aldrig blir tom utan väg vidare.
+>
+> **Fortsätt där du var:** har du nyss importerat eller bytt namn i ett event
+> visar startsidan högst upp en rad "Aktuell mapp: {mapp}" med en
+> **Fortsätt**-knapp till nästa steg (efter import → *Byt namn*, efter namnbyte →
+> *Granska ansikten*) — mappen är då redan förvald. Ingenting laddas automatiskt;
+> raden är bara en genväg.
 
 ### 0. Importera från minneskort (valfritt)
 
 1. Öppna **Importera** (`Cmd+Shift+I`). Modulen listar isatta minneskort med antal NEF.
 2. Välj kort, målmapp (kom ihåg senaste), samt Flytta/Kopiera och om kortet ska matas ut.
 3. Klicka **Importera** — en förloppsindikator visas; kortet matas ut efter felfri överföring.
+4. När importen är klar visas knappen **"Döp om filer…"** i resultatet — den öppnar **Byt namn** med den importerade mappen redan ifylld (nästa steg).
 
 ### 0b. Byt namn på NEF (valfritt)
 
-1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`).
+1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`). Målmappen förväljs från den senast använda eventmappen (importsteget) och faller annars tillbaka på senaste importdestination.
 2. **Förhandsgranska** visar `DSC… → YYMMDD_HHMMSS.NEF` (dubbletter får `-NN`; filer utan CreateDate hoppas över).
 3. **Byt namn** utför; befintliga målnamn skrivs aldrig över.
+4. När namnbytet är klart visas knappen **"Granska ansikten…"** i resultatet — den öppnar granskningsvyn (Filkö + Granska ansikten + Bildvisare) med den namnbytta mappen redan laddad i kön (nästa steg).
+
+**Redan namngivna filer skyddas.** Filer vars namn redan bär sin EXIF-tidsstämpel — med eller utan namnsuffix (`260713_110145_Elis.NEF`), burst (`…-1.NEF`) eller båda — hoppas över som standard, så ett namnbyte aldrig strippar bort bekräftade namn. Förhandsgranskningen visar hur många som skyddas. Två kryssrutor:
+
+- **Inkludera undermappar** — scanna även undermappar (av som standard; valet sparas).
+- **Döp även om redan namngivna filer** — en varnings-kryssruta som tar med redan namngivna filer ändå och tar bort deras namnsuffix. Startar alltid urbockad; förhandsgranskningen varnar med antalet som berörs.
+
+**Återställ namn… (SHA1)** — om bekräftade namn av misstag strippats (eller filer bytt namn utanför appen) slår den här åtgärden upp varje NEF via sitt SHA1 i databasen och döper tillbaka den till det bekräftade namnet (+ `.xmp`-sidecar). Skriver aldrig över; tvillingar som delar namn får `-N`. Förhandsgranska → **Återställ**, som övriga namnbytesflöden.
+
+**Ångra senaste namnbyte…** — ångrar hela den senaste namnbytesbatchen (GUI-namnbyte, EXIF-namnbyte eller återställ-namn) genom att spela filoperationerna baklänges från journalen. Åtgärden hämtar de senaste ångringsbara batcharna, förvälj den senaste och visar en förhandsgranskning `nuvarande namn → ursprungligt namn`; en journalrads huvudfil + sidecars behandlas som en enhet (allt-eller-inget), och filer/enheter som saknas eller vars ursprungsplats är upptagen markeras som överhoppade med orsak. Finns flera batchar kan en tidigare väljas i listan (visar verktyg, antal och tidpunkt). **Ångra** utför; befintliga filer skrivs aldrig över, och resultatet rapporteras per fil. Själva ångringen journalförs också, så den i sin tur kan ångras (redo). Kortimport (flytt/kopia) och gallringens papperskorg kan inte ångras här — papperskorgen har sin egen återställning.
 
 ### 1. Lägg till filer
 
 1. Klicka `+` i Filkö eller `Cmd+O`
 2. Välj en eller flera NEF-filer
 3. Filer läggs till i kön
+
+Är kön tom och du nyss importerat eller bytt namn i ett event visar tomläget
+en genväg **"Ladda {mapp}?"** som fyller kön med den senast använda
+eventmappen med ett klick.
 
 ### 2. Granska ansikten
 
@@ -249,7 +280,8 @@ antal.
 1. Öppna **Räkna spelare** (`Cmd+Shift+K`). Ange en mapp och/eller ett wildcard
    i balken högst upp, välj filtyp (vanligen `jpg / jpeg`) och ev. datum-span,
    och klicka **Räkna**. Tabellen visar antal bilder per spelare, andel, avvikelse
-   från medianen i procent (Δ%, grön/gul/röd) och antal (ΔN), en fördelningsstapel
+   från baslinjen i procent (Δ%, grön/gul/röd — peka på kolumnen för en
+   förklaring) och antal (ΔN), en fördelningsstapel
    relativt baslinjen (baslinjen = halva stapeln) samt en **tidslinje** som visar
    när spelarens bilder togs under passet. Bocka i **Per match** för samma
    uppställning per automatiskt detekterad match — varje match visar även en
@@ -271,6 +303,18 @@ antal.
    > sparningen kanske inte får effekt. Motsvarar CLI:ns
    > `--gap-minutes`/`--baseline`/`--min-images` och `--tranare`/`--publik` samt
    > config-nycklarna `always_grupp`/`always_publik`.
+
+   > **Högerklicka ett namn** i spelartabellen eller i de exkluderade
+   > sektionerna för en meny som flyttar namnet mellan kategorierna **för den
+   > aktuella sessionen** — t.ex. gör en publik-/gruppmarkerad person till
+   > spelare (räknas då även om den har färre än **Min bilder**), eller flytta
+   > en spelare som bara spelade kort tid till publik. Sessionflyttarna delas
+   > med Gallra spelare-vyns räknekolumn (samma meny finns där), överlever
+   > omladdning men nollas när appen startas om, och sparas aldrig:
+   > **Återställ** rensar dem och **Spara som standard** tar inte med dem.
+   > Tillfälliga spelare visas som chips under **Uteslutna** (ta bort chipet =
+   > ångra). Menyvalet **Gör publik permanent** skriver däremot namnet direkt
+   > till publik-listan i config (utan att spara övriga osparade ändringar).
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
    (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
    spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken. Välj filtyp
@@ -281,6 +325,11 @@ antal.
    > fil-urval (mappar, globbar, datumspann, filtyp). Öppnar du den ena med
    > ett urval aktivt i den andra ärvs det automatiskt — du slipper ange om
    > samma mapp. (Spelar-/namnfiltret i Gallra ärvs inte; Räkna räknar alla.)
+   > **Delad baslinje:** även räkne-inställningen **Baslinje** (median/medel)
+   > delas mellan de två — byter du median/medel i den ena följer den andra
+   > med direkt (även om båda är öppna samtidigt), och valet sparas mellan
+   > omstarter (till skillnad från det sessions-bundna urvalet). Detsamma
+   > gäller **Min bilder** och **Matchgap**.
 3. Bläddra i fillistan i mitten — `→`/`↓` nästa, `←`/`↑` föregående (`Alt`+pil
    hoppar 10 i taget); bilden visas maximerad till höger. **Högerklicka** en fil
    för en meny med navigering, byt namn, gallra och ångra — varje rad visar sitt
@@ -288,7 +337,20 @@ antal.
    genvägshjälpen (`?`).
    Längst till vänster visas en **levande spelarräkning** för det aktuella
    urvalet som uppdateras direkt när du gallrar — så du ser hur varje spelares
-   antal förändras. Tryck `x` (eller `Delete`) för att flytta bilden till
+   antal förändras. I räknekolumnens huvud finns en liten **Baslinje**-väljare
+   (Median/Medel) som styr referensen för över-/underrepresentation, och ett
+   litet **Min bilder**-fält (minsta antal bilder för att räknas som spelare —
+   färre hamnar under "Under tröskeln"). Fältet skrivs in medan du skriver men
+   räknar om först vid blur/Enter (så "12" inte kör tre omräkningar). Båda
+   kontrollerna delar inställning med Räkna spelare-fliken (ändrar du här ändras
+   även den, och valet kvarstår mellan omstarter). **Matchgap** styrs kvar från
+   Räkna spelare-fliken. En liten snurra i kolumnhuvudet visas medan räkningen
+   läses om (t.ex. efter ett baslinjebyte). Även de **exkluderade grupperna**
+   (tränare/gruppbilder/publik/under tröskeln) är klickbara där för att
+   filtrera/markera personen,
+   och **högerklick på ett namn** (spelare eller exkluderad) ger samma
+   session-/permanent-meny som i Räkna spelare — flytta t.ex. en
+   publikmarkerad person till spelare för sessionen, direkt medan du gallrar. Tryck `x` (eller `Delete`) för att flytta bilden till
    papperskorgen och gå vidare (`Cmd+⌫` fungerar också, à la Finder). `Cmd+Z`
    ångrar.
    - **Byt namn på en fil:** tryck `Enter` på markerad fil (eller dubbelklicka)

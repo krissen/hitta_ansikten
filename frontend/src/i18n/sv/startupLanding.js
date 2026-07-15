@@ -4,5 +4,8 @@ module.exports = {
   "subtitle": "Följ stegen i ordning, eller öppna ett verktyg direkt.",
   "workflow": "Arbetsflöde",
   "tools": "Verktyg",
-  "importCardHint": "Sätt i ett minneskort för att importera"
+  "importCardHint": "Sätt i ett minneskort för att importera",
+  "currentFolder": "Aktuell mapp: {name}",
+  "continueRename": "Fortsätt: Byt namn",
+  "continueReview": "Fortsätt: Granska ansikten"
 };

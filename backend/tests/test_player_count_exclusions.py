@@ -111,6 +111,102 @@ def test_post_partial_payload_rejected_without_wiping(config):
     assert load_exclusion_config() == {"tranare": ["Bo"], "publik": [], "grupp": []}
 
 
+# --- Per-request force-include (spelare) -----------------------------------
+
+
+def test_count_spelare_force_include_beats_always_markers(config, tmp_path):
+    # "Klacken" is an always-publik marker; a per-request spelare override must
+    # still move it into the players bucket (session-only reclassify).
+    photos = tmp_path / "photos"
+    photos.mkdir()
+    for ts in ("120000", "120100", "120200"):
+        (photos / f"260601_{ts}_Klacken.jpg").touch()
+
+    service = PlayerCountService()
+
+    baseline = service.count(roots=[str(photos)])
+    assert "Klacken" in {e["name"] for e in baseline["excluded"]["publik"]}
+
+    forced = service.count(roots=[str(photos)], spelare=["Klacken"])
+    assert "Klacken" in {p["name"] for p in forced["players"]}
+    assert "Klacken" not in {e["name"] for e in forced["excluded"]["publik"]}
+
+
+def test_count_spelare_bypasses_min_images(config, tmp_path):
+    # A force-included name with fewer than min_images must still land in
+    # players (the whole point: a briefly-playing player with few images).
+    photos = tmp_path / "photos"
+    photos.mkdir()
+    for ts in ("120000", "120100", "120200"):
+        (photos / f"260601_{ts}_Anna.jpg").touch()
+    (photos / "260601_120300_Oscar.jpg").touch()  # 1 image < min_images=3
+
+    service = PlayerCountService()
+
+    baseline = service.count(roots=[str(photos)])
+    assert "Oscar" in {e["name"] for e in baseline["excluded"]["below_threshold"]}
+
+    forced = service.count(roots=[str(photos)], spelare=["Oscar"])
+    assert "Oscar" in {p["name"] for p in forced["players"]}
+    assert "Oscar" not in {e["name"] for e in forced["excluded"]["below_threshold"]}
+
+
+def test_count_session_pins_move_between_buckets(config, tmp_path):
+    # Session pins win over always-markers and place the name in exactly one
+    # bucket (no double-listing across overlapping sets).
+    photos = tmp_path / "photos"
+    photos.mkdir()
+    for ts in ("120000", "120100", "120200"):
+        (photos / f"260601_{ts}_Klacken.jpg").touch()
+        (photos / f"260601_{ts}_Anna.jpg").touch()
+
+    service = PlayerCountService()
+
+    # always-publik marker -> tranare (session)
+    moved = service.count(roots=[str(photos)], session_tranare=["Klacken"])
+    assert "Klacken" in {e["name"] for e in moved["excluded"]["tranare"]}
+    assert "Klacken" not in {e["name"] for e in moved["excluded"]["publik"]}
+
+    # player -> grupp (session)
+    grouped = service.count(roots=[str(photos)], session_grupp=["Anna"])
+    assert "Anna" in {e["name"] for e in grouped["excluded"]["grupp"]}
+    assert "Anna" not in {p["name"] for p in grouped["players"]}
+
+    # player -> publik (session)
+    audience = service.count(roots=[str(photos)], session_publik=["Anna"])
+    assert "Anna" in {e["name"] for e in audience["excluded"]["publik"]}
+    assert "Anna" not in {p["name"] for p in audience["players"]}
+    # Nothing persisted by any session pin.
+    assert load_exclusion_config() == {"tranare": [], "publik": [], "grupp": []}
+
+
+def test_get_exclusions_exposes_raw_config(config, monkeypatch):
+    # `config` mirrors the persisted file only — no env values, no
+    # always-markers — so targeted saves can't echo transient env lists back.
+    save_exclusion_config(tranare=["Anna"], publik=["Cecilia"])
+    monkeypatch.setenv("RAKNA_PUBLIK", "EnvOnly")
+    result = PlayerCountService().get_exclusions()
+    assert "EnvOnly" in result["publik"]  # resolved view follows env
+    assert "Cecilia" not in result["publik"]  # env shadows the config list
+    assert result["config"]["publik"] == ["Cecilia"]  # raw view does not
+    assert result["config"]["tranare"] == ["Anna"]
+    assert not (set(result["config"]["publik"]) & ALWAYS_PUBLIK)
+
+
+def test_count_grupp_request_override(config, tmp_path):
+    # A per-request grupp override moves a would-be player into the grupp
+    # bucket without touching the persisted config.
+    photos = tmp_path / "photos"
+    photos.mkdir()
+    for ts in ("120000", "120100", "120200"):
+        (photos / f"260601_{ts}_Anna.jpg").touch()
+
+    stats = PlayerCountService().count(roots=[str(photos)], grupp=["Anna"])
+    assert "Anna" in {e["name"] for e in stats["excluded"]["grupp"]}
+    assert "Anna" not in {p["name"] for p in stats["players"]}
+    assert load_exclusion_config()["grupp"] == []  # config untouched
+
+
 # --- Config-driven always-markers -----------------------------------------
 
 

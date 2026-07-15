@@ -31,6 +31,34 @@ def is_unrenamed(fname: str) -> bool:
     prefix, suffix = extract_prefix_suffix(fname)
     return bool(prefix and suffix)
 
+def record_previous_name(entry: dict, old_name: str) -> None:
+    """Preserve an overwritten ``name`` in a processed_files entry.
+
+    Appends ``old_name`` to the entry's ``previous_names`` list before its
+    ``name`` field is replaced, so a name is never overwritten without a trace.
+    The list is an append-only log (oldest first, most recent last) — it is not
+    a stack: an undo that reverts a rename appends the reverted name too.
+
+    Callers invoke this only when the name actually changes. Guards keep it
+    additive and idempotent:
+    - a falsy ``old_name`` is ignored;
+    - a re-write to the same value (last element already ``old_name``) is a
+      no-op, so an idempotent re-run never grows the list.
+
+    The field is created on demand and read by nothing in the load path, so no
+    consumer of processed_files needs to change.
+    """
+    if not old_name:
+        return
+    history = entry.get("previous_names")
+    if not isinstance(history, list):
+        history = []
+    if history and history[-1] == old_name:
+        return
+    history.append(old_name)
+    entry["previous_names"] = history
+
+
 def collect_persons_for_files(
     filelist: list[Path | str],
     known_faces: dict[str, list],

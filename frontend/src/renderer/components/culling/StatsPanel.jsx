@@ -6,15 +6,18 @@
  * groups, and owns the loupe/grid click-vs-doubleclick debounce.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { t } from '../../../i18n/index.js';
+import { LoadingSpinner } from '../shared/ProgressBar.jsx';
 
 const EXCLUDED_KEYS = ['tranare', 'grupp', 'publik', 'below_threshold'];
 
 /** Collapsible groups for names the count excludes (coaches, group photos,
  *  audience, below-threshold) — visible but separated from the live counts,
- *  matching the Räkna spelare page. */
-function CullingExcluded({ excluded }) {
+ *  matching the Räkna spelare page. Items are clickable (filter/highlight the
+ *  person, same hand-off as the player rows) and right-clickable
+ *  (session/permanent reclassification menu) when the callbacks are given. */
+function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
   if (!excluded) return null;
   const groups = EXCLUDED_KEYS.filter(
     (key) => excluded[key] && excluded[key].length > 0
@@ -27,7 +30,23 @@ function CullingExcluded({ excluded }) {
           <summary>{t('culling.stats.groupSummary', { label: t(`culling.stats.excludedLabels.${key}`), count: excluded[key].length })}</summary>
           <ul>
             {excluded[key].map((e) => (
-              <li key={e.name}>{t('culling.stats.excludedItem', { name: e.name, count: e.count, pct: e.pct })}</li>
+              <li
+                key={e.name}
+                className={onSelect ? 'clickable' : undefined}
+                onClick={onSelect ? () => onSelect(e.name) : undefined}
+                onContextMenu={onNameContextMenu ? (ev) => onNameContextMenu(ev, e.name, key) : undefined}
+                role={onSelect ? 'button' : undefined}
+                tabIndex={onSelect ? 0 : undefined}
+                onKeyDown={onSelect ? (ev) => {
+                  if (ev.key === 'Enter' || ev.key === ' ') {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    onSelect(e.name);
+                  }
+                } : undefined}
+              >
+                {t('culling.stats.excludedItem', { name: e.name, count: e.count, pct: e.pct })}
+              </li>
             ))}
           </ul>
         </details>
@@ -42,6 +61,11 @@ function CullingExcluded({ excluded }) {
  * so the same numbers are in front of the user while culling. `stats` is the
  * /players/count response (or null); `selected` highlights the active player;
  * `width` is the column's pixel width (resizable via the stats divider).
+ * `baseline`/`onBaselineChange` back the median/mean select in the header — the
+ * shared counting setting, so changing it here also changes Räkna spelare.
+ * `minImages`/`onMinImagesChange` back the "Min bilder" number input, likewise
+ * shared: it commits on blur/Enter (not per keystroke) so typing doesn't refetch
+ * the count on every digit, mirroring the Räkna spelare number inputs.
  *
  * Row clicks are mode-dependent (`mode`): in the loupe a single click filters
  * the list to the player (`onSelect`); in the grid a single click highlights the
@@ -53,10 +77,27 @@ function CullingExcluded({ excluded }) {
  * capture-phase Enter/Esc handler yields to a focused role="button" so a keyed
  * Enter here filters instead of starting a rename.
  */
-export function CullingStats({ stats, selected, onSelect, onActivate, mode, width }) {
+export function CullingStats({ stats, loading, selected, onSelect, onActivate, mode, width, baseline, onBaselineChange, minImages, onMinImagesChange, onNameContextMenu }) {
   const players = stats?.players || [];
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const clickTimerRef = useRef(null);
+
+  // Local draft for the "Min bilder" input so typing previews without refetching
+  // the count on every keystroke — the value is committed (published to the
+  // shared store) only on blur / Enter, matching the Räkna spelare number inputs.
+  // Re-seed the draft when the shared setting changes externally (e.g. edited in
+  // the Räkna spelare tab) so the input reflects the live value.
+  const [minDraft, setMinDraft] = useState(minImages ?? 3);
+  useEffect(() => {
+    setMinDraft(minImages ?? 3);
+  }, [minImages]);
+  const commitMinImages = () => {
+    if (!onMinImagesChange) return;
+    const n = parseInt(minDraft, 10);
+    const clamped = Number.isNaN(n) ? 1 : Math.max(1, n);
+    setMinDraft(clamped);
+    if (clamped !== minImages) onMinImagesChange(clamped);
+  };
   useEffect(() => () => clearTimeout(clickTimerRef.current), []);
   // Cancel a pending single-click when the mode changes, so a debounced grid
   // highlight can't fire after the user has switched to the loupe.
@@ -90,6 +131,38 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
     <div className="culling-stats" style={{ flex: `0 0 ${width}px` }}>
       <div className="culling-stats-header">
         <span>{t('culling.stats.header')}</span>
+        {/* Fixed-width slot so the spinner appearing/disappearing never shifts
+            the controls next to it. */}
+        <span className="culling-stats-loading" aria-hidden={!loading}>
+          {loading && <LoadingSpinner size="sm" />}
+        </span>
+        {onBaselineChange && (
+          <select
+            className="form-select culling-stats-baseline-select"
+            value={baseline || 'median'}
+            onChange={(e) => onBaselineChange(e.target.value)}
+            title={t('culling.stats.baselineSelectTitle')}
+            aria-label={t('culling.stats.baselineSelectLabel')}
+          >
+            <option value="median">{t('culling.stats.baselineMedian')}</option>
+            <option value="mean">{t('culling.stats.baselineMean')}</option>
+          </select>
+        )}
+        {onMinImagesChange && (
+          <input
+            className="form-input culling-stats-minimages-input"
+            type="number"
+            min="1"
+            value={minDraft}
+            onChange={(e) => setMinDraft(e.target.value)}
+            onBlur={commitMinImages}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitMinImages();
+            }}
+            title={t('culling.stats.minImagesTitle')}
+            aria-label={t('culling.stats.minImagesLabel')}
+          />
+        )}
         {stats?.baseline != null && (
           <span className="culling-stats-baseline" title={t('culling.stats.baselineTitle')}>
             ~{Math.round(stats.baseline)}
@@ -107,7 +180,7 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
                 <th>{t('culling.stats.columns.name')}</th>
                 <th className="num">{t('culling.stats.columns.count')}</th>
                 <th className="num">{t('culling.stats.columns.pct')}</th>
-                <th className="num">{t('culling.stats.columns.delta')}</th>
+                <th className="num" title={t('culling.stats.deltaTitle')}>{t('culling.stats.columns.delta')}</th>
                 <th className="bar-col">{t('culling.stats.columns.distribution')}</th>
               </tr>
             </thead>
@@ -137,12 +210,13 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
                       activate?.();
                     }
                   } : undefined}
+                  onContextMenu={onNameContextMenu ? (e) => onNameContextMenu(e, p.name, 'players') : undefined}
                   title={title}
                 >
                   <td className="culling-stat-name">{p.name}</td>
                   <td className="num">{p.count}</td>
                   <td className="num">{p.pct}%</td>
-                  <td className={`num delta delta-${p.level || 'ok'}`}>
+                  <td className={`num delta delta-${p.level || 'ok'}`} title={t('culling.stats.deltaTitle')}>
                     {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
                   </td>
                   <td className="bar-col">
@@ -159,7 +233,11 @@ export function CullingStats({ stats, selected, onSelect, onActivate, mode, widt
             </tbody>
           </table>
           )}
-          <CullingExcluded excluded={excluded} />
+          <CullingExcluded
+            excluded={excluded}
+            onSelect={onSelect ? (name) => handleRowClick(name === selected ? '' : name) : undefined}
+            onNameContextMenu={onNameContextMenu}
+          />
         </div>
       )}
     </div>

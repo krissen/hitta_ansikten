@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
 import { render, act, cleanup, fireEvent } from '@testing-library/react';
 import { PreprocessingStatus } from '../src/renderer/services/preprocessing/index.js';
+import { setWorkingFolder, clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
+import { t } from '../src/i18n/index.js';
 
 // Characterization + fence tests for FileQueueModule.
 //
@@ -305,8 +307,11 @@ async function mountQueue(node = null) {
   return utils;
 }
 
+// The CLI/queue payload now arrives as the renderer 'file-queue-load' module
+// event (the workspace marshals the old `queue-files` IPC into it after
+// ensuring the queue is mounted), so drive that handler here.
 async function addViaIpc(files, opts = {}) {
-  const handler = h.ipc.get('queue-files');
+  const handler = h.registry.get('file-queue-load');
   await act(async () => {
     handler({ files, position: opts.position, clear: opts.clear, startQueue: opts.startQueue });
     await Promise.resolve();
@@ -567,5 +572,60 @@ describe('FileQueueModule — FileQueueItem render states (characterization)', (
     ]);
     const { container } = await mountQueue();
     expect(container.querySelector('.file-item .reprocess-btn')).toBeTruthy();
+  });
+});
+
+describe('FileQueueModule — folder hand-off + working-folder offer', () => {
+  afterEach(() => clearWorkingFolder());
+
+  it('file-queue-load with roots expands the folder via expand-folders and queues the files', async () => {
+    window.ansiktenAPI.invoke = vi.fn().mockResolvedValue(['/dir/a.jpg', '/dir/b.jpg']);
+    const { container } = await mountQueue();
+    await act(async () => {
+      h.registry.get('file-queue-load')({ roots: ['/dir'] });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(window.ansiktenAPI.invoke).toHaveBeenCalledWith('expand-folders', ['/dir']);
+    expect(itemNames(container)).toEqual(['a.jpg', 'b.jpg']);
+  });
+
+  it('file-queue-load with roots that expand to nothing warns instead of silently doing nothing', async () => {
+    window.ansiktenAPI.invoke = vi.fn().mockResolvedValue([]);
+    const { container } = await mountQueue();
+    await act(async () => {
+      h.registry.get('file-queue-load')({ roots: ['/empty'] });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelectorAll('.file-item')).toHaveLength(0);
+    // showToast is wrapped with a duration multiplier, so match on message+type.
+    expect(
+      h.showToast.mock.calls.some(
+        (c) => c[0] === t('fileQueue.toasts.noSupportedFound') && c[1] === 'warning',
+      ),
+    ).toBe(true);
+  });
+
+  it('offers to load the working-folder anchor when the queue is empty', async () => {
+    setWorkingFolder({ roots: ['/events/cupen'], step: 'rename' });
+    const { container, getByText } = await mountQueue();
+    const btn = getByText(t('fileQueue.emptyStates.loadFolderOffer', { name: 'cupen' }));
+    expect(btn).toBeTruthy();
+
+    window.ansiktenAPI.invoke = vi.fn().mockResolvedValue(['/events/cupen/x.jpg']);
+    await act(async () => {
+      fireEvent.click(btn);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(window.ansiktenAPI.invoke).toHaveBeenCalledWith('expand-folders', ['/events/cupen']);
+    expect(itemNames(container)).toEqual(['x.jpg']);
+  });
+
+  it('shows no folder offer when the anchor is unset', async () => {
+    clearWorkingFolder();
+    const { queryByText } = await mountQueue();
+    expect(queryByText(/Ladda/)).toBeNull();
   });
 });

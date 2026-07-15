@@ -286,6 +286,19 @@ export function FlexLayoutWorkspace() {
     return ids.length > 0;
   }, [model]);
 
+  // The tab node for the given module, or null if it isn't in the layout.
+  const findModuleTab = useCallback((moduleId) => {
+    if (!model) return null;
+    let node = null;
+    model.visitNodes((n) => {
+      if (n.getType() === 'tab' && n.getComponent?.() === moduleId) node = n;
+    });
+    return node;
+  }, [model]);
+
+  // True if a tab for the given module is currently present in the layout.
+  const hasModuleTab = useCallback((moduleId) => !!findModuleTab(moduleId), [findModuleTab]);
+
   // Factory function for FlexLayout
   const factory = useCallback((node) => {
     const component = node.getComponent();
@@ -366,6 +379,66 @@ export function FlexLayoutWorkspace() {
     }
   }, []);
 
+  // Add a module in a NEW tabset docked at `location` relative to `refTabsetId`
+  // (DockLocation.RIGHT/BOTTOM split off a fresh tabset), rather than as another
+  // tab inside an existing tabset. Used to place Review/Viewer beside the queue
+  // without stacking them on top of it.
+  const openModuleInNewTabset = useCallback((moduleId, refTabsetId, location) => {
+    if (!model) return;
+    model.doAction(Actions.addNode(
+      { type: 'tab', name: MODULE_TITLES[moduleId] || moduleId, component: moduleId, config: { moduleId } },
+      refTabsetId,
+      location,
+      -1,
+    ));
+  }, [model]);
+
+  // Ensure a review surface (Review + Image Viewer) is mounted before the queue
+  // hands off an image (called by FileQueue.loadFile). Four cases — none may
+  // replace the layout while a queue exists, and none may stack a new panel into
+  // an existing tabset (that hides/unmounts the panel already there under
+  // render-on-demand):
+  //
+  //  1. BOTH present → deliberate layout: just focus the existing tabs.
+  //  2. Only Review present → dock Image Viewer in its OWN tabset to the RIGHT of
+  //     Review (order stays …|review|viewer).
+  //  3. Only Viewer present → dock Review in its OWN tabset to the LEFT of the
+  //     Viewer (order stays queue|review|viewer).
+  //  4. NEITHER present → if the queue is ALSO absent it's a blank start, so a
+  //     fresh queue-review layout is safe (nothing live to lose); if the queue
+  //     EXISTS, replacing the model would unmount that FileQueue mid-loadFile and
+  //     drop its currentFileRef/currentIndex (round-3 finding), so dock Review +
+  //     Image Viewer in their own tabsets beside the queue instead.
+  const ensureReviewSurface = useCallback(() => {
+    const reviewTab = findModuleTab('review-module');
+    const viewerTab = findModuleTab('image-viewer');
+
+    if (reviewTab && viewerTab) {
+      openModule('review-module');
+      openModule('image-viewer');
+      return;
+    }
+    if (reviewTab && !viewerTab) {
+      openModuleInNewTabset('image-viewer', reviewTab.getParent().getId(), DockLocation.RIGHT);
+      return;
+    }
+    if (viewerTab && !reviewTab) {
+      openModuleInNewTabset('review-module', viewerTab.getParent().getId(), DockLocation.LEFT);
+      return;
+    }
+    // Neither present.
+    const queueTab = findModuleTab('file-queue');
+    if (!queueTab) {
+      loadLayout('queue-review');
+      return;
+    }
+    const queueTabsetId = queueTab.getParent().getId();
+    openModuleInNewTabset('review-module', queueTabsetId, DockLocation.RIGHT);
+    const newReviewTab = findModuleTab('review-module');
+    const reviewTabsetId = newReviewTab ? newReviewTab.getParent().getId() : queueTabsetId;
+    openModuleInNewTabset('image-viewer', reviewTabsetId, DockLocation.RIGHT);
+  }, [findModuleTab, loadLayout, openModule, openModuleInNewTabset]);
+
   // Replace the workspace with a single self-contained module filling it. Used
   // by the landing page for workflow steps (culling, player-count, import,
   // rename-nef) so they don't dock beside the empty Review panel.
@@ -384,11 +457,13 @@ export function FlexLayoutWorkspace() {
 
   const openLandingStep = useCallback((moduleId) => {
     setShowLanding(false);
-    // Review needs its multi-pane layout (Review + Image Viewer); every other
-    // landing target is a self-contained view opened solo (fills the workspace)
-    // so a direct pick lands you on that view, not docked beside an empty panel.
+    // Review needs its multi-pane pipeline layout (File Queue + Review + Image
+    // Viewer). Without the queue panel the review view is a dead end — nothing
+    // feeds it — so land on 'queue-review', not the queue-less 'review'. Every
+    // other landing target is a self-contained view opened solo (fills the
+    // workspace) so a direct pick lands you on that view, not beside an empty panel.
     if (moduleId === 'review-module') {
-      loadLayout('review');
+      loadLayout('queue-review');
     } else {
       openModuleSolo(moduleId);
     }
@@ -606,6 +681,63 @@ export function FlexLayoutWorkspace() {
     };
     const offOpenImport = window.ansiktenAPI.on('open-import', handleOpenImport);
 
+    // In-app hand-off from Import → Rename-NEF ("Döp om filer…"). Unlike the
+    // CLI hand-offs above this is a renderer moduleAPI event (no IPC): open/focus
+    // the rename-nef module, then pass it the just-imported folder once it has
+    // subscribed. waitForListeners guards the cold-start race on first open.
+    const handleOpenRenameNef = async ({ roots }) => {
+      openModule('rename-nef');
+      await moduleAPI.waitForListeners('rename-nef-load', 2000);
+      moduleAPI.emit('rename-nef-load', { roots });
+    };
+    const offOpenRenameNef = moduleAPI.on('open-rename-nef', handleOpenRenameNef);
+
+    // Bring the File Queue up so it can receive a 'file-queue-load' emit, WITHOUT
+    // racing a layout swap. Only load the fresh pipeline layout when the queue is
+    // ABSENT and Review has no unsaved edits; otherwise just focus the existing
+    // queue. Reloading while a File Queue tab already exists is the bug: the old
+    // queue's 'file-queue-load' listener stays registered until React commits the
+    // unmount, so waitForListeners can resolve against that dying listener and the
+    // emit is lost with it. Only loadLayout when there is no queue listener to
+    // race against; when the queue is present its live listener gets the emit.
+    const ensureQueueMounted = () => {
+      // Dismiss the startup landing explicitly. Normally a loaded image does this
+      // (via 'image-loaded'), but a `queue-files` payload without startQueue just
+      // fills the queue — no image loads — so nothing else would hide the landing
+      // and the populated queue would sit behind the startup screen.
+      setShowLanding(false);
+      if (!hasModuleTab('file-queue') && reviewDirtyRef.current.size === 0) {
+        loadLayout('queue-review');
+      } else {
+        openModule('file-queue');
+      }
+    };
+
+    // In-app hand-off from Rename-NEF → Review ("Granska ansikten…"): bring up
+    // the pipeline layout (File Queue + Review + Image Viewer) and hand the
+    // just-renamed folder(s) to the queue, which expands them to files.
+    const handleOpenReviewQueue = async ({ roots }) => {
+      ensureQueueMounted();
+      await moduleAPI.waitForListeners('file-queue-load', 2000);
+      moduleAPI.emit('file-queue-load', { roots });
+    };
+    const offOpenReviewQueue = moduleAPI.on('open-review-queue', handleOpenReviewQueue);
+
+    // CLI `ansikten -q FILES` (and the `queue-files` IPC generally): the queue
+    // may not be mounted yet — a saved layout without a File Queue panel, or a
+    // cold start where the landing page was suppressed by the launch intent but
+    // no receiver existed → a blank workspace. Ensure the queue is present (load
+    // 'queue-review' only when it is missing) then re-emit the payload as the
+    // renderer-side 'file-queue-load' once the queue has subscribed. This is the
+    // single mount-aware entry point that the old direct FileQueue IPC listener
+    // couldn't provide.
+    const handleQueueFilesIpc = async (payload) => {
+      ensureQueueMounted();
+      await moduleAPI.waitForListeners('file-queue-load', 2000);
+      moduleAPI.emit('file-queue-load', payload || {});
+    };
+    const offQueueFiles = window.ansiktenAPI.on('queue-files', handleQueueFilesIpc);
+
     // Track which files have unsaved Review changes so the culling hand-off
     // above won't close Review and discard them.
     const offReviewDirty = moduleAPI.on('review-dirty', ({ imagePath, dirty }) => {
@@ -626,9 +758,12 @@ export function FlexLayoutWorkspace() {
       offMenuCommand?.();
       offOpenCulling?.();
       offOpenImport?.();
+      offOpenRenameNef?.();
+      offOpenReviewQueue?.();
+      offQueueFiles?.();
       offReviewDirty?.();
     };
-  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, moduleAPI, moveToNewTabset]);
+  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, hasModuleTab, moduleAPI, moveToNewTabset]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
@@ -638,6 +773,7 @@ export function FlexLayoutWorkspace() {
       model,
       layoutRef,
       openModule,
+      ensureReviewSurface,
       closePanel,
       loadLayout,
       addColumn: () => addTabset('column'),
@@ -654,7 +790,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
+  }, [model, openModule, ensureReviewSurface, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
 
   // NOTE: Auto-load from queue is handled by FileQueueModule, not here
 

@@ -84,11 +84,13 @@ def test_rename_refuses_when_sidecar_target_occupied(service, tmp_path):
 
 
 def test_rename_rolls_back_on_sidecar_failure(service, tmp_path, monkeypatch):
+    from core import fs_ops
+
     img = tmp_path / "a.jpg"
     img.write_bytes(b"a")
     (tmp_path / "a.xmp").write_text("side")
 
-    real = service._safe_rename
+    real = fs_ops.safe_swap_rename
     calls = {"n": 0}
 
     def flaky(src, dst):
@@ -97,7 +99,7 @@ def test_rename_rolls_back_on_sidecar_failure(service, tmp_path, monkeypatch):
             raise OSError("locked")
         return real(src, dst)
 
-    monkeypatch.setattr(service, "_safe_rename", flaky)
+    monkeypatch.setattr(fs_ops, "safe_swap_rename", flaky)
 
     with pytest.raises(ValueError):
         service.rename(str(img), "b.jpg")

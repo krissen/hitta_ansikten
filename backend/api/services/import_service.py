@@ -10,7 +10,6 @@ degrades to an empty volume list / disabled eject elsewhere.
 """
 
 import asyncio
-import filecmp
 import logging
 import os
 import plistlib
@@ -19,18 +18,12 @@ import subprocess
 import threading
 from pathlib import Path
 
+from core import fs_ops
+
 from ..websocket.progress import broadcast_event
 from .rename_service import find_sidecar_files
 
 logger = logging.getLogger(__name__)
-
-
-def _same_file(a: Path, b: Path) -> bool:
-    """True if two files are byte-identical (filecmp short-circuits on size)."""
-    try:
-        return filecmp.cmp(str(a), str(b), shallow=False)
-    except OSError:
-        return False
 
 VOLUMES_ROOT = Path("/Volumes")
 SIDECAR_EXTENSIONS = ["xmp"]
@@ -110,30 +103,6 @@ class ImportService:
             pass
         return count, size
 
-    @staticmethod
-    def _resolve_target(dest: Path, name: str, src: Path) -> Path | None:
-        """Where to write `src`, or None if an identical copy is already present.
-
-        Skips byte-identical re-imports — checking the base name AND any earlier
-        `-N` disambiguation variant (so re-importing is idempotent, no dupes) — and
-        otherwise returns the next free `DSC0001-N.NEF`, so a distinct same-named
-        frame is never dropped.
-        """
-        target = dest / name
-        if not target.exists():
-            return target
-        if _same_file(src, target):
-            return None
-        stem, suffix = os.path.splitext(name)
-        i = 1
-        while True:
-            cand = dest / f"{stem}-{i}{suffix}"
-            if not cand.exists():
-                return cand
-            if _same_file(src, cand):
-                return None
-            i += 1
-
     # ----- transfer -----------------------------------------------------
 
     async def run_import(
@@ -145,9 +114,10 @@ class ImportService:
     ) -> dict:
         """Transfer NEFs (+ sidecars) from the volume to destination, then eject.
 
-        Returns {transferred, skipped, errors, ejected, total}. Never raises on a
-        single-file error (collected in `errors`); ejects only after a zero-error
-        transfer.
+        Returns {transferred, skipped, errors, ejected, eject_error, total}, and
+        broadcasts a terminal `import-progress` event with `phase: "done"`. Never
+        raises on a single-file error (collected in `errors`); ejects only after a
+        zero-error transfer.
         """
         if not volume_mount or not destination:
             raise ValueError("volume_mount och destination krävs.")
@@ -167,25 +137,37 @@ class ImportService:
         skipped: list[dict] = []
         errors: list[dict] = []
         op = shutil.move if mode == "move" else shutil.copy2
+        # Journal op mirrors the transfer mode: a move is reversible by moving
+        # back; a copy is recorded too (undo-of-copy semantics deferred to PR 2).
+        journal_op = "move" if mode == "move" else "copy"
+        batch_id = fs_ops.new_batch_id()
         loop = asyncio.get_event_loop()
 
         for i, src in enumerate(nefs, 1):
             try:
-                target = await loop.run_in_executor(None, self._resolve_target, dest, src.name, src)
+                target = await loop.run_in_executor(None, fs_ops.resolve_import_target, dest, src.name, src)
                 if target is None:
                     # Byte-identical copy already present (base or a -N variant) —
                     # safe to skip; re-import is idempotent.
                     skipped.append({"path": str(src), "reason": "identisk fil finns redan"})
                 else:
                     await loop.run_in_executor(None, op, str(src), str(target))
-                    # Carry .xmp sidecars, named after the (possibly renamed) target.
+                    # Carry .xmp sidecars, named after the (possibly renamed)
+                    # target; collect the ones that actually transferred so the
+                    # journal row reflects the real delta, never a pre-existing
+                    # sidecar already on the target stem.
+                    moved_sidecars: list[tuple[Path, Path]] = []
                     for sc in find_sidecar_files(src, SIDECAR_EXTENSIONS):
                         sc_target = dest / f"{target.stem}{sc.suffix}"
                         if not sc_target.exists():
                             try:
                                 await loop.run_in_executor(None, op, str(sc), str(sc_target))
+                                moved_sidecars.append((sc, sc_target))
                             except Exception:
                                 logger.exception("[Import] sidecar transfer failed: %s", sc)
+                    # Journal after the sidecars are settled, listing only movers.
+                    fs_ops.record(op=journal_op, tool="import", batch_id=batch_id,
+                                  src=src, dst=target, sidecars=moved_sidecars)
                     transferred.append(str(target))
             except Exception as e:
                 logger.exception("[Import] transfer failed: %s", src)
@@ -199,24 +181,49 @@ class ImportService:
             })
 
         ejected = False
-        if eject and not errors:
+        eject_error: str | None = None
+        if eject:
+            if errors:
+                # Deliberately don't eject after a partial transfer (a failed file
+                # may need a retry off the card). Surface a reason so the UI warns
+                # the card is still mounted instead of leaving it silently so.
+                eject_error = "utmatning hoppades över på grund av överföringsfel"
+                logger.warning("[Import] eject skipped — transfer had %d error(s): %s", len(errors), volume_mount)
             # Re-validate ejectable here (defense-in-depth): keep the "never the
             # internal/boot disk" guarantee local to the destructive call, not only
             # in list_volumes.
-            if self._is_ejectable(self._diskutil_info(volume_mount)):
-                ejected = await self._eject(volume_mount)
+            elif self._is_ejectable(self._diskutil_info(volume_mount)):
+                ejected, eject_error = await self._eject(volume_mount)
             else:
+                eject_error = "volymen kan inte matas ut"
                 logger.warning("[Import] eject skipped — volume not ejectable: %s", volume_mount)
+
+        # Terminal event: lets the UI show the final summary even if the HTTP
+        # response was lost (a long import can outlive the request). Carries
+        # counts (not the full path lists), the destination, and eject outcome.
+        await broadcast_event("import-progress", {
+            "phase": "done",
+            "transferred": len(transferred),
+            "skipped": len(skipped),
+            "errors": len(errors),
+            "ejected": ejected,
+            "eject_error": eject_error,
+            "destination": str(dest),
+            "total": total,
+        })
 
         return {
             "transferred": transferred,
             "skipped": skipped,
             "errors": errors,
             "ejected": ejected,
+            "eject_error": eject_error,
             "total": total,
         }
 
-    async def _eject(self, mount: str) -> bool:
+    async def _eject(self, mount: str) -> tuple[bool, str | None]:
+        """Eject the volume. Returns (ejected, error) — error is a short reason
+        string on failure (surfaced to the UI), None on success."""
         loop = asyncio.get_event_loop()
         try:
             res = await loop.run_in_executor(
@@ -224,11 +231,13 @@ class ImportService:
                 lambda: subprocess.run(["diskutil", "eject", mount], capture_output=True, timeout=60),
             )
             if res.returncode != 0:
-                logger.warning("[Import] eject failed for %s: %s", mount, res.stderr.decode(errors="replace"))
-            return res.returncode == 0
+                reason = res.stderr.decode(errors="replace").strip()
+                logger.warning("[Import] eject failed for %s: %s", mount, reason)
+                return False, reason or "diskutil eject misslyckades"
+            return True, None
         except Exception as e:
             logger.warning("[Import] eject error for %s: %s", mount, e)
-            return False
+            return False, str(e)
 
 
 # Lazy singleton — construction is deferred so importing this module has no

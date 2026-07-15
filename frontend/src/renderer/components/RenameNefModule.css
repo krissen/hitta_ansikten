@@ -19,6 +19,23 @@
   min-width: 140px;
 }
 
+.rename-nef-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.85em;
+}
+
+/* The include-named opt-in strips confirmed name suffixes — mark it as the
+   destructive choice so it reads apart from the harmless recursive toggle. */
+.rename-nef-danger-toggle {
+  color: var(--color-danger, var(--text-secondary));
+}
+
 .rename-nef-roots {
   display: flex;
   flex-wrap: wrap;
@@ -42,6 +59,20 @@
 .rename-nef-chip-x.icon-btn--sm {
   width: 16px;
   height: 16px;
+}
+
+.rename-nef-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.rename-nef-progress-label {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .rename-nef-body {
@@ -97,4 +128,24 @@
 
 .rename-nef-errors {
   color: var(--color-error);
+}
+
+/* Undo: batch selector + rows that will be skipped (dimmed). */
+.rename-nef-undo-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+
+.rename-nef-row-skip {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.rename-nef-undo-header {
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-secondary);
 }

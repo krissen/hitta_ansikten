@@ -33,6 +33,27 @@ describe('statsScopeFromQuery', () => {
       date_to: '2026-02-01',
     });
   });
+
+  it('omits baseline/min_images when no countSettings are given', () => {
+    const q = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null };
+    const scope = statsScopeFromQuery(q);
+    expect(scope).not.toHaveProperty('baseline');
+    expect(scope).not.toHaveProperty('min_images');
+  });
+
+  it('folds baseline and min_images in from countSettings', () => {
+    const q = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null };
+    expect(statsScopeFromQuery(q, { baseline: 'mean', minImages: 5 })).toEqual({
+      roots: ['/a'],
+      globs: [],
+      extension_preset: 'jpg',
+      recursive: true,
+      date_from: null,
+      date_to: null,
+      baseline: 'mean',
+      min_images: 5,
+    });
+  });
 });
 
 describe('isRaw', () => {

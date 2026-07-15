@@ -40,6 +40,7 @@ module.exports = {
 
   // Exclusion editor
   "exclusions": {
+    "spelare": "Tillfälligt spelare (denna session)",
     "tranare": "Tränare",
     "publik": "Publik",
     "alwaysHeading": "Alltid uteslutna (sparas)",
@@ -65,6 +66,7 @@ module.exports = {
     "count": "Antal",
     "pct": "%",
     "deltaPct": "Δ%",
+    "deltaTitle": "Avvikelse från baslinjen — medianen eller medelvärdet av bildantalet för de inkluderade spelarna. Positivt = fler bilder än baslinjen, negativt = färre.",
     "deltaN": "ΔN",
     "distribution": "Fördelning",
     "timeline": "Tidslinje",
@@ -79,6 +81,15 @@ module.exports = {
     "grupp": "Gruppbilder",
     "publik": "Publik",
     "below_threshold": "Under tröskeln"
+  },
+
+  // Right-click menu on a name (session moves + permanent publik)
+  "contextMenu": {
+    "toPlayerSession": "Gör till spelare (denna session)",
+    "toPublikSession": "Flytta till publik (denna session)",
+    "toTranareSession": "Flytta till tränare (denna session)",
+    "toGruppSession": "Flytta till gruppbilder (denna session)",
+    "publikPermanent": "Gör publik permanent"
   },
 
   // Per-match sections

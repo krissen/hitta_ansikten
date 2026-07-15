@@ -396,6 +396,33 @@ describe('CullingModule — gridThumbnailCache.clear() wiring (#114)', () => {
   });
 });
 
+describe('CullingModule — stats spinner vs bare --clear', () => {
+  it('resets the stats spinner when a bare --clear discards an in-flight /players/count', async () => {
+    const { container } = await mountCulling();
+    await loadFiles();
+    // Start a stats refetch that never resolves — the header spinner turns on.
+    h.api.post.mockImplementation((path) => {
+      if (path.includes('/players/count')) return new Promise(() => {});
+      if (path.includes('/culling/files')) return Promise.resolve(h.nextFiles);
+      return Promise.resolve({});
+    });
+    const handler = h.registry.get('culling-load');
+    await act(async () => {
+      await handler({ roots: ['/p'], clear: true, recursive: false });
+      await Promise.resolve();
+    });
+    expect(container.querySelector('.culling-stats-loading .loading-spinner')).toBeTruthy();
+    // Bare --clear while that request is in flight: the seq bump discards the
+    // response, so its finally can never clear the flag — the clear path must
+    // reset it itself or the spinner sticks forever in the emptied workspace.
+    await act(async () => {
+      await handler({ roots: [], clear: true });
+      await Promise.resolve();
+    });
+    expect(container.querySelector('.culling-stats-loading .loading-spinner')).toBeNull();
+  });
+});
+
 describe('CullingModule — stats panel interaction (characterization)', () => {
   it('renders a row per counted player from the stats response', async () => {
     const { container } = await mountCulling();

@@ -23,13 +23,26 @@ import { gridThumbnailCache } from '../shared/grid-thumbnail-cache.js';
 import { gridNavTarget } from './culling-grid-nav.js';
 import { preferences } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
+import { getWorkingFolder } from '../shared/workingFolder.js';
 import { isTabsetActive } from '../hooks/useActiveTabset.js';
 import { extOf } from '../shared/fileExts.js';
 import { statsScopeFromQuery, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
 import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
+import { useDecodedImage } from '../hooks/useDecodedImage.js';
+import { CanvasImageView } from './CanvasImageView.jsx';
+import { ZOOM_STEP } from '../shared/canvasViewport.js';
 import { CullingContextMenu } from './culling/ContextMenu.jsx';
 import { CullingFilterBar } from './culling/FilterBar.jsx';
+import { ContextMenu } from './shared';
+import { useContextMenu } from '../hooks/useContextMenu.js';
+import { useCountSettings } from '../hooks/useCountSettings.js';
+import {
+  playerSessionParams,
+  subscribePlayerSession,
+  buildPlayerMenuItems,
+  persistPublikPermanent,
+} from '../shared/playerSession.js';
 import './CullingModule.css';
 
 const REFRESH_DEBOUNCE_MS = 400;
@@ -68,6 +81,15 @@ export function CullingModule({ node }) {
   // Live per-player counts for the current scope (from /players/count), shown in
   // the left stats column and refreshed as files are culled.
   const [stats, setStats] = useState(null);
+  // In-flight flag for the stats column, so the header can show a small spinner
+  // while a /players/count refetch is pending (e.g. after a baseline change).
+  const [statsLoading, setStatsLoading] = useState(false);
+  // Shared counting settings (baseline / min_images), synced with Räkna spelare.
+  // A ref mirrors the value so the many stats-loading callbacks can read it fresh
+  // without listing it as a dependency (like playerSessionParams() below).
+  const [countSettings, setCountSettings] = useCountSettings();
+  const countSettingsRef = useRef(countSettings);
+  countSettingsRef.current = countSettings;
   const [preset, setPreset] = useState('jpg'); // jpg | nef | raw
   // Scope carried from the stats module (glob-only runs, date span, recursion).
   // The culling bar has no date inputs, so we keep these to honour the count's
@@ -251,12 +273,22 @@ export function CullingModule({ node }) {
     async (scope) => {
       if (!scope) return;
       const seq = ++statsSeqRef.current;
+      setStatsLoading(true);
       try {
-        const data = await api.post('/api/v1/players/count', scope);
+        // Carry the shared session-only right-click moves (read fresh per
+        // request) so the live column agrees with Räkna spelare.
+        const data = await api.post('/api/v1/players/count', {
+          ...scope,
+          ...playerSessionParams(),
+        });
         if (seq !== statsSeqRef.current) return;
         setStats(data);
       } catch {
         if (seq === statsSeqRef.current) setStats(null);
+      } finally {
+        // Only the latest request clears the flag, so a superseded response
+        // can't hide the spinner while a newer refetch is still in flight.
+        if (seq === statsSeqRef.current) setStatsLoading(false);
       }
     },
     [api]
@@ -267,15 +299,58 @@ export function CullingModule({ node }) {
   const refreshStatsDebounced = useCallback(() => {
     if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
     statsDebounceRef.current = setTimeout(() => {
-      loadStats(statsScopeFromQuery(lastQueryRef.current));
+      loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
     }, REFRESH_DEBOUNCE_MS);
   }, [loadStats]);
+
+  // Refresh the stats column when the shared session moves change (from the
+  // name context menu here or in Räkna spelare).
+  useEffect(
+    () =>
+      subscribePlayerSession(() => {
+        if (lastQueryRef.current) loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
+      }),
+    [loadStats]
+  );
+
+  // Refetch the stats column when the shared counting settings change (baseline
+  // select here, or an option change in Räkna spelare). useCountSettings only
+  // yields a new object on a real change, so an identity compare skips the mount
+  // and no-op renders — and keying the effect solely on countSettings avoids
+  // re-running on loadStats identity churn (which would refetch every render).
+  const lastCountSettingsRef = useRef(countSettings);
+  const loadStatsRef = useRef(loadStats);
+  loadStatsRef.current = loadStats;
+  useEffect(() => {
+    if (lastCountSettingsRef.current === countSettings) return;
+    lastCountSettingsRef.current = countSettings;
+    if (lastQueryRef.current) loadStatsRef.current(statsScopeFromQuery(lastQueryRef.current, countSettings));
+  }, [countSettings]);
+
+  // Right-click on a name in the stats column: session bucket moves +
+  // permanent publik (shared semantics with Räkna spelare).
+  const { menu: nameMenu, openMenu: openNameMenu, closeMenu: closeNameMenu } = useContextMenu();
+  const handleNameContextMenu = useCallback(
+    (e, name, bucket) => openNameMenu(e, { name, bucket }),
+    [openNameMenu]
+  );
+  const makePublikPermanent = useCallback(
+    async (name) => {
+      try {
+        await persistPublikPermanent(api, name);
+      } catch (err) {
+        setError(err.message || String(err));
+      }
+    },
+    [api]
+  );
+  const nameMenuItems = nameMenu ? buildPlayerMenuItems(nameMenu.bucket, makePublikPermanent) : [];
 
   const runFilter = useCallback((overrides = {}) => {
     const query = buildQuery(overrides);
     lastQueryRef.current = query;
     loadList(query);
-    loadStats(statsScopeFromQuery(query));
+    loadStats(statsScopeFromQuery(query, countSettingsRef.current));
     updateWatches(watchDirs());
   }, [buildQuery, loadList, loadStats, updateWatches, watchDirs]);
 
@@ -286,7 +361,7 @@ export function CullingModule({ node }) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         loadList(lastQueryRef.current, { keepIndex: true });
-        loadStats(statsScopeFromQuery(lastQueryRef.current));
+        loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
         // Re-check the current file too — if it was re-exported in place, the
         // preview needs to reload the new bytes (same path, changed content).
         bumpPreview();
@@ -374,7 +449,7 @@ export function CullingModule({ node }) {
       };
       lastQueryRef.current = query;
       loadList(query);
-      loadStats(statsScopeFromQuery(query));
+      loadStats(statsScopeFromQuery(query, countSettingsRef.current));
 
       const dirs = new Set(nextRoots);
       for (const g of nextGlobs) {
@@ -428,8 +503,12 @@ export function CullingModule({ node }) {
         setHasRun(false);
         // The discarded adopt load left isLoading true (its finally skips the
         // seq-mismatched response); reset it so the cleared workspace shows the
-        // "välj mapp" hint instead of a stuck "…".
+        // "välj mapp" hint instead of a stuck "…". Same for the stats spinner:
+        // an in-flight /players/count is seq-fenced by the bump above, so its
+        // finally never clears the flag — reset it here or the header spinner
+        // sticks forever in the emptied workspace.
         setIsLoading(false);
+        setStatsLoading(false);
         lastQueryRef.current = null;
         // Clear the shared scope too, so Räkna spelare (or a culling remount)
         // doesn't adopt the now-discarded selection.
@@ -450,7 +529,7 @@ export function CullingModule({ node }) {
       };
       lastQueryRef.current = query;
       loadList(query);
-      loadStats(statsScopeFromQuery(query));
+      loadStats(statsScopeFromQuery(query, countSettingsRef.current));
       updateWatches(new Set(nextRoots));
     },
     [roots, preset, loadList, loadStats, updateWatches]
@@ -466,7 +545,17 @@ export function CullingModule({ node }) {
     // folder isn't scanned twice and the unfiltered list doesn't flash.
     if (takeExternalLoad()) return;
     const s = getScanScope();
-    if (!scanScopeHasSelection(s)) return;
+    if (!scanScopeHasSelection(s)) {
+      // No shared scan scope to adopt. Fall back to the pipeline working-folder
+      // anchor (set by an earlier import/rename) as a PREFILL of the roots field
+      // only — never auto-scan (explicit user requirement). The user still has to
+      // press the scan control; scanScope, if it later appears, always wins.
+      const anchorRoots = getWorkingFolder()?.roots;
+      if (Array.isArray(anchorRoots) && anchorRoots.length > 0) {
+        setRoots([...anchorRoots]);
+      }
+      return;
+    }
     // Culling's file-type control only knows jpg/nef/raw; Räkna also offers
     // images/all. Map a preset culling can't represent to jpg, so the dropdown
     // isn't desynced and the list doesn't include types culling never exposes.
@@ -489,7 +578,7 @@ export function CullingModule({ node }) {
     };
     lastQueryRef.current = query;
     loadList(query);
-    loadStats(statsScopeFromQuery(query));
+    loadStats(statsScopeFromQuery(query, countSettingsRef.current));
     // Watch roots AND each path-glob's base dir, so a glob-only mirrored scope
     // (e.g. adopted from Räkna spelare) still auto-refreshes on file changes.
     const dirs = new Set(s.roots || []);
@@ -627,10 +716,11 @@ export function CullingModule({ node }) {
   const [confirmNav, setConfirmNav] = useState(null);
   const confirmNavRef = useRef(null);
   confirmNavRef.current = confirmNav;
-  // Mirror the context-menu state so the capture-phase key handler can bail
-  // while the menu is open (its own Esc handler closes it).
+  // Mirror the context-menu states (file menu + stats-column name menu) so the
+  // capture-phase key handler can bail while either is open (each menu's own
+  // Esc handler closes it).
   const menuRef = useRef(null);
-  menuRef.current = menu;
+  menuRef.current = menu || nameMenu;
 
   // Run a navigation, but defer it behind the confirm dialog when the current
   // file has unsaved name toggles.
@@ -855,6 +945,47 @@ export function CullingModule({ node }) {
     return () => document.removeEventListener('keydown', onKeyCapture, true);
   }, [node, showTrash, currentIndex, beginEdit]);
 
+  // Loupe zoom (parity with ImageViewer's bindings): +/- step in/out, = resets
+  // to 1:1, 0 returns to auto-fit. CAPTURE phase with stopImmediatePropagation,
+  // like the Enter/Esc handler above: ImageViewer binds the same four keys via
+  // an ungated document-level listener (useKeyboardShortcuts), so when culling
+  // is the active tabset next to a mounted ImageViewer tab, a bubble-phase
+  // handler would zoom BOTH viewers on one keystroke. The keys are claimed only
+  // when culling would actually act on them — active tabset, single view with a
+  // drawable image (the grid has nothing to zoom; an empty/error/loading loupe
+  // ignores the keys), no text-field focus, no confirm dialog, trash closed and
+  // no modifiers (⌘0/⌘- etc. stay app shortcuts) — otherwise the event
+  // propagates untouched and ImageViewer keeps working when culling is
+  // inactive. Held +/- repeats via native key-repeat (no hold/double-tap layer
+  // like ImageViewer's).
+  useEffect(() => {
+    const onZoomKeyCapture = (e) => {
+      if (e.key !== '+' && e.key !== '-' && e.key !== '=' && e.key !== '0') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!isTabsetActive(node)) return;
+      if (showTrash) return;
+      if (confirmNavRef.current) return; // the confirm dialog owns the keyboard
+      const tag = e.target?.tagName;
+      // Text entry (rename input, glob, dropdown) must keep the keys — "+",
+      // "-", "0" and "=" are all typeable characters there.
+      if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (viewModeRef.current !== 'single' || !loupeImageRef.current) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+      if (e.key === '+' || e.key === '-') {
+        loupeViewRef.current?.zoom(e.key === '+' ? ZOOM_STEP : 1 / ZOOM_STEP);
+      } else if (e.key === '=') {
+        loupeViewRef.current?.resetZoom();
+      } else {
+        loupeViewRef.current?.autoFit();
+      }
+    };
+    document.addEventListener('keydown', onZoomKeyCapture, true);
+    return () => document.removeEventListener('keydown', onZoomKeyCapture, true);
+  }, [node, showTrash]);
+
   // Dismiss the context menu on any click, a fresh right-click elsewhere,
   // scroll, resize, or Escape.
   useEffect(() => {
@@ -1070,6 +1201,36 @@ export function CullingModule({ node }) {
   const { previewUrl, previewLoading, previewError, bumpPreview } =
     useCullingPreview(api, currentPath, files, currentIndex);
 
+  // Decode the resolved preview URL into a canvas-ready drawable so the loupe
+  // gets the same zoom/pan viewer as the review workflow. useCullingPreview owns
+  // the URL (JPEG stat-settle / NEF conversion / re-export nonce); this only
+  // decodes whatever URL it currently exposes. Grid mode doesn't render the
+  // loupe, so decoding is suspended there (null URL) — otherwise every grid
+  // click/arrow would decode a full-res image nobody sees. Entering single view
+  // hands the current URL back in and the decode runs then.
+  const { image: loupeImage, loading: decodeLoading, error: decodeError } =
+    useDecodedImage(viewMode === 'single' ? previewUrl : null);
+
+  // Imperative handle to the loupe viewer; reset to auto-fit when a new FILE's
+  // image arrives (matches ImageViewer's load). Keyed on currentPath, not on
+  // the drawable: an in-place re-export of the same file (folder watch →
+  // bumpPreview) swaps the drawable but must keep the user's zoom/pan.
+  const loupeViewRef = useRef(null);
+  // Mirror of the decoded drawable for the window keydown handler above: the
+  // zoom shortcuts must be a no-op while nothing is drawable (empty/error/
+  // loading states), and reading through a ref avoids re-subscribing the
+  // handler on every decode.
+  const loupeImageRef = useRef(null);
+  loupeImageRef.current = loupeImage;
+  const lastFitPathRef = useRef(null);
+  useEffect(() => {
+    if (!loupeImage) return;
+    if (currentPath !== lastFitPathRef.current) {
+      lastFitPathRef.current = currentPath;
+      loupeViewRef.current?.autoFit();
+    }
+  }, [loupeImage, currentPath]);
+
   return (
     <div className="module-container culling">
       <CullingFilterBar
@@ -1123,9 +1284,15 @@ export function CullingModule({ node }) {
         <div className="culling-body" ref={bodyRef}>
           <CullingStats
             stats={stats}
+            loading={statsLoading}
             mode={viewMode}
             selected={viewMode === 'grid' ? highlightPlayer : player}
             width={statsWidth}
+            baseline={countSettings.baseline}
+            onBaselineChange={(baseline) => setCountSettings({ baseline })}
+            minImages={countSettings.minImages}
+            onMinImagesChange={(minImages) => setCountSettings({ minImages })}
+            onNameContextMenu={handleNameContextMenu}
             onSelect={(name) => {
               if (viewMode === 'grid') {
                 // Grid: single-click highlights the player's thumbnails (no
@@ -1241,14 +1408,30 @@ export function CullingModule({ node }) {
                 )}
               </div>
             )}
+            {/* Canvas loupe: stays mounted across file steps so its ref (and
+                zoom/pan state) persist. The overlays below layer on top for the
+                empty/error/loading states; the canvas is transparent when it has
+                no image. */}
+            {current && (
+              <CanvasImageView
+                ref={loupeViewRef}
+                image={loupeImage}
+                ariaLabel={current.basename}
+              />
+            )}
             {!current ? (
               <EmptyState title={t('culling.empty.noImageSelected')} />
             ) : previewError ? (
               <Alert variant="error" className="culling-preview-error">{previewError}</Alert>
             ) : previewLoading ? (
               <EmptyState title={isRaw(currentPath) ? t('culling.preview.converting') : t('culling.preview.loading')} />
-            ) : previewUrl ? (
-              <img className="culling-image" src={previewUrl} alt={current.basename} />
+            ) : decodeError ? (
+              <Alert variant="error" className="culling-preview-error">{t('culling.errors.imageLoadFailed')}</Alert>
+            ) : decodeLoading && !loupeImage ? (
+              // Decode in flight with nothing on screen yet (first image after a
+              // mount or view switch). A seamless step keeps the previous frame
+              // (loupeImage non-null), so no placeholder flashes then.
+              <EmptyState title={t('culling.preview.loading')} />
             ) : null}
           </div>
           </div>
@@ -1284,6 +1467,10 @@ export function CullingModule({ node }) {
         undoTrash={undoTrash}
         openRawInLightroom={openRawInLightroom}
       />
+
+      {/* Right-click menu on a name in the stats column (session moves +
+          permanent publik, shared with Räkna spelare). */}
+      <ContextMenu menu={nameMenu} items={nameMenuItems} onClose={closeNameMenu} />
 
       {/* Unsaved name-change confirm dialog. Built on the shared Modal base for
           top-layer rendering + backdrop; its bespoke keyboard semantics (⌘↵ save,

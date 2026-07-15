@@ -30,6 +30,36 @@
   text-align: center;
 }
 
+/* "Continue where you left off" row — shown only when the working-folder anchor
+   is set (an earlier import/rename). Theme-conformant: existing variables only. */
+.startup-landing-continue {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.startup-landing-continue-folder {
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  word-break: break-all;
+  text-align: left;
+}
+
+.startup-landing-continue-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
 /* Section label separating the workflow steps from the other views/tools. */
 .startup-landing-divider {
   display: flex;

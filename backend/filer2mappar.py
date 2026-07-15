@@ -19,6 +19,8 @@ from datetime import datetime
 from glob import glob
 from pathlib import Path
 
+from core.exiftool import find_exiftool
+
 DATE_PATTERN = re.compile(r'^(\d{6})_')
 
 
@@ -75,16 +77,15 @@ def extract_dates_from_exif(files: list[Path]) -> dict[Path, str]:
     if not files:
         return {}
 
-    cmd = [
-        "exiftool", "-q", "-q", "-m",
-        "-if", "defined $CreateDate",
-        "-d", "%y%m%d",
-        "-p", "$CreateDate|$FilePath",
-        "--",
-        *[str(f) for f in files]
-    ]
-
     try:
+        cmd = [
+            find_exiftool(), "-q", "-q", "-m",
+            "-if", "defined $CreateDate",
+            "-d", "%y%m%d",
+            "-p", "$CreateDate|$FilePath",
+            "--",
+            *[str(f) for f in files]
+        ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     except FileNotFoundError:
         print("FEL: exiftool krävs för --exif-date", file=sys.stderr)

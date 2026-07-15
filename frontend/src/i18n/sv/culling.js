@@ -64,7 +64,13 @@ module.exports = {
   },
   "stats": {
     "header": "Spelare",
-    "baselineTitle": "Baslinje (median)",
+    "baselineTitle": "Baslinjevärde",
+    "baselineSelectTitle": "Baslinje: referens för över-/underrepresentation",
+    "baselineSelectLabel": "Baslinje",
+    "baselineMedian": "Median",
+    "baselineMean": "Medel",
+    "minImagesLabel": "Min bilder",
+    "minImagesTitle": "Minsta antal bilder för att räknas som spelare",
     "empty": "—",
     "columns": {
       "name": "Namn",
@@ -73,6 +79,7 @@ module.exports = {
       "delta": "Δ%",
       "distribution": "Fördelning"
     },
+    "deltaTitle": "Avvikelse från baslinjen — medianen eller medelvärdet av bildantalet för de inkluderade spelarna. Positivt = fler bilder än baslinjen, negativt = färre.",
     "excludedLabels": {
       "tranare": "Tränare",
       "grupp": "Gruppbilder",

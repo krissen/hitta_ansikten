@@ -1375,15 +1375,27 @@ class DetectionService:
         file_name = Path(image_path).name
         entry = {"name": file_name, "hash": file_hash}
 
+        def _already_present(processed):
+            # Match on identity fields only (name + hash), never whole-dict
+            # equality: an entry may carry additive metadata (e.g.
+            # ``previous_names``) that must not defeat the dedup and let a
+            # re-reviewed / force-reprocessed file append a duplicate row.
+            return any(
+                isinstance(pf, dict)
+                and pf.get("name") == file_name
+                and pf.get("hash") == file_hash
+                for pf in processed
+            )
+
         def add_processed(known, ignored, hardneg, processed):
             # Re-check under the lock, then append in place (never rebind).
-            if entry not in processed:
+            if not _already_present(processed):
                 processed.append(entry)
                 return True
             return False
 
         added = self.store.mutate(add_processed, touches={"processed"}) if self.store.read(
-            lambda known, ignored, hardneg, processed: entry not in processed
+            lambda known, ignored, hardneg, processed: not _already_present(processed)
         ) else False
         if added:
             # Immediate durable save — the review is finalized.
