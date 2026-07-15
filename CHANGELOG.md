@@ -6,6 +6,12 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+### Added
+- **"Rensa"-knapp i Gallra-vyns filterrad.** En ny sekundärknapp **Rensa** (efter "+ Mapp") tömmer gallringsarbetsytan tillbaka till "välj mapp"-läget — fillista, räknekolumn, cachade miniatyrer och mappbevakning nollställs och det delade skanningsscopet rensas — med exakt samma semantik som CLI:t `ansikten culling --clear`. Knappen är avaktiverad när det inte finns något att rensa. CLI:ts `--clear`-väg och knappen delar nu en gemensam `clearWorkspace()`-rutin.
+
+### Changed
+- **Chip-borttagning räknar om/rensar skanningsscopet.** Att ta bort en mapp-chip i **Räkna spelare** publicerar nu det uppdaterade (eventuellt tomma) skanningsscopet och räknar om — tas den sista chippen bort nollställs resultatet och det delade scopet i stället för att skicka en tom fråga (som annars hade räknat hela standardurvalet), så Gallra spelare speglar den tömda selektionen vid nästa öppning. Tidigare uppdaterade chip-borttagning bara det lokala fältet utan att fyra av någon omräkning, så ett tomt urval kunde aldrig publiceras. **Gallra-vyns** egna mapp-chips led av samma felklass — de bytte bara `roots` utan att skanna om — och re-skannar nu med kvarvarande mappar (togs den sista bort tömmer de arbetsytan).
+
 ### Fixed
 - **Innehållsmix i Gallra-vyns räknekolumn.** Fillistan (`/culling/files`) och spelarräkningen (`POST /players/count`) är två oberoende anrop — listan resolvar snabbt, räkne-skanningen långsamt — så vid ett scope-byte (nytt urval/mapp/datumspann) visade räknekolumnen förra urvalets spelare bredvid den nya fillistan tills skanningen hann klart. Panelen nollställs nu direkt när skanningsscopet ändras (roots/globs/rekursiv/datum/filtypsförval), medan ändringar som inte rör skanningsscopet — spelarfilter-klick, cull/rename-omläsning och baslinje-/min-bilder-byte — behåller siffrorna med enbart huvudets snurra.
 
