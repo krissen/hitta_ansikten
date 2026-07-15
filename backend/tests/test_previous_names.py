@@ -8,6 +8,9 @@ the shared helper plus a rename→undo round-trip through the real DB store.
 """
 
 import json
+from unittest.mock import MagicMock
+
+import pytest
 
 from core.naming import record_previous_name
 
@@ -137,3 +140,48 @@ def test_no_history_when_name_unchanged(monkeypatch, tmp_path):
     )
     row = _processed_now(tmp_path)[0]
     assert "previous_names" not in row
+
+
+# ----- dedup must survive the additive field ---------------------------------
+
+@pytest.mark.asyncio
+async def test_mark_review_complete_dedup_ignores_previous_names(tmp_path, monkeypatch):
+    """An existing processed entry that has grown a ``previous_names`` field must
+    still be recognised as already-present, so re-reviewing / force-reprocessing
+    a renamed file never appends a duplicate row. The dedup matches on name+hash,
+    not whole-dict equality (which the extra field would break)."""
+    import api.services.detection_service as d
+    from api.services.detection_service import DetectionService
+    from tests.conftest import InMemoryDBStore
+
+    monkeypatch.setattr(d, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
+    monkeypatch.setattr(d, "BASE_DIR", tmp_path)
+    # Attempt-stats logging is orthogonal to the dedup under test (and would try
+    # to serialize the mocked backend); stub it.
+    monkeypatch.setattr(d, "log_attempt_stats", lambda *a, **k: None)
+
+    svc = DetectionService.__new__(DetectionService)
+    svc.known_faces = {}
+    svc.ignored_faces = []
+    svc.hard_negatives = {}
+    svc.cache = {}
+    be = MagicMock()
+    be.backend_name = "insightface"
+    svc.backend = be
+    # Entry already recorded AND carrying additive history from a prior rename.
+    svc.processed_files = [
+        {"name": "250101_120000_Anna.NEF", "hash": "deadbeef",
+         "previous_names": ["250101_120000.NEF"]}
+    ]
+    svc.store = InMemoryDBStore(svc)
+
+    await svc.mark_review_complete(
+        image_path="/photos/250101_120000_Anna.NEF",
+        reviewed_faces=[{"face_index": 0, "person_name": "Anna"}],
+        file_hash="deadbeef",
+    )
+
+    rows = [r for r in svc.processed_files
+            if r.get("hash") == "deadbeef" and r.get("name") == "250101_120000_Anna.NEF"]
+    assert len(rows) == 1
+    assert rows[0]["previous_names"] == ["250101_120000.NEF"]
