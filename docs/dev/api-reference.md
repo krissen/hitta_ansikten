@@ -1137,9 +1137,10 @@ would look like "nothing to undo" in the GUI). Pass `undoable_only=false` to lis
 every batch.
 
 **Response:** `{ "batches": [ { "batch_id": "9f3c…", "ts": "2026-07-14T08:15:00+00:00", "tool": "rename-nef", "op": "rename", "count": 12, "undoable": true } ] }`.
-`undoable` is true only when every row's op is `rename` or `move`. A `copy`
-batch (import copy → undo would delete) and `trash`/`restore` batches (already
-undoable via the culling trash manifest) are reported `undoable: false`.
+`undoable` is true only when every row's op is `rename`. Import batches (`move`,
+often cross-device — `Path.rename` would `EXDEV`; or `copy` → undo would delete)
+and `trash`/`restore` batches (already undoable via the culling trash manifest)
+are reported `undoable: false`.
 
 ### `POST /api/v1/rename-journal/undo`
 

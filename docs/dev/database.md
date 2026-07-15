@@ -195,9 +195,9 @@ because the move has already happened on disk.
 (`read_rows` → `group_batches`) and reverses a chosen batch (`revert_batch`),
 replaying each recorded `dst → src` move (main + listed sidecars, literally)
 through the shared two-pass mover — never-overwrite, within-batch chains resolve.
-Only `rename`/`move` batches are undoable: a `copy` (import copy) would need a
-delete, and `trash`/`restore` already undo via the trash manifest, so those are
-reported non-undoable. The undo is journaled as a fresh `undo` batch, so it is
+Only `rename` batches are undoable: an import `move` (often cross-device —
+`Path.rename` would `EXDEV`) or `copy` (undo would delete), and `trash`/`restore`
+(already undoable via the trash manifest), are reported non-undoable. The undo is journaled as a fresh `undo` batch, so it is
 itself redoable. **Path-state verification only:** the row carries no size/mtime
 /hash, so undo checks that the recorded `dst` still exists and the original path
 is free — it does *not* verify the bytes are still the batch output. Adding a

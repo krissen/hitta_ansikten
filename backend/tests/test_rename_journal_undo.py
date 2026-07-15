@@ -71,6 +71,20 @@ def test_group_batches_orders_and_flags_undoable(journal, tmp_path):
     assert batches[0]["count"] == 1
 
 
+@pytest.mark.asyncio
+async def test_import_move_batch_not_undoable(journal, tmp_path):
+    # Rename-only scope: an import move (often cross-device; Path.rename would
+    # EXDEV) is NOT undoable and the endpoint refuses it.
+    from api.services.undo_service import UndoService
+
+    fs_ops.record(op="move", tool="import", batch_id="mv",
+                  src=tmp_path / "card" / "x", dst=tmp_path / "disk" / "x")
+
+    assert fs_ops.group_batches(fs_ops.read_rows())[0]["undoable"] is False
+    with pytest.raises(ValueError, match="kan inte ångras"):
+        await UndoService().undo("mv", execute=False)
+
+
 def test_list_batches_undoable_filter_before_limit(journal, tmp_path):
     # An older undoable rename followed by many newer non-undoable imports must
     # not be buried past the limit: undoable_only filters BEFORE the cap.

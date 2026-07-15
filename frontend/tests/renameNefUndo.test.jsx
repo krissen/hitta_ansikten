@@ -138,26 +138,18 @@ describe('RenameNefModule — undo flow', () => {
     expect(h.showToast).toHaveBeenCalled();
   });
 
-  it('labels an import move batch as "Import (flytt)" in the header', async () => {
+  it('does not offer an import move batch (rename-only undo)', async () => {
+    // Only rename batches are undoable; an import move is filtered out, so the
+    // flow shows the "nothing to undo" toast and no preview.
     h.api.get.mockResolvedValue({
-      batches: [{ batch_id: 'mv', ts: '2026-07-14T09:00:00+00:00', tool: 'import', op: 'move', count: 4, undoable: true }],
-    });
-    h.api.post.mockImplementation((path, body) => {
-      if (path.includes('/rename-journal/undo') && !body.execute) {
-        return Promise.resolve({
-          batch_id: 'mv', tool: 'import', op: 'move', ts: '2026-07-14T09:00:00+00:00',
-          count: 4, to_revert: 4, to_skip: 0,
-          items: [{ from: '/dst/x.NEF', to: '/card/x.NEF', from_name: 'x.NEF', to_name: 'x.NEF', status: 'ok', reason: null }],
-        });
-      }
-      return Promise.resolve({});
+      batches: [{ batch_id: 'mv', ts: '2026-07-14T09:00:00+00:00', tool: 'import', op: 'move', count: 4, undoable: false }],
     });
     const { container } = await mountRename();
     await clickButton(container, t('renameNef.undo'));
 
-    const header = container.querySelector('.rename-nef-undo-header');
-    expect(header.textContent).toContain(t('renameNef.undoToolImport'));
-    expect(header.textContent).toContain(t('renameNef.undoOpMoveSuffix').trim());
+    expect(h.showToast).toHaveBeenCalled();
+    expect(container.querySelector('.rename-nef-table')).toBeNull();
+    expect(container.querySelector('.rename-nef-undo-header')).toBeNull();
   });
 
   it('shows a toast and no preview when there is no undoable batch', async () => {

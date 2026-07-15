@@ -6,10 +6,12 @@ journal (written by every migrated rename/move/trash flow) is the single source
 of truth; this service never derives what to move — it replays exactly what the
 batch recorded.
 
-Scope (PR 2): only ``rename`` / ``move`` batches are undoable. A ``copy`` batch
-(import copy) would need a delete, and ``trash`` / ``restore`` batches already
-have their own undo via the culling trash manifest — those are reported
-non-undoable and refused here with a clear Swedish message.
+Scope (PR 2): only ``rename`` batches are undoable. An import ``move`` would need
+a cross-device move back (``Path.rename`` raises EXDEV over a filesystem
+boundary — the normal card→disk case), a ``copy`` would need a delete, and
+``trash`` / ``restore`` batches already have their own undo via the culling trash
+manifest — all reported non-undoable and refused here with a clear Swedish
+message.
 
 After the moves, the face DB is repaired the same way the forward face-rename
 does (``RenameService._update_database_paths``) but with the reversed mapping, so
@@ -82,8 +84,8 @@ class UndoService:
                 raise ValueError("Batchen finns inte i journalen.")
             if not batch["undoable"]:
                 raise ValueError(
-                    "Den här åtgärden kan inte ångras — endast namnbyten och "
-                    "flyttar stöds (kopior och papperskorg hanteras separat)."
+                    "Den här åtgärden kan inte ångras — endast namnbyten stöds "
+                    "(import och papperskorg hanteras separat)."
                 )
 
             rows = batch["rows"]

@@ -108,11 +108,15 @@ def record(*, op: str, tool: str, batch_id: str, src, dst,
 # Journal reading / batch grouping (backing the "undo last batch" feature)
 # ---------------------------------------------------------------------------
 
-# Only these ops describe a plain relocation whose undo is a move back. ``copy``
-# would need a delete (out of scope in PR 2), and ``trash``/``restore`` already
-# have their own undo via the culling trash manifest — so a batch of those is
-# reported non-undoable and refused by the undo endpoint.
-UNDOABLE_OPS = ("rename", "move")
+# Only a same-directory ``rename`` is safely undoable in PR 2. ``move`` (card
+# import → disk, often across filesystems) would need a cross-device move back —
+# ``Path.rename`` raises EXDEV over a device boundary, so the undo would fail in
+# exactly the normal import case, and moving back onto a card that may already be
+# ejected is dubious. ``copy`` would need a delete, and ``trash``/``restore``
+# already undo via the culling trash manifest. All of those are reported
+# non-undoable and refused by the undo endpoint (see ROADMAP for a future
+# cross-device move-back).
+UNDOABLE_OPS = ("rename",)
 
 
 def read_rows() -> list[dict]:
