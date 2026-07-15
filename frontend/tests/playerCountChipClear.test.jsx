@@ -204,6 +204,8 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
     folderCb(); // schedule the debounced refresh
     await new Promise((r) => setTimeout(r, REFRESH_MS + 50)); // let it fire
     expect(countCalls().length).toBe(2); // refresh is in flight
+    // The silent refresh turned the "refreshing" indicator on.
+    expect(container.querySelector('.player-count-refreshing')).not.toBeNull();
 
     // Remove the only chip → empty clear branch must fence the in-flight refresh.
     const remove = container.querySelector('.input-bar-chip-remove');
@@ -212,6 +214,11 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       expect(container.querySelector('.input-bar-chip-remove')).toBeNull()
     );
 
+    // Fynd 4: the clear releases the refresh spinner even though the fenced
+    // request's finally never runs (it can't repopulate, but it also can't clean
+    // up its own flag).
+    expect(container.querySelector('.player-count-refreshing')).toBeNull();
+
     // The stale refresh resolves AFTER the clear: it must NOT repopulate.
     resolveRefresh(populated);
     await new Promise((r) => setTimeout(r, 0));
@@ -219,6 +226,8 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
     expect(getScanScope()).toBeNull();
     // Empty-state prompt is (still) shown — the late response did not repopulate.
     expect(screen.getByText('Räkna', { selector: 'strong' })).toBeTruthy();
+    // And the spinner stayed off after the late resolve.
+    expect(container.querySelector('.player-count-refreshing')).toBeNull();
   });
 
   // Fynd 2 (scheduled variant): removing the only chip while a refresh is merely

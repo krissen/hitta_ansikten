@@ -263,6 +263,12 @@ export function PlayerCountModule() {
         setResult(null);
         setError(null);
         setHasRun(false);
+        // Reset the loading/refresh flags: the reqSeqRef bump fences any
+        // in-flight runCount, so its finally (guarded on the seq) never clears
+        // these — without this the count spinner or the "refreshing" indicator
+        // would stick on the emptied panel.
+        setIsLoading(false);
+        setIsRefreshing(false);
         setScanScope(null);
         updateWatches(new Set());
         return;
