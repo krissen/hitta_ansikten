@@ -2,6 +2,7 @@
 module.exports = {
   "filterBar": {
     "addFolder": "+ Mapp",
+    "clear": "Rensa",
     "fileType": "Filtyp",
     "player": "Spelare",
     "allPlayers": "Alla spelare",

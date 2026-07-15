@@ -98,6 +98,12 @@ zoomat in. Även bildvisarens zoomtangenter fungerar här: `+`/`-` zoomar in/ut,
 börjar autoanpassad (fit-to-window), så att stega mellan filer nollställer
 zoomen automatiskt. NEF/RAW visas via samma konvertering som tidigare.
 
+I filterraden finns knappen **Rensa** (bredvid **+ Mapp**) som tömmer
+arbetsytan tillbaka till "välj mapp"-läget — fillista, räknekolumn och
+mappval nollställs — med samma verkan som CLI:t `ansikten culling --clear`.
+Ta bort en enskild mapp med krysset på dess chip: kvarvarande mappar skannas
+om automatiskt, och tas den sista mappen bort töms arbetsytan.
+
 | Genväg | Funktion |
 |--------|----------|
 | `↑` / `↓` (`k` / `j`) | **Enkelbild:** föregående/nästa. **Rutnät:** upp/ned en rad |

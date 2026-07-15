@@ -66,9 +66,12 @@ export function InputBar({
     }
   }, [value, onChange]);
 
+  // Removing a folder chip auto-applies (like the selects) so the parent can
+  // re-run — or clear — its query. Without this, deselecting every folder could
+  // never publish an empty scope: the parent would keep the last non-empty one.
   const removeRoot = useCallback(
-    (root) => patch({ roots: value.roots.filter((r) => r !== root) }),
-    [value.roots, patch]
+    (root) => patchAndApply({ roots: value.roots.filter((r) => r !== root) }),
+    [value.roots, patchAndApply]
   );
 
   const canSubmit = !busy && (value.roots.length > 0 || value.glob.trim() !== '');

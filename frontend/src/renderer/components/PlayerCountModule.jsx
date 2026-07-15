@@ -242,9 +242,40 @@ export function PlayerCountModule() {
   const handleAutoApply = useCallback(
     (nextInput) => {
       setInput(nextInput);
-      if (lastParamsRef.current) submitWith(nextInput, perMatch);
+      // Auto-apply only affects a count that has actually run. Until then there's
+      // nothing to recompute — and, crucially, nothing to clear: publishing an
+      // empty scope here would clobber a selection Gallra spelare published after
+      // this (blank) tab mounted, e.g. from toggling the file-type/recursive
+      // controls without any folder picked.
+      if (!lastParamsRef.current) return;
+      // Deselecting every folder (and no glob) clears the count instead of
+      // POSTing an empty query — an empty selection would otherwise count the
+      // backend's whole default set. Publish an empty scan scope so Gallra
+      // spelare mirrors the cleared selection (it adopts on its next mount).
+      if (nextInput.roots.length === 0 && nextInput.glob.trim() === '') {
+        // Cancel a scheduled folder-watch refresh and fence any in-flight one:
+        // the debounced callback reads lastParamsRef at fire time (would POST
+        // null params once we null it), and an in-flight runCount would pass its
+        // seq check and repopulate result/hasRun. Bumping reqSeqRef discards it.
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        ++reqSeqRef.current;
+        lastParamsRef.current = null;
+        setResult(null);
+        setError(null);
+        setHasRun(false);
+        // Reset the loading/refresh flags: the reqSeqRef bump fences any
+        // in-flight runCount, so its finally (guarded on the seq) never clears
+        // these — without this the count spinner or the "refreshing" indicator
+        // would stick on the emptied panel.
+        setIsLoading(false);
+        setIsRefreshing(false);
+        setScanScope(null);
+        updateWatches(new Set());
+        return;
+      }
+      submitWith(nextInput, perMatch);
     },
-    [submitWith, perMatch]
+    [submitWith, perMatch, updateWatches]
   );
 
   // Counting-option changes apply immediately (like the InputBar selects), but
