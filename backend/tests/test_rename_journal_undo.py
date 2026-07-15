@@ -382,6 +382,35 @@ def test_preview_matches_execute_chain_dest_freed_within_batch(journal, tmp_path
     assert result["reverted"] == 2
 
 
+def test_preview_matches_execute_chain_head_blocked_skips_cascade(journal, tmp_path):
+    # A chain (a->b, b->c) where the head's original name `a` has been recreated:
+    # unit b->a is blocked (a occupied), so its restore puts b back, which then
+    # blocks c->b. Both units skip. The predictor must simulate this cascade in
+    # order — the old heuristic wrongly saw `b` as a free source and marked c->b
+    # revertable, overstating to_revert.
+    (tmp_path / "b.NEF").write_bytes(b"one")   # was "a", renamed to "b"
+    (tmp_path / "c.NEF").write_bytes(b"two")   # was "b", renamed to "c"
+    (tmp_path / "a.NEF").write_bytes(b"RECREATED")  # head's original name is back
+    fs_ops.record(op="rename", tool="rename", batch_id="chain",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF")
+    fs_ops.record(op="rename", tool="rename", batch_id="chain",
+                  src=tmp_path / "b.NEF", dst=tmp_path / "c.NEF")
+
+    rows = fs_ops.group_batches(fs_ops.read_rows())[0]["rows"]
+    preview = fs_ops.preview_revert(rows)
+    assert all(it["status"] == "skip" for it in preview)  # neither offered
+
+    preview_map, execute_map, result = _preview_and_execute(rows)
+    assert preview_map == execute_map
+    assert result["reverted"] == 0 and result["skipped"] == 2
+    # Files stay at their current names; the recreated head is untouched.
+    assert (tmp_path / "b.NEF").read_bytes() == b"one"
+    assert (tmp_path / "c.NEF").read_bytes() == b"two"
+    assert (tmp_path / "a.NEF").read_bytes() == b"RECREATED"
+    # No orphaned temps left behind.
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".undo_tmp")]
+
+
 # ----- undo is itself journaled and redoable ---------------------------------
 
 def test_undo_is_journaled_and_redoable(journal, tmp_path):

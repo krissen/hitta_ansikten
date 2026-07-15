@@ -208,33 +208,37 @@ def _is_case_only_same(a: Path, b: Path) -> bool:
 
 
 def _plan_revert(batch_rows: Sequence[dict]) -> list[dict]:
-    """Predict the per-file outcome of reverting a batch — the SAME all-or-nothing
-    unit decision ``revert_batch``'s strict execution makes, so a preview never
-    promises a revert the execute then skips. Pure (no filesystem change).
+    """Predict the per-file outcome of reverting a batch by **simulating** the
+    strict execute in the same order — so the preview equals the execute by
+    construction, even in chain/skip cascades. Pure (no filesystem change).
 
-    Each journal row is one unit (main + its recorded sidecars). A file whose
-    recorded ``dst`` no longer exists is skipped: a missing main skips its whole
-    row; a missing sidecar is dropped from the unit (its main can still come back)
-    and reported skipped. A unit is skipped if any of its original destinations is
-    occupied by an *unrelated* file — a destination taken only by another batch
-    source is free, since that source moves away first (the temp indirection),
-    which is how burst-renumber chains resolve. Otherwise the whole unit reverts.
+    Each journal row is one all-or-nothing unit (main + its recorded sidecars). A
+    file whose recorded ``dst`` no longer exists is skipped up front: a missing
+    main skips its whole row; a missing sidecar is dropped from the unit (its main
+    can still come back) and reported skipped.
+
+    The remaining units are simulated exactly as ``two_pass_rename`` runs them: a
+    mutable set of occupied paths, pass 1 vacates every eligible source (as if to
+    its temp), then pass 2 walks the units **in journal-row order** — a unit whose
+    every destination is free in the *current* simulated state reverts (its
+    destinations become occupied); otherwise it is skipped and its sources come
+    back (restore), which can then block a *later* unit. This is what makes a
+    chain like ``a→b, b→c`` with ``a`` recreated skip BOTH units, matching execute
+    — the earlier heuristic wrongly treated every recorded source as free.
 
     Returns ``{path, from, to, from_name, to_name, status, reason}`` per file,
     ``status`` ``"reverted"`` or ``"skipped"``. Path-state only: the journal
     carries no content fingerprint (see docs/dev/database.md).
     """
-    # Every current source that will move away; a destination occupied only by
-    # one of these is free (mirrors the two-pass mover's pass-1 source vacation).
-    sources = {str(frm) for frm, _to, _m in _flatten_reverse_moves(batch_rows) if frm.exists()}
-
     plan: list[dict] = []
+    units: list[dict] = []  # {"main": (frm, to), "sidecars": [(frm, to), ...]}
 
     def _emit(frm: Path, to: Path, status: str, reason):
         plan.append({"path": str(frm), "from": str(frm), "to": str(to),
                      "from_name": frm.name, "to_name": to.name,
                      "status": status, "reason": reason})
 
+    # Eligibility + missing-file skips, in journal-row order.
     for row in batch_rows:
         main_frm, main_to = Path(row["dst"]), Path(row["src"])
         row_sidecars = [(Path(sc["dst"]), Path(sc["src"])) for sc in row.get("sidecars", []) or []]
@@ -247,27 +251,42 @@ def _plan_revert(batch_rows: Sequence[dict]) -> list[dict]:
             continue
 
         present = [(f, t) for f, t in row_sidecars if f.exists()]
-        missing = [(f, t) for f, t in row_sidecars if not f.exists()]
+        for sc_frm, sc_to in row_sidecars:
+            if not sc_frm.exists():
+                _emit(sc_frm, sc_to, "skipped", "filen saknas — redan flyttad eller borttagen")
+        units.append({"main": (main_frm, main_to), "sidecars": present})
 
-        # Unit destinations (main first, then present sidecars): the unit reverts
-        # only if none is blocked by an unrelated file. A destination that exists
-        # but is a batch source, or a case-only self-rename, is not a blocker.
-        blocker = None
-        for frm, to in [(main_frm, main_to), *present]:
-            if to.exists() and str(to) not in sources and not _is_case_only_same(to, frm):
-                blocker = to
-                break
+    # Seed the occupied set from disk: every source, plus every destination held
+    # by an unrelated file (a case-only self-rename is the source itself, not a
+    # blocker, so it is excluded).
+    occupied: set[str] = set()
+    for u in units:
+        for frm, to in [u["main"], *u["sidecars"]]:
+            if frm.exists():
+                occupied.add(str(frm))
+            if to.exists() and not _is_case_only_same(to, frm):
+                occupied.add(str(to))
+
+    # Pass 1: every eligible source vacates to its temp.
+    for u in units:
+        for frm, _to in [u["main"], *u["sidecars"]]:
+            occupied.discard(str(frm))
+
+    # Pass 2, in order: place the whole unit if every destination is free, else
+    # skip it and let its sources come back (which may block a later unit).
+    for u in units:
+        members = [u["main"], *u["sidecars"]]
+        blocker = next((to for _frm, to in members if str(to) in occupied), None)
         if blocker is not None:
             status, reason = "skipped", f"målnamn upptaget: {blocker.name}"
+            for frm, _to in members:
+                occupied.add(str(frm))
         else:
             status, reason = "reverted", None
-
-        _emit(main_frm, main_to, status, reason)
-        for sc_frm, sc_to in present:
-            _emit(sc_frm, sc_to, status, reason)
-        # A missing sidecar is skipped regardless of the unit's fate.
-        for sc_frm, sc_to in missing:
-            _emit(sc_frm, sc_to, "skipped", "filen saknas — redan flyttad eller borttagen")
+            for _frm, to in members:
+                occupied.add(str(to))
+        for frm, to in members:
+            _emit(frm, to, status, reason)
 
     return plan
 
