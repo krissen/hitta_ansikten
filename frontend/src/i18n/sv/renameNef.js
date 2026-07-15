@@ -43,5 +43,28 @@ module.exports = {
   "restoreDoneToast": {
     "one": "Återställde {count} fil",
     "other": "Återställde {count} filer"
+  },
+  "undo": "Ångra senaste namnbyte…",
+  "undoBatchLabel": "Åtgärd att ångra",
+  "undoBatchOption": "{label} · {count} filer · {time}",
+  "undoPreviewHeader": "Ångrar: {label} · {count} filer · {time}",
+  "undoToolRename": "Namnbyte (ansikten)",
+  "undoToolRenameNef": "Namnbyte (NEF)",
+  "undoToolRestoreNames": "Återställ namn",
+  "undoToolCulling": "Gallring",
+  "undoToolUndo": "Ångra",
+  "undoToolMixed": "Blandad åtgärd",
+  "undoToolUnknown": "Okänd åtgärd",
+  "undoNoBatches": "Ingen ångringsbar åtgärd hittades i journalen.",
+  "undoSummaryPrefix": "att ångra",
+  "undoSkipSuffix": " · {count} hoppas över",
+  "undoNothing": "Inget att ångra (alla filer saknas eller är flyttade).",
+  "undoExecute": "Ångra",
+  "undoSkipReasonColumn": "Status",
+  "undoWillSkip": "hoppas över",
+  "undone": "ångrade",
+  "undoDoneToast": {
+    "one": "Ångrade {count} fil",
+    "other": "Ångrade {count} filer"
   }
 };

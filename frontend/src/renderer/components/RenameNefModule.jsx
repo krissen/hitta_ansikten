@@ -47,6 +47,11 @@ export function RenameNefModule() {
   const [restorePreview, setRestorePreview] = useState(null);
   const [result, setResult] = useState(null);
   const [restoreResult, setRestoreResult] = useState(null);
+  // Undo (reverse the last rename/move batch from the journal).
+  const [undoBatches, setUndoBatches] = useState([]);
+  const [undoBatchId, setUndoBatchId] = useState(null);
+  const [undoPreview, setUndoPreview] = useState(null);
+  const [undoResult, setUndoResult] = useState(null);
   // Roots that the last execute actually ran on, frozen at execute-start so the
   // "Granska ansikten…" hand-off scopes Review to the renamed folder even if the
   // live `roots` selection is edited afterwards (cf. ImportModule.importedDest).
@@ -83,6 +88,8 @@ export function RenameNefModule() {
     setRestorePreview(null);
     setResult(null);
     setRestoreResult(null);
+    setUndoPreview(null);
+    setUndoResult(null);
   }, []);
 
   // Hand-off from Import ("Döp om filer…"): scope the module strictly to the
@@ -201,10 +208,80 @@ export function RenameNefModule() {
     }
   }, [api, restoreParams, showToast]);
 
+  // Preview undoing a specific batch (dry-run: shows from → to, skip marks).
+  const previewUndoBatch = useCallback(async (batchId) => {
+    const data = await api.post('/api/v1/rename-journal/undo', {
+      batch_id: batchId,
+      execute: false,
+    });
+    setUndoPreview(data);
+    setUndoBatchId(batchId);
+  }, [api]);
+
+  // "Ångra senaste namnbyte…": fetch undoable batches, default to the newest.
+  const doUndoPreview = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    clearAll();
+    setProgress(null);
+    try {
+      const { batches } = await api.get('/api/v1/rename-journal/batches');
+      const undoable = (batches || []).filter((b) => b.undoable);
+      setUndoBatches(undoable);
+      if (undoable.length === 0) {
+        showToast(t('renameNef.undoNoBatches'), { type: 'info' });
+        return;
+      }
+      await previewUndoBatch(undoable[0].batch_id);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [api, clearAll, previewUndoBatch, showToast]);
+
+  // Re-preview when the user picks a different batch from the selector.
+  const onSelectUndoBatch = useCallback(async (batchId) => {
+    setBusy(true);
+    setError(null);
+    setUndoResult(null);
+    try {
+      await previewUndoBatch(batchId);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [previewUndoBatch]);
+
+  const doUndoExecute = useCallback(async () => {
+    if (!undoBatchId) return;
+    setBusy(true);
+    setError(null);
+    setProgress(null);
+    try {
+      const data = await api.post('/api/v1/rename-journal/undo', {
+        batch_id: undoBatchId,
+        execute: true,
+      });
+      setUndoResult(data);
+      setUndoPreview(null);
+      const count = data.reverted ?? 0;
+      showToast(t('renameNef.undoDoneToast', { count }), {
+        type: data.errors > 0 ? 'warning' : 'success',
+      });
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }, [api, undoBatchId, showToast]);
+
   const hasScope = roots.length > 0 || glob.trim() !== '';
   const canPreview = !busy && hasScope;
   const canExecute = !busy && preview && preview.to_rename > 0;
   const canRestore = !busy && restorePreview && restorePreview.to_restore > 0;
+  const canUndo = !busy && undoPreview && undoPreview.to_revert > 0;
 
   return (
     <div className="module-container rename-nef" data-keyboard-scope="isolated">
@@ -228,6 +305,9 @@ export function RenameNefModule() {
         </Button>
         <Button variant="secondary" onClick={doRestorePreview} disabled={!canPreview}>
           {t('renameNef.restore')}
+        </Button>
+        <Button variant="secondary" onClick={doUndoPreview} disabled={busy}>
+          {t('renameNef.undo')}
         </Button>
       </div>
 
@@ -294,7 +374,8 @@ export function RenameNefModule() {
       <div className="module-body rename-nef-body">
         {error && <Alert variant="error">{t('renameNef.errorPrefix', { message: error })}</Alert>}
 
-        {!preview && !restorePreview && !result && !restoreResult && !error && (
+        {!preview && !restorePreview && !result && !restoreResult
+          && !undoPreview && !undoResult && !error && (
           <EmptyState
             title={
               <>
@@ -429,6 +510,83 @@ export function RenameNefModule() {
             )}
           </div>
         )}
+
+        {undoPreview && (
+          <>
+            {undoBatches.length > 1 && (
+              <label className="rename-nef-undo-select">
+                {t('renameNef.undoBatchLabel')}
+                <select
+                  className="form-input"
+                  value={undoBatchId || ''}
+                  onChange={(e) => onSelectUndoBatch(e.target.value)}
+                  disabled={busy}
+                >
+                  {undoBatches.map((b) => (
+                    <option key={b.batch_id} value={b.batch_id}>
+                      {t('renameNef.undoBatchOption', {
+                        label: undoLabel(b.tool), count: b.count, time: formatTime(b.ts),
+                      })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <div className="rename-nef-undo-header">
+              {t('renameNef.undoPreviewHeader', {
+                label: undoLabel(undoPreview.tool),
+                count: undoPreview.count,
+                time: formatTime(undoPreview.ts),
+              })}
+            </div>
+            <div className="rename-nef-summary">
+              <strong>{undoPreview.to_revert}</strong> {t('renameNef.undoSummaryPrefix')}
+              {undoPreview.to_skip > 0 && t('renameNef.undoSkipSuffix', { count: undoPreview.to_skip })}
+            </div>
+            {undoPreview.to_revert === 0 ? (
+              <EmptyState title={t('renameNef.undoNothing')} />
+            ) : (
+              <>
+                <table className="rename-nef-table">
+                  <thead><tr><th>{t('renameNef.tableOriginal')}</th><th></th><th>{t('renameNef.tableNewName')}</th><th>{t('renameNef.undoSkipReasonColumn')}</th></tr></thead>
+                  <tbody>
+                    {undoPreview.items.map((it) => (
+                      <tr key={it.from} className={it.status === 'skip' ? 'rename-nef-row-skip' : undefined}>
+                        <td>{it.from_name}</td>
+                        <td className="rename-nef-arrow">→</td>
+                        <td>{it.to_name}</td>
+                        <td>{it.status === 'skip' ? (it.reason || t('renameNef.undoWillSkip')) : ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="rename-nef-result-actions">
+                  <Button variant="primary" onClick={doUndoExecute} disabled={!canUndo}>
+                    {t('renameNef.undoExecute')}
+                  </Button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {undoResult && (
+          <div className="rename-nef-result">
+            <div>
+              <strong>{undoResult.reverted}</strong> {t('renameNef.undone')}
+              {undoResult.skipped > 0 && t('renameNef.skippedSuffix', { count: undoResult.skipped })}
+            </div>
+            {undoResult.results.some((r) => r.status !== 'reverted') && (
+              <details><summary>{t('renameNef.skippedDetails')}</summary>
+                <ul>
+                  {undoResult.results.filter((r) => r.status !== 'reverted').map((r, i) => (
+                    <li key={i}>{basename(r.path)}: {r.reason || r.status}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -437,6 +595,28 @@ export function RenameNefModule() {
 function basename(p) {
   const parts = String(p).replace(/\/+$/, '').split('/');
   return parts[parts.length - 1] || p;
+}
+
+// Compact local time for the batch selector; falls back to the raw ISO string
+// if the timestamp can't be parsed.
+function formatTime(ts) {
+  const d = new Date(ts);
+  return Number.isNaN(d.getTime()) ? String(ts || '') : d.toLocaleString('sv-SE');
+}
+
+// Swedish label for an undo batch so the header/selector name the action being
+// undone (e.g. "Namnbyte (NEF)") rather than a raw tool slug. Only rename
+// batches are undoable (import moves/copies and trash are excluded), so every
+// undoable batch's op is "rename" — the tool alone names it.
+function undoLabel(tool) {
+  return {
+    'rename': t('renameNef.undoToolRename'),
+    'rename-nef': t('renameNef.undoToolRenameNef'),
+    'restore-names': t('renameNef.undoToolRestoreNames'),
+    'culling': t('renameNef.undoToolCulling'),
+    'undo': t('renameNef.undoToolUndo'),
+    'mixed': t('renameNef.undoToolMixed'),
+  }[tool] || t('renameNef.undoToolUnknown');
 }
 
 export default RenameNefModule;

@@ -6,6 +6,7 @@ Ported from the Ansikten CLI rename functionality.
 """
 
 import logging
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -1001,7 +1002,8 @@ class RenameService:
         }
 
 
-    def _update_database_paths(self, renamed_files: List[Dict[str, str]]) -> int:
+    def _update_database_paths(self, renamed_files: List[Dict[str, str]],
+                               match: str = "basename") -> int:
         """
         Update database entries to reflect renamed files.
 
@@ -1009,6 +1011,19 @@ class RenameService:
 
         Args:
             renamed_files: List of {"original": old_path, "new": new_path} dicts
+            match: How a DB entry is matched to a renamed file.
+                "basename" (default, forward rename): match on the trailing
+                    filename and keep the entry's own parent directory — the
+                    forward flow has no better key than the basename.
+                "fullpath" (undo): match on the whole path (abspath-normalised,
+                    symlinks NOT resolved) and rewrite it to the full new path,
+                    so undoing a rename in one folder never rewrites a DB entry
+                    that merely shares a basename in another folder. A DB entry
+                    that carries NO directory component (a bare basename — how
+                    ordinary review writes processed_files, `Path(image_path).name`)
+                    has no directory to be exact against, so it is matched and
+                    rewritten by basename and KEPT in bare-basename form (the same
+                    global-basename semantics as the forward path).
 
         Returns:
             Number of database entries updated
@@ -1016,12 +1031,37 @@ class RenameService:
         if not renamed_files:
             return 0
 
-        # Build mapping from old basename to new basename
-        name_map = {}
+        full = match == "fullpath"
+        # basename mode: old basename -> new basename (parent kept per entry).
+        # fullpath mode: abspath(old full path) -> new full path (verbatim), PLUS
+        # a basename fallback for DB entries stored without any directory.
+        rename_map = {}
+        base_map = {}
         for item in renamed_files:
-            old_name = Path(item["original"]).name
-            new_name = Path(item["new"]).name
-            name_map[old_name] = new_name
+            if full:
+                rename_map[os.path.abspath(item["original"])] = item["new"]
+                base_map[Path(item["original"]).name] = Path(item["new"]).name
+            else:
+                rename_map[Path(item["original"]).name] = Path(item["new"]).name
+
+        def _lookup(stored: str):
+            """Return (matched, new_value) for a stored path string, or (False, None)."""
+            if full:
+                # A bare basename (no directory component) can't be matched on the
+                # full path; fall back to basename and keep the bare form.
+                if os.path.dirname(stored) == "":
+                    base = Path(stored).name
+                    if base in base_map:
+                        return True, base_map[base]
+                    return False, None
+                key = os.path.abspath(stored)
+                if key in rename_map:
+                    return True, rename_map[key]
+                return False, None
+            base = Path(stored).name
+            if base in rename_map:
+                return True, str(Path(stored).parent / rename_map[base])
+            return False, None
 
         def compute(known_faces, processed_files, apply_changes):
             updated_count = 0
@@ -1030,26 +1070,22 @@ class RenameService:
             for person_name, entries in known_faces.items():
                 for entry in entries:
                     if isinstance(entry, dict) and entry.get("file"):
-                        old_file = Path(entry["file"]).name
-                        if old_file in name_map:
+                        matched, new_value = _lookup(entry["file"])
+                        if matched:
                             updated_count += 1
                             if apply_changes:
-                                old_path = Path(entry["file"])
-                                new_path = old_path.parent / name_map[old_file]
-                                entry["file"] = str(new_path)
-                                logger.debug(f"[RenameService] Updated encoding entry: {old_file} -> {name_map[old_file]}")
+                                logger.debug(f"[RenameService] Updated encoding entry: {entry['file']} -> {new_value}")
+                                entry["file"] = new_value
 
             # Update processed_files entries
             for pf in processed_files:
                 if isinstance(pf, dict) and pf.get("name"):
-                    old_name = Path(pf["name"]).name
-                    if old_name in name_map:
+                    matched, new_value = _lookup(pf["name"])
+                    if matched:
                         updated_count += 1
                         if apply_changes:
-                            old_path = Path(pf["name"])
-                            new_path = old_path.parent / name_map[old_name]
-                            pf["name"] = str(new_path)
-                            logger.debug(f"[RenameService] Updated processed entry: {old_name} -> {name_map[old_name]}")
+                            logger.debug(f"[RenameService] Updated processed entry: {pf['name']} -> {new_value}")
+                            pf["name"] = new_value
 
             return updated_count
 

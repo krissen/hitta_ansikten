@@ -1120,6 +1120,57 @@ as `rename-nef-progress`) during the hashing phase.
 (`already_correct` = stem already matches the DB name; `no_record` = no SHA1
 match). **Execute response:** same shape as `execute` above.
 
+## Rename Journal (Undo)
+
+Undo the last rename/move batch, replaying the append-only journal
+(`rename_journal.jsonl`; see [Database](database.md#rename_journaljsonl)) in
+reverse. The journal is the sole source of truth — undo replays exactly what a
+batch recorded, never re-derives sidecars.
+
+### `GET /api/v1/rename-journal/batches`
+
+List recent journal batches, newest first. Query params `limit` (default `20`)
+and `undoable_only` (default `true`). With `undoable_only=true` the undoable
+filter is applied **before** the limit, so a run of newer non-undoable batches
+(imports, trash/restore) can't bury an older undoable rename past the cap (which
+would look like "nothing to undo" in the GUI). Pass `undoable_only=false` to list
+every batch.
+
+**Response:** `{ "batches": [ { "batch_id": "9f3c…", "ts": "2026-07-14T08:15:00+00:00", "tool": "rename-nef", "op": "rename", "count": 12, "undoable": true } ] }`.
+`undoable` is true only when every row's op is `rename`. Import batches (`move`,
+often cross-device — `Path.rename` would `EXDEV`; or `copy` → undo would delete)
+and `trash`/`restore` batches (already undoable via the culling trash manifest)
+are reported `undoable: false`.
+
+### `POST /api/v1/rename-journal/undo`
+
+Request `{ "batch_id": "9f3c…", "execute": false }`. With `execute: false`
+(default) this is a dry-run.
+
+**Preview response:** `{ "batch_id", "tool", "op", "ts", "count", "to_revert": N, "to_skip": N, "items": [ { "from", "to", "from_name", "to_name", "status": "ok"|"skip", "reason" } ] }`.
+(`tool`/`op`/`ts` let the GUI label which action is being undone.)
+The preview groups each journal row as one all-or-nothing unit (main + its
+recorded sidecars) and reports the **same** decision the execute makes: a unit is
+skipped if the main's file is gone, or any of the unit's original destinations is
+occupied by an unrelated file (a destination taken only by another batch source
+is free — that source moves away first, which is how burst-renumber chains
+resolve). A missing sidecar is dropped from its unit (the main can still revert)
+and reported skipped. So the preview never offers a partial revert the execute
+then skips. Verification is path-state only — the journal carries no content
+fingerprint, so undo confirms the move is safe to replay, not that the bytes are
+unchanged.
+
+**Execute response:** `{ "batch_id", "reverted": N, "skipped": N, "errors": N, "results": [ { "path", "status": "reverted"|"skipped"|"error", "reason" } ] }`.
+Reversals run through the shared two-pass mover (never-overwrite; within-batch
+chains resolve), and the face DB is then repaired the same way the forward
+face-rename does (`RenameService._update_database_paths`) with the reversed
+mapping — both `known_faces[*].file` and `processed_files[*].name` are repointed
+off the renamed name back onto the original (a no-op for names not in the DB, so
+it runs for every tool's batch). The undo is itself journaled as a fresh `undo`
+batch, so it is redoable. Only one undo runs at a time (serialized).
+
+`404` if the batch id is unknown; `400` if the batch is not undoable.
+
 ### `ws://127.0.0.1:5001/ws/progress`
 
 Real-time progress updates during processing.

@@ -129,3 +129,23 @@
 .rename-nef-errors {
   color: var(--color-error);
 }
+
+/* Undo: batch selector + rows that will be skipped (dimmed). */
+.rename-nef-undo-select {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+}
+
+.rename-nef-row-skip {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.rename-nef-undo-header {
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
