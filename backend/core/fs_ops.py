@@ -347,6 +347,8 @@ def two_pass_rename(
     tool: str,
     sidecar_exts: Sequence[str] = (),
     find_sidecars: Callable[[Path, Sequence[str]], Iterable[Path]] | None = None,
+    sidecars_for: Callable[[Path, Path], Sequence[tuple[Path, Path]]] | None = None,
+    strict_units: bool = False,
     journal_op: str = "rename",
     tmp_prefix: str = ".rename_tmp",
     log_prefix: str = "fs_ops",
@@ -359,15 +361,28 @@ def two_pass_rename(
     lets a batch whose destinations overlap other *sources* (burst renumbering)
     resolve without spurious collisions.
 
-    Each ``.<sidecar-ext>`` sidecar of a source (found via ``find_sidecars``) is
-    carried to the destination's stem, **grouped with its main file's fate**: if
-    the main is skipped (target taken) or fails, its sidecars are restored too —
-    never left orphaned at the new stem. The reverse does not hold: a sidecar's
-    own target collision skips just that sidecar and never fells its main.
+    Sidecars are attached to each main two ways. The forward flows derive them:
+    each ``.<sidecar-ext>`` sidecar of a source (found via ``find_sidecars``) is
+    carried to the destination's stem. Undo passes them **explicitly** via
+    ``sidecars_for(main_src, main_dst) -> [(sc_src, sc_dst), ...]`` (the literal
+    pairs a journal row recorded — never re-derived); when given, it supersedes
+    the ``find_sidecars`` derivation.
+
+    ``strict_units`` chooses the pass-2 sidecar policy:
+
+    * **Lenient** (default, forward flows): a sidecar is grouped with its main's
+      fate — if the main is skipped/fails its sidecars are restored too — but a
+      sidecar's *own* target collision skips just that sidecar and never fells its
+      main (the PR-1 invariant: a row records exactly what moved).
+    * **Strict** (undo/redo): the whole unit is all-or-nothing. Before the main
+      leaves its temp, every destination in the unit (main + each moved sidecar)
+      must be free; if any is occupied the entire unit is restored and skipped
+      (no journal row). A failure while placing part of the unit rolls the whole
+      unit back. This stops a reverted main from pairing with an unrelated
+      pre-existing sidecar at the target stem while the real sidecar is orphaned.
 
     Journals one row per main file whose move completes, carrying the sidecars
-    that actually landed with it (a skipped/failed sidecar is left out of the
-    row, matching the on-disk delta). Returns ``{"renamed": [{from, to}],
+    that actually landed with it. Returns ``{"renamed": [{from, to}],
     "skipped": [...], "errors": [...]}`` (Swedish reason/error strings, matching
     the prior per-service implementations).
     """
@@ -387,7 +402,12 @@ def two_pass_rename(
         main = (src, dst, src.parent / f"{tmp_prefix}_{stamp}_{ctr}{src.suffix}")
         ctr += 1
         sidecars: list[tuple[Path, Path, Path]] = []
-        if sidecar_exts and find_sidecars is not None:
+        if sidecars_for is not None:
+            # Explicit literal pairs (undo): use exactly what the caller recorded.
+            for sc_src, sc_dst in sidecars_for(src, dst):
+                sidecars.append((sc_src, sc_dst, sc_src.parent / f"{tmp_prefix}_{stamp}_{ctr}{sc_src.suffix}"))
+                ctr += 1
+        elif sidecar_exts and find_sidecars is not None:
             for sc in find_sidecars(src, sidecar_exts):
                 sc_dst = dst.with_name(f"{dst.stem}{sc.suffix}")
                 if sc.name == sc_dst.name:
@@ -412,6 +432,12 @@ def two_pass_rename(
         src, dst, tmp = unit["main"]
         sidecars = unit["sidecars"]
         sc_moved = unit["sc_moved"]
+
+        if strict_units:
+            _place_unit_strict(
+                unit, tool=tool, journal_op=journal_op, batch_id=batch_id,
+                log_prefix=log_prefix, renamed=renamed, skipped=skipped, errors=errors)
+            continue
 
         if not unit["main_moved"]:
             # Main never reached its temp (pass-1 error already recorded); its
@@ -470,6 +496,78 @@ def two_pass_rename(
                sidecars=landed_sidecars)
 
     return {"renamed": renamed, "skipped": skipped, "errors": errors}
+
+
+def _place_unit_strict(unit, *, tool, journal_op, batch_id, log_prefix,
+                       renamed: list, skipped: list, errors: list) -> None:
+    """Pass-2 placement for one all-or-nothing unit (main + explicit sidecars).
+
+    Restores the whole unit and skips (no journal row) if any destination is
+    occupied, and rolls the whole unit back on a mid-placement failure — so a
+    reverted main never lands while one of its sidecars is left at the old name
+    (or paired with an unrelated file already at the target stem).
+    """
+    src, dst, tmp = unit["main"]
+    sidecars = unit["sidecars"]
+    sc_moved = unit["sc_moved"]
+
+    if not unit["main_moved"]:
+        # Main never reached its temp (pass-1 error already recorded); its
+        # sidecars must not move without it.
+        _restore_moved_sidecars(sidecars, sc_moved, log_prefix, errors)
+        return
+
+    moved = [(sc_src, sc_dst, sc_tmp)
+             for (sc_src, sc_dst, sc_tmp), was in zip(sidecars, sc_moved) if was]
+
+    def _restore_unit():
+        _restore_tmp(tmp, src, log_prefix)
+        for sc_src, _sc_dst, sc_tmp in moved:
+            _restore_tmp(sc_tmp, sc_src, log_prefix)
+
+    # A sidecar that couldn't even reach its temp makes the all-or-nothing unit
+    # unfulfillable — restore what moved and fail the whole unit.
+    if not all(sc_moved):
+        _restore_unit()
+        errors.append({"path": str(src),
+                       "error": "kan ej ångra hela enheten — en sidecar saknas"})
+        return
+
+    # Every destination in the unit must be free before anything is placed.
+    blocker = None
+    if dst.exists():
+        blocker = dst
+    else:
+        blocker = next((sc_dst for _s, sc_dst, _t in moved if sc_dst.exists()), None)
+    if blocker is not None:
+        _restore_unit()
+        skipped.append({"path": str(src), "reason": f"målnamn upptaget: {blocker.name}"})
+        return
+
+    # Place main + sidecars; roll the whole unit back on any failure.
+    placed: list[tuple[Path, Path]] = []  # (final_path, original_src)
+    try:
+        tmp.rename(dst)
+        placed.append((dst, src))
+        for sc_src, sc_dst, sc_tmp in moved:
+            sc_tmp.rename(sc_dst)
+            placed.append((sc_dst, sc_src))
+    except OSError as e:
+        logger.error("[%s] strict unit placement failed: %s -> %s: %s", log_prefix, tmp, dst, e)
+        for final_path, original_src in reversed(placed):
+            try:
+                final_path.rename(original_src)  # originals were freed by pass 1
+            except OSError:
+                logger.exception("[%s] strict rollback failed for %s", log_prefix, final_path)
+        errors.append({"path": str(src), "error": str(e)})
+        return
+
+    renamed.append({"from": src.name, "to": dst.name})
+    landed: list[tuple[Path, Path]] = []
+    for sc_src, sc_dst, _sc_tmp in moved:
+        renamed.append({"from": sc_src.name, "to": sc_dst.name})
+        landed.append((sc_src, sc_dst))
+    record(op=journal_op, tool=tool, batch_id=batch_id, src=src, dst=dst, sidecars=landed)
 
 
 def _move_to_temp(src: Path, dst: Path, tmp: Path, log_prefix: str, errors: list) -> bool:
@@ -560,16 +658,22 @@ def resolve_import_target(dest: Path, name: str, src: Path) -> Path | None:
 def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
     """Reverse a batch's recorded moves (``dst → src``), literally, then journal.
 
-    Each row's main move and every listed sidecar is replayed backwards. A move
-    whose recorded ``dst`` no longer exists is skipped up front (nothing to move);
-    the rest run through the shared two-pass mover, so within-batch chains (burst
-    renumbering, where one file's original name is another's current name) resolve
-    cleanly and no original path is ever overwritten. Sidecars are **literal** —
-    only the exact paths the row recorded are touched, never re-derived.
+    Each journal row is reversed as ONE all-or-nothing unit — the main move
+    (``dst → src``) plus every listed sidecar (``dst → src``, literal, never
+    re-derived). The units run through the shared two-pass mover in strict mode,
+    so within-batch chains (burst renumbering, where one file's original name is
+    another's current name) still resolve via temp indirection, no original path
+    is ever overwritten, and a row is reverted only if its whole unit can be — a
+    reverted main is never paired with an unrelated sidecar while the real one is
+    orphaned (see ``strict_units`` in ``two_pass_rename``).
+
+    A file whose recorded ``dst`` no longer exists is skipped up front (nothing to
+    move): a missing main skips its whole row; a missing sidecar is dropped from
+    its unit (the main can still come back) and reported skipped.
 
     The successful reversals are journaled by ``two_pass_rename`` as a fresh batch
-    (op ``rename``, the given ``tool``, one row per file), so the undo is itself
-    undoable (redo). Returns::
+    (op ``rename``, the given ``tool``, one row per reverted unit), so the undo is
+    itself undoable (redo). Returns::
 
         {"results": [{path, status: reverted|skipped|error, reason}],
          "reverted": int, "skipped": int, "errors": int,
@@ -582,37 +686,57 @@ def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
     off the now-gone renamed name and back onto the original.
     """
     results: list[dict] = []
-    eligible: list[tuple[Path, Path, bool]] = []
-    for frm, to, is_main in _flatten_reverse_moves(batch_rows):
-        if not frm.exists():
-            results.append({"path": str(frm), "status": "skipped",
+    main_pairs: list[tuple[Path, Path]] = []
+    # str(main_from) -> [(sc_from, sc_to), ...] for the sidecars whose source
+    # still exists; two_pass reads it back per main via ``sidecars_for``.
+    sidecars_by_main: dict[str, list[tuple[Path, Path]]] = {}
+
+    for row in batch_rows:
+        main_frm, main_to = Path(row["dst"]), Path(row["src"])
+        if not main_frm.exists():
+            # The whole row can't be reverted: report the main and its sidecars.
+            results.append({"path": str(main_frm), "status": "skipped",
                             "reason": "filen saknas — redan flyttad eller borttagen"})
+            for sc in row.get("sidecars", []) or []:
+                results.append({"path": str(Path(sc["dst"])), "status": "skipped",
+                                "reason": "hoppas över — huvudfilen kunde inte ångras"})
             continue
-        eligible.append((frm, to, is_main))
+        sc_pairs: list[tuple[Path, Path]] = []
+        for sc in row.get("sidecars", []) or []:
+            sc_frm, sc_to = Path(sc["dst"]), Path(sc["src"])
+            if not sc_frm.exists():
+                results.append({"path": str(sc_frm), "status": "skipped",
+                                "reason": "filen saknas — redan flyttad eller borttagen"})
+                continue
+            sc_pairs.append((sc_frm, sc_to))
+        main_pairs.append((main_frm, main_to))
+        sidecars_by_main[str(main_frm)] = sc_pairs
 
     move_res = two_pass_rename(
-        [(frm, to) for frm, to, _ in eligible],
-        tool=tool, journal_op="rename",
-        tmp_prefix=".undo_tmp", log_prefix="Undo",
+        main_pairs, tool=tool, journal_op="rename",
+        sidecars_for=lambda ms, _md: sidecars_by_main.get(str(ms), []),
+        strict_units=True, tmp_prefix=".undo_tmp", log_prefix="Undo",
     )
-    skipped_by_path = {s["path"]: s["reason"] for s in move_res["skipped"]}
-    errors_by_path = {e["path"]: e["error"] for e in move_res["errors"]}
+    # Strict units skip/error at the unit level, keyed on the main's source path.
+    skipped_by_main = {s["path"]: s["reason"] for s in move_res["skipped"]}
+    errors_by_main = {e["path"]: e["error"] for e in move_res["errors"]}
 
     reverted_mains: list[dict] = []
-    for frm, to, is_main in eligible:
-        key = str(frm)
-        if key in errors_by_path:
-            results.append({"path": key, "status": "error", "reason": errors_by_path.pop(key)})
-        elif key in skipped_by_path:
-            results.append({"path": key, "status": "skipped", "reason": skipped_by_path[key]})
+    for main_frm, main_to in main_pairs:
+        key = str(main_frm)
+        sc_pairs = sidecars_by_main.get(key, [])
+        if key in errors_by_main:
+            status, reason = "error", errors_by_main[key]
+        elif key in skipped_by_main:
+            status, reason = "skipped", skipped_by_main[key]
         else:
-            results.append({"path": key, "status": "reverted", "reason": None})
-            if is_main:
-                reverted_mains.append({"original": key, "new": str(to)})
-    # Any remaining errors are keyed by a leftover temp path (a rare
-    # restore-after-failure) — surface them so nothing is hidden.
-    for key, err in errors_by_path.items():
-        results.append({"path": key, "status": "error", "reason": err})
+            status, reason = "reverted", None
+            reverted_mains.append({"original": key, "new": str(main_to)})
+        results.append({"path": key, "status": status, "reason": reason})
+        # Sidecars share their main's fate under all-or-nothing.
+        for sc_frm, _sc_to in sc_pairs:
+            results.append({"path": str(sc_frm), "status": status,
+                            "reason": None if status == "reverted" else reason})
 
     return {
         "results": results,

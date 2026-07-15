@@ -174,6 +174,54 @@ def test_undo_never_overwrites_occupied_original(journal, tmp_path):
     assert result["reverted"] == 0 and result["skipped"] == 1
 
 
+# ----- strict units: main + sidecars are all-or-nothing ----------------------
+
+def test_undo_strict_skips_whole_unit_when_sidecar_dst_blocked(journal, tmp_path):
+    # Row renamed a.NEF/a.xmp -> b.NEF/b.xmp. An UNRELATED a.xmp now sits at the
+    # sidecar's original path. All-or-nothing: the whole unit is skipped — b.NEF
+    # stays put (not paired with the wrong sidecar) and the unrelated file is
+    # untouched. No journal row for the skipped unit.
+    (tmp_path / "b.NEF").write_bytes(b"img")
+    (tmp_path / "b.xmp").write_text("real-side")
+    (tmp_path / "a.xmp").write_text("UNRELATED")  # blocks the sidecar's dst
+    fs_ops.record(op="rename", tool="rename", batch_id="u",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF",
+                  sidecars=[(tmp_path / "a.xmp", tmp_path / "b.xmp")])
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    result = fs_ops.revert_batch(batch["rows"])
+
+    assert result["reverted"] == 0 and result["skipped"] == 2
+    assert (tmp_path / "b.NEF").read_bytes() == b"img"       # main not moved
+    assert (tmp_path / "b.xmp").read_text() == "real-side"   # sidecar not moved
+    assert (tmp_path / "a.xmp").read_text() == "UNRELATED"   # unrelated untouched
+    assert not (tmp_path / "a.NEF").exists()
+    # Only the original rename row is in the journal — no undo row was written.
+    assert [b["batch_id"] for b in fs_ops.group_batches(fs_ops.read_rows())] == ["u"]
+
+
+def test_undo_strict_reverts_unit_with_sidecar_grouped_row(journal, tmp_path):
+    # The happy path under strict mode: main + sidecar both revert, and the undo
+    # is journaled as ONE row with the sidecar nested (so redo restores both).
+    (tmp_path / "b.NEF").write_bytes(b"img")
+    (tmp_path / "b.xmp").write_text("side")
+    fs_ops.record(op="rename", tool="rename", batch_id="u",
+                  src=tmp_path / "a.NEF", dst=tmp_path / "b.NEF",
+                  sidecars=[(tmp_path / "a.xmp", tmp_path / "b.xmp")])
+
+    batch = fs_ops.group_batches(fs_ops.read_rows())[0]
+    result = fs_ops.revert_batch(batch["rows"])
+
+    assert result["reverted"] == 2 and result["skipped"] == 0
+    assert (tmp_path / "a.NEF").read_bytes() == b"img"
+    assert (tmp_path / "a.xmp").read_text() == "side"
+    assert not (tmp_path / "b.NEF").exists() and not (tmp_path / "b.xmp").exists()
+    # The undo row groups the sidecar under the main (not a separate row).
+    undo_batch = fs_ops.group_batches(fs_ops.read_rows())[-1]
+    assert undo_batch["tool"] == "undo" and len(undo_batch["rows"]) == 1
+    assert len(undo_batch["rows"][0]["sidecars"]) == 1
+
+
 # ----- undo is itself journaled and redoable ---------------------------------
 
 def test_undo_is_journaled_and_redoable(journal, tmp_path):
