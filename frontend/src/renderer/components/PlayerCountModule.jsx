@@ -495,6 +495,9 @@ export function PlayerCountModule() {
         recursive: params.recursive,
         date_from: params.date_from,
         date_to: params.date_to,
+        // Carry the file-type so culling opens on the same kind of files Räkna
+        // counted (jpg/nef/raw); culling maps images/all → jpg on its side.
+        extension_preset: params.extension_preset,
       });
     },
     [emit, waitForListeners, input, perMatch, buildParams, options]
