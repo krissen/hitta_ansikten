@@ -33,15 +33,22 @@ export function buildFaceLabel(face, faceNumber, t) {
     return suggestion.isIgnore ? 'ign' : suggestion.name;
   };
 
+  // Confirmed faces reflect the user's decision — evaluated before the
+  // match_case branches so a corrected name on an uncertain_* face overrides
+  // the (now stale) top alternative instead of being shadowed by it.
+  if (face.is_confirmed) {
+    if (face.is_rejected) {
+      return `${faceNumber}. ign (${face.ignore_confidence || 0}%)`;
+    }
+    return `${faceNumber}. ${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
+  }
+
   if (matchCase === 'ign') {
     return `${faceNumber}. ign (${face.ignore_confidence || 0}%)`;
   } else if (matchCase === 'uncertain_ign') {
     return `${faceNumber}. ign (${face.ignore_confidence || 0}%) / ${suggestionName()}`;
   } else if (matchCase === 'uncertain_name') {
     return `${faceNumber}. ${suggestionName()} / ign (${face.ignore_confidence || 0}%)`;
-  } else if (face.is_confirmed) {
-    // The user's decision wins over any suggestion.
-    return `${faceNumber}. ${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
   } else if (suggestion) {
     return suggestion.isIgnore
       ? `${faceNumber}. ign? (${suggestion.confidence}%)`

@@ -19,6 +19,49 @@ describe('buildFaceLabel — formatting branches', () => {
     expect(buildFaceLabel(f, 3, t)).toBe('3. Anna (82%)');
   });
 
+  it('confirmed uncertain_name face shows the corrected name, not the stale top alternative', () => {
+    // match_case and alternatives survive confirmation (confirmFaceState only
+    // flips is_confirmed/person_name); the confirmed branch must win.
+    const f = face({
+      is_confirmed: true,
+      person_name: 'Corrected',
+      confidence: 0.9,
+      match_case: 'uncertain_name',
+      ignore_confidence: 30,
+      match_alternatives: [{ name: 'Anna', confidence: 70 }],
+    });
+    const label = buildFaceLabel(f, 2, t);
+    expect(label).toBe('2. Corrected (90%)');
+    expect(label).not.toContain('Anna');
+    expect(label).not.toContain('ign');
+  });
+
+  it('confirmed uncertain_ign face shows the corrected name, not ign', () => {
+    const f = face({
+      is_confirmed: true,
+      person_name: 'Corrected',
+      confidence: 0.88,
+      match_case: 'uncertain_ign',
+      ignore_confidence: 40,
+      match_alternatives: [{ name: 'ign', confidence: 65, is_ignored: true }],
+    });
+    expect(buildFaceLabel(f, 1, t)).toBe('1. Corrected (88%)');
+  });
+
+  it('confirmed-as-ignored face reads as ign regardless of match_case', () => {
+    const f = face({
+      is_confirmed: true,
+      is_rejected: true,
+      person_name: '(ignored)',
+      match_case: 'uncertain_name',
+      ignore_confidence: 55,
+      match_alternatives: [{ name: 'Anna', confidence: 70 }],
+    });
+    const label = buildFaceLabel(f, 4, t);
+    expect(label).toBe('4. ign (55%)');
+    expect(label).not.toContain('Anna');
+  });
+
   it('ign case shows the ignore confidence only', () => {
     const f = face({ match_case: 'ign', ignore_confidence: 50, match_alternatives: [{ name: 'ign', confidence: 80, is_ignored: true }] });
     expect(buildFaceLabel(f, 1, t)).toBe('1. ign (50%)');
