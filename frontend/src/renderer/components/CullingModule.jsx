@@ -26,7 +26,7 @@ import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } f
 import { getWorkingFolder } from '../shared/workingFolder.js';
 import { isTabsetActive } from '../hooks/useActiveTabset.js';
 import { extOf } from '../shared/fileExts.js';
-import { statsScopeFromQuery, scanScopeKey, isRaw, globBaseDir, basename, stripExt } from './culling/cullingQueryUtils.js';
+import { statsScopeFromQuery, scanScopeKey, isRaw, globBaseDir, basename, stripExt, cullingPresetFrom } from './culling/cullingQueryUtils.js';
 import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
 import { useDecodedImage } from '../hooks/useDecodedImage.js';
@@ -547,13 +547,17 @@ export function CullingModule({ node }) {
       setDateTo(nextTo);
       setPlayer(data.name || '');
       setGlob(data.name ? `*${data.name}*` : '');
-      // Stats culling is always on developed JPEGs.
-      setPreset('jpg');
+      // Honour the count's file-type (jpg/nef/raw), mapping presets culling
+      // can't represent (images/all) or a missing one to jpg — same rule as the
+      // scan-scope adopt-on-mount, so a nef/raw count doesn't silently open on an
+      // empty jpg list. Legacy senders that omit the field keep the jpg default.
+      const nextPreset = cullingPresetFrom(data.extension_preset);
+      setPreset(nextPreset);
 
       const query = {
         roots: nextRoots,
         globs: nextGlobs,
-        extension_preset: 'jpg',
+        extension_preset: nextPreset,
         recursive: nextRecursive,
         date_from: nextFrom,
         date_to: nextTo,
@@ -645,10 +649,7 @@ export function CullingModule({ node }) {
       }
       return;
     }
-    // Culling's file-type control only knows jpg/nef/raw; Räkna also offers
-    // images/all. Map a preset culling can't represent to jpg, so the dropdown
-    // isn't desynced and the list doesn't include types culling never exposes.
-    const preset = ['jpg', 'nef', 'raw'].includes(s.extension_preset) ? s.extension_preset : 'jpg';
+    const preset = cullingPresetFrom(s.extension_preset);
     setRoots(s.roots || []);
     setCarriedGlobs(s.globs || []);
     setRecursive(s.recursive ?? true);

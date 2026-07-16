@@ -6,6 +6,7 @@ import {
   globBaseDir,
   basename,
   stripExt,
+  cullingPresetFrom,
 } from '../src/renderer/components/culling/cullingQueryUtils.js';
 
 describe('statsScopeFromQuery', () => {
@@ -113,6 +114,25 @@ describe('globBaseDir', () => {
   it('returns empty when there is no directory component', () => {
     expect(globBaseDir('*.jpg')).toBe('');
     expect(globBaseDir('literal')).toBe('');
+  });
+});
+
+describe('cullingPresetFrom', () => {
+  it('passes through the presets culling can represent', () => {
+    expect(cullingPresetFrom('jpg')).toBe('jpg');
+    expect(cullingPresetFrom('nef')).toBe('nef');
+    expect(cullingPresetFrom('raw')).toBe('raw');
+  });
+
+  it('maps Räkna-only presets (images/all) to jpg', () => {
+    expect(cullingPresetFrom('images')).toBe('jpg');
+    expect(cullingPresetFrom('all')).toBe('jpg');
+  });
+
+  it('falls back to jpg for a missing/unknown preset', () => {
+    expect(cullingPresetFrom(undefined)).toBe('jpg');
+    expect(cullingPresetFrom(null)).toBe('jpg');
+    expect(cullingPresetFrom('bogus')).toBe('jpg');
   });
 });
 

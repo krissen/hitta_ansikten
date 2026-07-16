@@ -4,6 +4,9 @@ module.exports = {
   // "Per match" kept as-is — established sports term, reads natively in Swedish.
   "perMatch": "Per match",
   "refreshing": "uppdaterar…",
+  // Toolbar button: hand the current scope over to Gallra spelare (culling).
+  "gallra": "Gallra",
+  "gallraTitle": "Öppna Gallra spelare med samma urval",
 
   // Body states
   "errorPrefix": "Fel:",

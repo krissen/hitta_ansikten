@@ -467,27 +467,65 @@ export function PlayerCountModule() {
     [api, exclusionsDirty, configDirty, loadExclusions]
   );
 
-  // Open the culling workspace filtered to a player (from the stats table).
-  const openCullForPlayer = useCallback(
-    async (name) => {
-      const params = lastParamsRef.current || buildParams(input, perMatch, options, null);
-      // Tell culling's adopt-on-mount that we'll immediately load the
-      // player-filtered query, so it skips its own unfiltered scan.
+  // Hand the current count's full scope (folders/path-globs, date span,
+  // recursion) over to Gallra spelare. `name` filters to one player (from the
+  // stats table); pass null to open culling on the whole selection.
+  //
+  // Uses the `cull-player` event rather than adopt-on-mount or `culling-load`:
+  // adopt-on-mount only runs when culling mounts cold, so it wouldn't reload the
+  // current scope when a culling tab is already open (openModule just focuses
+  // it). `culling-load` reloads in both cases but only carries {roots, recursive}
+  // — it would drop the path-globs and date span. `cull-player` is the one
+  // hand-off that carries the full scope AND is always subscribed, so it loads
+  // Räkna's live selection whether culling is cold or already open; a null name
+  // simply clears the player/name filter on culling's side.
+  // `params` is the scope to hand over — the caller picks the source (see the two
+  // wrappers below), which is the whole point: a player row belongs to the last
+  // count, while the unfiltered button follows the live input.
+  const handoffToCulling = useCallback(
+    async (name, params) => {
+      // Tell culling's adopt-on-mount that we'll immediately load the query, so
+      // a cold mount skips its own unfiltered scan (no double load / flash).
       signalExternalLoad();
       window.workspace?.openModule?.('culling');
       // The culling module subscribes on mount; wait so the event isn't missed.
       await waitForListeners('cull-player', 3000);
       emit('cull-player', {
-        name,
+        name: name || null,
         roots: params.roots,
         globs: params.globs,
         recursive: params.recursive,
         date_from: params.date_from,
         date_to: params.date_to,
+        // Carry the file-type so culling opens on the same kind of files Räkna
+        // counted (jpg/nef/raw); culling maps images/all → jpg on its side.
+        extension_preset: params.extension_preset,
       });
     },
-    [emit, waitForListeners, input, perMatch, buildParams, options]
+    [emit, waitForListeners]
   );
+
+  // Open the culling workspace filtered to a player (from the stats table). The
+  // clicked row belongs to the last count's result, so hand over exactly those
+  // params (falling back to the live input before any count has run).
+  const openCullForPlayer = useCallback(
+    (name) => handoffToCulling(name, lastParamsRef.current || buildParams(input, perMatch, options, null)),
+    [handoffToCulling, buildParams, input, perMatch, options]
+  );
+
+  // Toolbar "Gallra" button: open culling on the current selection, no filter.
+  // Always build from the live input (not lastParamsRef) so editing the folder/
+  // wildcard without pressing Räkna hands over what the bar now shows — matching
+  // the `hasScope` enable condition, which is also input-derived.
+  const openCull = useCallback(
+    () => handoffToCulling(null, buildParams(input, perMatch, options, null)),
+    [handoffToCulling, buildParams, input, perMatch, options]
+  );
+
+  // Enabled whenever there's a selection to hand over (folders or a wildcard),
+  // independent of whether a count has run yet — same shape submitWith publishes
+  // as the shared scan scope, so culling adopts exactly what Räkna shows.
+  const hasScope = input.roots.length > 0 || input.glob.trim() !== '';
 
   // Subscribe to folder-change events for live auto-refresh.
   useEffect(() => {
@@ -538,6 +576,14 @@ export function PlayerCountModule() {
             {t('playerCount.perMatch')}
           </label>
           {isRefreshing && <span className="player-count-refreshing">{t('playerCount.refreshing')}</span>}
+          <Button
+            variant="secondary"
+            onClick={openCull}
+            disabled={!hasScope || isLoading}
+            title={t('playerCount.gallraTitle')}
+          >
+            {t('playerCount.gallra')}
+          </Button>
         </div>
       </div>
 

@@ -52,6 +52,15 @@ export function isRaw(p) {
   return i !== -1 && RAW_EXTS.includes(p.slice(i).toLowerCase());
 }
 
+// Culling's file-type control only knows jpg/nef/raw; Räkna spelare also offers
+// images/all. Map a preset culling can't represent (or a missing one) to jpg, so
+// the dropdown isn't desynced and the list never includes types culling can't
+// expose. Shared by the scan-scope adopt-on-mount and the Räkna→Gallra hand-off
+// (cull-player) so the two agree on which presets survive the transition.
+export function cullingPresetFrom(preset) {
+  return ['jpg', 'nef', 'raw'].includes(preset) ? preset : 'jpg';
+}
+
 export function globBaseDir(pattern) {
   const idx = pattern.search(/[*?[]/);
   const literal = idx === -1 ? pattern : pattern.slice(0, idx);
