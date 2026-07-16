@@ -23,9 +23,14 @@ function splitExt(name) {
   return i > 0 ? [name.slice(0, i), name.slice(i)] : [name, ''];
 }
 
-/** A name piece's display form: the trailing `-N` disambiguation is dropped. */
+/**
+ * A name piece's display form: any trailing `-N` disambiguation groups are
+ * dropped. Lightroom can stack duplicate suffixes (e.g. `Valter-2-2`), so all
+ * consecutive `-N` groups are stripped, never just the last one. A name may
+ * still contain a `-` followed by letters (e.g. `Anna-Lena`).
+ */
 export function cleanName(part) {
-  return part.replace(/-\d+$/, '');
+  return part.replace(/(?:-\d+)+$/, '');
 }
 
 /**

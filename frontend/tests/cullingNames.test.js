@@ -24,6 +24,15 @@ describe('namesInBasename', () => {
     expect(namesInBasename('260626_191003_Anna-2,_Bert.jpg')).toEqual(['Anna', 'Bert']);
   });
 
+  it('strips stacked -N duplicate suffixes (Lightroom copies)', () => {
+    expect(namesInBasename('260715_123556-1_Valter-2-2.jpg')).toEqual(['Valter']);
+    expect(namesInBasename('260715_123556-1_Valter-2-3.jpg')).toEqual(['Valter']);
+  });
+
+  it('strips stacked -N suffixes across multiple names', () => {
+    expect(namesInBasename('260626_191003_Anna-2-2,_Bert.jpg')).toEqual(['Anna', 'Bert']);
+  });
+
   it('de-duplicates names that clean to the same value', () => {
     expect(namesInBasename('260626_191003_Anna,_Anna-2.jpg')).toEqual(['Anna']);
   });
@@ -83,5 +92,15 @@ describe('cleanName', () => {
   it('strips a trailing -N suffix', () => {
     expect(cleanName('Anna-2')).toBe('Anna');
     expect(cleanName('Anna')).toBe('Anna');
+  });
+
+  it('strips stacked -N duplicate suffixes', () => {
+    expect(cleanName('Valter-2-2')).toBe('Valter');
+    expect(cleanName('Valter-2-3')).toBe('Valter');
+  });
+
+  it('keeps a hyphenated name without a trailing number', () => {
+    expect(cleanName('Anna-Lena')).toBe('Anna-Lena');
+    expect(cleanName('Anna-Lena-2-2')).toBe('Anna-Lena');
   });
 });
