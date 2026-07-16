@@ -6,6 +6,9 @@ This changelog is initialized from git commit history after `v1.0.0` and can be 
 
 ## [Unreleased]
 
+### Fixed
+- **Namnförslaget i bildvisaren och accept-tangenterna kan inte längre divergera.** Boxetiketten i bildvisaren och de olika accept-vägarna i Granska ansikten (Enter/bekräfta-tangent, "Godta alla", ConfirmDialog-grindningen) plockade tidigare namnet från olika håll: bildvisaren föredrog `face.person_name` medan accept-vägarna använde `match_alternatives[0]`. På äldre cachade svar där `person_name` och det översta alternativet inte stämde överens kunde etiketten alltså visa ett annat namn än det som en accept faktiskt skrev. En ny delad resolver `resolveSuggestion(face)` (i `review/reviewActions.js`) är nu enda källan för det föreslagna namnet: för obekräftade ansikten hämtar **både** visning (den utbrutna `review/faceLabel.js` + FaceCard-prefill/badges) och handling (accept-tangenter, `getTopMatch`, `acceptAllState`) namnet därifrån, medan bekräftade ansikten visar användarens beslut (`person_name`). `match_case`-formateringen i etiketten är oförändrad.
+
 ### Added
 - **"Rensa"-knapp i Gallra-vyns filterrad.** En ny sekundärknapp **Rensa** (efter "+ Mapp") tömmer gallringsarbetsytan tillbaka till "välj mapp"-läget — fillista, räknekolumn, cachade miniatyrer och mappbevakning nollställs och det delade skanningsscopet rensas — med exakt samma semantik som CLI:t `ansikten culling --clear`. Knappen är avaktiverad när det inte finns något att rensa. CLI:ts `--clear`-väg och knappen delar nu en gemensam `clearWorkspace()`-rutin.
 
