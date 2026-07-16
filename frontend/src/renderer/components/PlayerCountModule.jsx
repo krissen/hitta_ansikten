@@ -479,9 +479,11 @@ export function PlayerCountModule() {
   // hand-off that carries the full scope AND is always subscribed, so it loads
   // Räkna's live selection whether culling is cold or already open; a null name
   // simply clears the player/name filter on culling's side.
+  // `params` is the scope to hand over — the caller picks the source (see the two
+  // wrappers below), which is the whole point: a player row belongs to the last
+  // count, while the unfiltered button follows the live input.
   const handoffToCulling = useCallback(
-    async (name) => {
-      const params = lastParamsRef.current || buildParams(input, perMatch, options, null);
+    async (name, params) => {
       // Tell culling's adopt-on-mount that we'll immediately load the query, so
       // a cold mount skips its own unfiltered scan (no double load / flash).
       signalExternalLoad();
@@ -500,17 +502,25 @@ export function PlayerCountModule() {
         extension_preset: params.extension_preset,
       });
     },
-    [emit, waitForListeners, input, perMatch, buildParams, options]
+    [emit, waitForListeners]
   );
 
-  // Open the culling workspace filtered to a player (from the stats table).
+  // Open the culling workspace filtered to a player (from the stats table). The
+  // clicked row belongs to the last count's result, so hand over exactly those
+  // params (falling back to the live input before any count has run).
   const openCullForPlayer = useCallback(
-    (name) => handoffToCulling(name),
-    [handoffToCulling]
+    (name) => handoffToCulling(name, lastParamsRef.current || buildParams(input, perMatch, options, null)),
+    [handoffToCulling, buildParams, input, perMatch, options]
   );
 
   // Toolbar "Gallra" button: open culling on the current selection, no filter.
-  const openCull = useCallback(() => handoffToCulling(null), [handoffToCulling]);
+  // Always build from the live input (not lastParamsRef) so editing the folder/
+  // wildcard without pressing Räkna hands over what the bar now shows — matching
+  // the `hasScope` enable condition, which is also input-derived.
+  const openCull = useCallback(
+    () => handoffToCulling(null, buildParams(input, perMatch, options, null)),
+    [handoffToCulling, buildParams, input, perMatch, options]
+  );
 
   // Enabled whenever there's a selection to hand over (folders or a wildcard),
   // independent of whether a count has run yet — same shape submitWith publishes
