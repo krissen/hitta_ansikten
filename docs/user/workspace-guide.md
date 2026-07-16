@@ -322,7 +322,10 @@ antal.
    > ångra). Menyvalet **Gör publik permanent** skriver däremot namnet direkt
    > till publik-listan i config (utan att spara övriga osparade ändringar).
 2. Klicka på en spelare i tabellen för att öppna **Gallra spelare**
-   (`Cmd+Shift+G`) filtrerad på den spelaren. Filtret kan finjusteras med
+   (`Cmd+Shift+G`) filtrerad på den spelaren. Vill du gallra hela urvalet
+   utan spelarfilter finns knappen **Gallra** i modulens verktygsrad — den
+   öppnar (eller fokuserar) Gallra spelare med samma fil-urval som Räkna visar.
+   Filtret kan finjusteras med
    spelar-menyn eller ett eget glob (t.ex. `*ArvidW*`) i balken. Välj filtyp
    (`jpg`/`nef`/`raw`) i balken — `nef`/`raw` används för allmän gallring på
    råfiler innan namn satts (förhandsvisas via NEF→JPG-konvertering;
