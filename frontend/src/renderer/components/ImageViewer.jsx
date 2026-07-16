@@ -54,6 +54,15 @@ export function ImageViewer() {
   const [activeFaceIndex, setActiveFaceIndex] = useState(0);
   const previousFaceBoxModeRef = useRef('all');
 
+  // Path of the last faces batch we rendered. Used to reset the active index to
+  // the first face only when faces belong to a NEW image — same-path re-emits
+  // (after every confirm/ignore in Review) must not clobber the active index.
+  const lastFacesPathRef = useRef(null);
+  // Buffer for a faces-detected payload that arrived before its image finished
+  // decoding (originalImagePath still stale). Replayed by the load-completion
+  // effect so boxes detected during the decode window aren't dropped.
+  const pendingFacesRef = useRef(null);
+
   // Track skipAutoDetect for re-emission on request-current-image
   const lastSkipAutoDetectRef = useRef(false);
 
@@ -549,26 +558,62 @@ export function ImageViewer() {
     setFaces([]);
     setActiveFaceIndex(-1);
     lastSkipAutoDetectRef.current = false;
+    // Forget the last rendered path + any buffered faces so a re-load of the
+    // same image is treated as new (active index resets to the first face).
+    lastFacesPathRef.current = null;
+    pendingFacesRef.current = null;
   });
 
-  // Listen for faces-detected events - reset activeFaceIndex to sync with ReviewModule
-  // Guard: only apply if imagePath matches current image (prevents race conditions)
-  useModuleEvent('faces-detected', ({ faces: newFaces, imagePath: facesImagePath }) => {
-    if (facesImagePath && originalImagePath && facesImagePath !== originalImagePath) {
-      debug('ImageViewer', 'Ignoring faces-detected for different image:', facesImagePath);
-      return;
-    }
+  // Apply a faces batch. Reset the active index to the first face only when the
+  // faces belong to a DIFFERENT image than the last batch we rendered — the
+  // per-confirm/ignore re-emits carry the SAME path and must not move the
+  // single-box highlight off the face the user is acting on.
+  const applyFaces = useCallback((newFaces, facesImagePath) => {
+    const isNewPath = (facesImagePath ?? null) !== lastFacesPathRef.current;
+    lastFacesPathRef.current = facesImagePath ?? null;
     setFaces(newFaces || []);
-    if (newFaces && newFaces.length > 0) {
+    if (isNewPath && newFaces && newFaces.length > 0) {
       setActiveFaceIndex(0);
     }
-  }, [originalImagePath]);
+  }, []);
+
+  // Listen for faces-detected events - sync overlay boxes with ReviewModule.
+  useModuleEvent('faces-detected', ({ faces: newFaces, imagePath: facesImagePath }) => {
+    // Path mismatch means these faces are for an image that is still decoding
+    // (originalImagePath not yet updated). Don't drop them: buffer so the
+    // load-completion effect can replay them once the path matches — otherwise
+    // faces detected during the decode window are lost until something re-emits.
+    if (facesImagePath && originalImagePath && facesImagePath !== originalImagePath) {
+      debug('ImageViewer', 'Buffering faces-detected for still-loading image:', facesImagePath);
+      pendingFacesRef.current = { faces: newFaces || [], imagePath: facesImagePath };
+      return;
+    }
+    pendingFacesRef.current = null;
+    applyFaces(newFaces, facesImagePath);
+  }, [originalImagePath, applyFaces]);
+
+  // Replay a buffered faces batch once its image finishes loading (Fix C). The
+  // decode window can land faces-detected before originalImagePath is updated;
+  // apply them the moment the loaded path matches what was buffered.
+  useEffect(() => {
+    const buffered = pendingFacesRef.current;
+    if (buffered && buffered.imagePath === originalImagePath) {
+      debug('ImageViewer', 'Replaying buffered faces for now-loaded image:', originalImagePath);
+      pendingFacesRef.current = null;
+      applyFaces(buffered.faces, buffered.imagePath);
+    }
+  }, [originalImagePath, applyFaces]);
 
   // Listen for active-face-changed events
-  useModuleEvent('active-face-changed', ({ index }) => {
-    debug('ImageViewer', `active-face-changed: index=${index}, autoCenterOnFace=${autoCenterOnFace}`);
+  useModuleEvent('active-face-changed', ({ index, center }) => {
+    debug('ImageViewer', `active-face-changed: index=${index}, center=${center}, autoCenterOnFace=${autoCenterOnFace}`);
+    // Always track Review's active index so the single-box highlight/label
+    // matches the face the keystroke acted on. Centering is separate: skip it
+    // only when the emitter explicitly set center:false (e.g. an all-done
+    // confirm, where centering would jump to an already-reviewed face). An
+    // omitted `center` keeps the previous behavior (center when enabled).
     setActiveFaceIndex(index);
-    if (autoCenterOnFace) {
+    if (center !== false && autoCenterOnFace) {
       const face = faces[index];
       if (face?.bounding_box) {
         debug('ImageViewer', 'Centering on face', index);
