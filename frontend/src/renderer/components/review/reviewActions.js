@@ -12,17 +12,43 @@
 export const HIGH_CONFIDENCE_THRESHOLD = 75;
 
 /**
- * Return the top match alternative if it is high-confidence and not an
- * ignore suggestion, else null. Drives the ConfirmDialog gating.
+ * The single source of truth for "what does the app suggest for this face".
+ * Both the box label (display) and every accept path (action) derive the
+ * suggestion from here, so display and action can never diverge — including
+ * for older cached responses where `person_name` may disagree with the
+ * top alternative.
+ *
+ * Confirmed faces are the user's decision, not a suggestion: callers that
+ * care show `person_name` for `is_confirmed` faces and only fall back to
+ * this resolver for unconfirmed ones.
+ *
+ * @param {Object} face
+ * @returns {{name: string, confidence: number, isIgnore: boolean}|null}
+ *   null when there is no top alternative to suggest.
+ */
+export function resolveSuggestion(face) {
+  const top = face?.match_alternatives?.[0];
+  if (!top) return null;
+  return {
+    name: top.name,
+    confidence: top.confidence,
+    isIgnore: !!top.is_ignored || top.name === 'ign',
+  };
+}
+
+/**
+ * Return the suggested match if it is high-confidence and not an ignore
+ * suggestion, else null. Thin wrapper over {@link resolveSuggestion} that
+ * applies the ConfirmDialog gating threshold.
  * @param {Object} face
  * @param {number} [threshold=HIGH_CONFIDENCE_THRESHOLD]
  * @returns {{name: string, confidence: number}|null}
  */
 export function getTopMatch(face, threshold = HIGH_CONFIDENCE_THRESHOLD) {
-  if (!face?.match_alternatives?.length) return null;
-  const top = face.match_alternatives[0];
-  if (top.confidence >= threshold && !top.is_ignored) {
-    return { name: top.name, confidence: top.confidence };
+  const suggestion = resolveSuggestion(face);
+  if (!suggestion || suggestion.isIgnore) return null;
+  if (suggestion.confidence >= threshold) {
+    return { name: suggestion.name, confidence: suggestion.confidence };
   }
   return null;
 }
@@ -171,13 +197,13 @@ export function acceptAllState(faces, imagePath) {
   const updatedFaces = faces.map((face) => {
     if (face.is_confirmed) return face;
 
-    const firstAlt = face.match_alternatives?.[0];
-    if (!firstAlt) {
+    const suggestion = resolveSuggestion(face);
+    if (!suggestion) {
       skipped++;
       return face;
     }
 
-    if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+    if (suggestion.isIgnore) {
       ignored++;
       if (face.face_id) {
         ignores.push({ face_id: face.face_id, image_path: imagePath });
@@ -185,7 +211,7 @@ export function acceptAllState(faces, imagePath) {
       return { ...face, is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
     }
 
-    const trimmedName = firstAlt.name?.trim() || firstAlt.name;
+    const trimmedName = suggestion.name?.trim() || suggestion.name;
     accepted++;
 
     if (face.face_id) {

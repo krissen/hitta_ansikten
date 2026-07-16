@@ -29,6 +29,7 @@ import { useReviewKeyboard } from './review/useReviewKeyboard.js';
 import { useActiveTabset } from '../hooks/useActiveTabset.js';
 import {
   getTopMatch as getTopMatchPure,
+  resolveSuggestion,
   willAllBeDone,
   nextFaceIndex,
   confirmFaceState,
@@ -714,12 +715,12 @@ export function ReviewModule({ node }) {
 
       if (inputValue) {
         confirmFace(currentFaceIndex, inputValue);
-      } else if (currentFace?.match_alternatives?.length > 0) {
-        const firstAlt = currentFace.match_alternatives[0];
-        if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+      } else {
+        const suggestion = resolveSuggestion(currentFace);
+        if (suggestion?.isIgnore) {
           ignoreFace(currentFaceIndex);
-        } else {
-          confirmFace(currentFaceIndex, firstAlt.name);
+        } else if (suggestion) {
+          confirmFace(currentFaceIndex, suggestion.name);
         }
       }
     },
@@ -731,12 +732,12 @@ export function ReviewModule({ node }) {
       const input = inputRefs.current[currentFaceIndex];
       if (input?.value?.trim()) {
         confirmFace(currentFaceIndex, input.value);
-      } else if (currentFace?.match_alternatives?.length > 0) {
-        const firstAlt = currentFace.match_alternatives[0];
-        if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+      } else {
+        const suggestion = resolveSuggestion(currentFace);
+        if (suggestion?.isIgnore) {
           ignoreFace(currentFaceIndex);
-        } else {
-          confirmFace(currentFaceIndex, firstAlt.name);
+        } else if (suggestion) {
+          confirmFace(currentFaceIndex, suggestion.name);
         }
       }
     },

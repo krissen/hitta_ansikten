@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getTopMatch,
+  resolveSuggestion,
   willAllBeDone,
   nextFaceIndex,
   confirmFaceState,
@@ -27,6 +28,40 @@ const face = (overrides = {}) => ({
   is_confirmed: false,
   match_alternatives: [],
   ...overrides,
+});
+
+describe('resolveSuggestion', () => {
+  it('returns null when there is no top alternative', () => {
+    expect(resolveSuggestion(face())).toBeNull();          // empty alternatives
+    expect(resolveSuggestion(face({ match_alternatives: undefined }))).toBeNull();
+    expect(resolveSuggestion(null)).toBeNull();
+    expect(resolveSuggestion(undefined)).toBeNull();
+  });
+
+  it('resolves the normal (name) case from the first alternative', () => {
+    const f = face({ match_alternatives: [{ name: 'Anna', confidence: 82 }] });
+    expect(resolveSuggestion(f)).toEqual({ name: 'Anna', confidence: 82, isIgnore: false });
+  });
+
+  it('flags isIgnore when the top alternative is is_ignored', () => {
+    const f = face({ match_alternatives: [{ name: 'Skomakare', confidence: 60, is_ignored: true }] });
+    expect(resolveSuggestion(f)).toEqual({ name: 'Skomakare', confidence: 60, isIgnore: true });
+  });
+
+  it("flags isIgnore when the top alternative name is the 'ign' sentinel", () => {
+    const f = face({ match_alternatives: [{ name: 'ign', confidence: 70 }] });
+    expect(resolveSuggestion(f)).toEqual({ name: 'ign', confidence: 70, isIgnore: true });
+  });
+
+  it('only ever considers the FIRST alternative', () => {
+    const f = face({
+      match_alternatives: [
+        { name: 'Anna', confidence: 60 },
+        { name: 'Berit', confidence: 95, is_ignored: true },
+      ],
+    });
+    expect(resolveSuggestion(f)).toEqual({ name: 'Anna', confidence: 60, isIgnore: false });
+  });
 });
 
 describe('getTopMatch', () => {

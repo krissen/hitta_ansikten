@@ -10,12 +10,27 @@ import React, { useState } from 'react';
 import { useThumbnail } from '../../shared/thumbnail-cache.js';
 import { Autocomplete } from '../shared/Autocomplete.jsx';
 import { rank } from './nameAutocomplete.js';
+import { resolveSuggestion } from './reviewActions.js';
 import { Icon } from '../Icon.jsx';
 import { t } from '../../../i18n/index.js';
 
+/**
+ * Name to prefill the autocomplete with for an unconfirmed face. Only the
+ * name-suggestion cases prefill, and never the 'ign' sentinel — everything
+ * else starts empty. Derived from the shared resolveSuggestion so the prefill
+ * matches what the accept keys would apply.
+ * @param {Object} face
+ * @returns {string}
+ */
+function prefillName(face) {
+  if (face.match_case !== 'name' && face.match_case !== 'uncertain_name') return '';
+  const suggestion = resolveSuggestion(face);
+  if (!suggestion || suggestion.isIgnore) return '';
+  return suggestion.name;
+}
+
 export function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onUnconfirm, maxAlternatives, onSelectAlternative, clearInputTrigger }) {
-  const isProbableIgnoreCase = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
-  const initialValue = isProbableIgnoreCase ? '' : (face.person_name || '');
+  const initialValue = prefillName(face);
   const [inputValue, setInputValue] = useState(initialValue);
   const [typedValue, setTypedValue] = useState(initialValue);
 
@@ -25,11 +40,14 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
     face.bounding_box
   );
 
+  const topAlternativeName = face.match_alternatives?.[0]?.name;
   React.useEffect(() => {
-    const newValue = isProbableIgnoreCase ? '' : (face.person_name || '');
+    const newValue = prefillName(face);
     setInputValue(newValue);
     setTypedValue(newValue);
-  }, [face.face_id, face.match_case, isProbableIgnoreCase, face.person_name]);
+    // topAlternativeName drives prefillName alongside match_case; listed so a
+    // changed suggestion re-syncs the input.
+  }, [face.face_id, face.match_case, topAlternativeName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     if (clearInputTrigger > 0) {
@@ -45,6 +63,10 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
 
   // Determine if this is a probable-ignore case
   const isProbableIgnore = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
+
+  // Name shown in the uncertain badges — from the shared resolver so it
+  // matches what an accept would apply (badges only render for unconfirmed).
+  const suggestionName = resolveSuggestion(face)?.name || t('review.unknown');
 
   const cardClass = [
     'face-card',
@@ -91,7 +113,7 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
           <div className="match-case uncertain">
             {t('review.badges.uncertainIgn', {
               conf: face.ignore_confidence,
-              name: face.person_name || face.match_alternatives?.[0]?.name || t('review.unknown'),
+              name: suggestionName,
             })}
           </div>
         )}
@@ -99,7 +121,7 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
           <div className="match-case uncertain">
             {t('review.badges.uncertainName', {
               conf: face.ignore_confidence,
-              name: face.person_name || face.match_alternatives?.[0]?.name || t('review.unknown'),
+              name: suggestionName,
             })}
           </div>
         )}

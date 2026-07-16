@@ -24,6 +24,7 @@ import { ZOOM_STEP } from '../shared/canvasViewport.js';
 import { apiClient } from '../shared/api-client.js';
 import { preferences } from '../workspace/preferences.js';
 import { CanvasImageView } from './CanvasImageView.jsx';
+import { buildFaceLabel } from './review/faceLabel.js';
 import { LoadingOverlay } from './shared/ProgressBar.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { t } from '../../i18n/index.js';
@@ -267,32 +268,7 @@ export function ImageViewer() {
       let labelWidth = 0;
       let labelHeight = 0;
 
-      let labelText = null;
-      const matchCase = face.match_case;
-
-      const getFirstAlternativeName = () => {
-        if (face.person_name) return face.person_name;
-        const first = face.match_alternatives?.[0];
-        if (!first) return t('imageViewer.unknown');
-        return first.is_ignored ? 'ign' : first.name;
-      };
-
-      if (matchCase === 'ign') {
-        labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%)`;
-      } else if (matchCase === 'uncertain_ign') {
-        labelText = `${faceNumber}. ign (${(face.ignore_confidence || 0)}%) / ${getFirstAlternativeName()}`;
-      } else if (matchCase === 'uncertain_name') {
-        labelText = `${faceNumber}. ${getFirstAlternativeName()} / ign (${(face.ignore_confidence || 0)}%)`;
-      } else if (face.person_name) {
-        labelText = `${faceNumber}. ${face.person_name} (${((face.confidence || 0) * 100).toFixed(0)}%)`;
-      } else if (face.match_alternatives?.length > 0) {
-        const best = face.match_alternatives[0];
-        labelText = best.is_ignored
-          ? `${faceNumber}. ign? (${best.confidence}%)`
-          : `${faceNumber}. ${best.name}? (${best.confidence}%)`;
-      } else {
-        labelText = `${faceNumber}. ${t('imageViewer.unknown')}`;
-      }
+      const labelText = buildFaceLabel(face, faceNumber, t);
 
       if (labelText) {
         const metrics = ctx.measureText(labelText);
