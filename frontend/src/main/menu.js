@@ -478,18 +478,18 @@ function createApplicationMenu(mainWindow) {
         {
           // Secondary layout templates — no accelerators (Cmd+1..5 now drive the
           // pipeline steps above). These replace the layout wholesale.
+          //
+          // "Helbild" is intentionally NOT here: it never mapped to a full-image
+          // layout (its old action loaded the review layout), and a full image is
+          // already reachable via Visa → Bildvisare (Cmd+,), so keeping a
+          // mislabeled duplicate only confused. Comparison and Stats both carry
+          // accurate labels and real layouts.
           label: t('menu.window.layoutTemplates'),
           submenu: [
             {
               label: t('menu.window.comparisonMode'),
               click: () => {
                 sendMenuCommand('layout-template-comparison');
-              }
-            },
-            {
-              label: t('menu.window.fullImage'),
-              click: () => {
-                sendMenuCommand('layout-full-review');
               }
             },
             {
