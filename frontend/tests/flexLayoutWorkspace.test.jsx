@@ -66,6 +66,10 @@ vi.mock('../src/renderer/components/TrashPanel.jsx', () => ({ TrashPanel: marker
 vi.mock('../src/renderer/components/ImportModule.jsx', () => ({ ImportModule: markerComponent('import') }));
 vi.mock('../src/renderer/components/RenameNefModule.jsx', () => ({ RenameNefModule: markerComponent('rename-nef') }));
 vi.mock('../src/renderer/components/StartupLanding.jsx', () => ({ StartupLanding: () => <div data-testid="mock-landing" /> }));
+// The persistent WorkflowBar renders above the layout; it depends on the module
+// API (useEmitEvent) and workingFolder, neither relevant to the host-behavior
+// tests here. Stub it, as with the module components and the landing.
+vi.mock('../src/renderer/components/WorkflowBar.jsx', () => ({ WorkflowBar: () => <div data-testid="mock-workflow-bar" /> }));
 
 import {
   FlexLayoutWorkspace,

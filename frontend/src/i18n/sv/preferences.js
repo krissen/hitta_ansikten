@@ -53,6 +53,10 @@ module.exports = {
   },
   "layout": {
     "header": "Standardlayout",
+    "showWorkflowBar": {
+      "label": "Visa arbetsflödesrad",
+      "hint": "Visa den fasta raden med pipeline-stegen ovanför arbetsytan."
+    },
     "template": {
       "label": "Standardmall för layout",
       "hint": "Layout som används vid återställning eller första start.",
