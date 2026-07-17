@@ -770,6 +770,7 @@ export function FlexLayoutWorkspace() {
     // single mount-aware entry point that the old direct FileQueue IPC listener
     // couldn't provide.
     const handleQueueFilesIpc = async (payload) => {
+      setActiveStep('review');
       ensureQueueMounted();
       await moduleAPI.waitForListeners('file-queue-load', 2000);
       moduleAPI.emit('file-queue-load', payload || {});
