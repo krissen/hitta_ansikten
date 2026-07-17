@@ -24,6 +24,7 @@ import { preferences } from '../preferences.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { useConfirm } from '../../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
+import { signalExternalLoad } from '../../shared/scanScope.js';
 import { MODULE_COMPONENTS, MODULE_TITLES, getModuleRole, getModuleWeight, getModuleStep, isSingletonModule } from './moduleRegistry.js';
 import { useUIPreferences } from './uiPreferences.js';
 import { ShortcutsHelpOverlay } from './ShortcutsHelp.jsx';
@@ -661,6 +662,25 @@ export function FlexLayoutWorkspace() {
       moduleAPI.emit('culling-load', { roots, clear, recursive });
     };
     const offOpenCulling = window.ansiktenAPI.on('open-culling', handleOpenCulling);
+    // Same hand-off from inside the app (WorkflowBar "Fortsätt →" after Count):
+    // the moduleAPI bus carries the in-app emit, reusing the identical handler.
+    const offOpenCullingApp = moduleAPI.on('open-culling', handleOpenCulling);
+
+    // In-app hand-off into Count (Räkna spelare): morph into the count workspace
+    // and hand it the folder roots once it has subscribed. Used by the WorkflowBar
+    // "Fortsätt →" after Review and the chip dropdown's "Använd i Räkna/Gallra".
+    // waitForListeners guards the cold-start race where the module hasn't mounted.
+    const handleOpenCount = async ({ roots }) => {
+      // Signal the external load BEFORE the morph mounts Räkna, so its
+      // adopt-on-mount skips a scanScope-driven count (which would run a
+      // redundant backend count off a stale scope, flicker, then be superseded
+      // by count-load). Mirrors the cull-player/culling hand-off.
+      signalExternalLoad();
+      enterStep('count');
+      await moduleAPI.waitForListeners('count-load', 2000);
+      moduleAPI.emit('count-load', { roots });
+    };
+    const offOpenCount = moduleAPI.on('open-count', handleOpenCount);
 
     // CLI `ansikten import [DEST]`: morph into the solo import workspace and hand
     // it the optional destination. waitForListeners guards the cold-start race
@@ -726,6 +746,8 @@ export function FlexLayoutWorkspace() {
       unsubscribeImageLoaded();
       offMenuCommand?.();
       offOpenCulling?.();
+      offOpenCullingApp?.();
+      offOpenCount?.();
       offOpenImport?.();
       offOpenRenameNef?.();
       offOpenReviewQueue?.();

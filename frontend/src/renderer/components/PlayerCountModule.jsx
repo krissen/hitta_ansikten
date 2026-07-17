@@ -9,12 +9,12 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useBackend } from '../context/BackendContext.jsx';
-import { useModuleAPI } from '../hooks/useModuleEvent.js';
+import { useModuleAPI, useModuleEvent } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
 import { Button, Alert, ContextMenu } from './shared';
 import { useContextMenu } from '../hooks/useContextMenu.js';
-import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
-import { getWorkingFolder } from '../shared/workingFolder.js';
+import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad, takeExternalLoad } from '../shared/scanScope.js';
+import { getWorkingFolder, setWorkingFolder } from '../shared/workingFolder.js';
 import {
   DEFAULTS as COUNT_DEFAULTS,
   getCountSettings,
@@ -185,6 +185,11 @@ export function PlayerCountModule() {
         date_to: params.date_to,
         extension_preset: params.extension_preset,
       });
+      // Advance the pipeline anchor to the Count step so "Fortsätt →" can chain
+      // count → culling. Only re-points the shared anchor; adoption stays opt-in.
+      if (Array.isArray(params.roots) && params.roots.length > 0) {
+        setWorkingFolder({ roots: params.roots, step: 'count' });
+      }
       runCount(params);
       updateWatches(watchDirsFor(inp));
     },
@@ -206,12 +211,36 @@ export function PlayerCountModule() {
     [submitWith, input, perMatch]
   );
 
+  // Explicit hand-off INTO Count (WorkflowBar "Fortsätt →" from Review, or the
+  // chip dropdown's "Använd i Räkna/Gallra"): adopt the handed folder roots and
+  // run the count. This is a user button press, so running is intended — it does
+  // NOT violate the adopt-on-mount invariant (that governs passive mount, not an
+  // explicit navigation the user just triggered).
+  useModuleEvent('count-load', useCallback(({ roots } = {}) => {
+    // Consume the external-load flag that open-count set, unconditionally and
+    // FIRST. count-load always fires on an open-count hand-off, so this is the
+    // reliable consumption point: on a fresh mount adopt-on-mount already took it
+    // (no-op here); when Räkna was ALREADY mounted the morph's fast-path skips a
+    // remount, so adopt-on-mount never ran — without this the flag would linger
+    // and be swallowed by the next consumer (culling's adopt-on-mount), opening
+    // Gallra without its scope. count-load drives the count explicitly regardless.
+    takeExternalLoad();
+    if (!Array.isArray(roots) || roots.length === 0) return;
+    const next = { ...EMPTY_INPUT, roots: [...roots] };
+    setInput(next);
+    submitWith(next, perMatch);
+  }, [submitWith, perMatch]));
+
   // On open, adopt the shared scan scope (e.g. coming from Gallra spelare) when
   // the panel is still empty, so it shows the same files instead of starting
   // blank. Translates the scan scope into the InputBar shape (path-glob array →
   // single glob string; null dates → empty).
   useEffect(() => {
     if (lastParamsRef.current) return;
+    // An explicit count-load hand-off (open-count) signals an external load
+    // before this mounts: skip the adopt so we don't run a redundant count off a
+    // stale scanScope before count-load arrives. Mirrors culling's cull-player.
+    if (takeExternalLoad()) return;
     const s = getScanScope();
     if (!scanScopeHasSelection(s)) {
       // No shared scan scope to adopt. Fall back to the pipeline working-folder
@@ -577,7 +606,7 @@ export function PlayerCountModule() {
           </label>
           {isRefreshing && <span className="player-count-refreshing">{t('playerCount.refreshing')}</span>}
           <Button
-            variant="secondary"
+            variant="primary"
             onClick={openCull}
             disabled={!hasScope || isLoading}
             title={t('playerCount.gallraTitle')}

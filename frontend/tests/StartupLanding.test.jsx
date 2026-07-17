@@ -138,7 +138,8 @@ describe('StartupLanding — continue row (working-folder anchor)', () => {
   });
 
   it('shows no continue row for an anchor whose step has no next hand-off', () => {
-    setWorkingFolder({ roots: ['/events/cupen'], step: 'review' });
+    // culling is the terminal step — nothing continues past it.
+    setWorkingFolder({ roots: ['/events/cupen'], step: 'culling' });
     render(<StartupLanding onOpenModule={() => {}} />);
     expect(screen.queryByText(/Aktuell mapp/)).toBeNull();
   });

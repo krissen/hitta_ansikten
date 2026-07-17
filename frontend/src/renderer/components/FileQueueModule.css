@@ -17,6 +17,19 @@
   gap: var(--space-xs);
 }
 
+/* Source-folder label after the title: "Kö: <mapp>". Quiet, monospace path
+   feel, truncates so a long folder name never pushes the actions off-screen. */
+.file-queue-source {
+  margin-left: var(--space-sm);
+  color: var(--text-tertiary);
+  font-size: var(--font-sm);
+  font-weight: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40%;
+}
+
 /* Icon button styles now in theme.css (.btn-icon) */
 
 /* Toolbar */

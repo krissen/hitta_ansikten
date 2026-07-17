@@ -23,7 +23,7 @@ module.exports = {
   "destUsed": "Sparat i {path}",
   "ejected": "Kortet utmatat ✓",
   "ejectFailed": "Kortet kunde inte matas ut — dra ut det manuellt.",
-  "openRename": "Döp om filer…",
+  "openRename": "Nästa steg: Byt namn →",
   "errorsSummary": "{count} fel",
   "lostContact": "Kontakten med importen förlorades — kontrollera destinationen innan du kör igen.",
   "doneToast": {

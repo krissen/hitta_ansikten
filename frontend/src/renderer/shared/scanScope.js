@@ -5,9 +5,16 @@
 //
 // Only the SCAN fields are shared (roots, path-globs, recursion, date span,
 // extension preset) — not culling's player/name_glob filter, which Räkna spelare
-// doesn't use. No subscription is exposed: modules adopt on mount (FlexLayout
-// unmounts hidden tabs, so opening a tab re-runs mount), which keeps the two in
-// sync without a live cross-update loop.
+// doesn't use. Modules adopt on mount (FlexLayout unmounts hidden tabs, so
+// opening a tab re-runs mount), which keeps the two in sync without a live
+// cross-update loop.
+//
+// DISPLAY-ONLY subscription: `subscribeScanScope` exists SOLELY so a passive
+// status surface (the WorkflowBar chip dropdown) can show the current scope
+// live. It must NEVER drive a module's behavior — the adopt-on-mount invariant
+// above is deliberate, and a subscription that re-adopts on every publish would
+// reintroduce the cross-update loop it was designed out of. Read the scope in a
+// subscriber to RENDER it; never to load, scan, or mutate a module's state.
 //
 // Backed by sessionStorage so the scope survives a renderer reload (Cmd+R) — a
 // reload re-imports this module with a fresh `current`, so without a persisted
@@ -24,6 +31,8 @@ let current = null;
 // A reload re-imports this module (current = null); hydrate from sessionStorage on
 // first read so the adopt-on-mount effects see the pre-reload scope.
 let hydrated = false;
+// Display-only listeners (see header). Notified on every publish.
+const subscribers = new Set();
 
 function hydrate() {
   if (hydrated) return;
@@ -55,6 +64,23 @@ export function setScanScope(scope) {
   } catch {
     /* ignore — storage unavailable/full just falls back to in-memory only */
   }
+  for (const cb of subscribers) {
+    try {
+      cb(current);
+    } catch {
+      /* a broken subscriber must not stop the others */
+    }
+  }
+}
+
+/**
+ * Subscribe to scan-scope changes for DISPLAY ONLY. Returns an unsubscribe
+ * function; the callback receives the current scope (or null). See the module
+ * header: never use this to adopt/load/mutate a module — that stays adopt-on-mount.
+ */
+export function subscribeScanScope(cb) {
+  subscribers.add(cb);
+  return () => subscribers.delete(cb);
 }
 
 /** True if the scope actually selects something (a folder or a path-glob). */

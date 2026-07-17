@@ -82,9 +82,17 @@ describe('WorkflowBar', () => {
   });
 
   it('shows no Continue button when the anchor step has no next step', () => {
-    setWorkingFolder({ roots: ['/events/cupen'], step: 'review' });
+    // culling is terminal — no continuation past it.
+    setWorkingFolder({ roots: ['/events/cupen'], step: 'culling' });
     renderBar();
     expect(screen.queryByRole('button', { name: /Fortsätt/ })).toBeNull();
+  });
+
+  it('continues review → count with the anchor roots', () => {
+    setWorkingFolder({ roots: ['/events/cupen'], step: 'review' });
+    renderBar();
+    fireEvent.click(screen.getByRole('button', { name: /Fortsätt: Räkna spelare/ }));
+    expect(mockEmit).toHaveBeenCalledWith('open-count', { roots: ['/events/cupen'] });
   });
 
   it('opens the tools menu and routes a tool click to onOpenTool', () => {

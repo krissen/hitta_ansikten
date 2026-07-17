@@ -61,12 +61,16 @@ export const WORKFLOW_TOOLS = [
 ];
 
 // Which pipeline step the working-folder anchor should continue INTO, keyed by
-// the step that last set it. Each maps to the in-app hand-off event the
-// workspace already handles (both dismiss the landing: open-rename-nef via
-// openModule, open-review-queue via ensureQueueMounted).
+// the step that last set it. Each maps to an in-app hand-off event the workspace
+// handles by morphing into the next step and passing the anchor's roots. The
+// full chain: import → rename → review → count → culling. Every target listens
+// on the moduleAPI bus (WorkflowBar emits there), and adoption downstream stays
+// opt-in — the anchor only pre-fills.
 export const CONTINUE_BY_STEP = {
   import: { event: 'open-rename-nef', labelKey: 'startupLanding.continueRename' },
   rename: { event: 'open-review-queue', labelKey: 'startupLanding.continueReview' },
+  review: { event: 'open-count', labelKey: 'startupLanding.continueCount' },
+  count: { event: 'open-culling', labelKey: 'startupLanding.continueCull' },
 };
 
 /** Last path segment of a folder, for the "current folder" label. */
