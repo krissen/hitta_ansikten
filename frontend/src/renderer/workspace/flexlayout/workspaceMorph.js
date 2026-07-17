@@ -123,9 +123,14 @@ function parkTab(model, tab, borderId, backgroundName) {
   if (!isInBorder(tab)) {
     model.doAction(Actions.moveNode(id, borderId, DockLocation.CENTER, -1, false));
   }
+  // Label the parked tab "<background>: <module>" so several parked modules stay
+  // distinguishable (e.g. "Bakgrund: Filkö", "Bakgrund: Granska ansikten").
+  const label = backgroundName
+    ? `${backgroundName}: ${tabName(tab.getComponent())}`
+    : tabName(tab.getComponent());
   model.doAction(Actions.updateNodeAttributes(id, {
     enableRenderOnDemand: false,
-    ...(backgroundName ? { name: backgroundName } : {}),
+    name: label,
   }));
 }
 
