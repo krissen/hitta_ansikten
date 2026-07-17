@@ -15,6 +15,7 @@ const { createApplicationMenu } = require("./menu");
 const { t } = require("../i18n");
 const { parseCliArgs } = require("./cli-args");
 const { resolveLaunchCommand } = require("./launch-command");
+const { createLaunchQueue } = require("./launch-queue");
 const { deriveRawToken } = require("./raw-match");
 const { createRawIndexCache } = require("./raw-index");
 
@@ -248,18 +249,17 @@ function resolveLaunch(args) {
 
 // Deliver a workspace command to the renderer, but only after the renderer has
 // completed the workspace-ready handshake — before that its router listener
-// isn't attached and an IPC send would be lost. Held commands flush on ready.
-let launchCommand = null;
-let workspaceReady = false;
+// isn't attached and an IPC send would be lost. A FIFO queue holds commands
+// until ready (so an initial launch and a second-instance launch that both race
+// ahead deliver in order, not clobbering each other) and re-arms across renderer
+// reloads (markNotReady on did-start-loading below).
+const launchQueue = createLaunchQueue((cmd) => {
+  console.log("[Main] Sending workspace-command:", cmd.type);
+  mainWindow?.webContents.send("workspace-command", cmd);
+});
 
 function sendWorkspaceCommand(intent) {
-  if (!intent) return;
-  if (!mainWindow || !workspaceReady) {
-    launchCommand = intent;
-    return;
-  }
-  console.log("[Main] Sending workspace-command:", intent.type);
-  mainWindow.webContents.send("workspace-command", intent);
+  launchQueue.enqueue(intent);
 }
 
 /**
@@ -306,6 +306,14 @@ function createWorkspaceWindow() {
     mainWindow = null;
   });
 
+  // Re-arm the launch-command hold whenever the renderer starts (re)loading
+  // (Cmd+R, crash reload, navigation). Until it re-mounts and re-signals
+  // workspace-ready, its command router is gone, so a command sent now would
+  // hit a router-less page and be dropped; markNotReady queues it instead.
+  mainWindow.webContents.on("did-start-loading", () => {
+    launchQueue.markNotReady();
+  });
+
   // Track DevTools open/close state for renderer
   mainWindow.webContents.on("devtools-opened", () => {
     mainWindow.webContents.send("devtools-state-changed", true);
@@ -346,11 +354,12 @@ app.on("second-instance", async (event, argv, workingDirectory) => {
   const args = parseCommandLineArgs(argv);
   console.log("[Main] Parsed args:", JSON.stringify(args));
 
-  // Resolve to a single workspace command and dispatch it. The window is already
-  // up (workspaceReady), so it delivers immediately. A single Finder file
-  // (resolveLaunchCommand returns null, sets initialFilePath) is turned into an
-  // explicit load-image command here, since the renderer already consumed its
-  // one-shot get-initial-file on first mount.
+  // Resolve to a single workspace command and enqueue it. The window is normally
+  // up and ready, so the queue delivers immediately; if a reload is in flight it
+  // holds until the next workspace-ready (in FIFO order behind any earlier
+  // launch). A single Finder file (resolveLaunchCommand returns null, sets
+  // initialFilePath) is turned into an explicit load-image command here, since
+  // the renderer already consumed its one-shot get-initial-file on first mount.
   const { command, initialFile } = await resolveLaunch(args);
   if (command) {
     sendWorkspaceCommand(command);
@@ -412,9 +421,11 @@ app.whenReady().then(async () => {
   // be made — including path expansion — before that sync read can happen.
   try {
     const resolved = await resolveLaunch(initialArgs);
-    launchCommand = resolved.command;
+    // Enqueue now: the queue holds it (renderer not ready yet) and delivers on
+    // the workspace-ready handshake.
+    if (resolved.command) sendWorkspaceCommand(resolved.command);
     if (resolved.initialFile) initialFilePath = resolved.initialFile;
-    console.log("[Main] Launch command:", launchCommand ? launchCommand.type : "(none)");
+    console.log("[Main] Launch command:", resolved.command ? resolved.command.type : "(none)");
   } catch (err) {
     console.error("[Main] Failed to resolve launch command:", err);
   }
@@ -515,22 +526,19 @@ ipcMain.handle("get-version-info", () => {
 // Synchronous (sendSync) so there is no render where the landing flashes.
 ipcMain.on("get-launch-intent-sync", (e) => {
   e.returnValue = {
-    willLaunch: launchCommand != null || initialFilePath != null,
+    willLaunch: launchQueue.pending() > 0 || initialFilePath != null,
   };
 });
 
 // Workspace-ready handshake: the renderer signals once its command router and
-// listeners are live. Only then is it safe to deliver the launch command — an
+// listeners are live. Only then is it safe to deliver held launch commands — an
 // earlier IPC send would land before the router's listener is attached and be
-// lost. Replaces the did-finish-load + 1000ms setTimeout timing lottery.
+// lost. Replaces the did-finish-load + 1000ms setTimeout timing lottery. The
+// renderer re-signals on every mount, so this also drives redelivery after a
+// reload (see markNotReady on did-start-loading).
 ipcMain.on("workspace-ready", () => {
   console.log("[Main] Renderer workspace-ready");
-  workspaceReady = true;
-  if (launchCommand) {
-    const cmd = launchCommand;
-    launchCommand = null;
-    sendWorkspaceCommand(cmd);
-  }
+  launchQueue.markReady();
 });
 
 // Get initial file path (if app was launched with a file argument)
