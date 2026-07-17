@@ -13,8 +13,9 @@
  * Contents, left → right: numbered step buttons, the working-folder chip, a
  * "Fortsätt →" button when the anchor has a known next step, and a "Verktyg ▾"
  * menu of the non-pipeline modules. Opening paths are the workspace's existing
- * ones (steps via onOpenStep = openLandingStep; tools via onOpenTool =
- * openModule) — morphing navigation arrives in a later PR.
+ * ones (steps via onOpenStep = openWorkflowStep, the dirty-guarded wrapper
+ * around openLandingStep; tools via onOpenTool = openModule) — morphing
+ * navigation arrives in a later PR.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
