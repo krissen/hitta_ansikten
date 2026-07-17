@@ -90,18 +90,32 @@
   flex: 1 1 auto;
 }
 
-/* Working-folder chip. */
+/* Working-folder chip — a button opening the working-set status dropdown. */
+.workflow-bar-chip-wrap {
+  position: relative;
+}
+
 .workflow-bar-chip {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  max-width: 220px;
+  max-width: 240px;
   height: 24px;
   padding: 0 var(--space-sm);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   color: var(--text-primary);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.workflow-bar-chip:hover,
+.workflow-bar-chip.active {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
 }
 
 .workflow-bar-chip.empty {
@@ -113,6 +127,69 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Chip dropdown: per-working-set status + opt-in actions. */
+.workflow-bar-chip-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 280px;
+  max-width: 360px;
+  padding: var(--space-xs);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-style: normal;
+}
+
+.workflow-bar-chip-section-title {
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--text-tertiary);
+  font-size: var(--font-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workflow-bar-chip-sets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-bar-chip-set {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+}
+
+.workflow-bar-chip-set-label {
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  font-weight: 600;
+}
+
+.workflow-bar-chip-set-value {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-bar-chip-set.empty .workflow-bar-chip-set-value {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.workflow-bar-chip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
 }
 
 /* "Fortsätt →" — primary emphasis via accent. */

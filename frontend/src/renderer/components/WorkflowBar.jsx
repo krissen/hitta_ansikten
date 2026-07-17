@@ -5,38 +5,38 @@
  * module-row style) that keeps the five pipeline steps (Import → Rename →
  * Review → Count → Culling) one click away, instead of buried in the View menu
  * or reachable only from the empty-workspace landing. UX grounding:
- *   - N1 (visibility of status): the active step is always shown/highlighted.
+ *   - N1 (visibility of status): the active step is always shown/highlighted,
+ *     and the chip dropdown surfaces all three working sets on screen.
  *   - N6 (recognition over recall): the workflow is on screen, not recalled.
  *   - N4 (consistency): same steps, order and labels as StartupLanding, from the
  *     shared workflowSteps catalog.
  *
- * Contents, left → right: numbered step buttons, the working-folder chip, a
- * "Fortsätt →" button when the anchor has a known next step, and a "Verktyg ▾"
- * menu of the non-pipeline modules. Steps open via onOpenStep = openWorkflowStep,
- * which MORPHS the live workspace into the step (mounted modules keep their
- * state; a dirty Review / mid-processing File Queue is parked, not discarded);
- * tools open via onOpenTool = openModule as plain tabs.
+ * Contents, left → right: numbered step buttons, the working-folder chip (a
+ * button opening a per-working-set status dropdown), a "Fortsätt →" button when
+ * the anchor has a known next step, and a "Verktyg ▾" menu of the non-pipeline
+ * modules. Steps open via onOpenStep = openWorkflowStep, which MORPHS the live
+ * workspace into the step (mounted modules keep their state; a dirty Review /
+ * mid-processing File Queue is parked, not discarded); tools open via
+ * onOpenTool = openModule as plain tabs.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEmitEvent } from '../hooks/useModuleEvent.js';
-import { getWorkingFolder, subscribeWorkingFolder } from '../shared/workingFolder.js';
+import { useAnchoredDropdown } from '../hooks/useAnchoredDropdown.js';
+import { getWorkingFolder, setWorkingFolder, subscribeWorkingFolder } from '../shared/workingFolder.js';
+import { getScanScope, subscribeScanScope } from '../shared/scanScope.js';
+import { getQueueStatus, subscribeQueueStatus } from '../shared/queueStatus.js';
 import {
   WORKFLOW_STEPS,
   WORKFLOW_TOOLS,
   getContinuation,
   basename,
 } from '../workspace/flexlayout/workflowSteps.js';
+import { buildWorkingSetSummary } from './workflowBar/workingSetSummary.js';
 import { Icon } from './Icon.jsx';
+import { Button } from './shared';
 import { t } from '../../i18n/index.js';
 import './WorkflowBar.css';
-
-// Human label for the step that last set the anchor, or null if unknown. Used
-// only in the chip tooltip.
-function stepLabel(stepId) {
-  const entry = WORKFLOW_STEPS.find((s) => s.step === stepId);
-  return entry ? t(`modules.${entry.moduleId}`) : null;
-}
 
 /**
  * @param {object} props
@@ -47,44 +47,59 @@ function stepLabel(stepId) {
 export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
   const emit = useEmitEvent();
 
-  // The working-folder anchor drives both the chip and the Continue button;
-  // subscribe so both update live without remounting the bar.
+  // The three working sets drive the chip + its dropdown. All three are shared
+  // stores with display-only subscriptions, so the bar stays live without
+  // remounting (and without touching the modules' adopt-on-mount behavior).
   const [anchor, setAnchor] = useState(() => getWorkingFolder());
+  const [scan, setScan] = useState(() => getScanScope());
+  const [queue, setQueue] = useState(() => getQueueStatus());
   useEffect(() => subscribeWorkingFolder(setAnchor), []);
+  useEffect(() => subscribeScanScope(setScan), []);
+  useEffect(() => subscribeQueueStatus(setQueue), []);
 
   const cont = useMemo(() => getContinuation(anchor), [anchor]);
 
   const roots = Array.isArray(anchor?.roots) ? anchor.roots : [];
   const hasFolder = roots.length > 0;
   const folderName = hasFolder ? basename(roots[0]) : null;
-  const setByLabel = hasFolder ? stepLabel(anchor?.step) : null;
-  const chipTitle = hasFolder
-    ? (setByLabel
-        ? t('workflowBar.folderTooltipSetBy', { path: roots.join('\n'), step: setByLabel })
-        : roots.join('\n'))
-    : undefined;
+  const chipTitle = hasFolder ? roots.join('\n') : undefined;
 
-  // "Verktyg ▾" menu open state, closed on outside click / Escape.
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const toolsRef = useRef(null);
-  useEffect(() => {
-    if (!toolsOpen) return undefined;
-    const onDocDown = (e) => {
-      if (toolsRef.current && !toolsRef.current.contains(e.target)) setToolsOpen(false);
-    };
-    const onKey = (e) => { if (e.key === 'Escape') setToolsOpen(false); };
-    document.addEventListener('mousedown', onDocDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [toolsOpen]);
+  const summary = useMemo(
+    () => buildWorkingSetSummary(t, { queue, scan, anchor, steps: WORKFLOW_STEPS }),
+    [queue, scan, anchor],
+  );
+
+  // Two anchored popovers in this bar: the chip's working-set dropdown and the
+  // Verktyg menu. Both share the outside-click/Escape dismiss via the hook.
+  const chip = useAnchoredDropdown();
+  const tools = useAnchoredDropdown();
 
   const openTool = useCallback((moduleId) => {
-    setToolsOpen(false);
+    tools.close();
     onOpenTool(moduleId);
-  }, [onOpenTool]);
+  }, [tools, onOpenTool]);
+
+  // "Byt mapp…" — pick a folder and set ONLY the anchor (no step, so it offers no
+  // continuation until the user explicitly hands it off). Never auto-loads.
+  const changeFolder = useCallback(async () => {
+    chip.close();
+    const picked = await window.ansiktenAPI?.invoke('open-folder-paths');
+    if (Array.isArray(picked) && picked.length > 0) {
+      setWorkingFolder({ roots: picked });
+    }
+  }, [chip]);
+
+  // Opt-in hand-offs from the anchor into a downstream step. Both pass the
+  // anchor's roots; the target adopts them and never auto-runs on its own.
+  const useInReview = useCallback(() => {
+    chip.close();
+    if (hasFolder) emit('open-review-queue', { roots });
+  }, [chip, emit, hasFolder, roots]);
+
+  const useInCount = useCallback(() => {
+    chip.close();
+    if (hasFolder) emit('open-count', { roots });
+  }, [chip, emit, hasFolder, roots]);
 
   return (
     <div className="workflow-bar" role="toolbar" aria-label={t('workflowBar.label')}>
@@ -109,14 +124,46 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
 
       <div className="workflow-bar-spacer" />
 
-      <div
-        className={`workflow-bar-chip${hasFolder ? '' : ' empty'}`}
-        title={chipTitle}
-      >
-        <Icon name="folder" size={14} />
-        <span className="workflow-bar-chip-name">
-          {hasFolder ? folderName : t('workflowBar.noFolder')}
-        </span>
+      <div className="workflow-bar-chip-wrap" ref={chip.ref}>
+        <button
+          type="button"
+          className={`workflow-bar-chip${hasFolder ? '' : ' empty'}${chip.open ? ' active' : ''}`}
+          title={chipTitle}
+          aria-haspopup="menu"
+          aria-expanded={chip.open}
+          onClick={chip.toggle}
+        >
+          <Icon name="folder" size={14} />
+          <span className="workflow-bar-chip-name">
+            {hasFolder ? folderName : t('workflowBar.noFolder')}
+          </span>
+          <Icon name="chevron-down" size={13} />
+        </button>
+        {chip.open && (
+          <div className="workflow-bar-chip-menu" role="menu" aria-label={t('workflowBar.chipMenuLabel')}>
+            <div className="workflow-bar-chip-section-title">{t('workflowBar.summaryTitle')}</div>
+            <ul className="workflow-bar-chip-sets">
+              {summary.map((line) => (
+                <li key={line.key} className={`workflow-bar-chip-set${line.empty ? ' empty' : ''}`}>
+                  <span className="workflow-bar-chip-set-label">{line.label}</span>
+                  <span className="workflow-bar-chip-set-value">{line.value}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="workflow-bar-chip-section-title">{t('workflowBar.actionsLabel')}</div>
+            <div className="workflow-bar-chip-actions">
+              <Button variant="ghost" size="sm" onClick={changeFolder} title={t('workflowBar.changeFolderTitle')}>
+                {t('workflowBar.changeFolder')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={useInReview} disabled={!hasFolder} title={t('workflowBar.useInReviewTitle')}>
+                {t('workflowBar.useInReview')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={useInCount} disabled={!hasFolder} title={t('workflowBar.useInCountTitle')}>
+                {t('workflowBar.useInCount')}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {cont && (
@@ -130,18 +177,18 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
         </button>
       )}
 
-      <div className="workflow-bar-tools" ref={toolsRef}>
+      <div className="workflow-bar-tools" ref={tools.ref}>
         <button
           type="button"
-          className={`workflow-bar-tools-toggle${toolsOpen ? ' active' : ''}`}
+          className={`workflow-bar-tools-toggle${tools.open ? ' active' : ''}`}
           aria-haspopup="menu"
-          aria-expanded={toolsOpen}
-          onClick={() => setToolsOpen((v) => !v)}
+          aria-expanded={tools.open}
+          onClick={tools.toggle}
         >
           <span>{t('workflowBar.tools')}</span>
           <Icon name="chevron-down" size={14} />
         </button>
-        {toolsOpen && (
+        {tools.open && (
           <ul className="workflow-bar-tools-menu" role="menu">
             {WORKFLOW_TOOLS.map((tool) => (
               <li key={tool.moduleId} role="none">
