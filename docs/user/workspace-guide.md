@@ -235,6 +235,11 @@ ansikten culling MAPP             # bara MAPP
 ansikten culling -r MAPP          # MAPP + alla undermappar
 ```
 
+**Om en sökväg inte matchar något** (felstavning eller en glob utan träffar,
+t.ex. `ansikten culling /finns-inte`) öppnas ändå målsteget — men **tomt** —
+i stället för att appen fastnar i standardlayouten. Du landar alltså i Gallra-
+respektive Granska-vyn och kan välja mapp/filer därifrån.
+
 **Installation:** kommandot är skriptet [`bin/ansikten`](../../bin/ansikten) i
 repot. Länka in det i din PATH:
 
