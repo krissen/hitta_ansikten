@@ -44,6 +44,7 @@ import { createMenuCommandHandler } from './menuCommands.js';
 import { createWorkspaceRouter } from './workspaceCommands.js';
 import { StartupLanding } from '../../components/StartupLanding.jsx';
 import { WorkflowBar } from '../../components/WorkflowBar.jsx';
+import { hasBeenWelcomed, markWelcomed } from '../welcomeFlag.js';
 
 // Re-exported for the characterization tests (tests/flexLayoutWorkspace.test.jsx),
 // which import these from this module. The definitions now live in their own
@@ -59,15 +60,31 @@ export function FlexLayoutWorkspace() {
   const [model, setModel] = useState(null);
   const [ready, setReady] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
-  // Startup landing page: shown on an empty workspace, dismissed once a module
-  // is opened or an image is loaded. Suppressed when the main process will
-  // dispatch a launch command (so the landing would only flash before it opens
-  // the target). The renderer no longer guesses this from raw argument counts —
-  // the main process resolves it AFTER path expansion (`willLaunch`), so a path
-  // that expands to nothing (`ansikten culling /typo`) still gets an explicit
-  // launch command (open the step empty) and suppresses the landing accordingly.
+  // Startup landing page: the first-run welcome card, dismissed once a module is
+  // opened or an image is loaded. Shown only on the FIRST normal session — once
+  // dismissed, a persistent flag (welcomeFlag.js) suppresses it on every later
+  // launch, which drop straight into the workspace with the WorkflowBar. Also
+  // suppressed when the main process will dispatch a launch command (CLI start),
+  // so the card never flashes before the target step opens. The renderer no
+  // longer guesses launch from raw argument counts — the main process resolves it
+  // AFTER path expansion (`willLaunch`), so a path that expands to nothing
+  // (`ansikten culling /typo`) still gets an explicit launch command (open the
+  // step empty) and suppresses the landing accordingly.
   const willLaunch = !!window.ansiktenAPI?.launchIntent?.willLaunch;
-  const [showLanding, setShowLanding] = useState(!willLaunch);
+  const [showLanding, setShowLanding] = useState(() => !willLaunch && !hasBeenWelcomed());
+  // Dismiss the welcome card, and record "welcomed" ONLY if it was actually
+  // showing. Every dismissal path (open a step, load an image, close via the
+  // menu) routes through here. A CLI launch (willLaunch) dispatches a step/module
+  // open that reaches this too, but the card was never rendered then — marking it
+  // welcomed would silently burn the first-run guide for a CLI-first user. The
+  // functional updater reads the LIVE showLanding (never a stale closure);
+  // markWelcomed is idempotent, so a StrictMode double-invoke is harmless.
+  const dismissLanding = useCallback(() => {
+    setShowLanding((wasShowing) => {
+      if (wasShowing) markWelcomed();
+      return false;
+    });
+  }, []);
   // The single command router. Created once so dispatch is available (and can
   // buffer) before the model exists; handlers are wired once the model is ready.
   const routerRef = useRef(null);
@@ -175,7 +192,11 @@ export function FlexLayoutWorkspace() {
       }
     }
     // When the last module is closed and the workspace is empty, bring the
-    // startup landing back so there's always somewhere to go.
+    // welcome card back so there's always somewhere to go — UNCONDITIONALLY,
+    // independent of the first-run flag. The card fills the area under the
+    // always-visible WorkflowBar. The flag governs only whether the card shows
+    // at START over the non-empty default layout (first-run only); this
+    // empty-workspace fallback is separate and always on.
     let tabCount = 0;
     newModel.visitNodes((node) => {
       if (node.getType() === 'tab') tabCount += 1;
@@ -240,8 +261,8 @@ export function FlexLayoutWorkspace() {
       return;
     }
 
-    // Opening any module dismisses the startup landing page.
-    setShowLanding(false);
+    // Opening any module dismisses the welcome card (and marks it seen).
+    dismissLanding();
 
     // The bar highlights workflow context: opening/focusing a module that IS a
     // pipeline step (culling→culling, player-count→count, review-module→review,
@@ -299,7 +320,7 @@ export function FlexLayoutWorkspace() {
 
     markActiveStep();
     debug('FlexLayout', `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`);
-  }, [model, applyActiveStep]);
+  }, [model, applyActiveStep, dismissLanding]);
 
   // Close a panel by ID
   const closePanel = useCallback((panelId) => {
@@ -436,7 +457,7 @@ export function FlexLayoutWorkspace() {
       debugWarn('FlexLayout', `No workspace spec for step: ${stepId}`);
       return;
     }
-    setShowLanding(false);
+    dismissLanding();
     suppressPersistRef.current = true;
     try {
       applyWorkspace(model, spec, {
@@ -447,7 +468,7 @@ export function FlexLayoutWorkspace() {
       suppressPersistRef.current = false;
     }
     applyActiveStep(stepId);
-  }, [model, dirtyModuleSet, applyActiveStep]);
+  }, [model, dirtyModuleSet, applyActiveStep, dismissLanding]);
 
   // Open a pipeline step from the WorkflowBar, landing or a Cmd+1..5 accelerator.
   //
@@ -721,6 +742,12 @@ export function FlexLayoutWorkspace() {
       removeEmptyTabset,
       moveToNewTabset,
       moduleAPI,
+      // Help ▸ "Visa välkomstguiden" re-shows the first-run card on demand.
+      showWelcome: () => setShowLanding(true),
+      // Help ▸ "Tangentbordsgenvägar" toggles the shortcuts overlay — the same
+      // toggle the `?` key performs (the menu command had no handler before and
+      // fell through to a no-op moduleAPI broadcast).
+      toggleShortcutsHelp: () => setShowShortcutsHelp((prev) => !prev),
     });
     const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
@@ -763,7 +790,7 @@ export function FlexLayoutWorkspace() {
     // 'load-image' command: FileQueue uses hasListeners('load-image') to detect
     // when ImageViewer has mounted, and a permanent listener here would defeat
     // that guard and reintroduce a lost-event race on first queue load.
-    const unsubscribeImageLoaded = moduleAPI.on('image-loaded', () => setShowLanding(false));
+    const unsubscribeImageLoaded = moduleAPI.on('image-loaded', () => dismissLanding());
 
     // Listeners are registered and the router's handlers are wired — flush any
     // buffered intents and tell the main process the workspace is ready. The
@@ -786,7 +813,7 @@ export function FlexLayoutWorkspace() {
       offOpenReviewQueue?.();
       offReviewDirty?.();
     };
-  }, [ready, dispatch, router, addTabset, removeEmptyTabset, moduleAPI, moveToNewTabset]);
+  }, [ready, dispatch, router, addTabset, removeEmptyTabset, moduleAPI, moveToNewTabset, dismissLanding]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
@@ -853,8 +880,12 @@ export function FlexLayoutWorkspace() {
           onModelChange={handleModelChange}
           onAction={handleAction}
         />
+        {/* The welcome card fills the layout host (the area BELOW the persistent
+            WorkflowBar), not the whole viewport — so the bar stays visible and
+            interactive while the card is up. Modals (ShortcutsHelp, confirm)
+            still paint above it, being higher-z siblings of the shell. */}
+        {showLanding && <StartupLanding />}
       </div>
-      {showLanding && <StartupLanding />}
       {showShortcutsHelp && (
         <ShortcutsHelpOverlay
           onClose={() => setShowShortcutsHelp(false)}

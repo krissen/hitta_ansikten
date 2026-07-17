@@ -6,9 +6,12 @@
    remains here. */
 
 .startup-landing {
-  position: fixed;
+  /* Fills the layout host (its positioned parent), NOT the viewport, so the
+     persistent WorkflowBar above the host stays visible and clickable. z-index
+     sits above module content but below modals (--z-modal / ShortcutsHelp). */
+  position: absolute;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--z-sticky);
   display: flex;
   align-items: center;
   justify-content: center;
