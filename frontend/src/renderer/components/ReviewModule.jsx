@@ -29,6 +29,7 @@ import { useReviewKeyboard } from './review/useReviewKeyboard.js';
 import { useActiveTabset } from '../hooks/useActiveTabset.js';
 import {
   getTopMatch as getTopMatchPure,
+  resolveSuggestion,
   willAllBeDone,
   nextFaceIndex,
   confirmFaceState,
@@ -191,11 +192,13 @@ export function ReviewModule({ node }) {
     setCurrentFaceIndex(prev => {
       const newIndex = nextFaceIndex(detectedFaces, prev, direction, skipIndex);
 
-      // Only emit if we found an unconfirmed face (avoid centering on old face when all done)
+      // ALWAYS emit so ImageViewer's activeFaceIndex tracks Review's — otherwise
+      // the single-box highlight/label lags behind the face a keystroke acts on.
+      // Centering is a separate concern carried by `center`: only center when the
+      // target is an unconfirmed face (avoid jumping to an already-done face when
+      // navigation lands on one).
       const targetFace = detectedFaces[newIndex];
-      if (targetFace && !targetFace.is_confirmed) {
-        emit('active-face-changed', { index: newIndex });
-      }
+      emit('active-face-changed', { index: newIndex, center: !!targetFace && !targetFace.is_confirmed });
       return newIndex;
     });
   }, [detectedFaces, emit]);
@@ -213,8 +216,13 @@ export function ReviewModule({ node }) {
 
     setPendingConfirmations(prev => upsertConfirmation(prev, result.confirmation));
 
-    // Skip navigation if all faces will be done - auto-save will handle transition
-    if (!willAllBeDone(detectedFaces, index)) {
+    // Advance to the next unreviewed face. When this action completes the image
+    // (auto-save takes over, so navigation is skipped) still sync ImageViewer's
+    // active index to the acted-on face — with center:false so it doesn't jump
+    // to an already-confirmed target. Keep faces-detected (above) BEFORE this.
+    if (willAllBeDone(detectedFaces, index)) {
+      emit('active-face-changed', { index, center: false });
+    } else {
       navigateToFace(1, index);
     }
   }, [detectedFaces, currentImagePath, navigateToFace, emit]);
@@ -230,8 +238,13 @@ export function ReviewModule({ node }) {
 
     setPendingIgnores(prev => appendIgnore(prev, result.ignore));
 
-    // Skip navigation if all faces will be done - auto-save will handle transition
-    if (!willAllBeDone(detectedFaces, index)) {
+    // Advance to the next unreviewed face. When this action completes the image
+    // (auto-save takes over, so navigation is skipped) still sync ImageViewer's
+    // active index to the acted-on face — with center:false so it doesn't jump
+    // to an already-confirmed target. Keep faces-detected (above) BEFORE this.
+    if (willAllBeDone(detectedFaces, index)) {
+      emit('active-face-changed', { index, center: false });
+    } else {
       navigateToFace(1, index);
     }
   }, [detectedFaces, currentImagePath, navigateToFace, emit]);
@@ -714,12 +727,12 @@ export function ReviewModule({ node }) {
 
       if (inputValue) {
         confirmFace(currentFaceIndex, inputValue);
-      } else if (currentFace?.match_alternatives?.length > 0) {
-        const firstAlt = currentFace.match_alternatives[0];
-        if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+      } else {
+        const suggestion = resolveSuggestion(currentFace);
+        if (suggestion?.isIgnore) {
           ignoreFace(currentFaceIndex);
-        } else {
-          confirmFace(currentFaceIndex, firstAlt.name);
+        } else if (suggestion) {
+          confirmFace(currentFaceIndex, suggestion.name);
         }
       }
     },
@@ -731,12 +744,12 @@ export function ReviewModule({ node }) {
       const input = inputRefs.current[currentFaceIndex];
       if (input?.value?.trim()) {
         confirmFace(currentFaceIndex, input.value);
-      } else if (currentFace?.match_alternatives?.length > 0) {
-        const firstAlt = currentFace.match_alternatives[0];
-        if (firstAlt.is_ignored || firstAlt.name === 'ign') {
+      } else {
+        const suggestion = resolveSuggestion(currentFace);
+        if (suggestion?.isIgnore) {
           ignoreFace(currentFaceIndex);
-        } else {
-          confirmFace(currentFaceIndex, firstAlt.name);
+        } else if (suggestion) {
+          confirmFace(currentFaceIndex, suggestion.name);
         }
       }
     },

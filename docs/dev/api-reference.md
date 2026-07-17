@@ -95,6 +95,12 @@ Detect faces in an image.
 }
 ```
 
+`person_name` is always the name of the first non-ignored entry in
+`match_alternatives` — both are derived from the same ranked candidate list in a
+single matching pass, so `person_name` can never point to a different person than
+the recommended alternative. It is only set when `match_case` is `name` or
+`uncertain_name`; for other cases it is `null`.
+
 `disambiguated` is normally `null`. When the top-2 candidates are a registered
 confirmed-distinct pair (see `distinct-pairs`) and nearly equidistant from the
 probe (within `twin_margin`), a k-NN vote over both people's confirmed photos

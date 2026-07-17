@@ -28,56 +28,87 @@ Projektet använder [Semantic Versioning](https://semver.org/):
 
 ## Release-process
 
-### 1. Förbered koden
+Allt förberedande arbete sker på **dev**; master uppdateras enbart via en
+release-PR som mergas in. Feature-PR:er har redan granskats var för sig, så
+release-PR:en behöver ingen ny bot-reviewrunda.
+
+### 1. Förbered på dev (prep-commit)
+
+Säkerställ att du står på `dev` med senaste ändringar och att allt bygger:
 
 ```bash
-# Säkerställ att du är på master med senaste ändringar
-git checkout master
-git pull origin master
+git checkout dev
+git pull origin dev
 
-# Verifiera att allt bygger lokalt
 cd frontend
 npm run build:workspace
 npx electron .
 ```
 
-### 2. Roadmap -> Changelog (obligatoriskt)
+Gör sedan releaseförberedelsen i **en** commit:
 
-Arbetsprincip för planering och releaseförberedelse:
+1. **Roadmap → Changelog.** Flytta klara punkter från [`ROADMAP.md`](../../ROADMAP.md)
+   (löpande backlog/known issues/teknisk skuld; release-scopade prestandaplaner
+   ligger i [`docs/dev/performance-plan.md`](performance-plan.md)) till
+   `CHANGELOG.md` och finslipa dem. Det här håller roadmap framåtblickande och
+   changelog release-fokuserad.
+2. **Byt `[Unreleased]`-rubriken** till version + datum, t.ex.
+   `## [1.7.0] - 2026-07-17`. Innehållet under rubriken lämnas oförändrat.
+3. **Bumpa alla tre versionsnummer** till samma nummer som den kommande taggen:
+   - `frontend/package.json` → `version`
+   - `backend/pyproject.toml` → `version`
+   - `backend/api/server.py` → `version=` i `FastAPI(...)` (exponeras via
+     `/health`; se ROADMAP för den kända dubbleringen)
 
-1. Planera framtida arbete i [`ROADMAP.md`](../../ROADMAP.md) (löpande backlog/known issues/teknisk skuld); release-scopade prestandaplaner ligger i [`docs/dev/performance-plan.md`](performance-plan.md)
-2. När arbete är klart inför release, flytta relevanta punkter från roadmap till `CHANGELOG.md`
-3. Finslipa `CHANGELOG.md` så den beskriver ändringarna sedan senaste tag
+   Vid release-bygget är **`v*`-taggen auktoritativ** för frontend-versionen:
+   workflow-steget "Set version from tag" kör
+   `npm pkg set version=${GITHUB_REF_NAME#v}`, så `frontend/package.json` skrivs
+   över med taggens nummer i CI. De committade versionsnumren används alltså inte
+   av frontend-bygget — men de ska ändå hållas i synk så att fristående
+   backend-körning och `/health` rapporterar rätt.
 
-Det här håller roadmap framåtblickande och changelog release-fokuserad.
+Committa som en enda prep-commit:
 
-### 3. Uppdatera versionsnummer (bumpa båda)
-
-Vid release-bygget är **`v*`-taggen auktoritativ** för frontend-versionen:
-workflow-steget "Set version from tag" kör `npm pkg set version=${GITHUB_REF_NAME#v}`,
-så `frontend/package.json` skrivs över med taggens nummer i CI. De committade
-versionsnumren i repot används alltså inte av frontend-bygget — men de ska ändå
-hållas i synk så att fristående backend-körning och `/health` rapporterar rätt.
-
-Bumpa därför **båda** committade versionerna tillsammans, till samma nummer som taggen:
-
-- `frontend/package.json` → `version`
-- `backend/pyproject.toml` → `version` (och `version=` i `backend/api/server.py`,
-  som exponeras via `/health`; se ROADMAP för den kända dubbleringen)
-
-### 4. Skapa och pusha tag
-
-```bash
-# Skapa annoterad tag
-git tag -a v1.0.1 -m "Release v1.0.1"
-
-# Pusha tag till GitHub
-git push origin v1.0.1
+```
+(release) Prepare vX.Y.Z: changelog + version bump
 ```
 
-> **Viktigt:** Taggen måste börja med `v` (t.ex. `v1.0.1`, inte `1.0.1`).
+### 2. Öppna release-PR dev → master
 
-### 5. Övervaka bygget
+Öppna en PR från `dev` till `master` med titeln `Release vX.Y.Z` och minst en
+label (t.ex. `enhancement`) — **CI nekar PR:er utan label**:
+
+```bash
+gh pr create --base master --head dev \
+  --title "Release vX.Y.Z" \
+  --label enhancement \
+  --body "Release vX.Y.Z. Se CHANGELOG.md."
+```
+
+Ingen ny bot-reviewrunda behövs — innehållet är redan granskat per feature-PR.
+Merga PR:en som **mergecommit** (inte squash), så master behåller den fulla
+historiken:
+
+```bash
+gh pr merge --merge
+```
+
+### 3. Skapa och pusha tag på master
+
+Den annoterade taggen sätts på **mergecommiten på master** och pushas — det är
+pushen som triggar Release-workflowen:
+
+```bash
+git checkout master
+git pull origin master
+
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+> **Viktigt:** Taggen måste börja med `v` (t.ex. `v1.7.0`, inte `1.7.0`).
+
+### 4. Övervaka bygget
 
 1. Gå till [GitHub Actions](https://github.com/krissen/ansikten/actions)
 2. Klicka på "Release" workflow
@@ -88,12 +119,31 @@ Byggtider (ungefärliga):
 - Windows: ~10 minuter
 - Linux: ~6 minuter
 
-### 6. Publicera release
+### 5. Publicera release
 
 1. Gå till [GitHub Releases](https://github.com/krissen/ansikten/releases)
 2. Hitta draft-releasen (skapad automatiskt)
-3. Lägg till release notes
+3. Skriv release notes i `## Highlights`-format: en punktlista med de viktigaste
+   ändringarna sedan förra releasen, var och en med sitt PR-nummer, avslutad med
+   en länk till `CHANGELOG.md` på master för fullständig lista. Använd releasen
+   [v1.6.0](https://github.com/krissen/ansikten/releases) som förlaga.
 4. Klicka "Publish release"
+
+### 6. Installera lokalt (macOS)
+
+Efter publicering installeras releasen till `/Applications`. `bin/ansikten`-CLI:t
+pekar på `/Applications/Ansikten.app`, så detta steg krävs för att CLI:t ska köra
+den nya versionen — det ingår **alltid** i att släppa en release:
+
+```bash
+gh release download vX.Y.Z -p 'Ansikten-X.Y.Z-arm64.dmg' -D /tmp
+# Avsluta ev. körande Ansikten först
+hdiutil attach /tmp/Ansikten-X.Y.Z-arm64.dmg -nobrowse
+rm -rf /Applications/Ansikten.app
+cp -R "/Volumes/Ansikten X.Y.Z-arm64/Ansikten.app" /Applications/   # kontrollera volymnamnet med ls /Volumes
+hdiutil detach "/Volumes/Ansikten X.Y.Z-arm64"
+defaults read /Applications/Ansikten.app/Contents/Info.plist CFBundleShortVersionString  # ska visa X.Y.Z
+```
 
 ---
 

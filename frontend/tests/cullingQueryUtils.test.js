@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   statsScopeFromQuery,
+  scanScopeKey,
   isRaw,
   globBaseDir,
   basename,
   stripExt,
+  cullingPresetFrom,
 } from '../src/renderer/components/culling/cullingQueryUtils.js';
 
 describe('statsScopeFromQuery', () => {
@@ -56,6 +58,39 @@ describe('statsScopeFromQuery', () => {
   });
 });
 
+describe('scanScopeKey', () => {
+  it('returns null for a falsy scope', () => {
+    expect(scanScopeKey(null)).toBeNull();
+    expect(scanScopeKey(undefined)).toBeNull();
+  });
+
+  it('keys equal for scopes differing only in baseline/min_images (counting options)', () => {
+    const base = statsScopeFromQuery({ roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null });
+    const withCounts = statsScopeFromQuery(
+      { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null },
+      { baseline: 'mean', minImages: 9 }
+    );
+    expect(scanScopeKey(withCounts)).toBe(scanScopeKey(base));
+  });
+
+  it('keys differ when a scan field changes (roots / preset / recursive / dates / globs)', () => {
+    const s = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null };
+    const k = scanScopeKey(s);
+    expect(scanScopeKey({ ...s, roots: ['/b'] })).not.toBe(k);
+    expect(scanScopeKey({ ...s, globs: ['*.jpg'] })).not.toBe(k);
+    expect(scanScopeKey({ ...s, extension_preset: 'nef' })).not.toBe(k);
+    expect(scanScopeKey({ ...s, recursive: false })).not.toBe(k);
+    expect(scanScopeKey({ ...s, date_from: '2026-01-01' })).not.toBe(k);
+    expect(scanScopeKey({ ...s, date_to: '2026-02-01' })).not.toBe(k);
+  });
+
+  it('normalizes a missing field to null so absent vs. explicit-null key the same', () => {
+    const withNull = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null };
+    const missing = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true };
+    expect(scanScopeKey(missing)).toBe(scanScopeKey(withNull));
+  });
+});
+
 describe('isRaw', () => {
   it('recognises RAW extensions case-insensitively', () => {
     expect(isRaw('/p/x.NEF')).toBe(true);
@@ -79,6 +114,25 @@ describe('globBaseDir', () => {
   it('returns empty when there is no directory component', () => {
     expect(globBaseDir('*.jpg')).toBe('');
     expect(globBaseDir('literal')).toBe('');
+  });
+});
+
+describe('cullingPresetFrom', () => {
+  it('passes through the presets culling can represent', () => {
+    expect(cullingPresetFrom('jpg')).toBe('jpg');
+    expect(cullingPresetFrom('nef')).toBe('nef');
+    expect(cullingPresetFrom('raw')).toBe('raw');
+  });
+
+  it('maps Räkna-only presets (images/all) to jpg', () => {
+    expect(cullingPresetFrom('images')).toBe('jpg');
+    expect(cullingPresetFrom('all')).toBe('jpg');
+  });
+
+  it('falls back to jpg for a missing/unknown preset', () => {
+    expect(cullingPresetFrom(undefined)).toBe('jpg');
+    expect(cullingPresetFrom(null)).toBe('jpg');
+    expect(cullingPresetFrom('bogus')).toBe('jpg');
   });
 });
 

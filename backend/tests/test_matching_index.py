@@ -78,6 +78,19 @@ class NaiveMatcher:
                 rows.append(enc)
         return rows
 
+    def _strict_rows(self, entries):
+        # Mirrors _match_encoding / _match_encoding_alternatives: an explicit
+        # backend key equal to the active backend, and a 1-D encoding.
+        rows = []
+        for entry in entries:
+            if isinstance(entry, dict) and entry.get("backend") == self.backend.backend_name:
+                enc = entry.get("encoding")
+                if enc is not None:
+                    arr = np.asarray(enc)
+                    if arr.ndim == 1:
+                        rows.append(arr)
+        return rows
+
     def _is_hard_negative(self, hardneg, name, encoding, threshold):
         negs = self._lenient_rows(hardneg.get(name, [])) if hardneg else []
         if not negs:
@@ -86,12 +99,14 @@ class NaiveMatcher:
         return float(np.min(d)) < threshold
 
     def match_encoding(self, known, encoding, hardneg=None, hard_neg_thr=0.45):
+        # STRICT candidate set (same as alternatives), so person_name and
+        # match_alternatives[0] can never diverge.
         best_name = None
         best_distance = None
         for name, entries in known.items():
             if self._is_hard_negative(hardneg or {}, name, encoding, hard_neg_thr):
                 continue
-            person = self._lenient_rows(entries)
+            person = self._strict_rows(entries)
             if person:
                 distances = self.backend.compute_distances(np.array(person), encoding)
                 md = float(np.min(distances))

@@ -194,7 +194,7 @@ def test_cache_key_without_registry_uses_version_zero(tmp_path, monkeypatch):
     monkeypatch.setattr(det_mod, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
     svc = _service()
     # Registry version 0 (no file) + strategy token from the fake backend's det_size.
-    assert svc._detection_cache_key("abc123") == "abc123@0#d1280x1280+t0"
+    assert svc._detection_cache_key("abc123") == "abc123@0#d1280x1280+t0+s1"
 
 
 def test_cache_key_folds_registry_version(tmp_path, monkeypatch):
@@ -230,7 +230,7 @@ def test_cache_key_includes_strategy_token(tmp_path, monkeypatch):
     monkeypatch.setattr(det_mod, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
     svc = _service()
     key = svc._detection_cache_key("abc123")
-    assert key.endswith("#d1280x1280+t0")
+    assert key.endswith("#d1280x1280+t0+s1")
 
 
 def test_cache_key_changes_when_det_size_differs(tmp_path, monkeypatch):
@@ -240,15 +240,15 @@ def test_cache_key_changes_when_det_size_differs(tmp_path, monkeypatch):
     svc.backend.det_size = (640, 640)
     key_640 = svc._detection_cache_key("h")
     assert key_1280 != key_640
-    assert key_640.endswith("#d640x640+t0")
+    assert key_640.endswith("#d640x640+t0+s1")
 
 
 def test_strategy_token_defaults_when_backend_has_no_det_size(tmp_path, monkeypatch):
-    # A backend without det_size (e.g. dlib) yields d0x0+t0 rather than crashing.
+    # A backend without det_size (e.g. dlib) yields d0x0+t0+s1 rather than crashing.
     monkeypatch.setattr(det_mod, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
     svc = _service()
     svc.backend.det_size = None
-    assert svc._detection_strategy_token() == "d0x0+t0"
+    assert svc._detection_strategy_token() == "d0x0+t0+s1"
 
 
 def test_cached_detection_meta_roundtrip(tmp_path, monkeypatch):

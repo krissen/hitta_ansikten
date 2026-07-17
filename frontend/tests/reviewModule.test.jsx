@@ -244,7 +244,8 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
     await act(async () => {
       fireEvent.keyDown(document, { key: 'ArrowDown' });
     });
-    expect(lastEmit('active-face-changed')).toEqual({ index: 1 });
+    // center:true — the target (face 1) is unconfirmed, so ImageViewer centers.
+    expect(lastEmit('active-face-changed')).toEqual({ index: 1, center: true });
   });
 
   it('a digit key selects the matching alternative and confirms', async () => {
@@ -308,7 +309,7 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
     await act(async () => {
       fireEvent.keyDown(document, { key: 'ArrowDown' });
     });
-    expect(lastEmit('active-face-changed')).toEqual({ index: 1 });
+    expect(lastEmit('active-face-changed')).toEqual({ index: 1, center: true });
   });
 
   it('typing in a name input does NOT trigger single-key shortcuts (guard)', async () => {
@@ -390,7 +391,32 @@ describe('ReviewModule — face state transitions (characterization)', () => {
       fireEvent.keyDown(document, { key: 'Enter' });
     });
     // doConfirmFace → navigateToFace(1, 0) → active face becomes index 1.
-    expect(lastEmit('active-face-changed')).toEqual({ index: 1 });
+    expect(lastEmit('active-face-changed')).toEqual({ index: 1, center: true });
+  });
+
+  it('confirming the LAST unreviewed face still syncs the active index (center:false)', async () => {
+    // willAllBeDone: navigation is skipped (auto-save takes over), but
+    // ImageViewer's active index must still follow the acted-on face so the
+    // single-box highlight matches. center:false avoids jumping to a done face.
+    await mountReview();
+    await loadImage([
+      face({ is_confirmed: true, person_name: 'Ada' }),
+      face({ match_alternatives: [{ name: 'Bo', confidence: 90 }] }),
+    ]);
+    // Move to the one unreviewed face (index 1), then confirm it.
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'ArrowDown' });
+    });
+    h.emit.mockClear();
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Enter' });
+    });
+    expect(lastEmit('active-face-changed')).toEqual({ index: 1, center: false });
+    // faces-detected is emitted BEFORE active-face-changed on the confirm path.
+    const order = h.emit.mock.calls.map(([e]) => e).filter(
+      (e) => e === 'faces-detected' || e === 'active-face-changed',
+    );
+    expect(order.indexOf('faces-detected')).toBeLessThan(order.indexOf('active-face-changed'));
   });
 
   it('double-clicking a confirmed face unconfirms it (input reappears)', async () => {

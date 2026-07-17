@@ -198,7 +198,7 @@ def parse_filename(fn: str) -> tuple[datetime | None, list[str] | None]:
         return None, None
 
     raw_names = [n.strip() for n in names_part.split(",_") if n.strip()]
-    names = [re.sub(r"-\d+$", "", n) for n in raw_names]
+    names = [re.sub(r"(?:-\d+)+$", "", n) for n in raw_names]
     return dt, names
 
 

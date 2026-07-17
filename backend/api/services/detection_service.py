@@ -318,17 +318,31 @@ class DetectionService:
                 rgb_resized, location, bbox, det_score
             )
 
-            # Match against known faces
-            best_match, best_distance = self._match_encoding(encoding)
+            # Single matching pass: rank the known candidates once, then derive
+            # the suggested person from the SAME ranked list the accept keys use.
+            # A separate _match_encoding() pass runs against a different (lenient)
+            # candidate set and could pick a different person than
+            # match_alternatives[0], so the image viewer's name and the accept
+            # keys would disagree. Deriving both from one list eliminates that.
+            match_alternatives = self._match_encoding_alternatives(encoding, top_n=9)
 
-            # Match against ignored faces
+            # Best known match = nearest non-ignored alternative. The single
+            # "ign" entry (if present) is skipped here and handled below via
+            # _match_ignored. No alternative → no name suggestion.
+            best_match, best_distance = None, None
+            for alt in match_alternatives:
+                if not alt.get("is_ignored"):
+                    best_match = alt["name"]
+                    best_distance = alt["distance"]
+                    break
+
+            # Match against ignored faces. The "ign" alternative can be truncated
+            # out of the top-N, so read the ignore distance from the dedicated
+            # matcher rather than from the alternatives list.
             _, ignore_distance = self._match_ignored(encoding)
 
             # Determine match case (name, ign, uncertain_name, uncertain_ign, unknown)
             match_case = self._determine_match_case(best_distance, ignore_distance)
-
-            # Get match alternatives (top-N)
-            match_alternatives = self._match_encoding_alternatives(encoding, top_n=9)
 
             # Twin tie-break: when the top-2 candidates are a registered
             # confirmed-distinct pair and nearly equidistant from the probe, the
@@ -419,13 +433,21 @@ class DetectionService:
         return float(np.min(neg_distances)) < threshold
 
     def _match_encoding(self, encoding: np.ndarray) -> Tuple[Optional[str], Optional[float]]:
-        """Match encoding against known faces database"""
+        """Match encoding against known faces database.
+
+        Scans the STRICT candidate set (explicit backend key equal to the active
+        backend, 1-D encodings) — the same set ``_match_encoding_alternatives``
+        ranks — so the nearest person returned here can never diverge from
+        ``match_alternatives[0]``. The detection flow derives ``person_name`` from
+        the alternatives directly; this helper is retained for the parity tests
+        and cross-service coherence checks.
+        """
         # Precompiled per-person matrices from the version-invalidated index
         # (rebuilt only when the DB changes); distance computation runs here.
         hard_neg_thr = self._hard_negative_threshold()
         best_name = None
         best_distance = None
-        for name, matrix in self._get_matching_index().known_lenient_items():
+        for name, matrix in self._get_matching_index().known_strict_items():
             # Skip a person the user has explicitly rejected for a face like this.
             if self._is_hard_negative(name, encoding, hard_neg_thr):
                 continue
@@ -448,11 +470,16 @@ class DetectionService:
         """Detection-strategy token for the cache key.
 
         Encodes the parameters that change detection *results* (not just the
-        matching step): the effective det_size and a tiling flag. Format:
-        ``d{W}x{H}+t{0|1}`` — e.g. ``d1280x1280+t0``. Tiling is off (``t0``)
-        until PR 4b enables it; keeping the placeholder here lets that change
-        extend the token without another key-format change. Backends without a
-        det_size (e.g. dlib) yield ``d0x0+t0``.
+        matching step): the effective det_size, a tiling flag, and a suggestion
+        schema version. Format: ``d{W}x{H}+t{0|1}+s{N}`` — e.g.
+        ``d1280x1280+t0+s1``. Tiling is off (``t0``) until PR 4b enables it;
+        keeping the placeholder here lets that change extend the token without
+        another key-format change. The ``s`` field is the suggestion schema
+        version: it is bumped whenever the meaning of the cached match fields
+        changes, so pre-existing cached responses cannot be served stale. ``s1``
+        marks the single-pass person_name derivation (person_name and
+        match_alternatives[0] always agree). Backends without a det_size (e.g.
+        dlib) yield ``d0x0+t0+s1``.
         """
         det_size = getattr(self.backend, "det_size", None)
         if isinstance(det_size, (list, tuple)) and len(det_size) == 2:
@@ -460,7 +487,8 @@ class DetectionService:
         else:
             w = h = 0
         tiling = 0  # placeholder; PR 4b will drive this from config
-        return f"d{w}x{h}+t{tiling}"
+        suggestion_schema = 1  # single-pass person_name derivation
+        return f"d{w}x{h}+t{tiling}+s{suggestion_schema}"
 
     def _detection_cache_key(self, file_hash: str) -> str:
         """Detection-cache key: file hash + registry version + strategy token.

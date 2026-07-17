@@ -75,6 +75,7 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  overflow: hidden;
   background: var(--bg-secondary);
 }
 
@@ -92,14 +93,30 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
+  min-width: 0;
   font-size: 0.85em;
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-subtle);
 }
 
-/* Push the baseline select + numeric value to the right of the "Spelare" label. */
+/* Push the baseline select + numeric value to the right of the "Spelare" label.
+   The label is the only element allowed to shrink: at narrow column widths it
+   ellipsizes instead of pushing the select/input past the edge (see the
+   flex-shrink: 0 on the controls below). */
 .culling-stats-header > span:first-child {
   margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Keep the header controls at their intrinsic size so the squeeze lands on the
+   label above, not on the select/input (which get unusable when shrunk). */
+.culling-stats-baseline-select,
+.culling-stats-minimages-input,
+.culling-stats-baseline {
+  flex-shrink: 0;
 }
 
 /* Compact median/mean select in the stats header (reuses .form-select theming). */
