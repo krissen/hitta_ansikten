@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // WorkflowBar derives steps from the module catalog (imports every component);
 // ThemeEditor pulls in the theme manager (localStorage at import). Mock it.
@@ -136,6 +136,42 @@ describe('WorkflowBar', () => {
       } finally {
         window.matchMedia = original;
       }
+    });
+
+    describe('focus + tab-order (a11y)', () => {
+      beforeEach(() => vi.useFakeTimers());
+      afterEach(() => vi.useRealTimers());
+
+      it('takes the hidden row out of the tab order via inert, and the hover-zone restores it', () => {
+        renderBar({ autoHide: true });
+        expect(bar().hasAttribute('inert')).toBe(false);
+
+        // Idle past the hide delay → row hidden and inert (buttons unfocusable).
+        act(() => vi.advanceTimersByTime(5000));
+        expect(bar().classList.contains('hidden')).toBe(true);
+        expect(bar().hasAttribute('inert')).toBe(true);
+
+        // The top-edge catch-strip brings it back and clears inert.
+        act(() => fireEvent.mouseEnter(document.querySelector('.workflow-bar-hover-zone')));
+        expect(bar().classList.contains('hidden')).toBe(false);
+        expect(bar().hasAttribute('inert')).toBe(false);
+      });
+
+      it('keyboard focus reveals the row and pauses the hide timer', () => {
+        renderBar({ autoHide: true });
+        const step = screen.getByRole('button', { name: /Importera/ });
+
+        // Tab into the row: it reveals and, while focused, never slides away.
+        act(() => fireEvent.focus(step));
+        act(() => vi.advanceTimersByTime(10000));
+        expect(bar().classList.contains('hidden')).toBe(false);
+        expect(bar().hasAttribute('inert')).toBe(false);
+
+        // Blur out of the row → the timer resumes and it hides.
+        act(() => fireEvent.blur(step, { relatedTarget: document.body }));
+        act(() => vi.advanceTimersByTime(5000));
+        expect(bar().classList.contains('hidden')).toBe(true);
+      });
     });
   });
 });

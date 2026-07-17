@@ -96,6 +96,12 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = fal
   // Reduced motion: the global media block already neutralises the transition;
   // this switches the hidden mechanism to a plain fade (no slide, no phosphor).
   const reducedMotion = useMemo(() => prefersReducedMotion(), []);
+  // Keyboard focus reaching the bar reveals it (a Tab into a just-idle but still
+  // visible row surfaces it before it slides away) and pauses the timer.
+  const handleFocus = useCallback(() => {
+    setFocusWithin(true);
+    reveal();
+  }, [reveal]);
   const handleBlur = useCallback((e) => {
     if (!e.currentTarget.contains(e.relatedTarget)) setFocusWithin(false);
   }, []);
@@ -152,10 +158,15 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = fal
         className={barClass}
         role="toolbar"
         aria-label={t('workflowBar.label')}
-        aria-hidden={hidden ? 'true' : undefined}
+        // When hidden, `inert` takes the whole row out of the tab order and the
+        // a11y tree (and blocks pointer hits) — so its buttons are never
+        // focusable-while-hidden (the aria-hidden-with-focusable antipattern).
+        // The catch-strip and step changes (Cmd+1..5) are the keyboard/mouse
+        // ways back in; focus can only land here once the row is revealed.
+        inert={hidden ? true : undefined}
         onMouseEnter={autoHide ? () => setHovering(true) : undefined}
         onMouseLeave={autoHide ? () => setHovering(false) : undefined}
-        onFocus={autoHide ? () => setFocusWithin(true) : undefined}
+        onFocus={autoHide ? handleFocus : undefined}
         onBlur={autoHide ? handleBlur : undefined}
       >
       <div className="workflow-bar-steps">
