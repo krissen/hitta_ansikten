@@ -18,11 +18,26 @@ are not abstract; each names the concrete place it lives.
 The user should always see where they are in the pipeline and what the app is
 doing.
 
-- The **WorkflowBar** (`components/WorkflowBar.jsx`) is always visible above the
-  layout and highlights the active pipeline step. The active step is tracked in
+- The **WorkflowBar** (`components/WorkflowBar.jsx`) sits above the layout and
+  highlights the active pipeline step. The active step is tracked in
   `FlexLayoutWorkspace` (`activeStep`) and set both by step clicks and by the
   in-app hand-off events (`open-rename-nef`, `open-review-queue`, `open-culling`,
   `open-import`).
+- **Autohide (default on, opt-out).** By default the bar slides away after a few
+  seconds idle so the workspace reclaims the height (Lightroom module-row
+  convention). The N1 discoverability cost — a hidden bar can't show status — is
+  paid back two ways so the row is never *recalled*, only *revealed*: a thin
+  top-edge hover-zone with a hairline hint brings it down on hover, and **every
+  step change reveals it briefly** (`useAutoHide.js` keys the reveal off
+  `activeStep`) so the user always sees where the active step landed. An open
+  dropdown, keyboard focus inside the bar (`:focus-within`), or the pointer
+  resting on it pause the hide timer, so the row can't slide out from under a
+  menu or mid tab-navigation (keyboard reach never depends on the mouse-only
+  hover-zone). The timer logic is a headless hook (`useWorkflowBarAutoHide`); the
+  slide + accent phosphor pulse are CSS-only and neutralised under
+  `prefers-reduced-motion`. Users who want the old always-visible behaviour turn
+  autohide off (`workspace.workflowBarAutoHide`) — independent of the
+  show/hide-entirely toggle (`workspace.showWorkflowBar`).
 - The **working-folder chip** shows which event folder the pipeline is anchored
   to (`shared/workingFolder.js`), and clicking it opens a dropdown with the live
   status of all three working sets at once — the file queue, the scan scope, and
@@ -218,8 +233,8 @@ These are hard rules for anyone adding or moving UI.
 8. **The StartupLanding is orientation, not navigation.** On an empty workspace
    it shows a welcome + a hint pointing at the WorkflowBar — nothing more. The
    steps, the working-set chip, the "Fortsätt →" continuation and the tools menu
-   all live in the always-visible bar, which is the **single source** for
-   navigation and continuation. Do not re-add step/tool/continue controls to the
+   all live in the persistent bar (autohide reveals it on hover / step change),
+   which is the **single source** for navigation and continuation. Do not re-add step/tool/continue controls to the
    landing: the bar is present on the empty workspace too, so duplicating them
    there only recreates the double-affordance problem.
 

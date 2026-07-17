@@ -69,8 +69,27 @@ pipeline-stegen i ordning:
 - **Verktyg ▾** öppnar övriga vyer (Databashantering, Statistik, Loggar,
   Inställningar, m.fl.) som inte är en del av det linjära flödet.
 
-Raden kan döljas under **Inställningar → Layout → Visa arbetsflödesrad** (på som
-standard).
+**Automatisk döljning.** Som standard glider raden undan efter några sekunders
+inaktivitet, så arbetsytan får hela höjden. Den kommer fram igen när du:
+
+- för muspekaren till skärmens **överkant** (en tunn kantlinje visar var raden
+  ligger),
+- **byter steg** (klick, `Cmd+1`–`Cmd+5` eller en **Fortsätt →**/hand-off) — då
+  visas raden en kort stund så du ser var det aktiva steget hamnade, och glider
+  sedan undan igen, eller
+- **tabbar** in i raden med tangentbordet.
+
+En öppen meny (arbetsmapp-chippen eller **Verktyg ▾**) eller muspekaren som
+vilar på raden pausar nedräkningen, så raden aldrig försvinner mitt i ett val.
+Reveal-effekten är en kort vertikal glidning med ett svagt fosforsken i temats
+accentfärg; med **reducerad rörelse** påslaget i operativsystemet tonar raden
+in/ut utan animation.
+
+Två oberoende inställningar under **Inställningar → Layout** styr raden:
+
+- **Visa arbetsflödesrad** (på som standard) — döljer raden helt.
+- **Dölj arbetsflödesraden automatiskt** (på som standard) — slå av för att låta
+  raden **alltid vara synlig**.
 
 ---
 

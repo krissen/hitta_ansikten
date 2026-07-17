@@ -84,7 +84,7 @@ function SliderField({ label, hint, value, onChange, min, max, step = 1 }) {
 /**
  * Checkbox field
  */
-function CheckboxField({ label, hint, checked, onChange }) {
+function CheckboxField({ label, hint, checked, onChange, disabled }) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   return (
@@ -94,6 +94,7 @@ function CheckboxField({ label, hint, checked, onChange }) {
           id={id}
           type="checkbox"
           checked={checked}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.checked)}
           aria-describedby={hintId}
         />
@@ -421,6 +422,13 @@ export function PreferencesModule({ api }) {
         hint={t('preferences.layout.showWorkflowBar.hint')}
         checked={prefs.workspace?.showWorkflowBar ?? true}
         onChange={(v) => updatePref('workspace.showWorkflowBar', v)}
+      />
+      <CheckboxField
+        label={t('preferences.layout.workflowBarAutoHide.label')}
+        hint={t('preferences.layout.workflowBarAutoHide.hint')}
+        checked={prefs.workspace?.workflowBarAutoHide ?? true}
+        disabled={(prefs.workspace?.showWorkflowBar ?? true) === false}
+        onChange={(v) => updatePref('workspace.workflowBarAutoHide', v)}
       />
       <SelectField
         label={t('preferences.layout.template.label')}
