@@ -509,6 +509,10 @@ export function FlexLayoutWorkspace() {
     //     rebuilds the proper surface rather than opening a bare module.
     const reviewDirty = reviewDirtyRef.current.size > 0;
     if (step != null && hasModuleTab(moduleId) && (step === activeStep || reviewDirty)) {
+      // Focus the surface and sync the bar highlight — the fast-path can fire
+      // via the dirty clause with step !== activeStep (cold start: activeStep
+      // null, dirty click on a mounted step), so the marking must follow focus.
+      setActiveStep(step);
       openModule(moduleId);
       return;
     }
