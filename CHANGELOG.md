@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 This changelog is initialized from git commit history after `v1.0.0` and can be refined before upcoming releases.
 
-## [Unreleased]
+## [1.7.0] - 2026-07-17
 
 ### Fixed
 - **Staplade `-N`-dubblettsuffix i filnamn strippas nu bort ur parsade namn.** Lightroom kan stapla dublettsuffix på exporterade kopior (t.ex. `Valter-2-2`, `Valter-2-3`), men namnparsningen tog bara bort en avslutande `-N`-grupp, så `Valter-2-2` blev `Valter-2` i stället för `Valter`. Både backend (`core/playerstats.parse_filename`) och frontend (`culling-names.cleanName`) strippar nu alla avslutande `-N`-grupper (`(?:-\d+)+$`); bindestrecksnamn utan avslutande siffror (t.ex. `Anna-Lena`) bevaras och tidsstämpelns burst-markör (`-N` direkt efter `HHMMSS`) påverkas inte.
