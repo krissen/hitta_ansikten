@@ -129,7 +129,7 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
           type="button"
           className={`workflow-bar-chip${hasFolder ? '' : ' empty'}${chip.open ? ' active' : ''}`}
           title={chipTitle}
-          aria-haspopup="menu"
+          aria-haspopup="true"
           aria-expanded={chip.open}
           onClick={chip.toggle}
         >
@@ -140,7 +140,10 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
           <Icon name="chevron-down" size={13} />
         </button>
         {chip.open && (
-          <div className="workflow-bar-chip-menu" role="menu" aria-label={t('workflowBar.chipMenuLabel')}>
+          // A status popover (headings, status lines, action buttons), not a menu
+          // of menuitems — role=group, not role=menu (which would mislabel the
+          // mixed content to AT). The Verktyg menu below IS a real menu.
+          <div className="workflow-bar-chip-menu" role="group" aria-label={t('workflowBar.chipMenuLabel')}>
             <div className="workflow-bar-chip-section-title">{t('workflowBar.summaryTitle')}</div>
             <ul className="workflow-bar-chip-sets">
               {summary.map((line) => (
