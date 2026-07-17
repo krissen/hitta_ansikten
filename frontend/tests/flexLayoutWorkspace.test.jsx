@@ -528,6 +528,26 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(tabComponents(window.workspace.model)).toContain('review-module');
   });
 
+  it('round-trip review → culling → review preserves the File Queue node id (parked, then un-parked)', async () => {
+    // Enter review and mount the queue.
+    await act(async () => { window.workspace.enterStep('review'); });
+    const queueId = tabId(window.workspace.model, 'file-queue');
+    expect(queueId).toBeTruthy();
+
+    // Switch to culling: the queue is keepMounted → parked (still a tab node),
+    // not deleted. Only culling is a real (non-border) surface tab.
+    await act(async () => { window.workspace.enterStep('culling'); });
+    expect(tabComponents(window.workspace.model)).toContain('culling');
+    // Same node id survives the park (state preserved).
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueId);
+
+    // Back to review: the queue is un-parked into the trio, same node id.
+    await act(async () => { window.workspace.enterStep('review'); });
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueId);
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+  });
+
   it('enterStep(review) builds the full trio from a queue-less start (blank start)', async () => {
     // Database preset: no queue, no review surface. Morph builds the trio.
     await dispatch('layout-database');
