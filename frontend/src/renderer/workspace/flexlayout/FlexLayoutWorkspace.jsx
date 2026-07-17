@@ -489,22 +489,30 @@ export function FlexLayoutWorkspace() {
   // open" fallback — confirm before discarding. Cancel leaves everything as is.
   const openWorkflowStep = useCallback(async (moduleId) => {
     const step = getModuleStep(moduleId);
-    // Clicking the step that is already active is not a step change: just focus
-    // its surface (openModule selects the existing singleton) and stop. Falling
-    // through would run the dirty prompt + layout reload and could discard
-    // unsaved Review edits even though the user didn't leave the step.
-    //
-    // Gate the no-op on the step's module still being IN the model: activeStep
-    // can go stale (the user closed the step's tabs or loaded another layout
-    // from the menu while activeStep lingered on, say, 'review'). Then a
-    // shortcut-focus would openModule a bare Review with no queue/viewer — a
-    // dead end. When the tab is gone, fall through to the full path so
-    // openLandingStep rebuilds the proper surface.
-    if (step != null && step === activeStep && hasModuleTab(moduleId)) {
+    // Focus fast-path (no layout rebuild) vs. full path (dirty guard +
+    // openLandingStep rebuild), decided by two facts:
+    //   - the clicked step's module is already IN the model (hasModuleTab), and
+    //   - either it's the active step, or Review has unsaved edits.
+    // Rationale:
+    //   (N5) The discard prompt must NEVER show when the clicked step's module
+    //     is already mounted — there's nothing to lose by focusing it. This
+    //     covers the "click the step I'm already on" case even when activeStep
+    //     is stale/null (fresh default Review layout: activeStep is null but
+    //     Review is mounted and dirty → focus, don't prompt-and-discard).
+    //   Rebuild only happens when nothing can be lost (clean) or after an
+    //     explicit confirm when leaving for ANOTHER step. A clean click on a
+    //     mounted-but-not-active step still falls through so the canonical
+    //     surface is built (e.g. default Review+Viewer → full queue-review),
+    //     instead of no-oping into a queue-less dead end.
+    //   When the module is absent (activeStep gone stale after its tabs were
+    //     closed / another layout loaded), fall through so openLandingStep
+    //     rebuilds the proper surface rather than opening a bare module.
+    const reviewDirty = reviewDirtyRef.current.size > 0;
+    if (step != null && hasModuleTab(moduleId) && (step === activeStep || reviewDirty)) {
       openModule(moduleId);
       return;
     }
-    if (reviewDirtyRef.current.size > 0) {
+    if (reviewDirty) {
       const ok = await confirm({
         message: t('workflowBar.unsavedStepChange'),
         confirmLabel: t('workflowBar.switchAnyway'),

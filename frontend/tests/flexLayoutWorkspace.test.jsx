@@ -401,6 +401,36 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     ]);
   });
 
+  it('a dirty click on the mounted step focuses it (no confirm/reload) even when activeStep is null', async () => {
+    // Fresh default Review layout: review-module is mounted, activeStep is null.
+    const before = reviewTabId(window.workspace.model);
+    expect(before).toBeTruthy();
+
+    const dirty = moduleApiHandler('review-dirty');
+    await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
+    h.confirm.mockClear();
+    await act(async () => { await window.workspace.openWorkflowStep('review-module'); });
+
+    // Mounted + dirty → focus, never the discard prompt (N5); layout untouched.
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(reviewTabId(window.workspace.model)).toBe(before);
+  });
+
+  it('a clean click on the mounted-but-not-active step rebuilds the canonical surface', async () => {
+    // Fresh default Review layout (review + viewer, NO queue), activeStep null,
+    // nothing dirty. A clean click must build the full queue-review surface, not
+    // no-op into a queue-less dead end.
+    expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
+    await act(async () => { await window.workspace.openWorkflowStep('review-module'); });
+
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(tabComponents(window.workspace.model).sort()).toEqual([
+      'file-queue',
+      'image-viewer',
+      'review-module',
+    ]);
+  });
+
   it('queue-files IPC mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
     expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
     const handler = ipcHandler('queue-files');
