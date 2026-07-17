@@ -101,6 +101,27 @@ function hasTab(model, moduleId) {
 }
 
 /**
+ * Reveal a module's tab when it is hidden BEHIND another tab in a real tabset —
+ * used to surface the Image Viewer when an image loads while the viewer sits
+ * behind the File Queue companion tab. No-op (returns false) when the tab is
+ * absent, already visible, or parked in a border. Returns true iff it selected
+ * the tab.
+ *
+ * @param {import('flexlayout-react').Model} model
+ * @param {string} moduleId
+ * @returns {boolean}
+ */
+export function revealHiddenModuleTab(model, moduleId) {
+  if (!model) return false;
+  const tab = findTab(model, moduleId);
+  if (!tab) return false;
+  if (tab.isVisible?.()) return false; // already the visible tab
+  if (tab.getParent?.()?.getType?.() !== 'tabset') return false; // parked / no host
+  model.doAction(Actions.selectTab(tab.getId()));
+  return true;
+}
+
+/**
  * The largest real (non-border) tabset by weight, area fallback. Mirrors
  * tabsetUtils' main-area heuristic but kept local so this engine stays a small
  * pure module. Returns null when there is no real tabset.

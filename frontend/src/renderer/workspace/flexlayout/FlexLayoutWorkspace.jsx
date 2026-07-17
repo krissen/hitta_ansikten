@@ -16,7 +16,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName, ensureBottomBorder } from './layouts.js';
 import { resolvePlacementTabset, applyPlacement, ensureActiveTabset } from './tabsetUtils.js';
-import { applyWorkspace } from './workspaceMorph.js';
+import { applyWorkspace, revealHiddenModuleTab } from './workspaceMorph.js';
 import { getWorkspaceSpec } from './workflows.js';
 import {
   snapshotStepSpec,
@@ -361,14 +361,9 @@ export function FlexLayoutWorkspace() {
   // whether or not the queue tab is the visible one (see FileQueueModule).
   useEffect(() => {
     if (!model) return;
-    const off = moduleAPI.on('image-loaded', () => {
-      const viewer = findModuleTab('image-viewer');
-      if (viewer && !viewer.isVisible() && viewer.getParent()?.getType?.() === 'tabset') {
-        model.doAction(Actions.selectTab(viewer.getId()));
-      }
-    });
+    const off = moduleAPI.on('image-loaded', () => revealHiddenModuleTab(model, 'image-viewer'));
     return off;
-  }, [model, moduleAPI, findModuleTab]);
+  }, [model, moduleAPI]);
 
   // Factory function for FlexLayout
   const factory = useCallback((node) => {
