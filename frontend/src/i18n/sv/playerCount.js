@@ -5,7 +5,8 @@ module.exports = {
   "perMatch": "Per match",
   "refreshing": "uppdaterar…",
   // Toolbar button: hand the current scope over to Gallra spelare (culling).
-  "gallra": "Gallra",
+  // Uses the shared "Nästa steg: <verb> →" hand-off formulation.
+  "gallra": "Nästa steg: Gallra →",
   "gallraTitle": "Öppna Gallra spelare med samma urval",
 
   // Body states

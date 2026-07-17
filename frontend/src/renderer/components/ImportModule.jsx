@@ -391,8 +391,8 @@ export function ImportModule() {
               <div className="import-warn">{t('import.errorsSummary', { count: summary.errorCount })}</div>
             )}
             {importedDest && (
-              <div className="import-next">
-                <Button variant="secondary" size="sm" onClick={openRename}>
+              <div className="import-next handoff-next">
+                <Button variant="primary" size="sm" onClick={openRename}>
                   {t('import.openRename')}
                 </Button>
               </div>

@@ -30,7 +30,7 @@ module.exports = {
     "other": "Bytte namn på {count} filer"
   },
   "errorPrefix": "Fel: {message}",
-  "reviewFaces": "Granska ansikten…",
+  "reviewFaces": "Nästa steg: Granska ansikten →",
   "restore": "Återställ namn…",
   "restoreExecute": "Återställ",
   "restoreEmptyPrompt": "Slår upp varje NEF via SHA1 och återställer det bekräftade namnet.",
