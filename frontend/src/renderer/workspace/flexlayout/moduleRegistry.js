@@ -58,7 +58,7 @@ import { RenameNefModule } from '../../components/RenameNefModule.jsx';
 export const MODULE_CATALOG = {
   'image-viewer': { component: ImageViewer, role: 'main' },
   'original-view': { component: OriginalView, role: 'main' },
-  'log-viewer': { component: LogViewer, role: 'bottom' },
+  'log-viewer': { component: LogViewer, role: 'bottom', weight: 20 },
   'statistics-dashboard': { component: StatisticsDashboard, role: 'main' },
   'review-module': { component: ReviewModule, role: 'side', weight: 15, step: 'review' },
   'database-management': { component: DatabaseManagement, role: 'main' },
@@ -101,4 +101,17 @@ export function getModuleRole(moduleId) {
 export function isSingletonModule(moduleId) {
   const entry = MODULE_CATALOG[moduleId];
   return entry ? entry.singleton !== false : false;
+}
+
+/**
+ * Declared role weight for a module, or null when it has none. Used to size a
+ * fresh side/bottom split so the new pane opens at its catalog proportion (e.g.
+ * 15) with the main area keeping the rest, instead of FlexLayout's default
+ * halving. Every split-producing role ('side'/'bottom') carries a weight; 'main'
+ * modules never split, so a null here is expected and means "no resize".
+ * @param {string} moduleId
+ * @returns {number | null}
+ */
+export function getModuleWeight(moduleId) {
+  return MODULE_CATALOG[moduleId]?.weight ?? null;
 }

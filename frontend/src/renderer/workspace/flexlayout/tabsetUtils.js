@@ -3,7 +3,7 @@
  * isolation).
  */
 
-import { Actions } from 'flexlayout-react';
+import { Actions, DockLocation } from 'flexlayout-react';
 
 /**
  * Collect every tabset in the model with its geometry, for placement decisions.
@@ -172,6 +172,46 @@ export function resolvePlacementTabset(model, role) {
 
   // 'main' (and any unknown role): the main working area.
   return { tabsetId: main.getId() };
+}
+
+/**
+ * Add a tab into the model at a resolved placement, sizing a fresh split to the
+ * module's declared role weight. Returns the added TabNode (or whatever
+ * doAction returns).
+ *
+ * Placement forms (from resolvePlacementTabset):
+ *   { tabsetId }            → add as a CENTER tab into that tabset (no resize).
+ *   { split, refTabsetId }  → split `refTabsetId` LEFT/BOTTOM into a new tabset.
+ *
+ * Split sizing: FlexLayout 0.8.17 gives a fresh split its default weight, which
+ * HALVES the target — so a 15%-catalog side pane would open at 50% and could end
+ * up with a weight >= the main area, which then breaks role resolution (main is
+ * picked by weight). When `paneWeight` is given for a split, pin the new tabset
+ * to it and give the rest (100 - paneWeight) to the reference tabset, keeping the
+ * new side/bottom pane strictly narrower/shorter than main. Weights are relative
+ * within their row/column, so the pair renders at paneWeight : (100 - paneWeight).
+ *
+ * @param {import('flexlayout-react').Model} model
+ * @param {object} tabJson the tab node JSON to add.
+ * @param {{ tabsetId: string } | { split: 'left' | 'bottom', refTabsetId: string }} placement
+ * @param {number | null} [paneWeight] declared role weight for split sizing.
+ * @returns {object}
+ */
+export function applyPlacement(model, tabJson, placement, paneWeight = null) {
+  if (placement.tabsetId) {
+    // select=true so the new tab is shown (not added behind the current one).
+    return model.doAction(Actions.addNode(tabJson, placement.tabsetId, DockLocation.CENTER, -1, true));
+  }
+
+  const location = placement.split === 'bottom' ? DockLocation.BOTTOM : DockLocation.LEFT;
+  const added = model.doAction(Actions.addNode(tabJson, placement.refTabsetId, location, -1, true));
+
+  const newTabsetId = added?.getParent?.()?.getId?.();
+  if (newTabsetId && paneWeight != null) {
+    model.doAction(Actions.updateNodeAttributes(newTabsetId, { weight: paneWeight }));
+    model.doAction(Actions.updateNodeAttributes(placement.refTabsetId, { weight: 100 - paneWeight }));
+  }
+  return added;
 }
 
 /**

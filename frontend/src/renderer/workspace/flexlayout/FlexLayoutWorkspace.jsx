@@ -15,13 +15,13 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
-import { resolvePlacementTabset, ensureActiveTabset } from './tabsetUtils.js';
+import { resolvePlacementTabset, applyPlacement, ensureActiveTabset } from './tabsetUtils.js';
 import { retranslateTabNames } from './tabNames.js';
 import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
-import { MODULE_COMPONENTS, MODULE_TITLES, getModuleRole, isSingletonModule } from './moduleRegistry.js';
+import { MODULE_COMPONENTS, MODULE_TITLES, getModuleRole, getModuleWeight, isSingletonModule } from './moduleRegistry.js';
 import { useUIPreferences } from './uiPreferences.js';
 import { ShortcutsHelpOverlay } from './ShortcutsHelp.jsx';
 import {
@@ -237,18 +237,10 @@ export function FlexLayoutWorkspace() {
       return;
     }
 
-    // select=true so the new tab is shown (not added behind the current one).
-    let added;
-    if (placement.tabsetId) {
-      added = model.doAction(
-        Actions.addNode(tabJson, placement.tabsetId, DockLocation.CENTER, -1, true)
-      );
-    } else {
-      const location = placement.split === 'bottom' ? DockLocation.BOTTOM : DockLocation.LEFT;
-      added = model.doAction(
-        Actions.addNode(tabJson, placement.refTabsetId, location, -1, true)
-      );
-    }
+    // Add the tab at the resolved placement; a fresh split is sized to the
+    // module's declared role weight so a side/bottom pane opens narrow and never
+    // ends up weighing >= main (which would confuse later role resolution).
+    const added = applyPlacement(model, tabJson, placement, getModuleWeight(moduleId));
 
     // Make the host tabset active so the switch is visible and later opens dock
     // here too (matches the pre-placement behavior).
