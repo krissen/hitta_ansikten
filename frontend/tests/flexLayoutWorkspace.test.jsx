@@ -612,6 +612,26 @@ describe('FlexLayoutWorkspace — welcome card (visibility + first-run)', () => 
     expect(container.querySelector('[data-testid="mock-workflow-bar"]')).toBeTruthy();
   });
 
+  it('emptying the workspace brings the card back even for a welcomed user (fallback is unconditional)', async () => {
+    // The first-run flag governs only the at-START card over the default layout.
+    // Closing every view empties the model, and the "somewhere to go" fallback
+    // must re-show the card regardless of the flag — under the always-visible bar.
+    window.localStorage.setItem('ansikten-welcomed', 'true');
+    const { container } = await mountWorkspace();
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeNull();
+
+    const ids = [];
+    window.workspace.model.visitNodes((n) => {
+      if (n.getType() === 'tab') ids.push(n.getId());
+    });
+    await act(async () => {
+      ids.forEach((id) => window.workspace.closePanel(id));
+    });
+
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="mock-workflow-bar"]')).toBeTruthy();
+  });
+
   it('a corrupt flag fails open to SHOWING the card (first-run guarantee)', async () => {
     window.localStorage.setItem('ansikten-welcomed', 'garbage');
     const { container } = await mountWorkspace();

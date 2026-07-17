@@ -215,16 +215,24 @@ These are hard rules for anyone adding or moving UI.
    landing: the bar is present on the empty workspace too, so duplicating them
    there only recreates the double-affordance problem.
 
-   The card is **first-run-only** and **never covers the bar**. It renders inside
-   the layout host (`.workspace-layout-host`, the area *below* the bar) as an
-   `absolute` fill, not a `fixed` viewport overlay — so the WorkflowBar stays
-   visible and clickable while the card is up (modals still paint above it). A
-   persistent flag (`ansikten-welcomed`, `workspace/welcomeFlag.js`) is set on the
-   first dismissal (open a step, load an image, or close it via the menu), and
-   every later launch drops straight into the workspace with no card. The flag is
-   fail-open toward showing (missing/corrupt → not yet welcomed), CLI launches
-   (`willLaunch`) never show it, and **Help ▸ "Visa välkomstguiden"**
-   (`show-welcome`) brings it back on demand.
+   The card **never covers the bar** and is **first-run-only at start**. It
+   renders inside the layout host (`.workspace-layout-host`, the area *below* the
+   bar) as an `absolute` fill, not a `fixed` viewport overlay — so the WorkflowBar
+   stays visible and clickable while the card is up (modals still paint above it).
+   A persistent flag (`ansikten-welcomed`, `workspace/welcomeFlag.js`) is set on
+   the first dismissal (open a step, load an image, or close it via the menu). The
+   flag governs **only** whether the card shows at START over the non-empty
+   default layout: first run shows it, later launches drop straight into the
+   workspace with no card. There are **two distinct triggers**, and the flag gates
+   only the first:
+   - **At start**, over the default layout — first-run-only (the flag).
+   - **Empty workspace** (every view closed) — the card returns
+     **unconditionally**, independent of the flag, so the workspace is never a
+     dead end. It fills the host under the always-visible bar.
+
+   The flag is fail-open toward showing (missing/corrupt → not yet welcomed), CLI
+   launches (`willLaunch`) never show it at start, and **Help ▸ "Visa
+   välkomstguiden"** (`show-welcome`) brings it back on demand.
 
 ---
 

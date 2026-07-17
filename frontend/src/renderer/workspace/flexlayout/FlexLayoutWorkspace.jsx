@@ -186,14 +186,16 @@ export function FlexLayoutWorkspace() {
       }
     }
     // When the last module is closed and the workspace is empty, bring the
-    // welcome card back ONLY for a first-run user who never dismissed it — the
-    // WorkflowBar is always there, so a returning user gets a clean empty
-    // workspace, not the card again.
+    // welcome card back so there's always somewhere to go — UNCONDITIONALLY,
+    // independent of the first-run flag. The card fills the area under the
+    // always-visible WorkflowBar. The flag governs only whether the card shows
+    // at START over the non-empty default layout (first-run only); this
+    // empty-workspace fallback is separate and always on.
     let tabCount = 0;
     newModel.visitNodes((node) => {
       if (node.getType() === 'tab') tabCount += 1;
     });
-    if (tabCount === 0 && !hasBeenWelcomed()) setShowLanding(true);
+    if (tabCount === 0) setShowLanding(true);
   }, []);
 
   // Focus tab content when tab is selected (via tab header click)
