@@ -24,7 +24,17 @@ doing.
   in-app hand-off events (`open-rename-nef`, `open-review-queue`, `open-culling`,
   `open-import`).
 - The **working-folder chip** shows which event folder the pipeline is anchored
-  to (`shared/workingFolder.js`).
+  to (`shared/workingFolder.js`), and clicking it opens a dropdown with the live
+  status of all three working sets at once — the file queue, the scan scope, and
+  the anchor. This answers "which file queue belongs to which flow?" on screen
+  (N6) instead of making the user reconstruct it. The status lines are built by a
+  pure helper (`components/workflowBar/workingSetSummary.js`) fed by display-only
+  subscriptions on the shared stores (`subscribeScanScope`, `subscribeQueueStatus`,
+  `subscribeWorkingFolder`). **Display-only means display-only:** a subscription
+  may render status, never drive a module (the modules' adopt-on-mount stays the
+  single adoption path — see navigation rule 4).
+- The **file queue** labels its source folder in the module header (`Kö: <mapp>`)
+  so a queue is never anonymous.
 - Long operations report through the WebSocket progress channel and toasts, not
   silent spinners.
 
@@ -112,7 +122,20 @@ These are hard rules for anyone adding or moving UI.
 4. **Adopting a working set is always opt-in.** The three working sets (file
    queue, scan scope, import destination) and the shared working-folder anchor
    are never auto-loaded. A later step reads the anchor to seed a **default** or
-   to offer a **button** ("Fortsätt →"); it never starts work on its own.
+   to offer a **button** ("Fortsätt →", the chip dropdown's "Använd i …"); it
+   never starts work on its own. The chip dropdown may *subscribe* to the shared
+   stores, but only to render status — a subscription must never re-adopt or
+   mutate a module. Anchor-setting is not adoption: Review (on folder-load) and
+   Räkna (on a run count) re-point the anchor with their `step`, which only
+   changes what **Fortsätt →** offers next; it loads nothing.
+
+   The hand-off buttons between steps use one formulation — **Nästa steg:
+   `<verb>` →**, a primary button — so the forward move reads the same
+   everywhere. The event mechanics behind each button are unchanged; only the
+   label/placement are standardised. The full continuation chain lives in
+   `CONTINUE_BY_STEP` (`workflowSteps.js`): import → rename → review → count →
+   culling, each mapping to a moduleAPI hand-off event the workspace handles by
+   morphing into the next step and passing the anchor's roots.
 
 5. **New modules register with a role and, if part of the pipeline, a step.**
    Add the catalog entry (role + optional `step`), add the step to `STEP_ORDER`

@@ -44,9 +44,23 @@ pipeline-stegen i ordning:
   (`Cmd+Shift+L`) bygger om arbetsytan och frågar först om det finns osparat.
 - Det **aktiva steget** är markerat, så du alltid ser var i flödet du är.
 - **Arbetsmapp-chippen** (📁) till höger visar vilken mapp pipelinen är förankrad
-  till. Håll muspekaren över den för full sökväg och vilket steg som satte den.
+  till. **Klicka på den** för att öppna en översikt över de tre arbetsmängderna:
+  - **Kö** — hur många filer filkön har (och hur många som är klara) och från
+    vilken mapp.
+  - **Skanning** — mappen Räkna/Gallra arbetar mot, plus om skanningen är
+    rekursiv, har globfilter eller ett datumspann.
+  - **Ankare** — mappen pipelinen är förankrad till och vilket steg som satte den.
+
+  Under statusen finns tre knappar som du styr själv (ingenting laddas
+  automatiskt): **Byt mapp…** väljer en ny mapp och sätter bara ankaret;
+  **Använd i Granska** öppnar Granska med ankarets mapp; **Använd i Räkna/Gallra**
+  öppnar Räkna med ankarets mapp.
+- Filkömodulens huvud visar källmappen (**Kö: `<mapp>`**), så du ser vilken kö
+  som hör till vilket flöde.
 - När ett steg har ett känt nästa steg visas en **Fortsätt →**-knapp som tar dig
-  vidare med samma mapp.
+  vidare med samma mapp — hela vägen `Importera → Byt namn → Granska → Räkna →
+  Gallra`. Mellan stegen heter framåtknappen enhetligt **Nästa steg: `<verb>`
+  →**.
 - **Verktyg ▾** öppnar övriga vyer (Databashantering, Statistik, Loggar,
   Inställningar, m.fl.) som inte är en del av det linjära flödet.
 
