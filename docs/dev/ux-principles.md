@@ -49,9 +49,9 @@ doing.
 
 ### N4 — Consistency and standards
 
-- The WorkflowBar and StartupLanding render the **same** steps, in the same
-  order, with the same labels, from **one** source: `workflowSteps.js`
-  (`WORKFLOW_STEPS`, `WORKFLOW_TOOLS`, `CONTINUE_BY_STEP`). Never fork this list.
+- The pipeline steps, tools and continuation chain come from **one** source:
+  `workflowSteps.js` (`WORKFLOW_STEPS`, `WORKFLOW_TOOLS`, `CONTINUE_BY_STEP`).
+  The WorkflowBar renders them; never fork this list.
 - A module's placement is a property of the module, not of the moment — see the
   navigation rules. The same command always lands a module in the same kind of
   area.
@@ -74,10 +74,14 @@ doing.
 
 ### N7 — Flexibility and efficiency of use
 
-- Steps are reachable three ways: the WorkflowBar (persistent), the
-  StartupLanding (empty workspace), and the CLI verbs (`ansikten faces|culling|
-  import`). Power users get keyboard shortcuts and the tools menu; newcomers get
-  the numbered steps.
+- Steps are reachable two ways: the WorkflowBar (persistent — clicks or
+  `Cmd+1..5`) and the CLI verbs (`ansikten faces|culling|import`). The
+  StartupLanding is a welcome/orientation card, not a second step surface (see
+  navigation rule 8). Power users get keyboard shortcuts and the tools menu;
+  newcomers get the numbered steps in the bar.
+- **Each step remembers its layout.** Re-entering a step restores the shape the
+  user left it in (extra pane, changed weights), not the bare factory — see
+  navigation rule 7.
 
 ### N8 — Aesthetic and minimalist design
 
@@ -114,10 +118,14 @@ These are hard rules for anyone adding or moving UI.
    **parked** in a collapsed bottom "background" border — kept alive, out of the
    way — rather than closed. Two consequences follow:
    - A step switch is **non-destructive**, so it needs **no discard prompt**. The
-     only path that still confirms is **Reset layout**, which alone rebuilds the
-     model via `Model.fromJson` (`loadLayout`).
-   - Full-model replacement (`loadLayout`) is reserved for Reset layout and the
-     initial load; never put it on a path a live panel can be on.
+     only path that still confirms is **Reset layout / Reset all layouts**, which
+     forget remembered tweaks (rule 7); when a step is active they re-morph to the
+     step's **factory** spec (`enterStep(step, { useMemory: false })`), and only
+     on a non-pipeline surface (no active step) do they rebuild the model via
+     `Model.fromJson` (`loadLayout`).
+   - Full-model replacement (`loadLayout`) is reserved for the reset paths on a
+     non-step surface and the initial load; never put it on a path a live panel
+     can be on.
 
 4. **Adopting a working set is always opt-in.** The three working sets (file
    queue, scan scope, import destination) and the shared working-folder anchor
@@ -139,7 +147,7 @@ These are hard rules for anyone adding or moving UI.
 
 5. **New modules register with a role and, if part of the pipeline, a step.**
    Add the catalog entry (role + optional `step`), add the step to `STEP_ORDER`
-   in `workflowSteps.js` if it is a pipeline step, and the bar/landing pick it up
+   in `workflowSteps.js` if it is a pipeline step, and the bar picks it up
    automatically.
 
 6. **One router opens everything.** Every way to open a module, enter a step, or
@@ -167,6 +175,45 @@ These are hard rules for anyone adding or moving UI.
      renderer never guesses landing-suppression from raw argument counts. A CLI
      verb whose paths expand to nothing opens that step's view **empty** rather
      than stranding in the default layout.
+
+7. **Each step remembers its layout (per-step memory).** A pipeline step
+   remembers the shape the user leaves it in, so returning restores their tweaks
+   (an extra pane, changed weights) instead of the bare factory — the Capture One
+   "workspaces" pattern (Nielsen N7). `stepLayoutMemory.js` owns this:
+   - **One key per step**, `ansikten-workspace-<step>`. The value is a **pane
+     spec** (`{ moduleId, weight }[]`), not a full model — the same shape the
+     factory specs (`workflows.js`) use — because memory feeds the
+     **non-destructive morph**, not a `Model.fromJson` replace. `snapshotStepSpec`
+     reads the live model's real tabsets; `resolveStepSpec` returns the saved
+     spec merged with the factory (`mergeWithFactory`) so a step's **essential
+     modules can never go missing** even if the user had closed one.
+   - **Persistence is scoped and settled.** `handleModelChange` writes the active
+     step's spec on real, user-driven changes only; a programmatic morph is
+     wrapped in a suppressor (`suppressPersistRef`) so its transient shapes never
+     overwrite a memory. Changes made with **no active step** (non-pipeline
+     templates, the initial default) are not remembered.
+   - **Parked "Bakgrund" tabs are NOT step memory.** A snapshot reads only real
+     tabsets, so a Review/File-Queue parked in the background border while the
+     user is in another step never leaks into that step's memory — parked tabs
+     belong to the live model, not to any step's remembered shape.
+   - **Limit (KISS):** the morph normalises a spec to one row of weighted columns,
+     so memory captures module set + order + weights, not 2D nesting or grouped
+     tabs. That matches what the morph can build; richer manual arrangements
+     collapse to a single row on re-entry.
+   - **Mount is neutral.** Startup always builds the default preset, never a
+     remembered layout; per-step memory surfaces only when the user enters a step.
+     The pre-per-step single key (`ansikten-flexlayout`) is migrated **once** into
+     the review step's memory, then removed (`migrateLegacyLayout`).
+   - **Reset** clears the current step's memory and rebuilds it to factory; **Reset
+     all layouts** clears every step's memory. Both keep the dirty-Review confirm.
+
+8. **The StartupLanding is orientation, not navigation.** On an empty workspace
+   it shows a welcome + a hint pointing at the WorkflowBar — nothing more. The
+   steps, the working-set chip, the "Fortsätt →" continuation and the tools menu
+   all live in the always-visible bar, which is the **single source** for
+   navigation and continuation. Do not re-add step/tool/continue controls to the
+   landing: the bar is present on the empty workspace too, so duplicating them
+   there only recreates the double-affordance problem.
 
 ---
 

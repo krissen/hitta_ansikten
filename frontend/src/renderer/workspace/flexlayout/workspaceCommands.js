@@ -120,6 +120,8 @@ export function createWorkspaceRouter(options = {}) {
         return h.openWorkflowStep(intent.moduleId);
       case 'reset-layout':
         return h.resetLayout();
+      case 'reset-all-layouts':
+        return h.resetAllLayouts();
       case 'load-layout':
         return h.loadLayout(intent.name);
       default: {

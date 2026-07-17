@@ -1,5 +1,9 @@
-/* StartupLanding - empty-workspace landing page.
-   Theme-conformant: existing variables only, no new keys, no hardcoded colors. */
+/* StartupLanding - empty-workspace welcome card.
+   Theme-conformant: existing variables only, no new keys, no hardcoded colors.
+
+   Trimmed in PR 6 to a pure orientation card: the step grid, tools grid and
+   continue row moved to the persistent WorkflowBar, so only the welcome layout
+   remains here. */
 
 .startup-landing {
   position: fixed;
@@ -30,57 +34,6 @@
   text-align: center;
 }
 
-/* "Continue where you left off" row — shown only when the working-folder anchor
-   is set (an earlier import/rename). Theme-conformant: existing variables only. */
-.startup-landing-continue {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-sm);
-  width: 100%;
-  padding: var(--space-md);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-}
-
-.startup-landing-continue-folder {
-  font-family: var(--font-mono);
-  font-size: var(--font-sm);
-  color: var(--text-secondary);
-  word-break: break-all;
-  text-align: left;
-}
-
-.startup-landing-continue-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
-  width: 100%;
-}
-
-/* Section label separating the workflow steps from the other views/tools. */
-.startup-landing-divider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
-  margin-top: var(--space-lg);
-  font-size: var(--font-sm);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.startup-landing-divider::before,
-.startup-landing-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-subtle);
-}
-
 .startup-landing-title {
   margin: 0;
   font-size: var(--font-2xl);
@@ -88,36 +41,13 @@
 }
 
 .startup-landing-subtitle {
-  margin: 0 0 var(--space-lg);
+  margin: 0;
   font-size: var(--font-sm);
   color: var(--text-secondary);
 }
 
-.startup-landing-steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-  width: 100%;
-}
-
-/* Extends the shared Button primitive; layout tweaks only. Size (font/padding)
-   comes from the primitive: this component historically declared font-lg +
-   thick padding, but the legacy .btn-action rules used to win the cascade so
-   the rule was dormant — B7's bundle-order change woke it up and everything
-   grew. Keep the primitive's compact size. */
-.startup-landing-step {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-sm);
-  width: 100%;
-}
-
-/* Ordinal for the workflow steps — the first group IS a sequence. */
-.startup-landing-step .step-ordinal {
-  font-family: var(--font-mono);
-  color: inherit;
-  opacity: 0.75;
-  min-width: 1.2em;
-  text-align: right;
+.startup-landing-hint {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-tertiary, var(--text-secondary));
 }

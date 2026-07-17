@@ -69,15 +69,15 @@ export function buildMenuCommandTable(ctx) {
     'layout-review': () => dispatch({ type: 'load-layout', name: 'review' }),
     'layout-template-comparison': () => dispatch({ type: 'load-layout', name: 'comparison' }),
     'layout-comparison': () => dispatch({ type: 'load-layout', name: 'comparison' }),
-    'layout-template-full-image': () => dispatch({ type: 'load-layout', name: 'review' }),
     'layout-template-stats': () => dispatch({ type: 'load-layout', name: 'database' }),
     'layout-database': () => dispatch({ type: 'load-layout', name: 'database' }),
     'layout-review-with-logs': () => dispatch({ type: 'load-layout', name: 'review-with-logs' }),
-    'layout-full-review': () => dispatch({ type: 'load-layout', name: 'full-review' }),
     'layout-queue-review': () => dispatch({ type: 'load-layout', name: 'queue-review' }),
 
-    // "Reset layout" (Cmd+Shift+L): the one destructive rebuild, dirty-guarded.
+    // "Reset layout" (Cmd+Shift+L): forget the current step's remembered tweaks
+    // and rebuild it to factory. "Reset all layouts": forget every step's memory.
     'reset-layout': () => dispatch({ type: 'reset-layout' }),
+    'reset-all-layouts': () => dispatch({ type: 'reset-all-layouts' }),
 
     // Layout manipulation commands
     'layout-add-column': () => addTabset('column'),
