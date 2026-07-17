@@ -71,7 +71,10 @@ export const CONTINUE_BY_STEP = {
 
 /** Last path segment of a folder, for the "current folder" label. */
 export function basename(p) {
-  const parts = String(p).replace(/\/+$/, '').split('/');
+  // Normalize Windows separators first — the folder picker / backend can hand
+  // back paths like C:\events\cupen; without this the whole path would show in
+  // the chip. The app ships on Windows, so both separators must be handled.
+  const parts = String(p).replace(/\\/g, '/').replace(/\/+$/, '').split('/');
   return parts[parts.length - 1] || p;
 }
 

@@ -94,4 +94,10 @@ describe('basename', () => {
     expect(basename('/a/b/cupen/')).toBe('cupen');
     expect(basename('cupen')).toBe('cupen');
   });
+
+  it('handles Windows backslash paths', () => {
+    expect(basename('C:\\events\\cupen')).toBe('cupen');
+    expect(basename('C:\\events\\cupen\\')).toBe('cupen');
+    expect(basename('D:\\cupen')).toBe('cupen');
+  });
 });
