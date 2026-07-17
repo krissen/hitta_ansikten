@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 This changelog is initialized from git commit history after `v1.0.0` and can be refined before upcoming releases.
 
+## [Unreleased]
+
+### Changed
+- **Nya moduler dockas nu deterministiskt efter roll i stället för i den aktiva tabsetten.** Modulregistret (`moduleRegistry.js`) är omgjort från en `{id → komponent}`-karta till en deklarativ katalog där varje modul bär en placeringsroll (`main`/`side`/`bottom`) plus metadata (`singleton`, `solo`, `step`, `keepMounted`); `MODULE_COMPONENTS`/`MODULE_TITLES` härleds ur katalogen (oförändrade exports). `openModule()` väljer nu måltabset via en ren `resolvePlacementTabset(model, role)` — `main` landar alltid i huvudarbetsytan (största tabset, viktfallback före första mätpasset), `side` i en befintlig smal vänsterkolumn eller en ny vänster-split, `bottom` i en befintlig bottenrad eller en ny botten-split — så samma kommando ger samma placering oavsett var användaren senast klickade (tidigare kunde t.ex. filkön hamna i en smal 15 %-kolumn). Singleton-listan härleds nu ur registret i stället för en handhållen dubblett. Inga användarsynliga strängar eller stilar ändrade.
+
 ## [1.7.0] - 2026-07-17
 
 ### Fixed

@@ -15,13 +15,13 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
-import { resolveTargetTabset, ensureActiveTabset } from './tabsetUtils.js';
+import { resolvePlacementTabset, applyPlacement, ensureActiveTabset } from './tabsetUtils.js';
 import { retranslateTabNames } from './tabNames.js';
 import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
-import { MODULE_COMPONENTS, MODULE_TITLES } from './moduleRegistry.js';
+import { MODULE_COMPONENTS, MODULE_TITLES, getModuleRole, getModuleWeight, isSingletonModule } from './moduleRegistry.js';
 import { useUIPreferences } from './uiPreferences.js';
 import { ShortcutsHelpOverlay } from './ShortcutsHelp.jsx';
 import {
@@ -184,29 +184,15 @@ export function FlexLayoutWorkspace() {
     return action; // Allow action to proceed
   }, [model]);
 
-  // Modules that are singletons (only one instance allowed, switch to existing)
-  // Most modules should be singletons - multiple instances rarely make sense
-  const SINGLETON_MODULES = new Set([
-    'image-viewer',
-    'review-module',
-    'file-queue',
-    'original-view',
-    'preferences',
-    'statistics-dashboard',
-    'log-viewer',
-    'database-management',
-    'refine-faces',
-    'theme-editor',
-    'player-count',
-    'culling',
-    'trash',
-    'import',
-    'rename-nef'
-  ]);
-
   // Open a module tab
   // - Singleton modules: reuses existing if found (unless forceNew is true)
   // - Non-singleton modules: always creates new instance
+  //
+  // Placement is deterministic by the module's ROLE (main/side/bottom) from the
+  // registry, not by the active tabset — so the same command always lands the
+  // module in the same kind of area. `options.placement` is an escape hatch: a
+  // placement descriptor ({ tabsetId } or { split, refTabsetId }) that overrides
+  // the role-based resolution.
   const openModule = useCallback((moduleId, options = {}) => {
     if (!model || !layoutRef.current) return;
 
@@ -220,7 +206,7 @@ export function FlexLayoutWorkspace() {
     setShowLanding(false);
 
     // Check if module is a singleton and already exists
-    const isSingleton = SINGLETON_MODULES.has(moduleId);
+    const isSingleton = isSingletonModule(moduleId);
     if (isSingleton && !options.forceNew) {
       let existingTab = null;
       model.visitNodes(node => {
@@ -244,17 +230,24 @@ export function FlexLayoutWorkspace() {
       config: { moduleId }
     };
 
-    // Resolve where to dock the new tab (active tabset, else main working area).
-    const targetTabset = resolveTargetTabset(model);
-    if (targetTabset) {
-      // select=true so the new tab is shown (not added behind the current one),
-      // and make its tabset active so the switch is visible and later opens dock
-      // here too.
-      model.doAction(Actions.addNode(tabJson, targetTabset.getId(), DockLocation.CENTER, -1, true));
-      model.doAction(Actions.setActiveTabset(targetTabset.getId()));
-    } else {
+    // Resolve where to dock: role-based placement unless a caller forces one.
+    const placement = options.placement || resolvePlacementTabset(model, getModuleRole(moduleId), getModuleRole);
+    if (!placement) {
       debugWarn('FlexLayout', `No tabset to host module: ${moduleId}`);
+      return;
     }
+
+    // Add the tab at the resolved placement; a fresh split is sized to the
+    // module's declared role weight so a side/bottom pane opens narrow and never
+    // ends up weighing >= main (which would confuse later role resolution).
+    const added = applyPlacement(model, tabJson, placement, getModuleWeight(moduleId));
+
+    // Make the host tabset active so the switch is visible and later opens dock
+    // here too (matches the pre-placement behavior).
+    const hostTabsetId = added?.getParent?.()?.getId?.()
+      || placement.tabsetId
+      || placement.refTabsetId;
+    if (hostTabsetId) model.doAction(Actions.setActiveTabset(hostTabsetId));
 
     debug('FlexLayout', `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`);
   }, [model]);
@@ -654,10 +647,11 @@ export function FlexLayoutWorkspace() {
     // start where the module hasn't mounted yet — same guard the
     // FileQueue→ImageViewer handshake uses for 'load-image'.
     const handleOpenCulling = async ({ roots, clear, recursive }) => {
-      // Open culling FIRST so it docks into the still-valid active tabset.
-      // Closing Review first could delete the active tabset, leaving openModule
-      // with no host (getActiveTabset() → undefined) and silently dropping the
-      // culling tab — so the order matters.
+      // Open culling FIRST, before closing Review, so there is always a host
+      // tabset to place it into. If Review were the workspace's only panel,
+      // closing it first would empty the layout and leave placement with no
+      // tabset (resolvePlacementTabset → null), silently dropping the culling
+      // tab — so the order matters.
       openModule('culling');
       // Then close Review — but not while it has unsaved confirmations/ignores,
       // which live in ReviewModule state and would be silently dropped. In that
