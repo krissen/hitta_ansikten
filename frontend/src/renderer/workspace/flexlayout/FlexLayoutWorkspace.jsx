@@ -655,10 +655,11 @@ export function FlexLayoutWorkspace() {
     // start where the module hasn't mounted yet — same guard the
     // FileQueue→ImageViewer handshake uses for 'load-image'.
     const handleOpenCulling = async ({ roots, clear, recursive }) => {
-      // Open culling FIRST so it docks into the still-valid active tabset.
-      // Closing Review first could delete the active tabset, leaving openModule
-      // with no host (getActiveTabset() → undefined) and silently dropping the
-      // culling tab — so the order matters.
+      // Open culling FIRST, before closing Review, so there is always a host
+      // tabset to place it into. If Review were the workspace's only panel,
+      // closing it first would empty the layout and leave placement with no
+      // tabset (resolvePlacementTabset → null), silently dropping the culling
+      // tab — so the order matters.
       openModule('culling');
       // Then close Review — but not while it has unsaved confirmations/ignores,
       // which live in ReviewModule state and would be silently dropped. In that
