@@ -12,16 +12,37 @@
 
 import { themeManager } from '../../theme-manager.js';
 import { debug } from '../../shared/debug.js';
+import { WORKFLOW_STEPS } from './workflowSteps.js';
 
 /**
  * Build the command -> handler table from a workspace context.
- * @param {object} ctx - { loadLayout, addTabset, removeEmptyTabset,
- *   moveToNewTabset, openModule, moduleAPI }
+ * @param {object} ctx - { loadLayout, resetLayout, enterStep, openWorkflowStep,
+ *   addTabset, removeEmptyTabset, moveToNewTabset, openModule, moduleAPI }
  */
 export function buildMenuCommandTable(ctx) {
-  const { loadLayout, addTabset, removeEmptyTabset, moveToNewTabset, openModule, moduleAPI } = ctx;
+  const {
+    loadLayout,
+    resetLayout,
+    openWorkflowStep,
+    addTabset,
+    removeEmptyTabset,
+    moveToNewTabset,
+    openModule,
+    moduleAPI,
+  } = ctx;
+
+  // Pipeline-step accelerators (Cmd+1..5) route through openWorkflowStep — the
+  // same non-destructive morph + dirty/mounted fast-path that WorkflowBar clicks
+  // use — so keyboard and mouse navigation behave identically. Keyed by step id
+  // (`workflow-step-<id>`) from the shared catalog so order/naming never drift.
+  const stepCommands = {};
+  for (const { step, moduleId } of WORKFLOW_STEPS) {
+    stepCommands[`workflow-step-${step}`] = () => openWorkflowStep(moduleId);
+  }
 
   return {
+    ...stepCommands,
+
     // File commands
     'open-file': async () => {
       // Use multi-file dialog (same as Cmd+O and + button)
@@ -36,7 +57,9 @@ export function buildMenuCommandTable(ctx) {
       }
     },
 
-    // Layout template commands
+    // Layout template commands (secondary, non-pipeline layouts moved to the
+    // Window ▸ Layout templates submenu, no accelerators). These still replace
+    // the layout via loadLayout — they are not pipeline steps.
     'layout-template-review': () => loadLayout('review'),
     'layout-review': () => loadLayout('review'),
     'layout-template-comparison': () => loadLayout('comparison'),
@@ -46,7 +69,10 @@ export function buildMenuCommandTable(ctx) {
     'layout-database': () => loadLayout('database'),
     'layout-review-with-logs': () => loadLayout('review-with-logs'),
     'layout-full-review': () => loadLayout('full-review'),
-    'reset-layout': () => loadLayout('review'),
+    'layout-queue-review': () => loadLayout('queue-review'),
+
+    // "Reset layout" (Cmd+Shift+L): the one destructive rebuild, dirty-guarded.
+    'reset-layout': () => resetLayout(),
 
     // Layout manipulation commands
     'layout-add-column': () => addTabset('column'),
@@ -75,7 +101,6 @@ export function buildMenuCommandTable(ctx) {
     'open-refine-faces': () => openModule('refine-faces'),
     'open-file-queue': () => openModule('file-queue'),
     'open-theme-editor': () => openModule('theme-editor'),
-    'layout-queue-review': () => loadLayout('queue-review'),
 
     'open-preferences': () => openModule('preferences'),
 

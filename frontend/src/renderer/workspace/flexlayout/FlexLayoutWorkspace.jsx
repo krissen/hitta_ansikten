@@ -14,8 +14,10 @@
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
-import { reviewLayout, getLayoutByName, singleModuleLayout } from './layouts.js';
+import { reviewLayout, getLayoutByName, ensureBottomBorder } from './layouts.js';
 import { resolvePlacementTabset, applyPlacement, ensureActiveTabset } from './tabsetUtils.js';
+import { applyWorkspace } from './workspaceMorph.js';
+import { getWorkspaceSpec } from './workflows.js';
 import { retranslateTabNames } from './tabNames.js';
 import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
@@ -108,6 +110,10 @@ export function FlexLayoutWorkspace() {
       layoutConfig = getLayoutByName(defaultLayout);
     }
 
+    // Guarantee a bottom border so the morphing engine can park keepMounted /
+    // dirty modules there (borders only exist if declared at fromJson time).
+    layoutConfig = ensureBottomBorder(layoutConfig);
+
     // Ensure critical global settings are always applied
     // (saved layouts may not have newer settings)
     const criticalSettings = {
@@ -134,7 +140,7 @@ export function FlexLayoutWorkspace() {
     } catch (err) {
       debugError('FlexLayout', 'Failed to create model:', err);
       // Fall back to default
-      const fallbackModel = Model.fromJson(reviewLayout);
+      const fallbackModel = Model.fromJson(ensureBottomBorder(reviewLayout));
       ensureActiveTabset(fallbackModel);
       setModel(fallbackModel);
       setReady(true);
@@ -290,22 +296,6 @@ export function FlexLayoutWorkspace() {
     }
   }, [model]);
 
-  // Close any open tab(s) of a module by its component id, leaving the rest of
-  // the workspace untouched (unlike loadLayout/openModuleSolo, which replace the
-  // whole layout). Returns true if anything was closed.
-  const closeModule = useCallback((moduleId) => {
-    if (!model) return false;
-    const ids = [];
-    model.visitNodes((node) => {
-      if (node.getType() === 'tab' && node.getComponent?.() === moduleId) {
-        ids.push(node.getId());
-      }
-    });
-    ids.forEach((id) => model.doAction(Actions.deleteTab(id)));
-    if (ids.length) debug('FlexLayout', `Closed module: ${moduleId} (${ids.length})`);
-    return ids.length > 0;
-  }, [model]);
-
   // The tab node for the given module, or null if it isn't in the layout.
   const findModuleTab = useCallback((moduleId) => {
     if (!model) return null;
@@ -386,10 +376,13 @@ export function FlexLayoutWorkspace() {
     return false;
   }, [model]);
 
-  // Load a preset layout
+  // Load a preset layout by full Model replace. This is the ONE destructive path
+  // left — it discards live module state — so it is reserved for "Reset layout"
+  // (resetLayout guards it behind a dirty-state confirm). Step switching uses the
+  // non-destructive morphing engine (enterStep) instead.
   const loadLayout = useCallback((layoutName) => {
     debug('FlexLayout', `Loading layout: ${layoutName}`);
-    const layoutConfig = getLayoutByName(layoutName);
+    const layoutConfig = ensureBottomBorder(getLayoutByName(layoutName));
     try {
       const newModel = Model.fromJson(layoutConfig);
       ensureActiveTabset(newModel);
@@ -399,145 +392,80 @@ export function FlexLayoutWorkspace() {
     }
   }, []);
 
-  // Add a module in a NEW tabset docked at `location` relative to `refTabsetId`
-  // (DockLocation.RIGHT/BOTTOM split off a fresh tabset), rather than as another
-  // tab inside an existing tabset. Used to place Review/Viewer beside the queue
-  // without stacking them on top of it.
-  const openModuleInNewTabset = useCallback((moduleId, refTabsetId, location) => {
+  // The set of modules whose unsaved (dirty) state must survive a morph. Review
+  // is the only module tracking dirty edits (reviewDirtyRef mirrors its
+  // 'review-dirty' signal); when any file is dirty, review-module is parked
+  // rather than closed during a step switch.
+  const dirtyModuleSet = useCallback(
+    () => (reviewDirtyRef.current.size > 0 ? new Set(['review-module']) : new Set()),
+    [],
+  );
+
+  // Enter a pipeline step by MORPHING the live model into the step's pane spec
+  // (workflows.js) — the non-destructive replacement for the old loadLayout /
+  // openModuleSolo rebuilds. Modules already mounted keep their state (moveNode
+  // retains node ids); keepMounted (File Queue) and dirty (Review) modules are
+  // parked in the background border, so nothing live is lost. This is the ONLY
+  // structural layout-change path, so it is where activeStep is kept in sync.
+  const enterStep = useCallback((stepId) => {
     if (!model) return;
-    model.doAction(Actions.addNode(
-      { type: 'tab', name: MODULE_TITLES[moduleId] || moduleId, component: moduleId, config: { moduleId } },
-      refTabsetId,
-      location,
-      -1,
-    ));
-  }, [model]);
-
-  // Ensure a review surface (Review + Image Viewer) is mounted before the queue
-  // hands off an image (called by FileQueue.loadFile). Four cases — none may
-  // replace the layout while a queue exists, and none may stack a new panel into
-  // an existing tabset (that hides/unmounts the panel already there under
-  // render-on-demand):
-  //
-  //  1. BOTH present → deliberate layout: just focus the existing tabs.
-  //  2. Only Review present → dock Image Viewer in its OWN tabset to the RIGHT of
-  //     Review (order stays …|review|viewer).
-  //  3. Only Viewer present → dock Review in its OWN tabset to the LEFT of the
-  //     Viewer (order stays queue|review|viewer).
-  //  4. NEITHER present → if the queue is ALSO absent it's a blank start, so a
-  //     fresh queue-review layout is safe (nothing live to lose); if the queue
-  //     EXISTS, replacing the model would unmount that FileQueue mid-loadFile and
-  //     drop its currentFileRef/currentIndex (round-3 finding), so dock Review +
-  //     Image Viewer in their own tabsets beside the queue instead.
-  const ensureReviewSurface = useCallback(() => {
-    const reviewTab = findModuleTab('review-module');
-    const viewerTab = findModuleTab('image-viewer');
-
-    if (reviewTab && viewerTab) {
-      openModule('review-module');
-      openModule('image-viewer');
+    const spec = getWorkspaceSpec(stepId);
+    if (!spec) {
+      debugWarn('FlexLayout', `No workspace spec for step: ${stepId}`);
       return;
     }
-    if (reviewTab && !viewerTab) {
-      openModuleInNewTabset('image-viewer', reviewTab.getParent().getId(), DockLocation.RIGHT);
-      return;
-    }
-    if (viewerTab && !reviewTab) {
-      openModuleInNewTabset('review-module', viewerTab.getParent().getId(), DockLocation.LEFT);
-      return;
-    }
-    // Neither present.
-    const queueTab = findModuleTab('file-queue');
-    if (!queueTab) {
-      loadLayout('queue-review');
-      return;
-    }
-    const queueTabsetId = queueTab.getParent().getId();
-    openModuleInNewTabset('review-module', queueTabsetId, DockLocation.RIGHT);
-    const newReviewTab = findModuleTab('review-module');
-    const reviewTabsetId = newReviewTab ? newReviewTab.getParent().getId() : queueTabsetId;
-    openModuleInNewTabset('image-viewer', reviewTabsetId, DockLocation.RIGHT);
-  }, [findModuleTab, loadLayout, openModule, openModuleInNewTabset]);
-
-  // Replace the workspace with a single self-contained module filling it. Used
-  // by the landing page for workflow steps (culling, player-count, import,
-  // rename-nef) so they don't dock beside the empty Review panel.
-  const openModuleSolo = useCallback((moduleId) => {
     setShowLanding(false);
-    try {
-      const newModel = Model.fromJson(singleModuleLayout(moduleId, MODULE_TITLES[moduleId]));
-      // A solo layout has a single tabset, but set it active too so the module's
-      // keyboard is live immediately without a click (and for consistency).
-      ensureActiveTabset(newModel);
-      setModel(newModel);
-    } catch (err) {
-      debugError('FlexLayout', 'Failed to open module solo:', err);
-    }
-  }, []);
+    applyWorkspace(model, spec, {
+      keepDirty: dirtyModuleSet(),
+      backgroundName: t('workspace.backgroundTab'),
+    });
+    setActiveStep(stepId);
+  }, [model, dirtyModuleSet]);
 
-  const openLandingStep = useCallback((moduleId) => {
-    setShowLanding(false);
-    // Review needs its multi-pane pipeline layout (File Queue + Review + Image
-    // Viewer). Without the queue panel the review view is a dead end — nothing
-    // feeds it — so land on 'queue-review', not the queue-less 'review'. Every
-    // other landing target is a self-contained view opened solo (fills the
-    // workspace) so a direct pick lands you on that view, not beside an empty panel.
-    if (moduleId === 'review-module') {
-      loadLayout('queue-review');
-    } else {
-      openModuleSolo(moduleId);
-    }
-  }, [loadLayout, openModuleSolo]);
-
-  // Open a pipeline step from the WorkflowBar or landing: reuse the existing
-  // landing opening path, and mark the step active in the bar. A non-pipeline
-  // module (a tool opened from the landing) has no step, so the highlight clears.
+  // Open a pipeline step from the WorkflowBar, landing or a Cmd+1..5 accelerator.
   //
-  // openLandingStep replaces the layout model (loadLayout / openModuleSolo),
-  // which unmounts a live ReviewModule and silently drops its unsaved
-  // confirmations/ignores. The culling hand-off guards that via reviewDirtyRef;
-  // reuse the same signal here, but — since a step switch has no "keep Review
-  // open" fallback — confirm before discarding. Cancel leaves everything as is.
-  const openWorkflowStep = useCallback(async (moduleId) => {
+  // Fast path (PINNED from PR 2, unchanged): when the clicked step's module is
+  // already mounted AND (it is the active step OR Review has unsaved edits), just
+  // focus it — never rebuild, never prompt. (N5: a mounted step must never show a
+  // discard prompt; covers "click the step I'm on" even when activeStep is stale.)
+  //
+  // Otherwise MORPH via enterStep. Morphing is non-destructive — a dirty Review
+  // and a mid-processing File Queue are parked (preserved), not closed — so a step
+  // switch can no longer discard unsaved edits, and the old discard prompt is gone
+  // (see docs/dev/ux-principles.md). Reset layout is the only path that still
+  // confirms, because it alone rebuilds the model destructively.
+  const openWorkflowStep = useCallback((moduleId) => {
     const step = getModuleStep(moduleId);
-    // Focus fast-path (no layout rebuild) vs. full path (dirty guard +
-    // openLandingStep rebuild), decided by two facts:
-    //   - the clicked step's module is already IN the model (hasModuleTab), and
-    //   - either it's the active step, or Review has unsaved edits.
-    // Rationale:
-    //   (N5) The discard prompt must NEVER show when the clicked step's module
-    //     is already mounted — there's nothing to lose by focusing it. This
-    //     covers the "click the step I'm already on" case even when activeStep
-    //     is stale/null (fresh default Review layout: activeStep is null but
-    //     Review is mounted and dirty → focus, don't prompt-and-discard).
-    //   Rebuild only happens when nothing can be lost (clean) or after an
-    //     explicit confirm when leaving for ANOTHER step. A clean click on a
-    //     mounted-but-not-active step still falls through so the canonical
-    //     surface is built (e.g. default Review+Viewer → full queue-review),
-    //     instead of no-oping into a queue-less dead end.
-    //   When the module is absent (activeStep gone stale after its tabs were
-    //     closed / another layout loaded), fall through so openLandingStep
-    //     rebuilds the proper surface rather than opening a bare module.
     const reviewDirty = reviewDirtyRef.current.size > 0;
     if (step != null && hasModuleTab(moduleId) && (step === activeStep || reviewDirty)) {
-      // Focus the surface; openModule syncs the bar highlight to this step
-      // (covers the dirty-clause case where step !== activeStep).
+      // openModule syncs the bar highlight to this step (covers the dirty clause
+      // where step !== activeStep).
       openModule(moduleId);
       return;
     }
-    if (reviewDirty) {
+    if (step != null) {
+      enterStep(step);
+    } else {
+      // A non-pipeline module routed here (defensive): open it as a plain tab.
+      openModule(moduleId);
+    }
+  }, [activeStep, enterStep, openModule, hasModuleTab]);
+
+  // "Reset layout": the one remaining destructive rebuild (full Model replace via
+  // loadLayout). Guard it behind a confirm when Review has unsaved edits, since
+  // the rebuild — unlike a morph — cannot preserve them.
+  const resetLayout = useCallback(async () => {
+    if (reviewDirtyRef.current.size > 0) {
       const ok = await confirm({
         message: t('workflowBar.unsavedStepChange'),
         confirmLabel: t('workflowBar.switchAnyway'),
       });
       if (!ok) return;
-      // Confirmed discard: the dirty Review is about to be unmounted, so its
-      // tracked edits are gone — clear the set so a stale entry can't re-prompt.
       reviewDirtyRef.current.clear();
     }
-    setActiveStep(step);
-    openLandingStep(moduleId);
-  }, [activeStep, confirm, openModule, openLandingStep, hasModuleTab]);
+    loadLayout('review');
+    setActiveStep('review');
+  }, [confirm, loadLayout]);
 
   // Swap active panel with panel in specified direction (Cmd+Arrow)
   const swapActivePanel = useCallback((direction) => {
@@ -707,6 +635,9 @@ export function FlexLayoutWorkspace() {
     // fallback (broadcast to modules via moduleAPI.emit) live in menuCommands.js.
     const handleMenuCommand = createMenuCommandHandler({
       loadLayout,
+      resetLayout,
+      enterStep,
+      openWorkflowStep,
       addTabset,
       removeEmptyTabset,
       moveToNewTabset,
@@ -716,84 +647,48 @@ export function FlexLayoutWorkspace() {
 
     const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
-    // CLI culling target (`ansikten culling DIR`): close the face-review panel
-    // (culling is a different workflow — Review shouldn't sit in the layout
-    // while culling) and open/focus the culling module as a tab, leaving every
-    // OTHER open tab untouched. Then hand it the folder scope once it has
-    // subscribed. Using waitForListeners avoids a lost-event race on a cold
-    // start where the module hasn't mounted yet — same guard the
-    // FileQueue→ImageViewer handshake uses for 'load-image'.
+    // CLI culling target (`ansikten culling DIR`): morph into the solo culling
+    // workspace, then hand it the folder scope once it has subscribed. enterStep
+    // parks a dirty Review (keepDirty) and the File Queue (keepMounted) in the
+    // background border rather than discarding them, and removes the clean Review
+    // panel — the "Review shouldn't sit in the layout while culling" intent, now
+    // non-destructive. waitForListeners guards the cold-start race where the
+    // module hasn't mounted yet (same guard the FileQueue→ImageViewer handshake
+    // uses for 'load-image').
     const handleOpenCulling = async ({ roots, clear, recursive }) => {
-      // openModule('culling') below marks the culling step active (it routes
-      // through the openModule root that syncs activeStep from step metadata).
-      // Open culling FIRST, before closing Review, so there is always a host
-      // tabset to place it into. If Review were the workspace's only panel,
-      // closing it first would empty the layout and leave placement with no
-      // tabset (resolvePlacementTabset → null), silently dropping the culling
-      // tab — so the order matters.
-      openModule('culling');
-      // Then close Review — but not while it has unsaved confirmations/ignores,
-      // which live in ReviewModule state and would be silently dropped. In that
-      // case leave the panel open; the user can save and re-issue the command.
-      if (reviewDirtyRef.current.size === 0) {
-        closeModule('review-module');
-      }
+      enterStep('culling');
       await moduleAPI.waitForListeners('culling-load', 2000);
       moduleAPI.emit('culling-load', { roots, clear, recursive });
     };
     const offOpenCulling = window.ansiktenAPI.on('open-culling', handleOpenCulling);
 
-    // CLI `ansikten import [DEST]`: open the import module and hand it the
-    // optional destination. Unlike culling this doesn't touch the Review panel —
-    // import is its own workflow and shares no layout with Review. waitForListeners
-    // guards the cold-start race where the module hasn't mounted yet.
+    // CLI `ansikten import [DEST]`: morph into the solo import workspace and hand
+    // it the optional destination. waitForListeners guards the cold-start race
+    // where the module hasn't mounted yet.
     const handleOpenImport = async ({ destination }) => {
-      // openModule syncs activeStep to the import step from its step metadata.
-      openModule('import');
+      enterStep('import');
       await moduleAPI.waitForListeners('import-load', 2000);
       moduleAPI.emit('import-load', { destination });
     };
     const offOpenImport = window.ansiktenAPI.on('open-import', handleOpenImport);
 
-    // In-app hand-off from Import → Rename-NEF ("Döp om filer…"). Unlike the
-    // CLI hand-offs above this is a renderer moduleAPI event (no IPC): open/focus
-    // the rename-nef module, then pass it the just-imported folder once it has
+    // In-app hand-off from Import → Rename-NEF ("Döp om filer…"): morph into the
+    // solo rename workspace, then pass it the just-imported folder once it has
     // subscribed. waitForListeners guards the cold-start race on first open.
     const handleOpenRenameNef = async ({ roots }) => {
-      // openModule syncs activeStep to the rename step from its step metadata.
-      openModule('rename-nef');
+      enterStep('rename');
       await moduleAPI.waitForListeners('rename-nef-load', 2000);
       moduleAPI.emit('rename-nef-load', { roots });
     };
     const offOpenRenameNef = moduleAPI.on('open-rename-nef', handleOpenRenameNef);
 
-    // Bring the File Queue up so it can receive a 'file-queue-load' emit, WITHOUT
-    // racing a layout swap. Only load the fresh pipeline layout when the queue is
-    // ABSENT and Review has no unsaved edits; otherwise just focus the existing
-    // queue. Reloading while a File Queue tab already exists is the bug: the old
-    // queue's 'file-queue-load' listener stays registered until React commits the
-    // unmount, so waitForListeners can resolve against that dying listener and the
-    // emit is lost with it. Only loadLayout when there is no queue listener to
-    // race against; when the queue is present its live listener gets the emit.
-    const ensureQueueMounted = () => {
-      // Dismiss the startup landing explicitly. Normally a loaded image does this
-      // (via 'image-loaded'), but a `queue-files` payload without startQueue just
-      // fills the queue — no image loads — so nothing else would hide the landing
-      // and the populated queue would sit behind the startup screen.
-      setShowLanding(false);
-      if (!hasModuleTab('file-queue') && reviewDirtyRef.current.size === 0) {
-        loadLayout('queue-review');
-      } else {
-        openModule('file-queue');
-      }
-    };
-
-    // In-app hand-off from Rename-NEF → Review ("Granska ansikten…"): bring up
-    // the pipeline layout (File Queue + Review + Image Viewer) and hand the
-    // just-renamed folder(s) to the queue, which expands them to files.
+    // In-app hand-off from Rename-NEF → Review ("Granska ansikten…"): morph into
+    // the review workspace (File Queue + Review + Image Viewer) and hand the
+    // just-renamed folder(s) to the queue, which expands them to files. Morphing
+    // never rebuilds the model, so a File Queue already present keeps its node id
+    // (and its listener) — the emit reaches the live queue, not a dying listener.
     const handleOpenReviewQueue = async ({ roots }) => {
-      setActiveStep('review');
-      ensureQueueMounted();
+      enterStep('review');
       await moduleAPI.waitForListeners('file-queue-load', 2000);
       moduleAPI.emit('file-queue-load', { roots });
     };
@@ -802,21 +697,18 @@ export function FlexLayoutWorkspace() {
     // CLI `ansikten -q FILES` (and the `queue-files` IPC generally): the queue
     // may not be mounted yet — a saved layout without a File Queue panel, or a
     // cold start where the landing page was suppressed by the launch intent but
-    // no receiver existed → a blank workspace. Ensure the queue is present (load
-    // 'queue-review' only when it is missing) then re-emit the payload as the
-    // renderer-side 'file-queue-load' once the queue has subscribed. This is the
-    // single mount-aware entry point that the old direct FileQueue IPC listener
-    // couldn't provide.
+    // no receiver existed → a blank workspace. Morph into the review workspace
+    // (which ensures the queue) then re-emit the payload as the renderer-side
+    // 'file-queue-load' once the queue has subscribed.
     const handleQueueFilesIpc = async (payload) => {
-      setActiveStep('review');
-      ensureQueueMounted();
+      enterStep('review');
       await moduleAPI.waitForListeners('file-queue-load', 2000);
       moduleAPI.emit('file-queue-load', payload || {});
     };
     const offQueueFiles = window.ansiktenAPI.on('queue-files', handleQueueFilesIpc);
 
-    // Track which files have unsaved Review changes so the culling hand-off
-    // above won't close Review and discard them.
+    // Track which files have unsaved Review changes so a step morph parks Review
+    // (keepDirty) instead of discarding its edits.
     const offReviewDirty = moduleAPI.on('review-dirty', ({ imagePath, dirty }) => {
       if (!imagePath) return;
       if (dirty) reviewDirtyRef.current.add(imagePath);
@@ -840,7 +732,7 @@ export function FlexLayoutWorkspace() {
       offQueueFiles?.();
       offReviewDirty?.();
     };
-  }, [ready, loadLayout, addTabset, removeEmptyTabset, openModule, closeModule, hasModuleTab, moduleAPI, moveToNewTabset]);
+  }, [ready, loadLayout, resetLayout, enterStep, openWorkflowStep, addTabset, removeEmptyTabset, openModule, hasModuleTab, moduleAPI, moveToNewTabset]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
@@ -851,8 +743,8 @@ export function FlexLayoutWorkspace() {
       layoutRef,
       openModule,
       openWorkflowStep,
+      enterStep,
       activeStep,
-      ensureReviewSurface,
       closePanel,
       loadLayout,
       addColumn: () => addTabset('column'),
@@ -869,7 +761,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, openWorkflowStep, activeStep, ensureReviewSurface, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
+  }, [model, openModule, openWorkflowStep, enterStep, activeStep, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
 
   // NOTE: Auto-load from queue is handled by FileQueueModule, not here
 

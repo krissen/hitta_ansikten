@@ -23,6 +23,7 @@ module.exports = {
     },
     layout: {
       switchTemplate: "Byt layoutmall",
+      switchStep: "Byt arbetsflödessteg (Importera→Gallra)",
       addColumn: "Lägg till kolumn",
       removeColumn: "Ta bort kolumn",
       addRow: "Lägg till rad",

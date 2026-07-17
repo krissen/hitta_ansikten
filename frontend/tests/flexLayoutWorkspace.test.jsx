@@ -330,29 +330,35 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(h.emit).toHaveBeenCalledWith('file-queue-load', { roots: ['/events/cupen'] });
   });
 
-  it('a workflow-step switch with unsaved Review edits confirms first; cancel keeps the layout', async () => {
-    // Mark a file dirty so switching step would discard unsaved Review edits.
+  it('a workflow-step switch with unsaved Review edits does NOT prompt — the morph parks the dirty Review instead of discarding it', async () => {
+    // Under the old destructive rebuild this switch required a discard confirm.
+    // Morphing preserves the dirty Review (parked in the background border), so
+    // the switch is non-destructive and must never prompt (PR 3 semantics; see
+    // docs/dev/ux-principles.md).
     const dirty = moduleApiHandler('review-dirty');
     await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
-    const before = tabComponents(window.workspace.model).sort();
+    const reviewBefore = reviewTabId(window.workspace.model);
+    expect(reviewBefore).toBeTruthy();
 
-    h.confirm.mockResolvedValueOnce(false); // user cancels
+    h.confirm.mockClear();
     await act(async () => { await window.workspace.openWorkflowStep('player-count'); });
 
-    expect(h.confirm).toHaveBeenCalledTimes(1);
-    // Cancelled → the model was NOT replaced (no player-count, same tabs).
-    expect(tabComponents(window.workspace.model).sort()).toEqual(before);
-    expect(tabComponents(window.workspace.model)).not.toContain('player-count');
+    expect(h.confirm).not.toHaveBeenCalled();
+    // Switched to the target step…
+    expect(tabComponents(window.workspace.model)).toContain('player-count');
+    expect(window.workspace.activeStep).toBe('count');
+    // …and the dirty Review survives with the SAME node id (parked, not rebuilt).
+    expect(reviewTabId(window.workspace.model)).toBe(reviewBefore);
   });
 
-  it('a confirmed workflow-step switch replaces the layout with the target step', async () => {
+  it('a workflow-step switch morphs into the target step (no confirm, target present)', async () => {
     const dirty = moduleApiHandler('review-dirty');
     await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
 
-    h.confirm.mockResolvedValueOnce(true); // user confirms discard
+    h.confirm.mockClear();
     await act(async () => { await window.workspace.openWorkflowStep('player-count'); });
 
-    expect(h.confirm).toHaveBeenCalledTimes(1);
+    expect(h.confirm).not.toHaveBeenCalled();
     expect(tabComponents(window.workspace.model)).toContain('player-count');
   });
 
@@ -468,7 +474,7 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef'], startQueue: false });
   });
 
-  it('ensureReviewSurface docks Review+Viewer beside an existing queue WITHOUT remounting it', async () => {
+  it('enterStep(review) builds the review trio beside an existing queue WITHOUT remounting it', async () => {
     // Build a queue-only layout: the database preset has no Review/Viewer; add a
     // File Queue tab so neither review surface exists but the queue does.
     await dispatch('layout-database');
@@ -478,16 +484,16 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(tabComponents(window.workspace.model)).not.toContain('review-module');
     expect(tabComponents(window.workspace.model)).not.toContain('image-viewer');
 
-    // loadFile calls this. Replacing the model would unmount the live FileQueue
-    // (dropping currentFileRef/currentIndex mid-loadFile), so it must add the
-    // review surface beside the queue instead — same queue node afterwards.
-    await act(async () => { window.workspace.ensureReviewSurface(); });
+    // loadFile calls enterStep('review'). The morph never rebuilds the model, so
+    // the live FileQueue keeps its node id (currentFileRef/currentIndex survive)
+    // while Review + Image Viewer are morphed in around it.
+    await act(async () => { window.workspace.enterStep('review'); });
     expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
     expect(tabComponents(window.workspace.model)).toContain('review-module');
     expect(tabComponents(window.workspace.model)).toContain('image-viewer');
   });
 
-  it('ensureReviewSurface docks the MISSING Review beside an existing Viewer (queue kept)', async () => {
+  it('enterStep(review) morphs in the MISSING Review beside an existing Viewer (queue kept)', async () => {
     // A partial surface: queue + viewer, Review closed. The comparison preset has
     // image-viewer (+ original-view) but no review/queue; add a queue.
     await dispatch('layout-comparison');
@@ -497,14 +503,14 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(tabComponents(window.workspace.model)).toContain('image-viewer');
     expect(tabComponents(window.workspace.model)).not.toContain('review-module');
 
-    await act(async () => { window.workspace.ensureReviewSurface(); });
+    await act(async () => { window.workspace.enterStep('review'); });
     // Queue not remounted; Review added; Viewer still there.
     expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
     expect(tabComponents(window.workspace.model)).toContain('review-module');
     expect(tabComponents(window.workspace.model)).toContain('image-viewer');
   });
 
-  it('ensureReviewSurface docks the MISSING Viewer beside an existing Review (queue kept)', async () => {
+  it('enterStep(review) morphs in the MISSING Viewer beside an existing Review (queue kept)', async () => {
     // A partial surface: queue + review, Viewer closed. Build it from the
     // database preset (no review/viewer/queue), adding queue then review.
     await dispatch('layout-database');
@@ -515,18 +521,38 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(tabComponents(window.workspace.model)).toContain('review-module');
     expect(tabComponents(window.workspace.model)).not.toContain('image-viewer');
 
-    await act(async () => { window.workspace.ensureReviewSurface(); });
+    await act(async () => { window.workspace.enterStep('review'); });
     // Queue not remounted; Viewer added; Review still there.
     expect(tabId(window.workspace.model, 'file-queue')).toBe(queueIdBefore);
     expect(tabComponents(window.workspace.model)).toContain('image-viewer');
     expect(tabComponents(window.workspace.model)).toContain('review-module');
   });
 
-  it('ensureReviewSurface loads the pipeline layout only when the queue is absent (blank start)', async () => {
-    // Database preset: no queue, no review surface. Nothing to lose → loadLayout.
+  it('round-trip review → culling → review preserves the File Queue node id (parked, then un-parked)', async () => {
+    // Enter review and mount the queue.
+    await act(async () => { window.workspace.enterStep('review'); });
+    const queueId = tabId(window.workspace.model, 'file-queue');
+    expect(queueId).toBeTruthy();
+
+    // Switch to culling: the queue is keepMounted → parked (still a tab node),
+    // not deleted. Only culling is a real (non-border) surface tab.
+    await act(async () => { window.workspace.enterStep('culling'); });
+    expect(tabComponents(window.workspace.model)).toContain('culling');
+    // Same node id survives the park (state preserved).
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueId);
+
+    // Back to review: the queue is un-parked into the trio, same node id.
+    await act(async () => { window.workspace.enterStep('review'); });
+    expect(tabId(window.workspace.model, 'file-queue')).toBe(queueId);
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+    expect(tabComponents(window.workspace.model)).toContain('image-viewer');
+  });
+
+  it('enterStep(review) builds the full trio from a queue-less start (blank start)', async () => {
+    // Database preset: no queue, no review surface. Morph builds the trio.
     await dispatch('layout-database');
     expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
-    await act(async () => { window.workspace.ensureReviewSurface(); });
+    await act(async () => { window.workspace.enterStep('review'); });
     expect(tabComponents(window.workspace.model).sort()).toEqual([
       'file-queue',
       'image-viewer',

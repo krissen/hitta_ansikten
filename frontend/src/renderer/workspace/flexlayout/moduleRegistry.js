@@ -115,6 +115,17 @@ export function getModuleStep(moduleId) {
 }
 
 /**
+ * Whether a module is flagged keepMounted — it must not be unmounted when it
+ * would otherwise be closed. The morphing engine parks such modules in the
+ * background border (preserving their live state) instead of deleting their tab.
+ * @param {string} moduleId
+ * @returns {boolean}
+ */
+export function isKeepMountedModule(moduleId) {
+  return MODULE_CATALOG[moduleId]?.keepMounted === true;
+}
+
+/**
  * Declared role weight for a module, or null when it has none. Used to size a
  * fresh side/bottom split so the new pane opens at its catalog proportion (e.g.
  * 15) with the main area keeping the rest, instead of FlexLayout's default

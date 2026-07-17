@@ -93,11 +93,21 @@ These are hard rules for anyone adding or moving UI.
    the active tabset.** The same command lands the module in the same kind of
    area regardless of where the user last clicked.
 
-3. **Layout switching should morph, not replace.** Changing the working step
-   should transform the current layout toward the target rather than tearing down
-   and rebuilding it (arriving in a later PR). Replacing the model unmounts live
-   panels and drops their in-memory state — avoid it on any path that a live
-   panel (a loaded queue, an unsaved Review) can be on.
+3. **Layout switching morphs, it does not replace.** Changing the working step
+   transforms the live layout toward the target instead of tearing it down and
+   rebuilding it. `enterStep(stepId)` is the sole structural layout-change path:
+   it calls `applyWorkspace` (`workspaceMorph.js`), which reshapes the running
+   FlexLayout model with `moveNode`/`addNode`/`deleteTab` Actions. Because
+   `moveNode` retains a tab's node id, React keeps the same component instance,
+   so a mounted module **keeps its state** across the switch. A `keepMounted`
+   module (the File Queue) and a module with unsaved edits (a dirty Review) are
+   **parked** in a collapsed bottom "background" border — kept alive, out of the
+   way — rather than closed. Two consequences follow:
+   - A step switch is **non-destructive**, so it needs **no discard prompt**. The
+     only path that still confirms is **Reset layout**, which alone rebuilds the
+     model via `Model.fromJson` (`loadLayout`).
+   - Full-model replacement (`loadLayout`) is reserved for Reset layout and the
+     initial load; never put it on a path a live panel can be on.
 
 4. **Adopting a working set is always opt-in.** The three working sets (file
    queue, scan scope, import destination) and the shared working-folder anchor

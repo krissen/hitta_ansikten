@@ -802,18 +802,19 @@ export function FileQueueModule({ node }) {
       return;
     }
 
-    // Ensure the review surface (Review + Image Viewer) is mounted/visible before
-    // the image loads: Review consumes `image-loaded` (emitted by ImageViewer
-    // right after the load) to run detection, so it must be listening before that
-    // fires. The workspace owns the decision — in a saved queue-only layout it
-    // switches to the pipeline layout rather than stacking Review behind the
-    // viewer in the queue's tabset; otherwise it just focuses both. Review's
-    // late-mount recovery (request-current-image on mount) still covers layouts
-    // that gain a Review panel after an image was already loaded.
-    if (window.workspace?.ensureReviewSurface) {
-      window.workspace.ensureReviewSurface();
+    // Ensure the review surface (File Queue + Review + Image Viewer) is
+    // mounted/visible before the image loads: Review consumes `image-loaded`
+    // (emitted by ImageViewer right after the load) to run detection, so it must
+    // be listening before that fires. enterStep('review') MORPHS the live model
+    // into the review workspace — it never rebuilds, so this File Queue is not
+    // remounted mid-loadFile (its currentFileRef/currentIndex survive), and a
+    // Review/Viewer already present keeps its instance. When the trio is already
+    // in place the morph is a cheap no-op. Review's late-mount recovery
+    // (request-current-image on mount) still covers a Review added after a load.
+    if (window.workspace?.enterStep) {
+      window.workspace.enterStep('review');
     } else if (window.workspace?.openModule) {
-      // Fallback for an older workspace without the helper: focus both, viewer last.
+      // Fallback for an older workspace without the morph engine: focus both.
       window.workspace.openModule('review-module');
       window.workspace.openModule('image-viewer');
     }
