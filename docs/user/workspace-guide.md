@@ -112,6 +112,7 @@ I **Filkö** hamnar `Tab` på en rad i listan; `↑`/`↓` flyttar mellan radern
 | `1-9` | Välj matchningsalternativ |
 | `↑` / `↓` | Föregående/nästa ansikte |
 | `Tab` | Komplettera autocomplete-förslag |
+| `n` / `p` | Nästa/föregående **fil** i kön (fungerar även när filkön ligger dold bakom Bildvisaren) |
 | `x` | Hoppa till nästa fil |
 | `Alt+Enter` | Lägg till filnamnstillägg (fritext, ej personnamn) för aktuell bild |
 | `Cmd+⌫` | Flytta aktuell fil till papperskorgen och gå vidare (`Cmd+⌫` följer Finder; även Arkiv → "Flytta till papperskorgen") |
@@ -289,7 +290,7 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`). Målmappen förväljs från den senast använda eventmappen (importsteget) och faller annars tillbaka på senaste importdestination.
 2. **Förhandsgranska** visar `DSC… → YYMMDD_HHMMSS.NEF` (dubbletter får `-NN`; filer utan CreateDate hoppas över).
 3. **Byt namn** utför; befintliga målnamn skrivs aldrig över.
-4. När namnbytet är klart visas knappen **"Granska ansikten…"** i resultatet — den öppnar granskningsvyn (Filkö + Granska ansikten + Bildvisare) med den namnbytta mappen redan laddad i kön (nästa steg).
+4. När namnbytet är klart visas knappen **"Granska ansikten…"** i resultatet — den öppnar granskningsvyn (Granska ansikten + Bildvisare, med filkön som flik bakom Bildvisaren) med den namnbytta mappen redan laddad i kön (nästa steg).
 
 **Redan namngivna filer skyddas.** Filer vars namn redan bär sin EXIF-tidsstämpel — med eller utan namnsuffix (`260713_110145_Elis.NEF`), burst (`…-1.NEF`) eller båda — hoppas över som standard, så ett namnbyte aldrig strippar bort bekräftade namn. Förhandsgranskningen visar hur många som skyddas. Två kryssrutor:
 
@@ -312,7 +313,16 @@ eventmappen med ett klick.
 
 ### 2. Granska ansikten
 
-1. Klicka på en fil i kön för att ladda den
+Granska-steget visar **Granska ansikten** till vänster och **Bildvisaren** i den
+stora kolumnen. **Filkön ligger som en flik bakom Bildvisaren** i stället för en
+egen kolumn — den tar alltså inte upp plats hela tiden, men är ett tangenttryck
+bort: växla fram den med `Cmd+Shift+U` (eller klicka på dess flik). Kön driver
+granskningen i bakgrunden (auto-advance, laddar bilder, papperskorg/ångra), så
+`n`/`p` (nästa/föregående fil) fungerar hela tiden — även när Bildvisaren ligger
+överst. När du laddar en bild (klick i kön, `n`/`p`) höjs Bildvisaren automatiskt
+så bilden syns.
+
+1. Klicka på en fil i kön för att ladda den (öppna kön med `Cmd+Shift+U`)
 2. Ansikten visas i Granska ansikten-panelen
 3. För varje ansikte:
    - **Acceptera** (`A`/`Enter`) om matchningen är korrekt

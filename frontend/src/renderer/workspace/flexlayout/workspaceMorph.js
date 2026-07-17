@@ -15,6 +15,11 @@
  * The function is a PURE function over the model (no React), so it is unit-
  * testable headlessly.
  *
+ * Spec shape: each pane becomes one COLUMN (tabset). A single-module pane is a
+ * one-tab column; a GROUP pane ({ tabs, active }) is a column with several
+ * stacked tabs, the `active` one on top and the rest hidden behind it. The morph
+ * builds exactly one row of columns — it does not do 2D (row/column) nesting.
+ *
  * Diff semantics against the live model:
  *   - target modules PRESENT   → moved into position (state preserved).
  *   - target modules ABSENT    → added as fresh tabs.
@@ -25,15 +30,19 @@
  *   - weights                  → each pane's tabset set to the spec proportion.
  *   - active tabset            → the primary (largest-weight) pane, so keyboard
  *                                ownership is deterministic after the morph.
- *
- * The specs here are canonical shapes (a solo module, or the review trio), so the
- * morph normalizes the target modules into one row of ordered tabsets. Panes the
- * spec does not name are removed/parked — for these full-workspace step specs
- * that is the same as "leave nothing that collides".
+ *   - keepMounted hidden tabs  → pinned enableRenderOnDemand:false so a module
+ *                                sitting BEHIND another tab in a group (the File
+ *                                Queue behind the Image Viewer) stays mounted.
  */
 
 import { Actions, DockLocation } from 'flexlayout-react';
-import { primaryModuleOf } from './workflows.js';
+import {
+  primaryModuleOf,
+  specModuleIds,
+  paneModuleIds,
+  paneActiveModule,
+  isGroupPane,
+} from './workflows.js';
 import { isKeepMountedModule, MODULE_TITLES } from './moduleRegistry.js';
 
 /** Display title for a module tab, falling back to its id. */
@@ -48,6 +57,15 @@ function allTabNodes(model) {
     if (n.getType() === 'tab') tabs.push(n);
   });
   return tabs;
+}
+
+/** Real (non-border) tabsets in visual (left→right) order. */
+function orderedTabsets(model) {
+  const tabsets = [];
+  model.visitNodes((n) => {
+    if (n.getType() === 'tabset') tabsets.push(n);
+  });
+  return tabsets;
 }
 
 /** Whether a node currently lives inside a border (i.e. is parked). */
@@ -80,6 +98,27 @@ function findTab(model, moduleId) {
 /** Whether any tab (parked or not) hosts the module. */
 function hasTab(model, moduleId) {
   return !!findTab(model, moduleId);
+}
+
+/**
+ * Reveal a module's tab when it is hidden BEHIND another tab in a real tabset —
+ * used to surface the Image Viewer when an image loads while the viewer sits
+ * behind the File Queue companion tab. No-op (returns false) when the tab is
+ * absent, already visible, or parked in a border. Returns true iff it selected
+ * the tab.
+ *
+ * @param {import('flexlayout-react').Model} model
+ * @param {string} moduleId
+ * @returns {boolean}
+ */
+export function revealHiddenModuleTab(model, moduleId) {
+  if (!model) return false;
+  const tab = findTab(model, moduleId);
+  if (!tab) return false;
+  if (tab.isVisible?.()) return false; // already the visible tab
+  if (tab.getParent?.()?.getType?.() !== 'tabset') return false; // parked / no host
+  model.doAction(Actions.selectTab(tab.getId()));
+  return true;
 }
 
 /**
@@ -135,22 +174,36 @@ function parkTab(model, tab, borderId, backgroundName) {
 }
 
 /**
- * Whether the model's real (non-border) tabs already match the spec exactly:
- * one tab per module, in order, each the sole child of its own tabset. Lets a
- * repeated apply (e.g. File Queue re-entering the review step on every file load)
- * skip all node churn.
+ * Pin keepMounted modules to enableRenderOnDemand:false so they stay mounted even
+ * when hidden behind another tab in a group (the File Queue behind the Image
+ * Viewer). Idempotent — safe to reassert on the fast path.
  */
-function alreadyMatches(model, targetIds) {
-  const realTabs = allTabNodes(model).filter((t) => !isInBorder(t));
-  if (realTabs.length !== targetIds.length) return false;
-  const seenTabsets = new Set();
-  for (let i = 0; i < realTabs.length; i++) {
-    const tab = realTabs[i];
-    if (tab.getComponent?.() !== targetIds[i]) return false;
-    const parent = tab.getParent();
-    if (parent.getChildren().length !== 1) return false;
-    if (seenTabsets.has(parent.getId())) return false;
-    seenTabsets.add(parent.getId());
+function pinKeepMounted(model, targetIds) {
+  for (const mid of targetIds) {
+    if (!isKeepMountedModule(mid)) continue;
+    const tab = findTab(model, mid);
+    if (tab) {
+      model.doAction(Actions.updateNodeAttributes(tab.getId(), { enableRenderOnDemand: false }));
+    }
+  }
+}
+
+/**
+ * Whether the model's real (non-border) tabsets already match the spec exactly:
+ * one tabset per pane, in order, each holding the pane's modules in tab order.
+ * Lets a repeated apply (e.g. File Queue re-entering the review step on every
+ * file load) skip all node churn.
+ */
+function alreadyMatches(model, spec) {
+  const tabsets = orderedTabsets(model);
+  if (tabsets.length !== spec.length) return false;
+  for (let i = 0; i < spec.length; i++) {
+    const ids = paneModuleIds(spec[i]);
+    const tabs = tabsets[i].getChildren().filter((c) => c.getType?.() === 'tab');
+    if (tabs.length !== ids.length) return false;
+    for (let j = 0; j < ids.length; j++) {
+      if (tabs[j].getComponent?.() !== ids[j]) return false;
+    }
   }
   return true;
 }
@@ -168,7 +221,8 @@ function alreadyMatches(model, targetIds) {
 function applyWeightsAndActive(model, spec) {
   const paneTabsetIds = new Set();
   for (const pane of spec) {
-    const tab = findTab(model, pane.moduleId);
+    const anchor = paneModuleIds(pane)[0];
+    const tab = anchor ? findTab(model, anchor) : null;
     if (tab && !isInBorder(tab)) {
       const tabsetId = tab.getParent().getId();
       paneTabsetIds.add(tabsetId);
@@ -187,10 +241,26 @@ function applyWeightsAndActive(model, spec) {
 }
 
 /**
+ * Select each group pane's active module as its tabset's visible tab. Called only
+ * on a fresh build (not the idempotent fast path), so it does not fight a user
+ * who has switched to the hidden companion tab (e.g. opened the File Queue).
+ */
+function selectGroupActiveTabs(model, spec) {
+  for (const pane of spec) {
+    if (!isGroupPane(pane)) continue;
+    const active = paneActiveModule(pane);
+    const tab = active ? findTab(model, active) : null;
+    if (tab && !isInBorder(tab)) {
+      model.doAction(Actions.selectTab(tab.getId()));
+    }
+  }
+}
+
+/**
  * Morph the live model into the given pane spec. See file header for semantics.
  *
  * @param {import('flexlayout-react').Model} model
- * @param {{ moduleId: string, weight: number }[]} spec
+ * @param {import('./workflows.js').Pane[]} spec
  * @param {{ keepDirty?: Set<string>, backgroundName?: string }} [options]
  *   keepDirty      module ids whose live (unsaved) state must be preserved —
  *                  parked rather than deleted, same as keepMounted modules.
@@ -200,14 +270,16 @@ export function applyWorkspace(model, spec, options = {}) {
   if (!model || !Array.isArray(spec) || spec.length === 0) return;
   const { keepDirty = new Set(), backgroundName } = options;
 
-  const targetIds = spec.map((p) => p.moduleId);
+  const targetIds = specModuleIds(spec);
   const targetSet = new Set(targetIds);
   const borderId = bottomBorderId(model);
 
-  // Fast path: already in the target shape → only reassert weights + active,
-  // no node churn (keeps repeated re-entry from the File Queue cheap).
-  if (alreadyMatches(model, targetIds)) {
+  // Fast path: already in the target shape → only reassert weights + active and
+  // the keepMounted pins, no node churn (keeps repeated re-entry from the File
+  // Queue cheap and non-focus-stealing).
+  if (alreadyMatches(model, spec)) {
     applyWeightsAndActive(model, spec);
+    pinKeepMounted(model, targetIds);
     return;
   }
 
@@ -255,16 +327,32 @@ export function applyWorkspace(model, spec, options = {}) {
     model.doAction(Actions.updateNodeAttributes(tab.getId(), { name: tabName(mid) }));
   }
 
-  // 4. Split the stacked modules out into ordered columns, left → right.
+  // 4. Split the stacked modules out into ordered columns, left → right. Pane 0
+  //    stays in the anchor tabset; each later pane pulls its FIRST module out to
+  //    a new column on the right, then its remaining group members join that same
+  //    column as stacked tabs. Since every non-pane-0 module is pulled out, the
+  //    anchor ends up holding exactly pane 0's module(s).
   let prevTabsetId = anchorId;
-  for (let i = 1; i < targetIds.length; i++) {
-    const tab = findTab(model, targetIds[i]);
-    if (!tab) continue;
-    model.doAction(Actions.moveNode(tab.getId(), prevTabsetId, DockLocation.RIGHT, -1, false));
-    const moved = findTab(model, targetIds[i]);
-    prevTabsetId = moved ? moved.getParent().getId() : prevTabsetId;
+  for (let i = 1; i < spec.length; i++) {
+    const ids = paneModuleIds(spec[i]);
+    if (ids.length === 0) continue;
+    const firstTab = findTab(model, ids[0]);
+    if (!firstTab) continue;
+    model.doAction(Actions.moveNode(firstTab.getId(), prevTabsetId, DockLocation.RIGHT, -1, false));
+    const moved = findTab(model, ids[0]);
+    const colId = moved ? moved.getParent().getId() : prevTabsetId;
+    for (let j = 1; j < ids.length; j++) {
+      const t = findTab(model, ids[j]);
+      if (t && t.getParent().getId() !== colId) {
+        model.doAction(Actions.moveNode(t.getId(), colId, DockLocation.CENTER, -1, false));
+      }
+    }
+    prevTabsetId = colId;
   }
 
-  // 5. Weights + active tabset.
+  // 5. Keep hidden companion modules (File Queue) mounted, then reveal each
+  //    group's active tab, then set weights + the active tabset.
+  pinKeepMounted(model, targetIds);
+  selectGroupActiveTabs(model, spec);
   applyWeightsAndActive(model, spec);
 }

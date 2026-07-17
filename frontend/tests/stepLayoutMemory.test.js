@@ -17,6 +17,7 @@ import {
   mergeWithFactory,
   resolveStepSpec,
   migrateLegacyLayout,
+  migrateReviewMemoryShape,
   stepStorageKey,
   LEGACY_LAYOUT_KEY,
 } from '../src/renderer/workspace/flexlayout/stepLayoutMemory.js';
@@ -105,6 +106,36 @@ describe('snapshotStepSpec', () => {
     expect(snapshotStepSpec(model)).toEqual([{ moduleId: 'image-viewer', weight: 40 }]);
   });
 
+  it('captures a multi-tab tabset as a group pane with its selected active tab', () => {
+    const model = makeModel({
+      type: 'row', weight: 100,
+      children: [
+        { type: 'tabset', id: 'ts-r', weight: 15, children: [tab('t-r', 'review-module')] },
+        {
+          type: 'tabset', id: 'ts-g', weight: 85, selected: 0,
+          children: [tab('t-v', 'image-viewer'), tab('t-q', 'file-queue')],
+        },
+      ],
+    });
+    expect(snapshotStepSpec(model)).toEqual([
+      { moduleId: 'review-module', weight: 15 },
+      { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+    ]);
+  });
+
+  it('records the group active tab from the tabset selection (file-queue on top)', () => {
+    const model = makeModel({
+      type: 'row', weight: 100,
+      children: [{
+        type: 'tabset', id: 'ts-g', weight: 100, selected: 1,
+        children: [tab('t-v', 'image-viewer'), tab('t-q', 'file-queue')],
+      }],
+    });
+    expect(snapshotStepSpec(model)).toEqual([
+      { tabs: ['image-viewer', 'file-queue'], active: 'file-queue', weight: 100 },
+    ]);
+  });
+
   it('returns [] for a null model', () => {
     expect(snapshotStepSpec(null)).toEqual([]);
   });
@@ -160,7 +191,15 @@ describe('clear', () => {
 });
 
 describe('mergeWithFactory', () => {
-  const factory = getWorkspaceSpec('review'); // file-queue | review-module | image-viewer
+  const factory = getWorkspaceSpec('review'); // review-module | [image-viewer, file-queue]
+
+  it('keeps a saved group-form spec verbatim (factory modules all present)', () => {
+    const saved = [
+      { moduleId: 'review-module', weight: 20 },
+      { tabs: ['image-viewer', 'file-queue'], active: 'file-queue', weight: 80 },
+    ];
+    expect(mergeWithFactory(saved, factory)).toEqual(saved);
+  });
 
   it('appends factory modules the saved spec dropped (essential modules kept)', () => {
     // User closed the File Queue, saving a queue-less review shape.
@@ -268,6 +307,43 @@ describe('migrateLegacyLayout', () => {
 
   it('is a no-op when there is no legacy key', () => {
     migrateLegacyLayout();
+    expect(loadStepSpec('review')).toBeNull();
+  });
+});
+
+describe('migrateReviewMemoryShape', () => {
+  it('folds an old three-column review memory into the companion-tab group form', () => {
+    saveStepSpec('review', [
+      { moduleId: 'file-queue', weight: 15 },
+      { moduleId: 'review-module', weight: 15 },
+      { moduleId: 'image-viewer', weight: 70 },
+    ]);
+    migrateReviewMemoryShape();
+    expect(loadStepSpec('review')).toEqual([
+      { moduleId: 'review-module', weight: 15 },
+      { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+    ]);
+  });
+
+  it('is idempotent — a memory already in the group form is untouched', () => {
+    const groupForm = [
+      { moduleId: 'review-module', weight: 15 },
+      { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+    ];
+    saveStepSpec('review', groupForm);
+    migrateReviewMemoryShape();
+    expect(loadStepSpec('review')).toEqual(groupForm);
+  });
+
+  it('leaves a memory without both queue and viewer columns alone', () => {
+    const other = [{ moduleId: 'review-module', weight: 100 }];
+    saveStepSpec('review', other);
+    migrateReviewMemoryShape();
+    expect(loadStepSpec('review')).toEqual(other);
+  });
+
+  it('is a no-op when there is no review memory', () => {
+    migrateReviewMemoryShape();
     expect(loadStepSpec('review')).toBeNull();
   });
 });

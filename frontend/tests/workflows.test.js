@@ -11,6 +11,10 @@ import {
   WORKFLOW_STEP_SEQUENCE,
   getWorkspaceSpec,
   primaryModuleOf,
+  isGroupPane,
+  paneModuleIds,
+  paneActiveModule,
+  specModuleIds,
 } from '../src/renderer/workspace/flexlayout/workflows.js';
 import { getModuleStep } from '../src/renderer/workspace/flexlayout/moduleRegistry.js';
 
@@ -37,11 +41,37 @@ describe('WORKSPACE_SPECS', () => {
     }
   });
 
-  it('models review as file-queue | review-module | image-viewer at 15|15|70', () => {
+  it('models review as review-module | [image-viewer (active), file-queue] at 15|85', () => {
     expect(WORKSPACE_SPECS.review).toEqual([
-      { moduleId: 'file-queue', weight: 15 },
       { moduleId: 'review-module', weight: 15 },
-      { moduleId: 'image-viewer', weight: 70 },
+      { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+    ]);
+  });
+});
+
+describe('pane-shape helpers', () => {
+  const single = { moduleId: 'review-module', weight: 15 };
+  const group = { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 };
+
+  it('isGroupPane distinguishes single vs group panes', () => {
+    expect(isGroupPane(single)).toBe(false);
+    expect(isGroupPane(group)).toBe(true);
+  });
+
+  it('paneModuleIds yields a single id or the group tabs in order', () => {
+    expect(paneModuleIds(single)).toEqual(['review-module']);
+    expect(paneModuleIds(group)).toEqual(['image-viewer', 'file-queue']);
+  });
+
+  it('paneActiveModule is the module or the group active (first-tab fallback)', () => {
+    expect(paneActiveModule(single)).toBe('review-module');
+    expect(paneActiveModule(group)).toBe('image-viewer');
+    expect(paneActiveModule({ tabs: ['a', 'b'], weight: 1 })).toBe('a');
+  });
+
+  it('specModuleIds flattens panes and groups in visual order', () => {
+    expect(specModuleIds(WORKSPACE_SPECS.review)).toEqual([
+      'review-module', 'image-viewer', 'file-queue',
     ]);
   });
 });
@@ -53,7 +83,7 @@ describe('getWorkspaceSpec', () => {
 });
 
 describe('primaryModuleOf', () => {
-  it('picks the largest-weight pane (image-viewer for the review trio)', () => {
+  it('picks the active module of the largest-weight pane (image-viewer for review)', () => {
     expect(primaryModuleOf(WORKSPACE_SPECS.review)).toBe('image-viewer');
   });
 

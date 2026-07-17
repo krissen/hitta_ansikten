@@ -1423,7 +1423,35 @@ export function FileQueueModule({ node }) {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Skip keyboard handling when this tab is hidden in FlexLayout
+      // Whether this queue tab is parked in the background border — i.e. a
+      // DIFFERENT pipeline step is active and the queue was pushed aside. Parked
+      // ⇒ inert for keyboard. This differs from merely hidden: in the review step
+      // the queue is mounted-but-hidden BEHIND the Image Viewer tab (companion
+      // model), where n/p must still drive navigation.
+      const parked = node?.getParent?.()?.getType?.() === 'border';
+
+      // n/p file navigation is the owner's primary review gesture. It must keep
+      // working while the queue is the hidden companion tab, so it is gated on
+      // "mounted and not parked" rather than on visibility — node.isVisible() is
+      // false for a hidden-but-mounted tab, and gating n/p on it would silently
+      // break navigation the moment the Image Viewer tab is on top. Typing in an
+      // input/textarea (e.g. the filter) still suppresses it.
+      const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+      if (!parked && !inField && !e.metaKey && !e.ctrlKey) {
+        if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          advanceToNext();
+          return;
+        }
+        if (e.key === 'p' || e.key === 'P') {
+          e.preventDefault();
+          const prevIndex = currentIndex - 1;
+          if (prevIndex >= 0) loadFile(prevIndex);
+          return;
+        }
+      }
+
+      // Everything below depends on the tab being actually visible + focused.
       if (node && !node.isVisible()) return;
 
       // Escape closes filter when filter input is focused
@@ -1478,22 +1506,6 @@ export function FileQueueModule({ node }) {
         }
       }
 
-      // N - next file
-      if (e.key === 'n' || e.key === 'N') {
-        if (!e.metaKey && !e.ctrlKey) {
-          e.preventDefault();
-          advanceToNext();
-        }
-      }
-
-      // P - previous file
-      if ((e.key === 'p' || e.key === 'P') && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
-        const prevIndex = currentIndex - 1;
-        if (prevIndex >= 0) {
-          loadFile(prevIndex);
-        }
-      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
