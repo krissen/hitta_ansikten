@@ -20,6 +20,7 @@ import { retranslateTabNames } from './tabNames.js';
 import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
+import { useConfirm } from '../../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
 import { MODULE_COMPONENTS, MODULE_TITLES, getModuleRole, getModuleWeight, getModuleStep, isSingletonModule } from './moduleRegistry.js';
 import { useUIPreferences } from './uiPreferences.js';
@@ -78,6 +79,7 @@ export function FlexLayoutWorkspace() {
     return () => window.removeEventListener('preferences-changed', onPrefChange);
   }, []);
   const moduleAPI = useModuleAPI();
+  const confirm = useConfirm();
   // Image paths whose Review has unsaved confirmations/ignores (mirrors the
   // 'review-dirty' signal the file queue uses). Consulted before auto-closing
   // the Review panel so culling can't silently drop partially reviewed faces.
@@ -479,10 +481,26 @@ export function FlexLayoutWorkspace() {
   // Open a pipeline step from the WorkflowBar or landing: reuse the existing
   // landing opening path, and mark the step active in the bar. A non-pipeline
   // module (a tool opened from the landing) has no step, so the highlight clears.
-  const openWorkflowStep = useCallback((moduleId) => {
+  //
+  // openLandingStep replaces the layout model (loadLayout / openModuleSolo),
+  // which unmounts a live ReviewModule and silently drops its unsaved
+  // confirmations/ignores. The culling hand-off guards that via reviewDirtyRef;
+  // reuse the same signal here, but — since a step switch has no "keep Review
+  // open" fallback — confirm before discarding. Cancel leaves everything as is.
+  const openWorkflowStep = useCallback(async (moduleId) => {
+    if (reviewDirtyRef.current.size > 0) {
+      const ok = await confirm({
+        message: t('workflowBar.unsavedStepChange'),
+        confirmLabel: t('workflowBar.switchAnyway'),
+      });
+      if (!ok) return;
+      // Confirmed discard: the dirty Review is about to be unmounted, so its
+      // tracked edits are gone — clear the set so a stale entry can't re-prompt.
+      reviewDirtyRef.current.clear();
+    }
     setActiveStep(getModuleStep(moduleId));
     openLandingStep(moduleId);
-  }, [openLandingStep]);
+  }, [confirm, openLandingStep]);
 
   // Swap active panel with panel in specified direction (Cmd+Arrow)
   const swapActivePanel = useCallback((direction) => {
@@ -793,6 +811,7 @@ export function FlexLayoutWorkspace() {
       model,
       layoutRef,
       openModule,
+      openWorkflowStep,
       ensureReviewSurface,
       closePanel,
       loadLayout,
@@ -810,7 +829,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, ensureReviewSurface, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
+  }, [model, openModule, openWorkflowStep, ensureReviewSurface, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
 
   // NOTE: Auto-load from queue is handled by FileQueueModule, not here
 

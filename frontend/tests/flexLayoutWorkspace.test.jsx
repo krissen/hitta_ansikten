@@ -19,6 +19,9 @@ const h = vi.hoisted(() => {
   const setPreference = vi.fn();
   const emit = vi.fn();
   const on = vi.fn(() => () => {});
+  // Confirm dialog stub — defaults to "confirmed" so paths that don't care are
+  // unaffected; the dirty-guard tests override per-call.
+  const confirm = vi.fn().mockResolvedValue(true);
   const moduleAPI = {
     emit,
     on,
@@ -28,7 +31,7 @@ const h = vi.hoisted(() => {
     ws: { on: () => {}, off: () => {} },
     ipc: { send: vi.fn(), invoke: vi.fn() },
   };
-  return { setPreference, emit, on, moduleAPI };
+  return { setPreference, emit, on, confirm, moduleAPI };
 });
 
 // Trivial marker component for a mocked module. Renders a div carrying the
@@ -45,6 +48,12 @@ vi.mock('../src/renderer/theme-manager.js', () => ({
 
 vi.mock('../src/renderer/context/ModuleAPIContext.jsx', () => ({
   useModuleAPI: () => h.moduleAPI,
+}));
+
+// The workspace uses useConfirm to guard a step switch that would discard
+// unsaved Review edits; feed it a controllable stub.
+vi.mock('../src/renderer/context/ConfirmContext.jsx', () => ({
+  useConfirm: () => h.confirm,
 }));
 
 // Mock every module component so FlexLayoutWorkspace can mount without pulling
@@ -158,6 +167,8 @@ beforeEach(() => {
   h.setPreference.mockClear();
   h.emit.mockClear();
   h.on.mockClear();
+  h.confirm.mockClear();
+  h.confirm.mockResolvedValue(true);
   h.moduleAPI.waitForListeners.mockClear();
   // Fresh electron bridge each test: capture IPC listeners, stub invoke.
   window.ansiktenAPI = {
@@ -317,6 +328,38 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     // Queue still brought up and roots still handed off.
     expect(tabComponents(window.workspace.model)).toContain('file-queue');
     expect(h.emit).toHaveBeenCalledWith('file-queue-load', { roots: ['/events/cupen'] });
+  });
+
+  it('a workflow-step switch with unsaved Review edits confirms first; cancel keeps the layout', async () => {
+    // Mark a file dirty so switching step would discard unsaved Review edits.
+    const dirty = moduleApiHandler('review-dirty');
+    await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
+    const before = tabComponents(window.workspace.model).sort();
+
+    h.confirm.mockResolvedValueOnce(false); // user cancels
+    await act(async () => { await window.workspace.openWorkflowStep('player-count'); });
+
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+    // Cancelled → the model was NOT replaced (no player-count, same tabs).
+    expect(tabComponents(window.workspace.model).sort()).toEqual(before);
+    expect(tabComponents(window.workspace.model)).not.toContain('player-count');
+  });
+
+  it('a confirmed workflow-step switch replaces the layout with the target step', async () => {
+    const dirty = moduleApiHandler('review-dirty');
+    await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
+
+    h.confirm.mockResolvedValueOnce(true); // user confirms discard
+    await act(async () => { await window.workspace.openWorkflowStep('player-count'); });
+
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+    expect(tabComponents(window.workspace.model)).toContain('player-count');
+  });
+
+  it('a workflow-step switch with no unsaved edits does not prompt', async () => {
+    await act(async () => { await window.workspace.openWorkflowStep('player-count'); });
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(tabComponents(window.workspace.model)).toContain('player-count');
   });
 
   it('queue-files IPC mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
