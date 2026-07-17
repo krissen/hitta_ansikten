@@ -654,6 +654,18 @@ describe('FlexLayoutWorkspace — welcome card (visibility + first-run)', () => 
   });
 });
 
+describe('FlexLayoutWorkspace — Help ▸ keyboard shortcuts', () => {
+  it('show-keyboard-shortcuts opens the shortcuts overlay (was a no-op before)', async () => {
+    // The menu command previously had no handler and fell through to a no-op
+    // moduleAPI broadcast; it now toggles the overlay like the `?` key.
+    const { container } = await mountWorkspace();
+    expect(container.querySelector('.shortcuts-overlay')).toBeNull();
+
+    await dispatch('show-keyboard-shortcuts');
+    expect(container.querySelector('.shortcuts-overlay')).toBeTruthy();
+  });
+});
+
 describe('FlexLayoutWorkspace — per-step layout memory', () => {
   const stepKey = (s) => `ansikten-workspace-${s}`;
   const readSpec = (s) => {

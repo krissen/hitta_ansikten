@@ -23,7 +23,7 @@ import { WORKFLOW_STEPS } from './workflowSteps.js';
 /**
  * Build the command -> handler table from a workspace context.
  * @param {object} ctx - { dispatch, addTabset, removeEmptyTabset,
- *   moveToNewTabset, moduleAPI, showWelcome }
+ *   moveToNewTabset, moduleAPI, showWelcome, toggleShortcutsHelp }
  */
 export function buildMenuCommandTable(ctx) {
   const {
@@ -33,6 +33,7 @@ export function buildMenuCommandTable(ctx) {
     moveToNewTabset,
     moduleAPI,
     showWelcome,
+    toggleShortcutsHelp,
   } = ctx;
 
   // Pipeline-step accelerators (Cmd+1..5) route through the open-workflow-step
@@ -109,6 +110,9 @@ export function buildMenuCommandTable(ctx) {
     'open-theme-editor': () => dispatch({ type: 'open-module', moduleId: 'theme-editor' }),
 
     'open-preferences': () => dispatch({ type: 'open-module', moduleId: 'preferences' }),
+
+    // Help ▸ toggle the keyboard-shortcuts overlay (same as the `?` key).
+    'show-keyboard-shortcuts': () => toggleShortcutsHelp?.(),
 
     // Help ▸ show the first-run welcome card again on demand.
     'show-welcome': () => showWelcome?.(),

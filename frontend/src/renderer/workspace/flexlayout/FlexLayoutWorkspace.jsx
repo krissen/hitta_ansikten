@@ -738,6 +738,10 @@ export function FlexLayoutWorkspace() {
       moduleAPI,
       // Help ▸ "Visa välkomstguiden" re-shows the first-run card on demand.
       showWelcome: () => setShowLanding(true),
+      // Help ▸ "Tangentbordsgenvägar" toggles the shortcuts overlay — the same
+      // toggle the `?` key performs (the menu command had no handler before and
+      // fell through to a no-op moduleAPI broadcast).
+      toggleShortcutsHelp: () => setShowShortcutsHelp((prev) => !prev),
     });
     const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
