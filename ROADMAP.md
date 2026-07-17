@@ -71,6 +71,7 @@ deliverables, DoD) för en prestandarelease.
 ### UI/UX
 
 - [ ] **`resolvePlacementTabset` ignorerar `getMaximizedTabset`** — en side-/bottom-modul som öppnas medan en tabset är maximerad dockar bakom den maximerade vyn (den nya panelen läggs i sin roll-tabset men syns inte förrän maximeringen släpps). Egen placeringsklass; åtgärdas i en senare placerings-PR. Nagelfar-fynd från #235, icke-blockerande.
+- [ ] **Reviews `ArrowUp`/`ArrowDown`-grenar saknar bareKey-guard** — Cmd+Pil i Granska både stegar ansikte OCH swappar panel (dubbelfyr). Annan klass än #241:s accelerator-svällning eftersom panel-swappen är en renderer-handler, inte en meny-accelerator. Följd: lägg samma bareKey-guard på pilgrenarna om Cmd+Pil ska vara exklusivt panel-swap. Nagelfar-not från #241-granskningen.
 
 ---
 
