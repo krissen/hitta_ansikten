@@ -61,7 +61,6 @@ module.exports = {
     "layoutTemplates": "Layoutmallar",
     "reviewMode": "Granskningsläge",
     "comparisonMode": "Jämförelseläge",
-    "fullImage": "Helbild",
     "statsMode": "Statistikläge",
     "queueReviewMode": "Köläge",
     "gridPresets": "Rutnätsförval",
