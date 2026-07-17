@@ -300,6 +300,7 @@ The suite is small, so also test manually:
 - [API Reference](docs/dev/api-reference.md)
 - [Database](docs/dev/database.md)
 - [Theming](docs/dev/theming.md)
+- [UX Principles](docs/dev/ux-principles.md)
 - [Accessibility](docs/dev/accessibility.md)
 - [Contributing](docs/dev/contributing.md)
 - [Performance Plan](docs/dev/performance-plan.md)

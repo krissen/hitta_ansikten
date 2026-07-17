@@ -27,6 +27,25 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | **Inställningar** | Inställningar |
 | **Temaredigerare** | Anpassa utseende |
 
+### Arbetsflödesrad
+
+Överst i arbetsytan ligger en fast **arbetsflödesrad** som alltid visar de fem
+pipeline-stegen i ordning:
+
+`1 Importera · 2 Byt namn · 3 Granska · 4 Räkna · 5 Gallra`
+
+- **Klicka på ett steg** för att öppna det — samma vägar som från startsidan.
+- Det **aktiva steget** är markerat, så du alltid ser var i flödet du är.
+- **Arbetsmapp-chippen** (📁) till höger visar vilken mapp pipelinen är förankrad
+  till. Håll muspekaren över den för full sökväg och vilket steg som satte den.
+- När ett steg har ett känt nästa steg visas en **Fortsätt →**-knapp som tar dig
+  vidare med samma mapp.
+- **Verktyg ▾** öppnar övriga vyer (Databashantering, Statistik, Loggar,
+  Inställningar, m.fl.) som inte är en del av det linjära flödet.
+
+Raden kan döljas under **Inställningar → Layout → Visa arbetsflödesrad** (på som
+standard).
+
 ---
 
 ## Tangentbordsgenvägar

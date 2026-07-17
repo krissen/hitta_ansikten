@@ -1,0 +1,133 @@
+# UX Principles
+
+This is a living document. It codifies the interaction and navigation rules the
+Ansikten workspace is built on, so a future session (human or AI) can extend the
+UI without re-deriving them. Every UI PR that makes a new interaction decision
+updates this file.
+
+The app is a photographer's pipeline tool with a retro aesthetic. The rules
+below apply Jakob Nielsen's usability heuristics to this specific codebase — they
+are not abstract; each names the concrete place it lives.
+
+---
+
+## Applied heuristics
+
+### N1 — Visibility of system status
+
+The user should always see where they are in the pipeline and what the app is
+doing.
+
+- The **WorkflowBar** (`components/WorkflowBar.jsx`) is always visible above the
+  layout and highlights the active pipeline step. The active step is tracked in
+  `FlexLayoutWorkspace` (`activeStep`) and set both by step clicks and by the
+  in-app hand-off events (`open-rename-nef`, `open-review-queue`, `open-culling`,
+  `open-import`).
+- The **working-folder chip** shows which event folder the pipeline is anchored
+  to (`shared/workingFolder.js`).
+- Long operations report through the WebSocket progress channel and toasts, not
+  silent spinners.
+
+### N3 — User control and freedom
+
+- Adopting an earlier step's working set is always an explicit button
+  ("Fortsätt →", the culling "open with scope" button), never an automatic load.
+  See the navigation rules below.
+- Destructive actions (delete, purge, empty trash) go through `ConfirmDialog`.
+- Rename operations are journaled and undoable (`rename_service`, the journal
+  line is the source of truth).
+
+### N4 — Consistency and standards
+
+- The WorkflowBar and StartupLanding render the **same** steps, in the same
+  order, with the same labels, from **one** source: `workflowSteps.js`
+  (`WORKFLOW_STEPS`, `WORKFLOW_TOOLS`, `CONTINUE_BY_STEP`). Never fork this list.
+- A module's placement is a property of the module, not of the moment — see the
+  navigation rules. The same command always lands a module in the same kind of
+  area.
+- Platform conventions: a persistent module row (Lightroom), a tools menu, and
+  keyboard shortcuts documented in the shortcuts overlay.
+
+### N5 — Error prevention
+
+- Hand-offs that could unmount a live panel with unsaved state are guarded
+  (e.g. the culling hand-off will not close Review while it has unsaved
+  confirmations; `reviewDirtyRef` in `FlexLayoutWorkspace`).
+- Placement resolves against the real model, so a command can't drop a tab into a
+  non-existent tabset.
+
+### N6 — Recognition rather than recall
+
+- The pipeline is **on screen** (WorkflowBar), not something the user recalls
+  from a menu. This is the core reason the bar exists.
+- Modules carry human labels from the i18n catalog, not internal ids.
+
+### N7 — Flexibility and efficiency of use
+
+- Steps are reachable three ways: the WorkflowBar (persistent), the
+  StartupLanding (empty workspace), and the CLI verbs (`ansikten faces|culling|
+  import`). Power users get keyboard shortcuts and the tools menu; newcomers get
+  the numbered steps.
+
+### N8 — Aesthetic and minimalist design
+
+- The bar is slim (~32 px) and secondary to the content. Tools that are not part
+  of the linear pipeline live behind a "Verktyg ▾" menu rather than cluttering
+  the row.
+
+---
+
+## Navigation rules
+
+These are hard rules for anyone adding or moving UI.
+
+1. **Pipeline steps are primary navigation.** The five steps
+   (Import → Rename → Review → Count → Culling) are the spine of the app and live
+   in the always-visible WorkflowBar. New primary flows join the pipeline; they
+   do not get bolted onto a menu.
+
+2. **Modules declare their layout role in the catalog.** `moduleRegistry.js`
+   assigns each module a `role` (`main`/`side`/`bottom`) plus metadata
+   (`weight`, `singleton`, `solo`, `step`, `keepMounted`). Placement is resolved
+   from that role via `resolvePlacementTabset` — **placement must never depend on
+   the active tabset.** The same command lands the module in the same kind of
+   area regardless of where the user last clicked.
+
+3. **Layout switching should morph, not replace.** Changing the working step
+   should transform the current layout toward the target rather than tearing down
+   and rebuilding it (arriving in a later PR). Replacing the model unmounts live
+   panels and drops their in-memory state — avoid it on any path that a live
+   panel (a loaded queue, an unsaved Review) can be on.
+
+4. **Adopting a working set is always opt-in.** The three working sets (file
+   queue, scan scope, import destination) and the shared working-folder anchor
+   are never auto-loaded. A later step reads the anchor to seed a **default** or
+   to offer a **button** ("Fortsätt →"); it never starts work on its own.
+
+5. **New modules register with a role and, if part of the pipeline, a step.**
+   Add the catalog entry (role + optional `step`), add the step to `STEP_ORDER`
+   in `workflowSteps.js` if it is a pipeline step, and the bar/landing pick it up
+   automatically.
+
+---
+
+## Style rules
+
+- **Reuse theme variables and shared primitives.** Build on the tokens in
+  [theming.md](theming.md) and the components in `components/shared/` (`Button`,
+  `IconButton`, `Modal`, …). Do not hardcode colors, spacing, or fonts.
+- **A new CSS class needs a reason**; a new theme key needs a stronger one. If
+  you add a theme variable it **must** be defined in **every** theme preset (see
+  [theming.md](theming.md)) — a key present in only one preset breaks the others.
+- **Test light and dark.** Every visual change is checked in both themes before
+  it ships.
+- **The retro look is intentional.** Keep it; refine it. This is not a dark-first
+  redesign.
+
+---
+
+## Related
+
+- [Theming](theming.md) — the variable system and presets.
+- [Accessibility](accessibility.md) — keyboard and focus patterns.
+- [Architecture](architecture.md) — module and workspace structure.
