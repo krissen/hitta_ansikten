@@ -451,27 +451,29 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(window.workspace.activeStep).toBe('count');
   });
 
-  it('queue-files IPC mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
+  it('a queue-files workspace-command mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
     expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
-    const handler = ipcHandler('queue-files');
+    const handler = ipcHandler('workspace-command');
     expect(handler).toBeTypeOf('function');
-    await act(async () => { await handler({ files: ['/a.nef', '/b.nef'], startQueue: true, clear: false }); });
+    const payload = { files: ['/a.nef', '/b.nef'], startQueue: true, clear: false };
+    await act(async () => { await handler({ type: 'queue-files', payload }); });
 
     expect(tabComponents(window.workspace.model)).toContain('file-queue');
-    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef', '/b.nef'], startQueue: true, clear: false });
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', payload);
   });
 
-  it('queue-files IPC dismisses the startup landing even without startQueue (no image loads)', async () => {
+  it('a queue-files workspace-command dismisses the startup landing even without startQueue (no image loads)', async () => {
     // launchIntent is null in this harness → the landing overlay is up at mount.
     expect(document.querySelector('[data-testid="mock-landing"]')).toBeTruthy();
 
-    const handler = ipcHandler('queue-files');
+    const handler = ipcHandler('workspace-command');
     // No startQueue: the queue fills but no image loads, so nothing else would
-    // hide the landing — ensureQueueMounted must dismiss it.
-    await act(async () => { await handler({ files: ['/a.nef'], startQueue: false }); });
+    // hide the landing — the review morph must dismiss it.
+    const payload = { files: ['/a.nef'], startQueue: false };
+    await act(async () => { await handler({ type: 'queue-files', payload }); });
 
     expect(document.querySelector('[data-testid="mock-landing"]')).toBeNull();
-    expect(h.emit).toHaveBeenCalledWith('file-queue-load', { files: ['/a.nef'], startQueue: false });
+    expect(h.emit).toHaveBeenCalledWith('file-queue-load', payload);
   });
 
   it('enterStep(review) builds the review trio beside an existing queue WITHOUT remounting it', async () => {

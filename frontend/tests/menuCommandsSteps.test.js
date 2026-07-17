@@ -10,20 +10,16 @@ import { buildMenuCommandTable, createMenuCommandHandler } from '../src/renderer
 
 function makeCtx() {
   return {
-    loadLayout: vi.fn(),
-    resetLayout: vi.fn(),
-    enterStep: vi.fn(),
-    openWorkflowStep: vi.fn(),
+    dispatch: vi.fn(),
     addTabset: vi.fn(),
     removeEmptyTabset: vi.fn(),
     moveToNewTabset: vi.fn(),
-    openModule: vi.fn(),
     moduleAPI: { emit: vi.fn() },
   };
 }
 
 describe('menuCommands — pipeline step accelerators', () => {
-  it('maps Cmd+1..5 step commands to openWorkflowStep with the step module', () => {
+  it('maps Cmd+1..5 step commands to an open-workflow-step intent with the step module', () => {
     const ctx = makeCtx();
     const table = buildMenuCommandTable(ctx);
 
@@ -37,25 +33,34 @@ describe('menuCommands — pipeline step accelerators', () => {
     for (const [command, moduleId] of Object.entries(cases)) {
       expect(table[command], `handler for ${command}`).toBeTypeOf('function');
       table[command]();
-      expect(ctx.openWorkflowStep).toHaveBeenCalledWith(moduleId);
+      expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'open-workflow-step', moduleId });
     }
   });
 
-  it('routes reset-layout to the dirty-guarded resetLayout, not a bare loadLayout', async () => {
+  it('routes reset-layout to a reset-layout intent (not a bare load-layout)', async () => {
     const ctx = makeCtx();
     const handler = createMenuCommandHandler(ctx);
     await handler('reset-layout');
-    expect(ctx.resetLayout).toHaveBeenCalledTimes(1);
-    expect(ctx.loadLayout).not.toHaveBeenCalled();
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'reset-layout' });
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'load-layout', name: 'review' });
   });
 
-  it('still forwards secondary layout templates to loadLayout (no accelerator)', async () => {
+  it('forwards secondary layout templates to a load-layout intent (no accelerator)', async () => {
     const ctx = makeCtx();
     const handler = createMenuCommandHandler(ctx);
     await handler('layout-template-comparison');
     await handler('layout-template-stats');
-    expect(ctx.loadLayout).toHaveBeenCalledWith('comparison');
-    expect(ctx.loadLayout).toHaveBeenCalledWith('database');
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'load-layout', name: 'comparison' });
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'load-layout', name: 'database' });
+  });
+
+  it('maps open-<module> commands to an open-module intent', async () => {
+    const ctx = makeCtx();
+    const handler = createMenuCommandHandler(ctx);
+    await handler('open-culling');
+    await handler('open-player-count');
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'open-module', moduleId: 'culling' });
+    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'open-module', moduleId: 'player-count' });
   });
 
   it('broadcasts an unknown command to modules (default case)', async () => {

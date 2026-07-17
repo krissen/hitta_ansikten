@@ -13,14 +13,14 @@ contextBridge.exposeInMainWorld("ansiktenAPI", {
 
   // IPC communication - only specific channels allowed
   send: (channel, data) => {
-    const allowedChannels = ["bild-visad", "sync-view", "renderer-log", "update-menu-state"];
+    const allowedChannels = ["bild-visad", "sync-view", "renderer-log", "update-menu-state", "workspace-ready"];
     if (allowedChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }
   },
 
   on: (channel, callback) => {
-    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "queue-files", "open-culling", "open-import"];
+    const allowedChannels = ["show-wait-overlay", "hide-wait-overlay", "apply-view", "load-initial-file", "menu-command", "devtools-state-changed", "workspace-command"];
     if (!allowedChannels.includes(channel)) return undefined;
     // Strip event object for security. Return a disposer so callers can clean
     // up in effect teardown and avoid stacking duplicate listeners on re-runs.
