@@ -217,6 +217,14 @@ export function PlayerCountModule() {
   // NOT violate the adopt-on-mount invariant (that governs passive mount, not an
   // explicit navigation the user just triggered).
   useModuleEvent('count-load', useCallback(({ roots } = {}) => {
+    // Consume the external-load flag that open-count set, unconditionally and
+    // FIRST. count-load always fires on an open-count hand-off, so this is the
+    // reliable consumption point: on a fresh mount adopt-on-mount already took it
+    // (no-op here); when Räkna was ALREADY mounted the morph's fast-path skips a
+    // remount, so adopt-on-mount never ran — without this the flag would linger
+    // and be swallowed by the next consumer (culling's adopt-on-mount), opening
+    // Gallra without its scope. count-load drives the count explicitly regardless.
+    takeExternalLoad();
     if (!Array.isArray(roots) || roots.length === 0) return;
     const next = { ...EMPTY_INPUT, roots: [...roots] };
     setInput(next);
