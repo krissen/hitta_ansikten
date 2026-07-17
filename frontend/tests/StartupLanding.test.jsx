@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
+// StartupLanding derives its steps/tools from the shared workflowSteps module,
+// which imports the module catalog and thus every module component. ThemeEditor
+// pulls in the theme manager, which reads localStorage at import time
+// (unavailable under jsdom). Mock it away, same as moduleCatalog.test.js.
+vi.mock('../src/renderer/theme-manager.js', () => ({
+  themeManager: { setPreference: vi.fn() },
+}));
+
 // Mock the backend context so we control the /import/volumes response.
 const mockGet = vi.fn();
 vi.mock('../src/renderer/context/BackendContext.jsx', () => ({

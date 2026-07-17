@@ -104,6 +104,17 @@ export function isSingletonModule(moduleId) {
 }
 
 /**
+ * Workflow-step id for a module ('import' | 'rename' | 'review' | 'count' |
+ * 'culling'), or null when the module is not a pipeline step. Lets the workspace
+ * map an opened module back to its step so the WorkflowBar can highlight it.
+ * @param {string} moduleId
+ * @returns {string | null}
+ */
+export function getModuleStep(moduleId) {
+  return MODULE_CATALOG[moduleId]?.step ?? null;
+}
+
+/**
  * Declared role weight for a module, or null when it has none. Used to size a
  * fresh side/bottom split so the new pane opens at its catalog proportion (e.g.
  * 15) with the main area keeping the rest, instead of FlexLayout's default
