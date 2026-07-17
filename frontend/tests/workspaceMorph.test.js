@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Model } from 'flexlayout-react';
+import { Model, Actions } from 'flexlayout-react';
 
 // workspaceMorph imports moduleRegistry, which imports every module component;
 // ThemeEditor pulls in the theme manager (localStorage at import). Mock it, same
@@ -136,13 +136,26 @@ describe('applyWorkspace — review trio', () => {
     expect(realComponents(model)).toEqual(['file-queue', 'review-module', 'image-viewer']);
   });
 
-  it('sets the primary (image-viewer, weight 70) pane as the active tabset', () => {
+  it('sets the primary (image-viewer, weight 70) pane as the active tabset when arriving from another step', () => {
     const model = soloModel('culling');
     applyWorkspace(model, reviewSpec);
     const active = model.getActiveTabset();
     expect(active).toBeTruthy();
     const activeComponents = active.getChildren().map((c) => c.getComponent?.());
     expect(activeComponents).toContain('image-viewer');
+  });
+
+  it('preserves the user\'s active pane on idempotent re-entry (does not steal focus to the primary)', () => {
+    const model = trioModel();
+    // Simulate the user working in Review: make its tabset active.
+    const reviewTab = realTabs(model).find((t) => t.getComponent() === 'review-module');
+    model.doAction(Actions.setActiveTabset(reviewTab.getParent().getId()));
+    const activeBefore = model.getActiveTabset().getId();
+
+    // The File Queue re-enters the review step on every file load — this must not
+    // yank focus to the Image Viewer.
+    applyWorkspace(model, reviewSpec);
+    expect(model.getActiveTabset().getId()).toBe(activeBefore);
   });
 });
 

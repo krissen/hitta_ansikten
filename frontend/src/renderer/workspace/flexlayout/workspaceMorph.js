@@ -150,14 +150,30 @@ function alreadyMatches(model, targetIds) {
   return true;
 }
 
-/** Set weights on each pane's tabset and make the primary pane active. */
+/**
+ * Set weights on each pane's tabset and elect an active tabset.
+ *
+ * Active-tabset rule: if the currently active tabset is ALREADY one of the
+ * spec's panes, leave it — this preserves the user's keyboard focus across an
+ * idempotent re-entry (the File Queue calls enterStep('review') on every file
+ * load, and forcing focus to the Image Viewer each time would break Review's
+ * keyboard). Only when the previously active tabset is gone / not part of this
+ * step (e.g. arriving from another step) elect the primary (largest-weight) pane.
+ */
 function applyWeightsAndActive(model, spec) {
+  const paneTabsetIds = new Set();
   for (const pane of spec) {
     const tab = findTab(model, pane.moduleId);
     if (tab && !isInBorder(tab)) {
-      model.doAction(Actions.updateNodeAttributes(tab.getParent().getId(), { weight: pane.weight }));
+      const tabsetId = tab.getParent().getId();
+      paneTabsetIds.add(tabsetId);
+      model.doAction(Actions.updateNodeAttributes(tabsetId, { weight: pane.weight }));
     }
   }
+
+  const activeId = model.getActiveTabset()?.getId();
+  if (activeId && paneTabsetIds.has(activeId)) return; // keep the user's focus
+
   const primary = primaryModuleOf(spec);
   const primaryTab = primary ? findTab(model, primary) : null;
   if (primaryTab && !isInBorder(primaryTab)) {
