@@ -853,8 +853,12 @@ export function FlexLayoutWorkspace() {
           onModelChange={handleModelChange}
           onAction={handleAction}
         />
+        {/* The welcome card fills the layout host (the area BELOW the persistent
+            WorkflowBar), not the whole viewport — so the bar stays visible and
+            interactive while the card is up. Modals (ShortcutsHelp, confirm)
+            still paint above it, being higher-z siblings of the shell. */}
+        {showLanding && <StartupLanding />}
       </div>
-      {showLanding && <StartupLanding />}
       {showShortcutsHelp && (
         <ShortcutsHelpOverlay
           onClose={() => setShowShortcutsHelp(false)}
