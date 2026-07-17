@@ -493,7 +493,14 @@ export function FlexLayoutWorkspace() {
     // its surface (openModule selects the existing singleton) and stop. Falling
     // through would run the dirty prompt + layout reload and could discard
     // unsaved Review edits even though the user didn't leave the step.
-    if (step != null && step === activeStep) {
+    //
+    // Gate the no-op on the step's module still being IN the model: activeStep
+    // can go stale (the user closed the step's tabs or loaded another layout
+    // from the menu while activeStep lingered on, say, 'review'). Then a
+    // shortcut-focus would openModule a bare Review with no queue/viewer — a
+    // dead end. When the tab is gone, fall through to the full path so
+    // openLandingStep rebuilds the proper surface.
+    if (step != null && step === activeStep && hasModuleTab(moduleId)) {
       openModule(moduleId);
       return;
     }
@@ -509,7 +516,7 @@ export function FlexLayoutWorkspace() {
     }
     setActiveStep(step);
     openLandingStep(moduleId);
-  }, [activeStep, confirm, openModule, openLandingStep]);
+  }, [activeStep, confirm, openModule, openLandingStep, hasModuleTab]);
 
   // Swap active panel with panel in specified direction (Cmd+Arrow)
   const swapActivePanel = useCallback((direction) => {

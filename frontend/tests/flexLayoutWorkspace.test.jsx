@@ -380,6 +380,27 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(reviewTabId(window.workspace.model)).toBe(reviewBefore);
   });
 
+  it('a stale active step whose tab was closed falls through and rebuilds the surface', async () => {
+    // Make Review active and mount its surface.
+    const openReview = moduleApiHandler('open-review-queue');
+    await act(async () => { await openReview({ roots: ['/events/cupen'] }); });
+    expect(tabComponents(window.workspace.model)).toContain('review-module');
+
+    // Load a different layout from the menu: review-module is gone, but
+    // activeStep still lingers on 'review'.
+    await act(async () => { window.workspace.loadLayout('database'); });
+    expect(tabComponents(window.workspace.model)).not.toContain('review-module');
+
+    // Clicking Granska must NOT take the focus fast-path (that would open a
+    // bare Review); it falls through to rebuild the queue-review surface.
+    await act(async () => { await window.workspace.openWorkflowStep('review-module'); });
+    expect(tabComponents(window.workspace.model).sort()).toEqual([
+      'file-queue',
+      'image-viewer',
+      'review-module',
+    ]);
+  });
+
   it('queue-files IPC mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
     expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
     const handler = ipcHandler('queue-files');
