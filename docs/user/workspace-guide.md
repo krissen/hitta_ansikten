@@ -41,7 +41,12 @@ pipeline-stegen i ordning:
   försvinner inte — de parkeras levande i en hopfälld **Bakgrund**-flik längst
   ner och kommer tillbaka när du går tillbaka till steget. Därför frågar ett
   stegbyte **aldrig** om du vill kasta osparat; bara **Återställ layout**
-  (`Cmd+Shift+L`) bygger om arbetsytan och frågar först om det finns osparat.
+  (`Cmd+Shift+L`) bygger om steget och frågar först om det finns osparat.
+- **Varje steg minns sin layout.** Justerar du ett steg — drar en panelkant,
+  lägger till en kolumn — kommer ändringen tillbaka nästa gång du går in i just
+  det steget. Varje steg har sitt eget minne, så Granska och Gallra kan se olika
+  ut. **Återställ layout** nollar det *aktuella* stegets minne till fabriksläge;
+  **Återställ alla layouter** (i **Fönster**-menyn) nollar alla stegen.
 - Det **aktiva steget** är markerat, så du alltid ser var i flödet du är.
 - **Arbetsmapp-chippen** (📁) till höger visar vilken mapp pipelinen är förankrad
   till. **Klicka på den** för att öppna en översikt över de tre arbetsmängderna:
@@ -116,9 +121,12 @@ I **Filkö** hamnar `Tab` på en rad i listan; `↑`/`↓` flyttar mellan radern
 ### Layout
 
 `Cmd+1`–`Cmd+5` byter **arbetsflödessteg** (omformar arbetsytan, se
-[Arbetsflödesrad](#arbetsflödesrad)). De tidigare layoutmallarna
-(Jämförelseläge, Helbild, Statistikläge) ligger nu under **Fönster →
-Layoutmallar** utan kortkommando.
+[Arbetsflödesrad](#arbetsflödesrad)). De tidigare layoutmallarna (Jämförelseläge,
+Statistikläge) ligger nu under **Fönster → Layoutmallar** utan kortkommando.
+
+Varje steg minns sin egen layout (se [Arbetsflödesrad](#arbetsflödesrad)).
+**Återställ layout** nollar det aktuella stegets minne till fabriksläge;
+**Fönster → Återställ alla layouter** nollar alla stegen.
 
 | Genväg | Funktion |
 |--------|----------|
@@ -127,7 +135,7 @@ Layoutmallar** utan kortkommando.
 | `Cmd+3` | Granska |
 | `Cmd+4` | Räkna spelare |
 | `Cmd+5` | Gallra |
-| `Cmd+Shift+L` | Återställ layout (frågar vid osparat) |
+| `Cmd+Shift+L` | Återställ layout — aktuellt steg (frågar vid osparat) |
 | `Cmd+Shift+]` | Lägg till kolumn |
 | `Cmd+Shift+[` | Ta bort kolumn |
 
@@ -253,22 +261,18 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 
 ## Arbetsflöde
 
-> **Startsida:** När appen startar utan filer i kön visas en startsida i
-> arbetsytan. Överst ligger arbetsflödesstegen i ordning (**Importera · Byt
-> namn · Granska ansikten · Räkna spelare · Gallra spelare**); under en
-> **Verktyg**-avdelare når du resten av vyerna direkt (Databashantering, Förfina
-> ansikten, Filkö, Statistik, Loggar, Inställningar, Temaredigerare). Varje knapp
-> öppnar respektive vy (fyller arbetsytan; Granska ansikten öppnar review-
-> layouten). **Importera** är aktiv bara när ett minneskort sitter i (uppdateras
-> automatiskt) — övriga är alltid valbara. Startsidan försvinner så fort du
-> öppnar en vy eller laddar en bild, och **kommer tillbaka om du stänger alla
-> öppna moduler** så arbetsytan aldrig blir tom utan väg vidare.
+> **Startsida:** När appen startar utan filer i kön visas en enkel välkomstsida i
+> arbetsytan — en hälsning som pekar dig mot **arbetsflödesraden** överst. All
+> navigation sker i raden: stegen (**Importera · Byt namn · Granska · Räkna ·
+> Gallra**), arbetsmapp-chippen, **Fortsätt →** och **Verktyg ▾**-menyn ligger
+> alla där, alltid synliga — även med tom arbetsyta. Startsidan försvinner så
+> fort du öppnar en vy eller laddar en bild, och **kommer tillbaka om du stänger
+> alla öppna moduler** så arbetsytan aldrig blir tom utan väg vidare.
 >
 > **Fortsätt där du var:** har du nyss importerat eller bytt namn i ett event
-> visar startsidan högst upp en rad "Aktuell mapp: {mapp}" med en
-> **Fortsätt**-knapp till nästa steg (efter import → *Byt namn*, efter namnbyte →
-> *Granska ansikten*) — mappen är då redan förvald. Ingenting laddas automatiskt;
-> raden är bara en genväg.
+> visar arbetsflödesraden en **Fortsätt →**-knapp till nästa steg med samma mapp
+> (efter import → *Byt namn*, efter namnbyte → *Granska ansikten*, osv). Ingenting
+> laddas automatiskt; knappen är bara en genväg. Se [Arbetsflödesrad](#arbetsflödesrad).
 
 ### 0. Importera från minneskort (valfritt)
 
