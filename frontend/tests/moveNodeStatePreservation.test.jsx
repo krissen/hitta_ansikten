@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { render, act } from '@testing-library/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';

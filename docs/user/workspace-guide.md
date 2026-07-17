@@ -34,7 +34,14 @@ pipeline-stegen i ordning:
 
 `1 Importera · 2 Byt namn · 3 Granska · 4 Räkna · 5 Gallra`
 
-- **Klicka på ett steg** för att öppna det — samma vägar som från startsidan.
+- **Klicka på ett steg** — eller tryck **`Cmd+1`–`Cmd+5`** — för att gå dit.
+- Att byta steg **omformar** (morphar) arbetsytan mot det nya steget i stället
+  för att byggas om från grunden: moduler som redan är igång **behåller sitt
+  läge**. En pågående **filkö** och en **Granska**-panel med osparade ändringar
+  försvinner inte — de parkeras levande i en hopfälld **Bakgrund**-flik längst
+  ner och kommer tillbaka när du går tillbaka till steget. Därför frågar ett
+  stegbyte **aldrig** om du vill kasta osparat; bara **Återställ layout**
+  (`Cmd+Shift+L`) bygger om arbetsytan och frågar först om det finns osparat.
 - Det **aktiva steget** är markerat, så du alltid ser var i flödet du är.
 - **Arbetsmapp-chippen** (📁) till höger visar vilken mapp pipelinen är förankrad
   till. Håll muspekaren över den för full sökväg och vilket steg som satte den.
@@ -94,13 +101,19 @@ I **Filkö** hamnar `Tab` på en rad i listan; `↑`/`↓` flyttar mellan radern
 
 ### Layout
 
+`Cmd+1`–`Cmd+5` byter **arbetsflödessteg** (omformar arbetsytan, se
+[Arbetsflödesrad](#arbetsflödesrad)). De tidigare layoutmallarna
+(Jämförelseläge, Helbild, Statistikläge) ligger nu under **Fönster →
+Layoutmallar** utan kortkommando.
+
 | Genväg | Funktion |
 |--------|----------|
-| `Cmd+1` | Granskningsläge |
-| `Cmd+2` | Jämförelseläge |
-| `Cmd+3` | Helbild |
-| `Cmd+4` | Statistikläge |
-| `Cmd+5` | Köläge |
+| `Cmd+1` | Importera |
+| `Cmd+2` | Byt namn |
+| `Cmd+3` | Granska |
+| `Cmd+4` | Räkna spelare |
+| `Cmd+5` | Gallra |
+| `Cmd+Shift+L` | Återställ layout (frågar vid osparat) |
 | `Cmd+Shift+]` | Lägg till kolumn |
 | `Cmd+Shift+[` | Ta bort kolumn |
 

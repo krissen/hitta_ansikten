@@ -18,7 +18,7 @@ deliverables, DoD) för en prestandarelease.
 
 ### Nu
 
-- [ ] **Navigeringsserien (clunky navigering)** — PR-serie som gör pipelinen till primär, alltid synlig navigation. PR 1 (deklarativ rollkatalog + deterministisk placering, #235) mergad; PR 2 (fast WorkflowBar + [ux-principles.md](docs/dev/ux-principles.md)) pågår. Kvar: PR 3 morphing-motor, PR 4 arbetsmängds-chip + kö-märkning, PR 5 kommandorouter, PR 6 per-steg-layoutminne. Navigerings- och stilreglerna kodifieras i [docs/dev/ux-principles.md](docs/dev/ux-principles.md).
+- [ ] **Navigeringsserien (clunky navigering)** — PR-serie som gör pipelinen till primär, alltid synlig navigation. PR 1 (deklarativ rollkatalog + deterministisk placering, #235) och PR 2 (fast WorkflowBar + [ux-principles.md](docs/dev/ux-principles.md), #236) mergade; PR 3 (morphing-motor + workflow-workspaces: `workspaceMorph.applyWorkspace` + `workflows.js`, `enterStep` som enda strukturella layoutväg, `Cmd+1`–`Cmd+5` → stegen, oförstörande stegbyte med bakgrundsparkering av filkö/smutsig Granska) pågår. Kvar: PR 4 arbetsmängds-chip + kö-märkning, PR 5 kommandorouter, PR 6 per-steg-layoutminne. Navigerings- och stilreglerna kodifieras i [docs/dev/ux-principles.md](docs/dev/ux-principles.md).
 
 ### Kort sikt
 

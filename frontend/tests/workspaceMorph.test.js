@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Model } from 'flexlayout-react';
 
 // workspaceMorph imports moduleRegistry, which imports every module component;
