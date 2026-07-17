@@ -231,7 +231,7 @@ export function FlexLayoutWorkspace() {
     };
 
     // Resolve where to dock: role-based placement unless a caller forces one.
-    const placement = options.placement || resolvePlacementTabset(model, getModuleRole(moduleId));
+    const placement = options.placement || resolvePlacementTabset(model, getModuleRole(moduleId), getModuleRole);
     if (!placement) {
       debugWarn('FlexLayout', `No tabset to host module: ${moduleId}`);
       return;

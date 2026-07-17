@@ -72,62 +72,92 @@ export function resolveTargetTabset(model) {
   return largestTabset(model);
 }
 
+function isMeasured(rect) {
+  return !!rect && rect.width > 0 && rect.height > 0;
+}
+
 /**
- * The narrow side column to reuse for a 'side' module, or null if none exists.
+ * Whether a tabset already hosts at least one tab whose module has the given
+ * role, per the injected `roleOf(componentId) -> role` lookup.
  *
- * A side column is any tabset strictly narrower than the main area. When
- * geometry is measured, the LEFT-most narrow tabset wins (side columns live to
- * the left of main); before the first measure pass — every rect 0 — the pick
- * falls back to the narrowest by weight.
+ * This is the gate for reusing an existing tabset as a side column / bottom bar.
+ * Matching on the OCCUPANTS' roles (not on the tabset's size) is what keeps
+ * placement from hijacking an unrelated narrow panel: a Database layout has a
+ * 30-weight `database-management` column beside a 70-weight statistics panel, and
+ * a size-only test would treat that column as a reusable side column and dock
+ * (hiding) the file queue on top of Database. A role-hosting test won't.
+ *
+ * @param {object} node a tabset node.
+ * @param {(componentId: string) => ('main'|'side'|'bottom'|undefined)} roleOf
+ * @param {'side' | 'bottom'} role
+ * @returns {boolean}
+ */
+function hostsRole(node, roleOf, role) {
+  const children = node.getChildren?.() || [];
+  return children.some(
+    (child) => child.getType?.() === 'tab' && roleOf(child.getComponent?.()) === role
+  );
+}
+
+/**
+ * The side column to reuse for a 'side' module, or null if none exists.
+ *
+ * A reusable side column is a tabset (other than main) that already HOSTS a
+ * side-role module — not merely one that is narrower than main. When geometry is
+ * measured, the LEFT-most such tabset wins (side columns live to the left of
+ * main); before the first measure pass — every rect 0 — the pick falls back to
+ * the narrowest by weight. With no side-hosting tabset, the caller creates a
+ * fresh LEFT split instead of hijacking an unrelated panel.
  *
  * @param {import('flexlayout-react').Model} model
  * @param {object} main the main-area tabset node to compare against.
+ * @param {(componentId: string) => (string|undefined)} roleOf
  * @returns {object | null}
  */
-function narrowSideTabset(model, main) {
-  const mainWeight = main.getWeight?.() ?? 0;
+function narrowSideTabset(model, main, roleOf) {
   const mainRect = main.getRect?.() || null;
-  const narrow = collectTabsets(model)
-    .filter((ts) => ts.node !== main && ts.weight < mainWeight);
-  if (!narrow.length) return null;
+  const candidates = collectTabsets(model)
+    .filter((ts) => ts.node !== main && hostsRole(ts.node, roleOf, 'side'));
+  if (!candidates.length) return null;
 
-  if (mainRect) {
-    const left = narrow.filter((ts) => ts.rect && ts.rect.x < mainRect.x);
+  if (isMeasured(mainRect)) {
+    const left = candidates.filter((ts) => isMeasured(ts.rect) && ts.rect.x < mainRect.x);
     if (left.length) {
       left.sort((a, b) => a.rect.x - b.rect.x);
       return left[0].node;
     }
   }
-  narrow.sort((a, b) => a.weight - b.weight);
-  return narrow[0].node;
+  candidates.sort((a, b) => a.weight - b.weight);
+  return candidates[0].node;
 }
 
 /**
  * The bottom bar to reuse for a 'bottom' module, or null if none exists.
  *
- * A bottom bar is a tabset (other than main) that sits in the lower half of the
- * main area. Only detectable once geometry is MEASURED: FlexLayout's getRect()
- * returns a zero-sized Rect (not null) before the first render/measure pass, so
- * an unmeasured main would give threshold 0 and wrongly match every other
- * unmeasured tabset at y === 0 (e.g. the left Review column) — stacking Log
- * Viewer into the side panel instead of splitting a bottom bar. Require non-zero
- * dimensions on both the main area and the candidate; until they're measured
- * this returns null and the caller creates a fresh BOTTOM split.
+ * A reusable bottom bar is a tabset (other than main) that sits in the lower half
+ * of the main area AND already HOSTS a bottom-role module. Two guards:
+ *   - Geometry must be MEASURED: FlexLayout's getRect() returns a zero-sized Rect
+ *     (not null) before the first render/measure pass, so an unmeasured main
+ *     would give threshold 0 and match every other unmeasured tabset at y === 0.
+ *   - Role hosting, same as the side gate: a measured panel below main that hosts
+ *     a non-bottom module (e.g. a stacked statistics panel) is not a bottom bar.
+ * Until both hold this returns null and the caller creates a fresh BOTTOM split.
  *
  * @param {import('flexlayout-react').Model} model
  * @param {object} main the main-area tabset node to compare against.
+ * @param {(componentId: string) => (string|undefined)} roleOf
  * @returns {object | null}
  */
-function isMeasured(rect) {
-  return !!rect && rect.width > 0 && rect.height > 0;
-}
-
-function bottomBarTabset(model, main) {
+function bottomBarTabset(model, main, roleOf) {
   const mainRect = main.getRect?.() || null;
   if (!isMeasured(mainRect)) return null;
   const threshold = mainRect.y + mainRect.height * 0.5;
-  const below = collectTabsets(model)
-    .filter((ts) => ts.node !== main && isMeasured(ts.rect) && ts.rect.y >= threshold);
+  const below = collectTabsets(model).filter(
+    (ts) => ts.node !== main
+      && isMeasured(ts.rect)
+      && ts.rect.y >= threshold
+      && hostsRole(ts.node, roleOf, 'bottom')
+  );
   if (!below.length) return null;
   below.sort((a, b) => b.rect.y - a.rect.y);
   return below[0].node;
@@ -147,26 +177,32 @@ function bottomBarTabset(model, main) {
  *
  * Roles:
  *   'main'   → the largest tabset (area, weight fallback).
- *   'side'   → an existing narrow left column if one exists, else a LEFT split
- *              off the main area.
- *   'bottom' → an existing bottom bar if one exists, else a BOTTOM split off the
- *              main area.
+ *   'side'   → an existing side column (a tabset already hosting a side module)
+ *              if one exists, else a LEFT split off the main area.
+ *   'bottom' → an existing bottom bar (below main, hosting a bottom module) if
+ *              one exists, else a BOTTOM split off the main area.
+ *
+ * `roleOf` maps a tab's component id to its module role; it gates side/bottom
+ * REUSE (see hostsRole). It is React-free by injection so this module stays a
+ * pure, headless-testable helper. When omitted, reuse is disabled (side/bottom
+ * always split) — the workspace passes `getModuleRole` from the registry.
  *
  * @param {import('flexlayout-react').Model} model
  * @param {'main' | 'side' | 'bottom'} role
+ * @param {(componentId: string) => (string|undefined)} [roleOf]
  * @returns {{ tabsetId: string } | { split: 'left' | 'bottom', refTabsetId: string } | null}
  */
-export function resolvePlacementTabset(model, role) {
+export function resolvePlacementTabset(model, role, roleOf = () => undefined) {
   const main = largestTabset(model);
   if (!main) return null;
 
   if (role === 'side') {
-    const side = narrowSideTabset(model, main);
+    const side = narrowSideTabset(model, main, roleOf);
     return side ? { tabsetId: side.getId() } : { split: 'left', refTabsetId: main.getId() };
   }
 
   if (role === 'bottom') {
-    const bottom = bottomBarTabset(model, main);
+    const bottom = bottomBarTabset(model, main, roleOf);
     return bottom ? { tabsetId: bottom.getId() } : { split: 'bottom', refTabsetId: main.getId() };
   }
 
