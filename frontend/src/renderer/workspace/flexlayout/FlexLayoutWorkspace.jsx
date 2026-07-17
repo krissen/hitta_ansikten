@@ -25,6 +25,7 @@ import {
   clearAllStepSpecs,
   resolveStepSpec,
   migrateLegacyLayout,
+  migrateReviewMemoryShape,
 } from './stepLayoutMemory.js';
 import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
@@ -131,6 +132,9 @@ export function FlexLayoutWorkspace() {
     // One-time migration of the pre-per-step single layout key into the review
     // step's memory (then it is removed). Safe no-op once migrated.
     migrateLegacyLayout();
+    // One-time reshape of an old three-column review memory into the new
+    // File-Queue-as-companion-tab form. Idempotent once reshaped.
+    migrateReviewMemoryShape();
 
     // Mount always builds the NEUTRAL default preset — never a remembered
     // layout. Per-step memory (stepLayoutMemory.js) is restored when the user
@@ -345,6 +349,26 @@ export function FlexLayoutWorkspace() {
 
   // True if a tab for the given module is currently present in the layout.
   const hasModuleTab = useCallback((moduleId) => !!findModuleTab(moduleId), [findModuleTab]);
+
+  // Hand-off: when an image loads, surface the Image Viewer if it is sitting
+  // hidden behind another tab in its column (the review step stacks the File
+  // Queue behind the Image Viewer). This is the minimal "switch back to the
+  // viewer" rule — the user opens the queue (Cmd+Shift+U), picks/loads a file,
+  // and the freshly loaded image is shown without a manual tab switch. It runs
+  // only when the viewer is actually hidden, so it never disrupts an already
+  // visible viewer, and it is a programmatic selectTab (does not steal DOM focus
+  // from Review's keyboard). n/p navigation is independent of this — it works
+  // whether or not the queue tab is the visible one (see FileQueueModule).
+  useEffect(() => {
+    if (!model) return;
+    const off = moduleAPI.on('image-loaded', () => {
+      const viewer = findModuleTab('image-viewer');
+      if (viewer && !viewer.isVisible() && viewer.getParent()?.getType?.() === 'tabset') {
+        model.doAction(Actions.selectTab(viewer.getId()));
+      }
+    });
+    return off;
+  }, [model, moduleAPI, findModuleTab]);
 
   // Factory function for FlexLayout
   const factory = useCallback((node) => {
