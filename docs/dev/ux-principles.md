@@ -196,10 +196,18 @@ These are hard rules for anyone adding or moving UI.
      tabsets, so a Review/File-Queue parked in the background border while the
      user is in another step never leaks into that step's memory — parked tabs
      belong to the live model, not to any step's remembered shape.
-   - **Limit (KISS):** the morph normalises a spec to one row of weighted columns,
-     so memory captures module set + order + weights, not 2D nesting or grouped
-     tabs. That matches what the morph can build; richer manual arrangements
-     collapse to a single row on re-entry.
+   - **Grouped tabs are captured; 2D nesting is not.** A pane is either a single
+     module (`{ moduleId, weight }`) or a **tab group** (`{ tabs, active, weight }`
+     — several modules stacked in one column, `active` on top). `snapshotStepSpec`
+     records a multi-tab tabset as a group with its selected tab, and the morph
+     rebuilds it, so per-column grouping and the active tab survive. The remaining
+     **limit (KISS):** the morph normalises a spec to one *row* of weighted columns
+     (a column may be a group), so 2D row/column nesting is still not captured;
+     richer manual arrangements collapse to a single row on re-entry.
+   - **A changed review shape is re-migrated once.** An old three-column review
+     memory (file-queue | review | image-viewer) is reshaped once into the
+     companion-tab form (`migrateReviewMemoryShape`) so the owner's layout change
+     reaches existing installs without discarding the user's review tweaks.
    - **Mount is neutral.** Startup always builds the default preset, never a
      remembered layout; per-step memory surfaces only when the user enters a step.
      The pre-per-step single key (`ansikten-flexlayout`) is migrated **once** into
@@ -233,6 +241,36 @@ These are hard rules for anyone adding or moving UI.
    The flag is fail-open toward showing (missing/corrupt → not yet welcomed), CLI
    launches (`willLaunch`) never show it at start, and **Help ▸ "Visa
    välkomstguiden"** (`show-welcome`) brings it back on demand.
+
+9. **Companion drivers stay mounted behind their partner, and their keys survive
+   being hidden.** Some modules drive a step without owning screen space. The
+   Review step is the case: the **File Queue** is a companion tab **behind** the
+   Image Viewer (`review` spec = `review-module | [image-viewer (active),
+   file-queue]`), not a permanent column. Rules for any such companion:
+   - **Keep it mounted while hidden.** A companion is `keepMounted` in the catalog;
+     the morph pins its tab to `enableRenderOnDemand:false` so it stays mounted
+     (and its listeners live) even when another tab is on top. Its state and its
+     event wiring (auto-advance on `review-complete`, `load-image`, trash/undo)
+     must not depend on being the visible tab.
+   - **Gate its global keys on *mounted-and-not-parked*, not on visibility.** The
+     File Queue's `n`/`p` (next/previous file) run whenever the queue is part of
+     the active step's workspace — including hidden behind the Image Viewer —
+     because gating on `node.isVisible()` would silently break the owner's primary
+     review gesture the moment the viewer tab is raised. A queue **parked** in the
+     background border (a *different* step is active) is inert: its parent is a
+     `border`, and that is the off switch. Focus-dependent keys (Cmd+F, Cmd+A, `/`)
+     stay visibility-gated — only the companion navigation gestures move to the
+     mounted-not-parked gate.
+   - **Surface the partner on a load.** Opening the companion (`Cmd+Shift+U` focuses
+     the singleton queue tab) and then loading an image raises the Image Viewer tab
+     automatically: the workspace listens for `image-loaded` and, when the viewer
+     is hidden behind another tab, `selectTab`s it programmatically (no DOM-focus
+     steal). This is the minimal "switch back to the viewer" rule — the loaded
+     image is always shown without a manual tab switch.
+   - **Don't fight the user on the idempotent path.** `applyWorkspace` reveals a
+     group's `active` tab only on a **fresh** build, never on the idempotent fast
+     path (the queue re-enters the review step on every file load). If the user has
+     opened the hidden companion, a re-entry must not yank the visible tab back.
 
 ---
 
