@@ -381,48 +381,26 @@ export const databaseLayout = {
   }
 };
 
+
 /**
- * Single-module layout: one full-width tabset holding just the given module.
- * Used for self-contained workflow modules (culling, player-count, import,
- * rename-nef) opened from the landing page so they fill the workspace instead
- * of docking beside the Review panel.
- * @param {string} moduleId - Module component id
- * @param {string} [title] - Tab title (defaults to moduleId)
- * @returns {object} FlexLayout JSON configuration
+ * Ensure a layout config carries an empty bottom border.
+ *
+ * The morphing engine parks keepMounted / dirty modules in a collapsed bottom
+ * "background" border to preserve their live state across a step switch. Borders
+ * only exist if declared at Model.fromJson time (there is no add-border Action),
+ * so every model the workspace builds is passed through this first. An empty
+ * border is invisible (FlexLayout renders a border strip only once it has tabs),
+ * so this is inert until something is parked.
+ *
+ * @param {object} config - FlexLayout JSON configuration
+ * @returns {object} the config with a bottom border guaranteed
  */
-export function singleModuleLayout(moduleId, title) {
+export function ensureBottomBorder(config) {
+  const borders = Array.isArray(config.borders) ? config.borders : [];
+  if (borders.some((b) => b.location === 'bottom')) return config;
   return {
-    global: {
-      tabEnableClose: true,
-      tabSetEnableMaximize: true,
-      tabSetEnableDrag: true,
-      tabSetEnableDrop: true,
-      tabSetMinWidth: 100,
-      tabSetMinHeight: 100,
-      borderMinSize: 100,
-      splitterSize: 4,
-      enableEdgeDock: true,
-      tabEnableRenderOnDemand: true
-    },
-    layout: {
-      type: 'row',
-      weight: 100,
-      children: [
-        {
-          type: 'tabset',
-          weight: 100,
-          children: [
-            {
-              type: 'tab',
-              name: title || moduleId,
-              component: moduleId,
-              enableRenderOnDemand: false,
-              config: { moduleId }
-            }
-          ]
-        }
-      ]
-    }
+    ...config,
+    borders: [...borders, { type: 'border', location: 'bottom', children: [] }],
   };
 }
 
