@@ -30,7 +30,12 @@
   font-family: var(--font-sans);
   font-size: var(--font-sm);
   user-select: none;
-  overflow: hidden;
+  /* Positioned + lifted so the Verktyg dropdown (a descendant, absolutely
+     positioned below the row) paints above the FlexLayout host that follows
+     in the DOM. NOT overflow:hidden — that would clip the dropdown; the steps
+     group clips itself instead (below). */
+  position: relative;
+  z-index: 5;
 }
 
 .workflow-bar-steps {
@@ -38,6 +43,9 @@
   align-items: center;
   gap: 2px;
   min-width: 0;
+  /* Clip the step group (not the whole bar) when the window is too narrow, so
+     the chip/tools stay visible and the dropdown is never clipped. */
+  overflow: hidden;
 }
 
 /* A pipeline step button — quiet by default, retro-inverted when active. */
