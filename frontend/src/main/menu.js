@@ -614,6 +614,12 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: t('menu.window.resetAllLayouts'),
+          click: () => {
+            sendMenuCommand( 'reset-all-layouts');
+          }
+        },
+        {
           label: t('menu.window.exportLayout'),
           click: () => {
             sendMenuCommand( 'export-layout');

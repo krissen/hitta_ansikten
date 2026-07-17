@@ -75,6 +75,7 @@ module.exports = {
     "moveAbove": "Flytta panel till ny rad ovanför",
     "moveBelow": "Flytta panel till ny rad nedanför",
     "resetLayout": "Återställ layout",
+    "resetAllLayouts": "Återställ alla layouter",
     "exportLayout": "Exportera layout…",
     "importLayout": "Importera layout…",
     "minimize": "Minimera",

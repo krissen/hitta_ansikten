@@ -18,7 +18,14 @@ import { reviewLayout, getLayoutByName, ensureBottomBorder } from './layouts.js'
 import { resolvePlacementTabset, applyPlacement, ensureActiveTabset } from './tabsetUtils.js';
 import { applyWorkspace } from './workspaceMorph.js';
 import { getWorkspaceSpec } from './workflows.js';
-import { retranslateTabNames } from './tabNames.js';
+import {
+  snapshotStepSpec,
+  saveStepSpec,
+  clearStepSpec,
+  clearAllStepSpecs,
+  resolveStepSpec,
+  migrateLegacyLayout,
+} from './stepLayoutMemory.js';
 import { t } from '../../../i18n/index.js';
 import { preferences } from '../preferences.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
@@ -43,9 +50,6 @@ import { WorkflowBar } from '../../components/WorkflowBar.jsx';
 // files; re-exporting keeps the test import paths stable.
 export { SHORTCUT_SECTIONS } from './shortcutSections.js';
 export { applyUIPreferences } from './uiPreferences.js';
-
-// Storage key for layout persistence
-const STORAGE_KEY = 'ansikten-flexlayout';
 
 /**
  * FlexLayoutWorkspace Component
@@ -74,6 +78,21 @@ export function FlexLayoutWorkspace() {
   // it is shown at all (preference, default on). The bar state re-reads on
   // 'preferences-changed' so toggling the pref applies without a reload.
   const [activeStep, setActiveStep] = useState(null);
+  // Mirror of activeStep read synchronously by handleModelChange (which fires
+  // inside doAction, before a state update would land) so a user tweak is
+  // persisted to the RIGHT step's memory. Updated in lockstep with setActiveStep
+  // via applyActiveStep.
+  const activeStepRef = useRef(null);
+  const applyActiveStep = useCallback((step) => {
+    activeStepRef.current = step;
+    setActiveStep(step);
+  }, []);
+  // Suppress per-step persistence during a programmatic morph: applyWorkspace
+  // fires handleModelChange for every intermediate doAction, and those transient
+  // shapes must not overwrite a step's remembered layout. Only settled,
+  // user-driven changes are persisted. onModelChange fires synchronously inside
+  // doAction, so a plain boolean flag is race-free.
+  const suppressPersistRef = useRef(false);
   const [showWorkflowBar, setShowWorkflowBar] = useState(
     () => preferences.get('workspace.showWorkflowBar') !== false
   );
@@ -92,42 +111,32 @@ export function FlexLayoutWorkspace() {
 
   // Initialize model
   useEffect(() => {
-    // Try to load saved layout
-    let layoutConfig;
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        debug('FlexLayout', 'Loading saved layout');
-        // Persisted layouts freeze each tab's name; re-apply current
-        // translations so old layouts don't show stale (e.g. English) labels.
-        layoutConfig = retranslateTabNames(JSON.parse(saved), MODULE_TITLES);
-      }
-    } catch (err) {
-      debugWarn('FlexLayout', 'Failed to load saved layout:', err);
-    }
+    // One-time migration of the pre-per-step single layout key into the review
+    // step's memory (then it is removed). Safe no-op once migrated.
+    migrateLegacyLayout();
 
-    // Fall back to default layout
-    if (!layoutConfig) {
-      const defaultLayout = preferences.get('workspace.defaultLayout') || 'review';
-      debug('FlexLayout', 'Using default layout:', defaultLayout);
-      layoutConfig = getLayoutByName(defaultLayout);
-    }
+    // Mount always builds the NEUTRAL default preset — never a remembered
+    // layout. Per-step memory (stepLayoutMemory.js) is restored when the user
+    // enters a step (enterStep → resolveStepSpec), not on bare startup: the
+    // mount surface stays a predictable default and the pipeline's remembered
+    // shapes surface only when the user actually engages a step.
+    const defaultLayout = preferences.get('workspace.defaultLayout') || 'review';
+    debug('FlexLayout', 'Using default layout:', defaultLayout);
+    let layoutConfig = getLayoutByName(defaultLayout);
 
     // Guarantee a bottom border so the morphing engine can park keepMounted /
     // dirty modules there (borders only exist if declared at fromJson time).
     layoutConfig = ensureBottomBorder(layoutConfig);
 
-    // Ensure critical global settings are always applied
-    // (saved layouts may not have newer settings)
+    // Ensure critical global settings are always applied.
     const criticalSettings = {
       tabEnableRenderOnDemand: true,   // Unmount hidden tabs to save CPU
       splitterSize: 4,                  // Consistent splitter appearance
       tabSetMinWidth: 100,              // Prevent panels from becoming too small
       tabSetMinHeight: 100,
-      tabEnableRename: false,           // Tabs are fixed module labels — their
-                                        // names are re-derived from i18n on
-                                        // restore (retranslateTabNames), so a
-                                        // manual rename couldn't survive anyway.
+      tabEnableRename: false,           // Tabs are fixed module labels derived
+                                        // from i18n; a manual rename wouldn't
+                                        // survive a morph anyway.
     };
     layoutConfig.global = { ...layoutConfig.global, ...criticalSettings };
 
@@ -153,13 +162,17 @@ export function FlexLayoutWorkspace() {
   // Apply UI preferences when ready (and re-apply when preferences change)
   useUIPreferences(ready);
 
-  // Save layout on model change
+  // Persist the active step's layout on every settled user change. Programmatic
+  // morphs suppress this (suppressPersistRef); changes made while no step is
+  // active (activeStepRef null — non-pipeline templates, initial default) are
+  // not remembered, keeping memory scoped to the pipeline steps.
   const handleModelChange = useCallback((newModel) => {
-    try {
-      const json = newModel.toJson();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(json));
-    } catch (err) {
-      debugWarn('FlexLayout', 'Failed to save layout:', err);
+    if (!suppressPersistRef.current) {
+      const step = activeStepRef.current;
+      if (step) {
+        const spec = snapshotStepSpec(newModel);
+        if (spec.length > 0) saveStepSpec(step, spec);
+      }
     }
     // When the last module is closed and the workspace is empty, bring the
     // startup landing back so there's always somewhere to go.
@@ -237,7 +250,7 @@ export function FlexLayoutWorkspace() {
     // openModule, so those paths need no setActiveStep of their own. Modules with
     // no step (Inställningar, Statistik, Loggar, …) leave activeStep untouched.
     const step = getModuleStep(moduleId);
-    const markActiveStep = () => { if (step != null) setActiveStep(step); };
+    const markActiveStep = () => { if (step != null) applyActiveStep(step); };
 
     // Check if module is a singleton and already exists
     const isSingleton = isSingletonModule(moduleId);
@@ -286,7 +299,7 @@ export function FlexLayoutWorkspace() {
 
     markActiveStep();
     debug('FlexLayout', `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`);
-  }, [model]);
+  }, [model, applyActiveStep]);
 
   // Close a panel by ID
   const closePanel = useCallback((panelId) => {
@@ -404,26 +417,37 @@ export function FlexLayoutWorkspace() {
     [],
   );
 
-  // Enter a pipeline step by MORPHING the live model into the step's pane spec
-  // (workflows.js) — the non-destructive replacement for the old loadLayout /
-  // openModuleSolo rebuilds. Modules already mounted keep their state (moveNode
-  // retains node ids); keepMounted (File Queue) and dirty (Review) modules are
-  // parked in the background border, so nothing live is lost. This is the ONLY
-  // structural layout-change path, so it is where activeStep is kept in sync.
-  const enterStep = useCallback((stepId) => {
+  // Enter a pipeline step by MORPHING the live model into the step's pane spec —
+  // the non-destructive replacement for the old loadLayout / openModuleSolo
+  // rebuilds. Modules already mounted keep their state (moveNode retains node
+  // ids); keepMounted (File Queue) and dirty (Review) modules are parked in the
+  // background border, so nothing live is lost. This is the ONLY structural
+  // layout-change path, so it is where activeStep is kept in sync.
+  //
+  // The target shape is the step's REMEMBERED layout (resolveStepSpec — the
+  // user's saved tweaks merged with the factory so essential modules can't go
+  // missing) unless `useMemory` is false, in which case the bare factory spec is
+  // used (Reset layout). The morph is wrapped in the persist suppressor so its
+  // intermediate shapes never overwrite the step's memory.
+  const enterStep = useCallback((stepId, { useMemory = true } = {}) => {
     if (!model) return;
-    const spec = getWorkspaceSpec(stepId);
+    const spec = useMemory ? resolveStepSpec(stepId) : getWorkspaceSpec(stepId);
     if (!spec) {
       debugWarn('FlexLayout', `No workspace spec for step: ${stepId}`);
       return;
     }
     setShowLanding(false);
-    applyWorkspace(model, spec, {
-      keepDirty: dirtyModuleSet(),
-      backgroundName: t('workspace.backgroundTab'),
-    });
-    setActiveStep(stepId);
-  }, [model, dirtyModuleSet]);
+    suppressPersistRef.current = true;
+    try {
+      applyWorkspace(model, spec, {
+        keepDirty: dirtyModuleSet(),
+        backgroundName: t('workspace.backgroundTab'),
+      });
+    } finally {
+      suppressPersistRef.current = false;
+    }
+    applyActiveStep(stepId);
+  }, [model, dirtyModuleSet, applyActiveStep]);
 
   // Open a pipeline step from the WorkflowBar, landing or a Cmd+1..5 accelerator.
   //
@@ -454,21 +478,52 @@ export function FlexLayoutWorkspace() {
     }
   }, [activeStep, enterStep, openModule, hasModuleTab]);
 
-  // "Reset layout": the one remaining destructive rebuild (full Model replace via
-  // loadLayout). Guard it behind a confirm when Review has unsaved edits, since
-  // the rebuild — unlike a morph — cannot preserve them.
-  const resetLayout = useCallback(async () => {
+  // Confirm before a reset that would discard unsaved Review edits. Returns true
+  // when the reset may proceed (nothing dirty, or the user confirmed). Reset
+  // still confirms because — unlike a step morph — it forgets remembered tweaks
+  // and (for a non-step surface) rebuilds the model destructively.
+  const confirmDirtyReset = useCallback(async () => {
     if (reviewDirtyRef.current.size > 0) {
       const ok = await confirm({
         message: t('workflowBar.unsavedStepChange'),
         confirmLabel: t('workflowBar.switchAnyway'),
       });
-      if (!ok) return;
+      if (!ok) return false;
       reviewDirtyRef.current.clear();
     }
-    loadLayout('review');
-    setActiveStep('review');
-  }, [confirm, loadLayout]);
+    return true;
+  }, [confirm]);
+
+  // Rebuild the current surface from the factory: morph the active step to its
+  // bare factory spec (memory already cleared by the caller), or — with no
+  // active step (a non-pipeline template) — destructively reload the default
+  // preset.
+  const rebuildCurrentToFactory = useCallback(() => {
+    const step = activeStepRef.current;
+    if (step && getWorkspaceSpec(step)) {
+      enterStep(step, { useMemory: false });
+    } else {
+      loadLayout('review');
+      applyActiveStep('review');
+    }
+  }, [enterStep, loadLayout, applyActiveStep]);
+
+  // "Reset layout" (Cmd+Shift+L): forget the CURRENT step's remembered tweaks
+  // and rebuild it to factory. Other steps' memories are untouched.
+  const resetLayout = useCallback(async () => {
+    if (!(await confirmDirtyReset())) return;
+    const step = activeStepRef.current;
+    if (step) clearStepSpec(step);
+    rebuildCurrentToFactory();
+  }, [confirmDirtyReset, rebuildCurrentToFactory]);
+
+  // "Reset all layouts": forget every step's remembered tweaks, then rebuild the
+  // current surface to factory.
+  const resetAllLayouts = useCallback(async () => {
+    if (!(await confirmDirtyReset())) return;
+    clearAllStepSpecs();
+    rebuildCurrentToFactory();
+  }, [confirmDirtyReset, rebuildCurrentToFactory]);
 
   // Swap active panel with panel in specified direction (Cmd+Arrow)
   const swapActivePanel = useCallback((direction) => {
@@ -628,9 +683,10 @@ export function FlexLayoutWorkspace() {
       openWorkflowStep,
       loadLayout,
       resetLayout,
+      resetAllLayouts,
       moduleAPI,
     });
-  }, [router, enterStep, openModule, openWorkflowStep, loadLayout, resetLayout, moduleAPI]);
+  }, [router, enterStep, openModule, openWorkflowStep, loadLayout, resetLayout, resetAllLayouts, moduleAPI]);
 
   // Setup IPC listeners + in-app hand-off adapters, then complete the
   // workspace-ready handshake. Every mechanism here is now a thin adapter that
@@ -798,7 +854,7 @@ export function FlexLayoutWorkspace() {
           onAction={handleAction}
         />
       </div>
-      {showLanding && <StartupLanding onOpenModule={openWorkflowStep} />}
+      {showLanding && <StartupLanding />}
       {showShortcutsHelp && (
         <ShortcutsHelpOverlay
           onClose={() => setShowShortcutsHelp(false)}

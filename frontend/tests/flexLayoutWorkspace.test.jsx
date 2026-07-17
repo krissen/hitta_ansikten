@@ -581,6 +581,92 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
   });
 });
 
+describe('FlexLayoutWorkspace — per-step layout memory', () => {
+  const stepKey = (s) => `ansikten-workspace-${s}`;
+  const readSpec = (s) => {
+    const raw = window.localStorage.getItem(stepKey(s));
+    return raw ? JSON.parse(raw) : null;
+  };
+  const specIds = (s) => (readSpec(s) || []).map((p) => p.moduleId);
+  function moduleApiHandler(evt) {
+    const reg = h.on.mock.calls.findLast(([e]) => e === evt);
+    return reg ? reg[1] : null;
+  }
+
+  beforeEach(mountWorkspace);
+
+  it('remembers a tweak made in a step and restores it on re-entry', async () => {
+    // Enter review (factory trio), then add an extra tool pane (a user tweak).
+    await act(async () => { window.workspace.enterStep('review'); });
+    await act(async () => { window.workspace.openModule('log-viewer'); });
+    expect(specIds('review')).toContain('log-viewer'); // persisted to review memory
+
+    // Leave for culling (log-viewer is torn down) …
+    await act(async () => { window.workspace.enterStep('culling'); });
+    expect(tabComponents(window.workspace.model)).not.toContain('log-viewer');
+
+    // … and back: the remembered extra pane returns.
+    await act(async () => { window.workspace.enterStep('review'); });
+    expect(tabComponents(window.workspace.model)).toContain('log-viewer');
+  });
+
+  it('a programmatic morph does not overwrite a step memory with transient shapes', async () => {
+    await act(async () => { window.workspace.enterStep('review'); });
+    await act(async () => { window.workspace.openModule('log-viewer'); });
+    const saved = readSpec('review');
+    // Round-tripping through other steps must not corrupt review's saved spec.
+    await act(async () => { window.workspace.enterStep('culling'); });
+    await act(async () => { window.workspace.enterStep('count'); });
+    expect(readSpec('review')).toEqual(saved);
+  });
+
+  it('reset-layout forgets ONLY the current step, rebuilding it to factory', async () => {
+    // Give both review and culling a remembered tweak.
+    await act(async () => { window.workspace.enterStep('review'); });
+    await act(async () => { window.workspace.openModule('log-viewer'); });
+    await act(async () => { window.workspace.enterStep('culling'); });
+    await act(async () => { window.workspace.openModule('log-viewer'); });
+    expect(specIds('review')).toContain('log-viewer');
+    expect(specIds('culling')).toContain('log-viewer');
+
+    // Reset while in culling: culling forgets, review keeps its memory.
+    await dispatch('reset-layout');
+    expect(readSpec('culling')).toBeNull();
+    expect(specIds('review')).toContain('log-viewer');
+    // Culling rebuilt to its bare factory (solo culling, no extra pane).
+    expect(tabComponents(window.workspace.model)).toContain('culling');
+    expect(tabComponents(window.workspace.model)).not.toContain('log-viewer');
+  });
+
+  it('reset-all-layouts forgets every step memory', async () => {
+    await act(async () => { window.workspace.enterStep('review'); });
+    await act(async () => { window.workspace.openModule('log-viewer'); });
+    await act(async () => { window.workspace.enterStep('culling'); });
+    await act(async () => { window.workspace.openModule('log-viewer'); });
+    expect(readSpec('review')).not.toBeNull();
+    expect(readSpec('culling')).not.toBeNull();
+
+    await dispatch('reset-all-layouts');
+    expect(readSpec('review')).toBeNull();
+    expect(readSpec('culling')).toBeNull();
+  });
+
+  it('a dirty Review parked in the background is NOT written into another step memory', async () => {
+    await act(async () => { window.workspace.enterStep('review'); });
+    // Mark Review dirty so the next morph parks it in the bottom border.
+    const dirty = moduleApiHandler('review-dirty');
+    await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
+
+    await act(async () => { window.workspace.enterStep('culling'); });
+    // Force a settled change so culling's memory is written.
+    await act(async () => { window.workspace.openModule('log-viewer'); });
+
+    // The parked Review belongs to the live model, not culling's memory.
+    expect(specIds('culling')).toContain('culling');
+    expect(specIds('culling')).not.toContain('review-module');
+  });
+});
+
 describe('applyUIPreferences', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
