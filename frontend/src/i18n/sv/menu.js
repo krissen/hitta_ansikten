@@ -57,6 +57,7 @@ module.exports = {
   },
   "window": {
     "title": "Fönster",
+    "workflowSteps": "Arbetsflödessteg",
     "layoutTemplates": "Layoutmallar",
     "reviewMode": "Granskningsläge",
     "comparisonMode": "Jämförelseläge",
