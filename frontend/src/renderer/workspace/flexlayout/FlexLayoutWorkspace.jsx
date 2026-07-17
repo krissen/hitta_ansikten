@@ -221,6 +221,15 @@ export function FlexLayoutWorkspace() {
     // Opening any module dismisses the startup landing page.
     setShowLanding(false);
 
+    // The bar highlights workflow context: opening/focusing a module that IS a
+    // pipeline step (culling→culling, player-count→count, review-module→review,
+    // …) marks it active. This is the single root — it covers the View menu, the
+    // Verktyg menu and every window.workspace caller that routes through
+    // openModule, so those paths need no setActiveStep of their own. Modules with
+    // no step (Inställningar, Statistik, Loggar, …) leave activeStep untouched.
+    const step = getModuleStep(moduleId);
+    const markActiveStep = () => { if (step != null) setActiveStep(step); };
+
     // Check if module is a singleton and already exists
     const isSingleton = isSingletonModule(moduleId);
     if (isSingleton && !options.forceNew) {
@@ -234,6 +243,7 @@ export function FlexLayoutWorkspace() {
       if (existingTab) {
         // Select the existing tab instead of creating a new one
         model.doAction(Actions.selectTab(existingTab.getId()));
+        markActiveStep();
         debug('FlexLayout', `Focused existing singleton module: ${moduleId}`);
         return;
       }
@@ -265,6 +275,7 @@ export function FlexLayoutWorkspace() {
       || placement.refTabsetId;
     if (hostTabsetId) model.doAction(Actions.setActiveTabset(hostTabsetId));
 
+    markActiveStep();
     debug('FlexLayout', `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`);
   }, [model]);
 
@@ -509,10 +520,8 @@ export function FlexLayoutWorkspace() {
     //     rebuilds the proper surface rather than opening a bare module.
     const reviewDirty = reviewDirtyRef.current.size > 0;
     if (step != null && hasModuleTab(moduleId) && (step === activeStep || reviewDirty)) {
-      // Focus the surface and sync the bar highlight — the fast-path can fire
-      // via the dirty clause with step !== activeStep (cold start: activeStep
-      // null, dirty click on a mounted step), so the marking must follow focus.
-      setActiveStep(step);
+      // Focus the surface; openModule syncs the bar highlight to this step
+      // (covers the dirty-clause case where step !== activeStep).
       openModule(moduleId);
       return;
     }
@@ -715,7 +724,8 @@ export function FlexLayoutWorkspace() {
     // start where the module hasn't mounted yet — same guard the
     // FileQueue→ImageViewer handshake uses for 'load-image'.
     const handleOpenCulling = async ({ roots, clear, recursive }) => {
-      setActiveStep('culling');
+      // openModule('culling') below marks the culling step active (it routes
+      // through the openModule root that syncs activeStep from step metadata).
       // Open culling FIRST, before closing Review, so there is always a host
       // tabset to place it into. If Review were the workspace's only panel,
       // closing it first would empty the layout and leave placement with no
@@ -738,7 +748,7 @@ export function FlexLayoutWorkspace() {
     // import is its own workflow and shares no layout with Review. waitForListeners
     // guards the cold-start race where the module hasn't mounted yet.
     const handleOpenImport = async ({ destination }) => {
-      setActiveStep('import');
+      // openModule syncs activeStep to the import step from its step metadata.
       openModule('import');
       await moduleAPI.waitForListeners('import-load', 2000);
       moduleAPI.emit('import-load', { destination });
@@ -750,7 +760,7 @@ export function FlexLayoutWorkspace() {
     // the rename-nef module, then pass it the just-imported folder once it has
     // subscribed. waitForListeners guards the cold-start race on first open.
     const handleOpenRenameNef = async ({ roots }) => {
-      setActiveStep('rename');
+      // openModule syncs activeStep to the rename step from its step metadata.
       openModule('rename-nef');
       await moduleAPI.waitForListeners('rename-nef-load', 2000);
       moduleAPI.emit('rename-nef-load', { roots });
@@ -841,6 +851,7 @@ export function FlexLayoutWorkspace() {
       layoutRef,
       openModule,
       openWorkflowStep,
+      activeStep,
       ensureReviewSurface,
       closePanel,
       loadLayout,
@@ -858,7 +869,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, openWorkflowStep, ensureReviewSurface, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
+  }, [model, openModule, openWorkflowStep, activeStep, ensureReviewSurface, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
 
   // NOTE: Auto-load from queue is handled by FileQueueModule, not here
 

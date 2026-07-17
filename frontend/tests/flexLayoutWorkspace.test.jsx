@@ -431,6 +431,20 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     ]);
   });
 
+  it('opening a step module via the command route marks its workflow step active', async () => {
+    await dispatch('open-player-count');
+    expect(window.workspace.activeStep).toBe('count');
+    await dispatch('open-culling');
+    expect(window.workspace.activeStep).toBe('culling');
+  });
+
+  it('opening a stepless module (preferences) leaves activeStep untouched', async () => {
+    await dispatch('open-player-count');
+    expect(window.workspace.activeStep).toBe('count');
+    await dispatch('open-preferences');
+    expect(window.workspace.activeStep).toBe('count');
+  });
+
   it('queue-files IPC mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
     expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
     const handler = ipcHandler('queue-files');
