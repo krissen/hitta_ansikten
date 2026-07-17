@@ -21,15 +21,16 @@
  *     the LIVE model, not to any step's remembered shape).
  *
  * Tradeoff (KISS): the morph engine normalises a spec into one row of weighted
- * columns, so a snapshot captures module set + order + weights but NOT 2D
- * (row/column nesting) or grouped-tab structure. That matches what the morph can
- * produce anyway; richer manual arrangements collapse to a single row on
- * re-entry. This is the accepted limit of per-step memory.
+ * columns (a column may hold a GROUP of stacked tabs), so a snapshot captures
+ * module set + order + weights + per-column grouping and active tab, but NOT 2D
+ * (row/column nesting). That matches what the morph can produce anyway; richer
+ * manual arrangements collapse to a single row on re-entry. This is the accepted
+ * limit of per-step memory.
  */
 
 import { Model } from 'flexlayout-react';
 import { ensureBottomBorder } from './layouts.js';
-import { getWorkspaceSpec } from './workflows.js';
+import { getWorkspaceSpec, isGroupPane, paneModuleIds } from './workflows.js';
 import { debugWarn } from '../../shared/debug.js';
 
 const KEY_PREFIX = 'ansikten-workspace-';
@@ -45,44 +46,77 @@ export function stepStorageKey(stepId) {
   return `${KEY_PREFIX}${stepId}`;
 }
 
-/** A pane spec is a non-empty array of `{ moduleId: string, weight: finite }`. */
+/** A finite numeric weight. */
+function isFiniteWeight(w) {
+  return typeof w === 'number' && Number.isFinite(w);
+}
+
+/** A non-empty module-id string. */
+function isModuleId(id) {
+  return typeof id === 'string' && id.length > 0;
+}
+
+/**
+ * A pane is either a single-module pane `{ moduleId, weight }` or a grouped-tab
+ * pane `{ tabs: [id, …], active?, weight }`.
+ */
+function isValidPane(p) {
+  if (!p || !isFiniteWeight(p.weight)) return false;
+  if (isGroupPane(p)) {
+    return (
+      p.tabs.length > 0 &&
+      p.tabs.every(isModuleId) &&
+      (p.active === undefined || (isModuleId(p.active) && p.tabs.includes(p.active)))
+    );
+  }
+  return isModuleId(p.moduleId);
+}
+
+/** A pane spec is a non-empty array of valid panes. */
 function isValidSpec(spec) {
-  return (
-    Array.isArray(spec) &&
-    spec.length > 0 &&
-    spec.every(
-      (p) =>
-        p &&
-        typeof p.moduleId === 'string' &&
-        p.moduleId.length > 0 &&
-        typeof p.weight === 'number' &&
-        Number.isFinite(p.weight),
-    )
-  );
+  return Array.isArray(spec) && spec.length > 0 && spec.every(isValidPane);
 }
 
 /**
  * Snapshot a live model's real (non-border) tabsets into an ordered pane spec.
- * Border-parked tabs are skipped (their parent is a border, not a tabset), and a
- * module that somehow appears twice is de-duplicated (first wins) so the spec is
- * a clean one-pane-per-module target for the morph engine.
+ * Each tabset becomes one pane: a single-tab tabset yields `{ moduleId, weight }`,
+ * a multi-tab tabset yields a group `{ tabs, active, weight }` (the selected tab
+ * is `active`). Border-parked tabs are skipped (their parent is a border, not a
+ * tabset), and a module that somehow appears twice is de-duplicated (first wins)
+ * so the spec is a clean target for the morph engine.
  *
  * @param {import('flexlayout-react').Model} model
- * @returns {{ moduleId: string, weight: number }[]}
+ * @returns {import('./workflows.js').Pane[]}
  */
 export function snapshotStepSpec(model) {
   if (!model) return [];
+  const tabsets = [];
+  model.visitNodes((n) => {
+    if (n.getType?.() === 'tabset') tabsets.push(n);
+  });
   const seen = new Set();
   const spec = [];
-  model.visitNodes((n) => {
-    if (n.getType() !== 'tab') return;
-    const parent = n.getParent?.();
-    if (!parent || parent.getType?.() !== 'tabset') return; // parked/border → skip
-    const moduleId = n.getComponent?.();
-    if (!moduleId || seen.has(moduleId)) return;
-    seen.add(moduleId);
-    spec.push({ moduleId, weight: parent.getWeight?.() ?? 100 });
-  });
+  for (const tabset of tabsets) {
+    const ids = [];
+    let activeId = null;
+    const selected = tabset.getSelectedNode?.();
+    const selectedComponent = selected?.getComponent?.();
+    for (const child of tabset.getChildren?.() ?? []) {
+      if (child.getType?.() !== 'tab') continue;
+      const moduleId = child.getComponent?.();
+      if (!moduleId || seen.has(moduleId)) continue;
+      seen.add(moduleId);
+      ids.push(moduleId);
+      if (moduleId === selectedComponent) activeId = moduleId;
+    }
+    if (ids.length === 0) continue;
+    const weight = tabset.getWeight?.() ?? 100;
+    if (ids.length === 1) {
+      spec.push({ moduleId: ids[0], weight });
+    } else {
+      spec.push({ tabs: ids, active: activeId ?? ids[0], weight });
+    }
+  }
   return spec;
 }
 
@@ -143,10 +177,18 @@ export function clearAllStepSpecs() {
 export function mergeWithFactory(saved, factory) {
   if (!isValidSpec(saved)) return factory;
   if (!Array.isArray(factory) || factory.length === 0) return saved;
-  const present = new Set(saved.map((p) => p.moduleId));
+  const present = new Set(saved.flatMap(paneModuleIds));
   const merged = saved.slice();
+  // Append each factory module the saved spec dropped, as its own single pane at
+  // the factory pane's weight. (A grouped factory module lands as a standalone
+  // column — the guarantee is presence, not exact grouping, for this edge case.)
   for (const pane of factory) {
-    if (!present.has(pane.moduleId)) merged.push({ ...pane });
+    for (const mid of paneModuleIds(pane)) {
+      if (!present.has(mid)) {
+        present.add(mid);
+        merged.push({ moduleId: mid, weight: pane.weight });
+      }
+    }
   }
   return merged;
 }
@@ -175,6 +217,39 @@ export function resolveStepSpec(stepId) {
  * Idempotent: it never overwrites an existing review memory, and once the
  * legacy key is gone it is a no-op.
  */
+/**
+ * One-time reshape of an OLD-shape review memory into the new companion-tab form.
+ *
+ * Before this PR the review step was three columns (file-queue | review-module |
+ * image-viewer). The owner's decision moved the File Queue to a companion tab
+ * behind the Image Viewer. Existing installs carry the old three-column memory,
+ * which would otherwise override the new factory default forever. This rewrites
+ * such a memory ONCE — folding the File Queue into the Image Viewer's column as a
+ * hidden tab and summing their weights — so the new default is adopted without
+ * discarding the user's review-module tweaks. Idempotent: a memory that already
+ * has a group pane (new shape) or lacks the old file-queue/image-viewer columns
+ * is left untouched.
+ */
+export function migrateReviewMemoryShape() {
+  const saved = loadStepSpec('review');
+  if (!saved) return;
+  if (saved.some(isGroupPane)) return; // already new shape
+  const queuePane = saved.find((p) => p.moduleId === 'file-queue');
+  const viewerPane = saved.find((p) => p.moduleId === 'image-viewer');
+  if (!queuePane || !viewerPane) return; // not the old three-column shape
+  const groupWeight = (viewerPane.weight ?? 70) + (queuePane.weight ?? 15);
+  const rebuilt = [];
+  for (const pane of saved) {
+    if (pane.moduleId === 'file-queue') continue; // folded into the group
+    if (pane.moduleId === 'image-viewer') {
+      rebuilt.push({ tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: groupWeight });
+    } else {
+      rebuilt.push({ ...pane });
+    }
+  }
+  saveStepSpec('review', rebuilt);
+}
+
 export function migrateLegacyLayout() {
   let raw;
   try {
