@@ -44,6 +44,7 @@ vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
 
 import { PlayerCountModule } from '../src/renderer/components/PlayerCountModule.jsx';
 import { getScanScope, setScanScope } from '../src/renderer/shared/scanScope.js';
+import { clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
 const countCalls = () =>
   postMock.mock.calls.filter(([url]) => url === '/api/v1/players/count');
@@ -52,6 +53,9 @@ describe('PlayerCountModule — chip removal publishes/clears scan scope', () =>
   beforeEach(() => {
     postMock.mockClear();
     getMock.mockClear();
+    // A run count now anchors the working folder; clear it so the anchor-prefill
+    // fallback in adopt-on-mount can't leak a selection into the "nothing adopted" case.
+    clearWorkingFolder();
     globalThis.window.ansiktenAPI = {
       watchFolder: vi.fn(),
       unwatchFolder: vi.fn(),
@@ -126,6 +130,9 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       time_range: null,
     });
     getMock.mockClear();
+    // A run count now anchors the working folder; clear it so the anchor-prefill
+    // fallback in adopt-on-mount can't leak a selection into the blank-tab case.
+    clearWorkingFolder();
     globalThis.window.ansiktenAPI = {
       watchFolder: vi.fn(),
       unwatchFolder: vi.fn(),

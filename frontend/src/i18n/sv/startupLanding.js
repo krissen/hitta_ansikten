@@ -7,5 +7,7 @@ module.exports = {
   "importCardHint": "Sätt i ett minneskort för att importera",
   "currentFolder": "Aktuell mapp: {name}",
   "continueRename": "Fortsätt: Byt namn",
-  "continueReview": "Fortsätt: Granska ansikten"
+  "continueReview": "Fortsätt: Granska ansikten",
+  "continueCount": "Fortsätt: Räkna spelare",
+  "continueCull": "Fortsätt: Gallra"
 };

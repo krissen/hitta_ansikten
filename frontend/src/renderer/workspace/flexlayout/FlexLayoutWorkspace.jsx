@@ -661,6 +661,20 @@ export function FlexLayoutWorkspace() {
       moduleAPI.emit('culling-load', { roots, clear, recursive });
     };
     const offOpenCulling = window.ansiktenAPI.on('open-culling', handleOpenCulling);
+    // Same hand-off from inside the app (WorkflowBar "Fortsätt →" after Count):
+    // the moduleAPI bus carries the in-app emit, reusing the identical handler.
+    const offOpenCullingApp = moduleAPI.on('open-culling', handleOpenCulling);
+
+    // In-app hand-off into Count (Räkna spelare): morph into the count workspace
+    // and hand it the folder roots once it has subscribed. Used by the WorkflowBar
+    // "Fortsätt →" after Review and the chip dropdown's "Använd i Räkna/Gallra".
+    // waitForListeners guards the cold-start race where the module hasn't mounted.
+    const handleOpenCount = async ({ roots }) => {
+      enterStep('count');
+      await moduleAPI.waitForListeners('count-load', 2000);
+      moduleAPI.emit('count-load', { roots });
+    };
+    const offOpenCount = moduleAPI.on('open-count', handleOpenCount);
 
     // CLI `ansikten import [DEST]`: morph into the solo import workspace and hand
     // it the optional destination. waitForListeners guards the cold-start race
@@ -726,6 +740,8 @@ export function FlexLayoutWorkspace() {
       unsubscribeImageLoaded();
       offMenuCommand?.();
       offOpenCulling?.();
+      offOpenCullingApp?.();
+      offOpenCount?.();
       offOpenImport?.();
       offOpenRenameNef?.();
       offOpenReviewQueue?.();
