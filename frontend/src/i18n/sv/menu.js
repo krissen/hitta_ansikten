@@ -84,6 +84,7 @@ module.exports = {
   "help": {
     "title": "Hjälp",
     "keyboardShortcuts": "Tangentbordsgenvägar",
+    "showWelcome": "Visa välkomstguiden",
     "documentation": "Dokumentation",
     "userGuide": "Användarguide",
     "reportIssue": "Rapportera problem",

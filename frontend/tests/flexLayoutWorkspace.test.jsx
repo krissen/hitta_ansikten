@@ -581,6 +581,59 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
   });
 });
 
+describe('FlexLayoutWorkspace — welcome card (visibility + first-run)', () => {
+  it('renders the card INSIDE the layout host (not a viewport sibling), so the WorkflowBar stays visible', async () => {
+    // Fresh session (localStorage cleared in beforeEach) → the card is up. The
+    // persistent WorkflowBar must also be present, and the card must live inside
+    // .workspace-layout-host — the area BELOW the bar — never covering it.
+    const { container } = await mountWorkspace();
+    expect(container.querySelector('[data-testid="mock-workflow-bar"]')).toBeTruthy();
+    expect(container.querySelector('.workspace-layout-host [data-testid="mock-landing"]')).toBeTruthy();
+    // NOT a direct child of the shell (that would be the old full-viewport overlay).
+    expect(container.querySelector('.workspace-shell > [data-testid="mock-landing"]')).toBeNull();
+  });
+
+  it('first run shows the card; dismissing it (open a module) hides it AND sets the persistent flag', async () => {
+    const { container } = await mountWorkspace();
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeTruthy();
+    expect(window.localStorage.getItem('ansikten-welcomed')).toBeNull();
+
+    // Opening any module dismisses the card and records that it was seen.
+    await dispatch('open-culling');
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeNull();
+    expect(window.localStorage.getItem('ansikten-welcomed')).toBe('true');
+  });
+
+  it('a returning user (flag already set) never sees the card', async () => {
+    window.localStorage.setItem('ansikten-welcomed', 'true');
+    const { container } = await mountWorkspace();
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeNull();
+    // The bar is still there — a returning user lands straight in the workspace.
+    expect(container.querySelector('[data-testid="mock-workflow-bar"]')).toBeTruthy();
+  });
+
+  it('a corrupt flag fails open to SHOWING the card (first-run guarantee)', async () => {
+    window.localStorage.setItem('ansikten-welcomed', 'garbage');
+    const { container } = await mountWorkspace();
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeTruthy();
+  });
+
+  it('a CLI launch (willLaunch) never shows the card, even when not yet welcomed', async () => {
+    window.ansiktenAPI.launchIntent = { willLaunch: true };
+    const { container } = await mountWorkspace();
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeNull();
+  });
+
+  it('Help ▸ show-welcome re-shows the card on demand for a returning user', async () => {
+    window.localStorage.setItem('ansikten-welcomed', 'true');
+    const { container } = await mountWorkspace();
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeNull();
+
+    await dispatch('show-welcome');
+    expect(container.querySelector('[data-testid="mock-landing"]')).toBeTruthy();
+  });
+});
+
 describe('FlexLayoutWorkspace — per-step layout memory', () => {
   const stepKey = (s) => `ansikten-workspace-${s}`;
   const readSpec = (s) => {

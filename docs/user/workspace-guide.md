@@ -261,13 +261,15 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 
 ## Arbetsflöde
 
-> **Startsida:** När appen startar utan filer i kön visas en enkel välkomstsida i
-> arbetsytan — en hälsning som pekar dig mot **arbetsflödesraden** överst. All
-> navigation sker i raden: stegen (**Importera · Byt namn · Granska · Räkna ·
-> Gallra**), arbetsmapp-chippen, **Fortsätt →** och **Verktyg ▾**-menyn ligger
-> alla där, alltid synliga — även med tom arbetsyta. Startsidan försvinner så
-> fort du öppnar en vy eller laddar en bild, och **kommer tillbaka om du stänger
-> alla öppna moduler** så arbetsytan aldrig blir tom utan väg vidare.
+> **Välkomstsida (första gången):** Allra första gången du öppnar appen visas en
+> enkel välkomstsida i arbetsytan — en hälsning som pekar dig mot
+> **arbetsflödesraden** överst. Den ligger *under* raden, så raden är synlig och
+> klickbar hela tiden. All navigation sker i raden: stegen (**Importera · Byt
+> namn · Granska · Räkna · Gallra**), arbetsmapp-chippen, **Fortsätt →** och
+> **Verktyg ▾**-menyn ligger alla där, alltid synliga — även med tom arbetsyta.
+> Välkomstsidan försvinner så fort du öppnar en vy eller laddar en bild, och visas
+> sedan **inte igen** vid kommande starter (du går direkt in i arbetsytan). Vill
+> du se den igen: **Hjälp → Visa välkomstguiden**.
 >
 > **Fortsätt där du var:** har du nyss importerat eller bytt namn i ett event
 > visar arbetsflödesraden en **Fortsätt →**-knapp till nästa steg med samma mapp

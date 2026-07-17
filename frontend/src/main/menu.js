@@ -662,6 +662,12 @@ function createApplicationMenu(mainWindow) {
             sendMenuCommand('show-keyboard-shortcuts');
           }
         },
+        {
+          label: t('menu.help.showWelcome'),
+          click: () => {
+            sendMenuCommand('show-welcome');
+          }
+        },
         { type: 'separator' },
         {
           label: t('menu.help.documentation'),
