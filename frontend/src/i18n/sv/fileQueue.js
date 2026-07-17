@@ -1,6 +1,9 @@
 // Swedish catalog namespace: fileQueue
 module.exports = {
   "title": "Filkö",
+  // Source-folder label in the header ({name} = folder basename).
+  "sourceFolder": "Kö: {name}",
+  "sourceFolderTitle": "Mappen som filkön hämtats från",
 
   "toggles": {
     "fixMode": "Fixläge",

@@ -17,7 +17,8 @@ import { useConfirm } from '../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { scrollBehavior } from '../shared/motion.js';
-import { getWorkingFolder } from '../shared/workingFolder.js';
+import { getWorkingFolder, setWorkingFolder } from '../shared/workingFolder.js';
+import { setQueueStatus } from '../shared/queueStatus.js';
 import { PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { Button, IconButton, EmptyState } from './shared';
@@ -30,7 +31,7 @@ import {
   getToastDurationMultiplier,
   getInsertModePreference,
 } from './fileQueue/fileQueuePrefs.js';
-import { generateId, SUPPORTED_EXTENSIONS } from './fileQueue/queueUtils.js';
+import { generateId, SUPPORTED_EXTENSIONS, queueFolder } from './fileQueue/queueUtils.js';
 import { usePreprocessing } from './fileQueue/usePreprocessing.js';
 import { useNefRename } from './fileQueue/useNefRename.js';
 import { useFileQueue } from './fileQueue/useFileQueue.js';
@@ -197,6 +198,18 @@ export function FileQueueModule({ node }) {
       done: done,
       remaining: remaining,
       preprocessed: preprocessed
+    });
+    // Mirror the snapshot into the shared store so the WorkflowBar chip dropdown
+    // (mounted outside this module) can show which folder the queue holds and how
+    // far it's got, with the current value available on its mount. Empty queue →
+    // null, so the chip reads "Ingen kö".
+    setQueueStatus(q.length === 0 ? null : {
+      folder: queueFolder(q),
+      count: q.length,
+      current: currentIdx,
+      done,
+      remaining,
+      preprocessed,
     });
   }, [emit, currentIndex]);
 
@@ -1320,6 +1333,10 @@ export function FileQueueModule({ node }) {
     }
     if (clear) clearQueue();
     addFiles(files, position);
+    // Advance the pipeline anchor to the Review step so "Fortsätt →" can chain
+    // review → count (an earlier import/rename set it to their own step). This
+    // only re-points the shared anchor; adoption downstream stays opt-in.
+    setWorkingFolder({ roots: dirs, step: 'review' });
     if (startQueue) setTimeout(() => startNextEligible(), 100);
   }, [addFiles, clearQueue, startNextEligible, showToast]);
 
@@ -1519,6 +1536,14 @@ export function FileQueueModule({ node }) {
 
   const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
 
+  // Source-folder label so the queue isn't anonymous ("Kö: <mapp>"). Derived
+  // from the queued files' common parent; hidden when the queue is empty.
+  const sourceFolderName = useMemo(() => {
+    const folder = queueFolder(queue);
+    if (!folder) return null;
+    return folder.replace(/\/+$/, '').split('/').pop() || folder;
+  }, [queue]);
+
   // Empty-queue offer: if the working-folder anchor points somewhere (an earlier
   // pipeline step set it), surface a one-click "load this folder" button in the
   // empty state. Opt-in — the anchor is never auto-loaded. Recomputed when the
@@ -1561,7 +1586,14 @@ export function FileQueueModule({ node }) {
     >
       {/* Header */}
       <div className="module-header">
-        <span className="module-title">{t('fileQueue.title')}</span>
+        <span className="module-title">
+          {t('fileQueue.title')}
+          {sourceFolderName && (
+            <span className="file-queue-source" title={t('fileQueue.sourceFolderTitle')}>
+              {t('fileQueue.sourceFolder', { name: sourceFolderName })}
+            </span>
+          )}
+        </span>
         <div className="file-queue-actions">
           <IconButton
             icon="plus"
