@@ -120,6 +120,17 @@ describe('resolvePlacementTabset — bottom', () => {
     const mainId = idOfWeight(model, 100);
     expect(resolvePlacementTabset(model, 'bottom')).toEqual({ split: 'bottom', refTabsetId: mainId });
   });
+
+  it('splits, not stacks, before the first measure pass (all rects zero-sized)', () => {
+    // FlexLayout's getRect() returns a zero-sized Rect (not null) until measured.
+    // A left side column and the main area both report y === 0 here — the bottom
+    // module must NOT treat the side column as a bottom bar, but split instead.
+    const model = fakeModel([
+      { id: 'left', weight: 15, rect: { x: 0, y: 0, width: 0, height: 0 } },
+      { id: 'main', weight: 85, rect: { x: 0, y: 0, width: 0, height: 0 } },
+    ]);
+    expect(resolvePlacementTabset(model, 'bottom')).toEqual({ split: 'bottom', refTabsetId: 'main' });
+  });
 });
 
 describe('resolvePlacementTabset — degenerate', () => {

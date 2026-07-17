@@ -106,19 +106,28 @@ function narrowSideTabset(model, main) {
  * The bottom bar to reuse for a 'bottom' module, or null if none exists.
  *
  * A bottom bar is a tabset (other than main) that sits in the lower half of the
- * main area. Only detectable once geometry is measured; before that it returns
- * null and the caller creates a fresh BOTTOM split.
+ * main area. Only detectable once geometry is MEASURED: FlexLayout's getRect()
+ * returns a zero-sized Rect (not null) before the first render/measure pass, so
+ * an unmeasured main would give threshold 0 and wrongly match every other
+ * unmeasured tabset at y === 0 (e.g. the left Review column) — stacking Log
+ * Viewer into the side panel instead of splitting a bottom bar. Require non-zero
+ * dimensions on both the main area and the candidate; until they're measured
+ * this returns null and the caller creates a fresh BOTTOM split.
  *
  * @param {import('flexlayout-react').Model} model
  * @param {object} main the main-area tabset node to compare against.
  * @returns {object | null}
  */
+function isMeasured(rect) {
+  return !!rect && rect.width > 0 && rect.height > 0;
+}
+
 function bottomBarTabset(model, main) {
   const mainRect = main.getRect?.() || null;
-  if (!mainRect) return null;
+  if (!isMeasured(mainRect)) return null;
   const threshold = mainRect.y + mainRect.height * 0.5;
   const below = collectTabsets(model)
-    .filter((ts) => ts.node !== main && ts.rect && ts.rect.y >= threshold);
+    .filter((ts) => ts.node !== main && isMeasured(ts.rect) && ts.rect.y >= threshold);
   if (!below.length) return null;
   below.sort((a, b) => b.rect.y - a.rect.y);
   return below[0].node;
