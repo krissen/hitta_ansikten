@@ -102,7 +102,8 @@ export class PreferencesManager {
         }
       },
       workspace: {
-        showWorkflowBar: true // Show the persistent pipeline navigation row above the layout
+        showWorkflowBar: true, // Show the persistent pipeline navigation row above the layout
+        workflowBarAutoHide: true // Slide the navigation row away when idle (reveal on hover/step change)
       },
       layout: {
         defaultGridPreset: '70-30', // Default grid split ratio: '50-50', '60-40', '70-30', '30-70', '40-60'

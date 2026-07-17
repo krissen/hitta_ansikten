@@ -26,6 +26,7 @@ import { useAnchoredDropdown } from '../hooks/useAnchoredDropdown.js';
 import { getWorkingFolder, setWorkingFolder, subscribeWorkingFolder } from '../shared/workingFolder.js';
 import { getScanScope, subscribeScanScope } from '../shared/scanScope.js';
 import { getQueueStatus, subscribeQueueStatus } from '../shared/queueStatus.js';
+import { prefersReducedMotion } from '../shared/motion.js';
 import {
   WORKFLOW_STEPS,
   WORKFLOW_TOOLS,
@@ -33,18 +34,25 @@ import {
   basename,
 } from '../workspace/flexlayout/workflowSteps.js';
 import { buildWorkingSetSummary } from './workflowBar/workingSetSummary.js';
+import { useWorkflowBarAutoHide } from './workflowBar/useAutoHide.js';
 import { Icon } from './Icon.jsx';
 import { Button } from './shared';
 import { t } from '../../i18n/index.js';
 import './WorkflowBar.css';
 
 /**
+ * When `autoHide` is on the row slides out of view after a few seconds idle and
+ * returns on a step change or when the pointer/keyboard reaches the top edge; a
+ * thin hover-zone at the very top catches the reveal while it is hidden. With
+ * `autoHide` off it is a normal always-visible flex child (today's behaviour).
+ *
  * @param {object} props
  * @param {string|null} props.activeStep - Step id currently active, highlighted in the bar.
  * @param {(moduleId: string) => void} props.onOpenStep - Open a pipeline step (existing landing paths).
  * @param {(moduleId: string) => void} props.onOpenTool - Open a non-pipeline tool as a tab.
+ * @param {boolean} [props.autoHide=false] - Slide the row away when idle (opt-out preference).
  */
-export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
+export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = false }) {
   const emit = useEmitEvent();
 
   // The three working sets drive the chip + its dropdown. All three are shared
@@ -74,6 +82,32 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
   const chip = useAnchoredDropdown();
   const tools = useAnchoredDropdown();
 
+  // Autohide: the pointer resting on the bar, keyboard focus inside it, or an
+  // open dropdown all freeze the hide timer so the row can't slide away under an
+  // open menu or mid tab-navigation (a11y).
+  const [hovering, setHovering] = useState(false);
+  const [focusWithin, setFocusWithin] = useState(false);
+  const paused = hovering || focusWithin || chip.open || tools.open;
+  const { revealed, reveal } = useWorkflowBarAutoHide({
+    enabled: autoHide,
+    paused,
+    activeStep,
+  });
+  // Reduced motion: the global media block already neutralises the transition;
+  // this switches the hidden mechanism to a plain fade (no slide, no phosphor).
+  const reducedMotion = useMemo(() => prefersReducedMotion(), []);
+  const handleBlur = useCallback((e) => {
+    if (!e.currentTarget.contains(e.relatedTarget)) setFocusWithin(false);
+  }, []);
+
+  const hidden = autoHide && !revealed;
+  const barClass = [
+    'workflow-bar',
+    autoHide ? 'autohide' : '',
+    hidden ? 'hidden' : '',
+    reducedMotion ? 'reduced-motion' : '',
+  ].filter(Boolean).join(' ');
+
   const openTool = useCallback((moduleId) => {
     tools.close();
     onOpenTool(moduleId);
@@ -102,7 +136,28 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
   }, [chip, emit, hasFolder, roots]);
 
   return (
-    <div className="workflow-bar" role="toolbar" aria-label={t('workflowBar.label')}>
+    <>
+      {autoHide && (
+        // Thin catch-strip pinned to the top edge; hovering it slides the bar
+        // back down. Only present while hidden so it never eats clicks on a
+        // revealed bar. Pointer-driven convenience — never the only way in
+        // (Cmd+1..5, step changes and focus all reveal the row too).
+        <div
+          className={`workflow-bar-hover-zone${hidden ? '' : ' inert'}`}
+          aria-hidden="true"
+          onMouseEnter={reveal}
+        />
+      )}
+      <div
+        className={barClass}
+        role="toolbar"
+        aria-label={t('workflowBar.label')}
+        aria-hidden={hidden ? 'true' : undefined}
+        onMouseEnter={autoHide ? () => setHovering(true) : undefined}
+        onMouseLeave={autoHide ? () => setHovering(false) : undefined}
+        onFocus={autoHide ? () => setFocusWithin(true) : undefined}
+        onBlur={autoHide ? handleBlur : undefined}
+      >
       <div className="workflow-bar-steps">
         {WORKFLOW_STEPS.map((step, i) => {
           const active = activeStep === step.step;
@@ -209,7 +264,8 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool }) {
           </ul>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -57,6 +57,10 @@ module.exports = {
       "label": "Visa arbetsflödesrad",
       "hint": "Visa den fasta raden med pipeline-stegen ovanför arbetsytan."
     },
+    "workflowBarAutoHide": {
+      "label": "Dölj arbetsflödesraden automatiskt",
+      "hint": "Låt raden glida undan efter en stunds inaktivitet. Den kommer fram igen när du för muspekaren till skärmens överkant eller byter steg."
+    },
     "template": {
       "label": "Standardmall för layout",
       "hint": "Layout som används vid återställning eller första start.",

@@ -104,4 +104,38 @@ describe('WorkflowBar', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /Databashantering/ }));
     expect(onOpenTool).toHaveBeenCalledWith('database-management');
   });
+
+  describe('autohide', () => {
+    function bar() {
+      return document.querySelector('.workflow-bar');
+    }
+
+    it('is a plain always-visible flex child when autohide is off', () => {
+      renderBar({ autoHide: false });
+      expect(bar().classList.contains('autohide')).toBe(false);
+      expect(bar().classList.contains('hidden')).toBe(false);
+      expect(document.querySelector('.workflow-bar-hover-zone')).toBeNull();
+    });
+
+    it('renders the autohide class and a top-edge hover-zone when on', () => {
+      renderBar({ autoHide: true });
+      expect(bar().classList.contains('autohide')).toBe(true);
+      expect(document.querySelector('.workflow-bar-hover-zone')).toBeTruthy();
+    });
+
+    it('marks the reduced-motion variant when the OS prefers reduced motion', () => {
+      const original = window.matchMedia;
+      window.matchMedia = (q) => ({
+        matches: /prefers-reduced-motion/.test(q),
+        addEventListener() {}, removeEventListener() {},
+        addListener() {}, removeListener() {},
+      });
+      try {
+        renderBar({ autoHide: true });
+        expect(bar().classList.contains('reduced-motion')).toBe(true);
+      } finally {
+        window.matchMedia = original;
+      }
+    });
+  });
 });

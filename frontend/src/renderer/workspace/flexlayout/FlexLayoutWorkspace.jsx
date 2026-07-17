@@ -114,9 +114,16 @@ export function FlexLayoutWorkspace() {
   const [showWorkflowBar, setShowWorkflowBar] = useState(
     () => preferences.get('workspace.showWorkflowBar') !== false
   );
+  // Independent of showWorkflowBar: when the bar is shown, does it autohide when
+  // idle? Default on; the "alltid synlig" opt-out sets this false.
+  const [workflowBarAutoHide, setWorkflowBarAutoHide] = useState(
+    () => preferences.get('workspace.workflowBarAutoHide') !== false
+  );
   useEffect(() => {
-    const onPrefChange = () =>
+    const onPrefChange = () => {
       setShowWorkflowBar(preferences.get('workspace.showWorkflowBar') !== false);
+      setWorkflowBarAutoHide(preferences.get('workspace.workflowBarAutoHide') !== false);
+    };
     window.addEventListener('preferences-changed', onPrefChange);
     return () => window.removeEventListener('preferences-changed', onPrefChange);
   }, []);
@@ -889,6 +896,7 @@ export function FlexLayoutWorkspace() {
           activeStep={activeStep}
           onOpenStep={openWorkflowStep}
           onOpenTool={openModule}
+          autoHide={workflowBarAutoHide}
         />
       )}
       <div className="workspace-layout-host">

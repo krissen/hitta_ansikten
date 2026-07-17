@@ -10,6 +10,9 @@
   flex-direction: column;
   width: 100%;
   height: 100%;
+  /* Positioning context for the autohide bar + hover-zone, which lift out of
+     flow and overlay the layout host (see .workflow-bar.autohide below). */
+  position: relative;
 }
 
 .workspace-layout-host {
@@ -36,6 +39,78 @@
      group clips itself instead (below). */
   position: relative;
   z-index: 5;
+}
+
+/* --- Autohide -------------------------------------------------------------
+   With autohide on, the row lifts out of flow and overlays the top of the
+   layout host (Lightroom module-row style) so the workspace reclaims the full
+   height and FlexLayout never re-layouts as the bar shows/hides. It slides
+   between shown (translateY 0) and hidden (translateY -100%), with a short
+   phosphor afterglow in the theme accent each time it returns.
+   Existing tokens only; reduced motion handled below + by the global block. */
+.workflow-bar.autohide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 7;
+  transition: transform 220ms ease;
+  will-change: transform;
+}
+
+/* Phosphor reveal: runs once whenever the bar is in its shown state. Toggling
+   .hidden drops the rule (animation removed) and restoring it replays fresh, so
+   every hidden→shown cycle re-pulses the accent glow along the bottom edge. */
+.workflow-bar.autohide:not(.hidden) {
+  animation: workflow-bar-phosphor 620ms ease-out;
+}
+
+.workflow-bar.autohide.hidden {
+  transform: translateY(-100%);
+}
+
+@keyframes workflow-bar-phosphor {
+  0% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  35% {
+    box-shadow: 0 3px 14px -2px var(--accent-primary);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* Reduced motion: no slide, no glow — a plain instant fade instead. Kept
+   explicit (not just the global neutraliser) so the hidden bar truly leaves the
+   pointer/tab order rather than sitting invisibly at translateY 0. */
+.workflow-bar.autohide.reduced-motion {
+  transition: none;
+  animation: none;
+}
+
+.workflow-bar.autohide.reduced-motion.hidden {
+  transform: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Top-edge catch-strip that reveals the hidden bar on hover. A hairline in the
+   theme border colour hints where the row lives without shouting. */
+.workflow-bar-hover-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  z-index: 6;
+  background: var(--border-subtle);
+  opacity: 0.5;
+}
+
+.workflow-bar-hover-zone.inert {
+  pointer-events: none;
+  opacity: 0;
 }
 
 .workflow-bar-steps {
