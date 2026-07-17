@@ -416,6 +416,12 @@ export function PreferencesModule({ api }) {
   const renderLayoutSection = () => (
     <>
       <SectionHeader title={t('preferences.layout.header')} />
+      <CheckboxField
+        label={t('preferences.layout.showWorkflowBar.label')}
+        hint={t('preferences.layout.showWorkflowBar.hint')}
+        checked={prefs.workspace?.showWorkflowBar ?? true}
+        onChange={(v) => updatePref('workspace.showWorkflowBar', v)}
+      />
       <SelectField
         label={t('preferences.layout.template.label')}
         hint={t('preferences.layout.template.hint')}
