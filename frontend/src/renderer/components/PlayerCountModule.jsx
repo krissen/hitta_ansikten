@@ -13,7 +13,7 @@ import { useModuleAPI, useModuleEvent } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
 import { Button, Alert, ContextMenu } from './shared';
 import { useContextMenu } from '../hooks/useContextMenu.js';
-import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad } from '../shared/scanScope.js';
+import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad, takeExternalLoad } from '../shared/scanScope.js';
 import { getWorkingFolder, setWorkingFolder } from '../shared/workingFolder.js';
 import {
   DEFAULTS as COUNT_DEFAULTS,
@@ -229,6 +229,10 @@ export function PlayerCountModule() {
   // single glob string; null dates → empty).
   useEffect(() => {
     if (lastParamsRef.current) return;
+    // An explicit count-load hand-off (open-count) signals an external load
+    // before this mounts: skip the adopt so we don't run a redundant count off a
+    // stale scanScope before count-load arrives. Mirrors culling's cull-player.
+    if (takeExternalLoad()) return;
     const s = getScanScope();
     if (!scanScopeHasSelection(s)) {
       // No shared scan scope to adopt. Fall back to the pipeline working-folder

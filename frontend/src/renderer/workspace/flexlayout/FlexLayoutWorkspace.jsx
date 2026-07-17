@@ -24,6 +24,7 @@ import { preferences } from '../preferences.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { useConfirm } from '../../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
+import { signalExternalLoad } from '../../shared/scanScope.js';
 import { MODULE_COMPONENTS, MODULE_TITLES, getModuleRole, getModuleWeight, getModuleStep, isSingletonModule } from './moduleRegistry.js';
 import { useUIPreferences } from './uiPreferences.js';
 import { ShortcutsHelpOverlay } from './ShortcutsHelp.jsx';
@@ -670,6 +671,11 @@ export function FlexLayoutWorkspace() {
     // "Fortsätt →" after Review and the chip dropdown's "Använd i Räkna/Gallra".
     // waitForListeners guards the cold-start race where the module hasn't mounted.
     const handleOpenCount = async ({ roots }) => {
+      // Signal the external load BEFORE the morph mounts Räkna, so its
+      // adopt-on-mount skips a scanScope-driven count (which would run a
+      // redundant backend count off a stale scope, flicker, then be superseded
+      // by count-load). Mirrors the cull-player/culling hand-off.
+      signalExternalLoad();
       enterStep('count');
       await moduleAPI.waitForListeners('count-load', 2000);
       moduleAPI.emit('count-load', { roots });
