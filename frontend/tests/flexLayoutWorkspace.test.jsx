@@ -644,6 +644,23 @@ describe('FlexLayoutWorkspace — welcome card (visibility + first-run)', () => 
     expect(container.querySelector('[data-testid="mock-landing"]')).toBeNull();
   });
 
+  it('a CLI-launch dismissal does NOT mark welcomed (card never shown), so a later normal start still shows it', async () => {
+    // willLaunch → no card. The launch command opens a step/module, which reaches
+    // dismissLanding — but since the card was never showing, the flag must stay
+    // unset so a CLI-first user still gets the guide on a later normal start.
+    window.ansiktenAPI.launchIntent = { willLaunch: true };
+    const first = await mountWorkspace();
+    expect(first.container.querySelector('[data-testid="mock-landing"]')).toBeNull();
+    await dispatch('open-culling'); // stands in for the launch-dispatched open
+    expect(window.localStorage.getItem('ansikten-welcomed')).toBeNull();
+
+    // A later NORMAL start (no willLaunch, flag still unset) shows the card.
+    cleanup();
+    window.ansiktenAPI.launchIntent = null;
+    const second = await mountWorkspace();
+    expect(second.container.querySelector('[data-testid="mock-landing"]')).toBeTruthy();
+  });
+
   it('Help ▸ show-welcome re-shows the card on demand for a returning user', async () => {
     window.localStorage.setItem('ansikten-welcomed', 'true');
     const { container } = await mountWorkspace();

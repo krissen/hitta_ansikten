@@ -72,12 +72,18 @@ export function FlexLayoutWorkspace() {
   // step empty) and suppresses the landing accordingly.
   const willLaunch = !!window.ansiktenAPI?.launchIntent?.willLaunch;
   const [showLanding, setShowLanding] = useState(() => !willLaunch && !hasBeenWelcomed());
-  // Dismiss the welcome card AND remember it was seen, so it is first-run-only.
-  // Every dismissal path (open a step, load an image, close via the menu) routes
-  // through here so the flag is set once and consistently.
+  // Dismiss the welcome card, and record "welcomed" ONLY if it was actually
+  // showing. Every dismissal path (open a step, load an image, close via the
+  // menu) routes through here. A CLI launch (willLaunch) dispatches a step/module
+  // open that reaches this too, but the card was never rendered then — marking it
+  // welcomed would silently burn the first-run guide for a CLI-first user. The
+  // functional updater reads the LIVE showLanding (never a stale closure);
+  // markWelcomed is idempotent, so a StrictMode double-invoke is harmless.
   const dismissLanding = useCallback(() => {
-    setShowLanding(false);
-    markWelcomed();
+    setShowLanding((wasShowing) => {
+      if (wasShowing) markWelcomed();
+      return false;
+    });
   }, []);
   // The single command router. Created once so dispatch is available (and can
   // buffer) before the model exists; handlers are wired once the model is ready.
