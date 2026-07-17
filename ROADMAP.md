@@ -72,7 +72,6 @@ deliverables, DoD) för en prestandarelease.
 ### UI/UX
 
 - [ ] **`resolvePlacementTabset` ignorerar `getMaximizedTabset`** — en side-/bottom-modul som öppnas medan en tabset är maximerad dockar bakom den maximerade vyn (den nya panelen läggs i sin roll-tabset men syns inte förrän maximeringen släpps). Egen placeringsklass; åtgärdas i en senare placerings-PR. Nagelfar-fynd från #235, icke-blockerande.
-- [ ] **CLI launch: landing döljs vid sökväg som expanderar till tomt** — renderaren härleder landningssidans suppression från råa arg-antalet (`hasFiles`), men huvudprocessen skickar bara handoff efter sökvägsexpansion (`expandFolderPaths`/`expandFilePaths` → `length>0 || clear`). En syntaktiskt giltig men icke-matchande sökväg (t.ex. `ansikten culling /typo` eller en glob utan träffar) döljer landningen utan att öppna något → användaren hamnar i default-layouten istället. Ren fix: låt huvudprocessen beräkna post-expansion-villkoret och exponera den boolean:en som launch intent istället för att renderaren gissar från råa argument (kräver async-hantering för faces). Pre-existerande edge (user-error), icke-blockerande; flaggad i PR #67-granskningen.
 
 ---
 

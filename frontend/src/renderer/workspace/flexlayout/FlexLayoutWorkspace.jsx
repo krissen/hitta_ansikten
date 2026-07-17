@@ -24,7 +24,6 @@ import { preferences } from '../preferences.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { useConfirm } from '../../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
-import { signalExternalLoad } from '../../shared/scanScope.js';
 import { MODULE_COMPONENTS, MODULE_TITLES, getModuleRole, getModuleWeight, getModuleStep, isSingletonModule } from './moduleRegistry.js';
 import { useUIPreferences } from './uiPreferences.js';
 import { ShortcutsHelpOverlay } from './ShortcutsHelp.jsx';
@@ -35,6 +34,7 @@ import {
   groupAsTab as geomGroupAsTab,
 } from './layoutGeometry.js';
 import { createMenuCommandHandler } from './menuCommands.js';
+import { createWorkspaceRouter } from './workspaceCommands.js';
 import { StartupLanding } from '../../components/StartupLanding.jsx';
 import { WorkflowBar } from '../../components/WorkflowBar.jsx';
 
@@ -56,18 +56,20 @@ export function FlexLayoutWorkspace() {
   const [ready, setReady] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   // Startup landing page: shown on an empty workspace, dismissed once a module
-  // is opened or an image is loaded. Skipped only when the launch will actually
-  // dispatch a handoff (file args or --clear) — the main process opens the
-  // target then, so the landing would only flash. A bare verb (`ansikten
-  // culling` with no paths and no --clear) sends no handoff, so the landing must
-  // stay, or the user is stranded with no way to pick a workflow. The `import`
-  // verb is the exception: it always opens the import module (its source card is
-  // autodetected, so it needs no path arg), so a bare `ansikten import` still
-  // dispatches a handoff and the landing is suppressed.
-  const launchIntent = window.ansiktenAPI?.launchIntent;
-  const hasLaunchIntent = !!launchIntent &&
-    (launchIntent.hasFiles || launchIntent.clear || launchIntent.verb === 'import');
-  const [showLanding, setShowLanding] = useState(!hasLaunchIntent);
+  // is opened or an image is loaded. Suppressed when the main process will
+  // dispatch a launch command (so the landing would only flash before it opens
+  // the target). The renderer no longer guesses this from raw argument counts —
+  // the main process resolves it AFTER path expansion (`willLaunch`), so a path
+  // that expands to nothing (`ansikten culling /typo`) still gets an explicit
+  // launch command (open the step empty) and suppresses the landing accordingly.
+  const willLaunch = !!window.ansiktenAPI?.launchIntent?.willLaunch;
+  const [showLanding, setShowLanding] = useState(!willLaunch);
+  // The single command router. Created once so dispatch is available (and can
+  // buffer) before the model exists; handlers are wired once the model is ready.
+  const routerRef = useRef(null);
+  if (!routerRef.current) routerRef.current = createWorkspaceRouter();
+  const router = routerRef.current;
+  const dispatch = useCallback((intent) => router.dispatch(intent), [router]);
   // Persistent workflow bar: the active pipeline step it highlights, and whether
   // it is shown at all (preference, default on). The bar state re-reads on
   // 'preferences-changed' so toggling the pref applies without a reload.
@@ -614,11 +616,33 @@ export function FlexLayoutWorkspace() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [model, ready, swapActivePanel, moveToNewTabset, groupAsTab, addTabset, removeEmptyTabset, moduleAPI]);
 
-  // Setup IPC listeners
+  // Wire the router's handlers whenever the underlying operations change. The
+  // router is created before the model exists (so early dispatches buffer); this
+  // keeps its handlers pointing at the current closures (openWorkflowStep reads
+  // activeStep, etc.). Runs before the ready effect below so handlers are in
+  // place when markReady() flushes the buffer.
+  useEffect(() => {
+    router.setHandlers({
+      enterStep,
+      openModule,
+      openWorkflowStep,
+      loadLayout,
+      resetLayout,
+      moduleAPI,
+    });
+  }, [router, enterStep, openModule, openWorkflowStep, loadLayout, resetLayout, moduleAPI]);
+
+  // Setup IPC listeners + in-app hand-off adapters, then complete the
+  // workspace-ready handshake. Every mechanism here is now a thin adapter that
+  // builds a typed intent and calls dispatch — the router owns the routing and
+  // the cold-mount waitForListeners guards (workspaceCommands.js).
+  const readySignalledRef = useRef(false);
   useEffect(() => {
     if (!ready || !window.ansiktenAPI) return;
 
-    // Request initial file path (if app was launched with a file argument)
+    // Request initial file path (if app was launched with a single file arg /
+    // Finder "Open With"). This pull-based handshake is unchanged — the file is
+    // loaded into whatever layout is up, no morph.
     const loadInitialFile = async () => {
       try {
         const filePath = await window.ansiktenAPI.invoke('get-initial-file');
@@ -632,100 +656,43 @@ export function FlexLayoutWorkspace() {
     };
     loadInitialFile();
 
-    // Listen for menu commands — the dispatch table and unknown-command
+    // Listen for menu commands — the dispatch table (navigation commands adapt to
+    // router intents; geometry/theme/open-file stay direct) and unknown-command
     // fallback (broadcast to modules via moduleAPI.emit) live in menuCommands.js.
     const handleMenuCommand = createMenuCommandHandler({
-      loadLayout,
-      resetLayout,
-      enterStep,
-      openWorkflowStep,
+      dispatch,
       addTabset,
       removeEmptyTabset,
       moveToNewTabset,
-      openModule,
       moduleAPI,
     });
-
     const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
 
-    // CLI culling target (`ansikten culling DIR`): morph into the solo culling
-    // workspace, then hand it the folder scope once it has subscribed. enterStep
-    // parks a dirty Review (keepDirty) and the File Queue (keepMounted) in the
-    // background border rather than discarding them, and removes the clean Review
-    // panel — the "Review shouldn't sit in the layout while culling" intent, now
-    // non-destructive. waitForListeners guards the cold-start race where the
-    // module hasn't mounted yet (same guard the FileQueue→ImageViewer handshake
-    // uses for 'load-image').
-    const handleOpenCulling = async ({ roots, clear, recursive }) => {
-      enterStep('culling');
-      await moduleAPI.waitForListeners('culling-load', 2000);
-      moduleAPI.emit('culling-load', { roots, clear, recursive });
-    };
-    const offOpenCulling = window.ansiktenAPI.on('open-culling', handleOpenCulling);
-    // Same hand-off from inside the app (WorkflowBar "Fortsätt →" after Count):
-    // the moduleAPI bus carries the in-app emit, reusing the identical handler.
-    const offOpenCullingApp = moduleAPI.on('open-culling', handleOpenCulling);
+    // Main-process launch commands: one unified `workspace-command` IPC carrying
+    // a typed intent (open-culling / queue-files / open-import / enter-step /
+    // load-image), sent only after this handshake so the router's listeners are
+    // guaranteed live. dispatch buffers anything that still races ahead.
+    const offWorkspaceCommand = window.ansiktenAPI.on('workspace-command', (intent) => {
+      debug('FlexLayout', 'workspace-command', intent?.type);
+      dispatch(intent);
+    });
 
-    // In-app hand-off into Count (Räkna spelare): morph into the count workspace
-    // and hand it the folder roots once it has subscribed. Used by the WorkflowBar
-    // "Fortsätt →" after Review and the chip dropdown's "Använd i Räkna/Gallra".
-    // waitForListeners guards the cold-start race where the module hasn't mounted.
-    const handleOpenCount = async ({ roots }) => {
-      // Signal the external load BEFORE the morph mounts Räkna, so its
-      // adopt-on-mount skips a scanScope-driven count (which would run a
-      // redundant backend count off a stale scope, flicker, then be superseded
-      // by count-load). Mirrors the cull-player/culling hand-off.
-      signalExternalLoad();
-      enterStep('count');
-      await moduleAPI.waitForListeners('count-load', 2000);
-      moduleAPI.emit('count-load', { roots });
-    };
-    const offOpenCount = moduleAPI.on('open-count', handleOpenCount);
-
-    // CLI `ansikten import [DEST]`: morph into the solo import workspace and hand
-    // it the optional destination. waitForListeners guards the cold-start race
-    // where the module hasn't mounted yet.
-    const handleOpenImport = async ({ destination }) => {
-      enterStep('import');
-      await moduleAPI.waitForListeners('import-load', 2000);
-      moduleAPI.emit('import-load', { destination });
-    };
-    const offOpenImport = window.ansiktenAPI.on('open-import', handleOpenImport);
-
-    // In-app hand-off from Import → Rename-NEF ("Döp om filer…"): morph into the
-    // solo rename workspace, then pass it the just-imported folder once it has
-    // subscribed. waitForListeners guards the cold-start race on first open.
-    const handleOpenRenameNef = async ({ roots }) => {
-      enterStep('rename');
-      await moduleAPI.waitForListeners('rename-nef-load', 2000);
-      moduleAPI.emit('rename-nef-load', { roots });
-    };
-    const offOpenRenameNef = moduleAPI.on('open-rename-nef', handleOpenRenameNef);
-
-    // In-app hand-off from Rename-NEF → Review ("Granska ansikten…"): morph into
-    // the review workspace (File Queue + Review + Image Viewer) and hand the
-    // just-renamed folder(s) to the queue, which expands them to files. Morphing
-    // never rebuilds the model, so a File Queue already present keeps its node id
-    // (and its listener) — the emit reaches the live queue, not a dying listener.
-    const handleOpenReviewQueue = async ({ roots }) => {
-      enterStep('review');
-      await moduleAPI.waitForListeners('file-queue-load', 2000);
-      moduleAPI.emit('file-queue-load', { roots });
-    };
-    const offOpenReviewQueue = moduleAPI.on('open-review-queue', handleOpenReviewQueue);
-
-    // CLI `ansikten -q FILES` (and the `queue-files` IPC generally): the queue
-    // may not be mounted yet — a saved layout without a File Queue panel, or a
-    // cold start where the landing page was suppressed by the launch intent but
-    // no receiver existed → a blank workspace. Morph into the review workspace
-    // (which ensures the queue) then re-emit the payload as the renderer-side
-    // 'file-queue-load' once the queue has subscribed.
-    const handleQueueFilesIpc = async (payload) => {
-      enterStep('review');
-      await moduleAPI.waitForListeners('file-queue-load', 2000);
-      moduleAPI.emit('file-queue-load', payload || {});
-    };
-    const offQueueFiles = window.ansiktenAPI.on('queue-files', handleQueueFilesIpc);
+    // In-app hand-offs (WorkflowBar "Fortsätt →", chip "Använd i…", Import →
+    // Rename → Review chain): each moduleAPI event becomes the matching intent.
+    // The event name IS the intent type — the router's HANDOFFS table maps it to
+    // the morph + waitForListeners + emit flow (culling/count/import/rename/
+    // review-queue). This is the same behavior the per-handler code had, now in
+    // one place. The morph parks a dirty Review (keepDirty) and keepMounted File
+    // Queue rather than discarding them, and signalExternalLoad for count is
+    // preserved (HANDOFFS.signalExternal).
+    const offOpenCulling = moduleAPI.on('open-culling', (payload) =>
+      dispatch({ type: 'open-culling', payload }));
+    const offOpenCount = moduleAPI.on('open-count', (payload) =>
+      dispatch({ type: 'open-count', payload }));
+    const offOpenRenameNef = moduleAPI.on('open-rename-nef', (payload) =>
+      dispatch({ type: 'open-rename-nef', payload }));
+    const offOpenReviewQueue = moduleAPI.on('open-review-queue', (payload) =>
+      dispatch({ type: 'open-review-queue', payload }));
 
     // Track which files have unsaved Review changes so a step morph parks Review
     // (keepDirty) instead of discarding its edits.
@@ -742,19 +709,28 @@ export function FlexLayoutWorkspace() {
     // that guard and reintroduce a lost-event race on first queue load.
     const unsubscribeImageLoaded = moduleAPI.on('image-loaded', () => setShowLanding(false));
 
+    // Listeners are registered and the router's handlers are wired — flush any
+    // buffered intents and tell the main process the workspace is ready. The
+    // main process holds its launch command until this signal, replacing the old
+    // did-finish-load + 1000ms setTimeout timing lottery with a deterministic
+    // handshake. Guarded so a re-run of this effect never re-signals.
+    router.markReady();
+    if (!readySignalledRef.current) {
+      readySignalledRef.current = true;
+      window.ansiktenAPI.send('workspace-ready');
+    }
+
     return () => {
       unsubscribeImageLoaded();
       offMenuCommand?.();
+      offWorkspaceCommand?.();
       offOpenCulling?.();
-      offOpenCullingApp?.();
       offOpenCount?.();
-      offOpenImport?.();
       offOpenRenameNef?.();
       offOpenReviewQueue?.();
-      offQueueFiles?.();
       offReviewDirty?.();
     };
-  }, [ready, loadLayout, resetLayout, enterStep, openWorkflowStep, addTabset, removeEmptyTabset, openModule, hasModuleTab, moduleAPI, moveToNewTabset]);
+  }, [ready, dispatch, router, addTabset, removeEmptyTabset, moduleAPI, moveToNewTabset]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
@@ -763,12 +739,16 @@ export function FlexLayoutWorkspace() {
     window.workspace = {
       model,
       layoutRef,
-      openModule,
-      openWorkflowStep,
-      enterStep,
+      // Navigation surface routed through the single command router (same outer
+      // API, so existing callers/debug usage are unchanged).
+      dispatch,
+      openModule: (moduleId, options) => dispatch({ type: 'open-module', moduleId, options }),
+      openWorkflowStep: (moduleId) => dispatch({ type: 'open-workflow-step', moduleId }),
+      enterStep: (step) => dispatch({ type: 'enter-step', step }),
+      loadLayout: (name) => dispatch({ type: 'load-layout', name }),
       activeStep,
+      // Layout geometry / panel ops stay direct — they are not "open" mechanisms.
       closePanel,
-      loadLayout,
       addColumn: () => addTabset('column'),
       addRow: () => addTabset('row'),
       removeTabset: removeEmptyTabset,
@@ -783,7 +763,7 @@ export function FlexLayoutWorkspace() {
     return () => {
       delete window.workspace;
     };
-  }, [model, openModule, openWorkflowStep, enterStep, activeStep, closePanel, loadLayout, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
+  }, [model, dispatch, activeStep, closePanel, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
 
   // NOTE: Auto-load from queue is handled by FileQueueModule, not here
 

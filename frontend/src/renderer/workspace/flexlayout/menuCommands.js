@@ -6,8 +6,14 @@
  * minimal ctx (the layout helpers + moduleAPI the cases actually use) and
  * subscribes createMenuCommandHandler(ctx) to the 'menu-command' IPC event.
  *
+ * Navigation commands (open a module, enter a step, load/reset a layout) are
+ * adapters: they build a typed intent and hand it to ctx.dispatch — the single
+ * workspace command router (workspaceCommands.js). Layout-geometry, theme and
+ * open-file commands stay direct ctx calls; they are not part of the "open"
+ * mechanisms the router consolidates.
+ *
  * Any command not in the table falls through to moduleAPI.emit(command, {}) —
- * the same broadcast the switch's default case performed.
+ * the same broadcast the switch's default case performed (view commands).
  */
 
 import { themeManager } from '../../theme-manager.js';
@@ -16,28 +22,27 @@ import { WORKFLOW_STEPS } from './workflowSteps.js';
 
 /**
  * Build the command -> handler table from a workspace context.
- * @param {object} ctx - { loadLayout, resetLayout, enterStep, openWorkflowStep,
- *   addTabset, removeEmptyTabset, moveToNewTabset, openModule, moduleAPI }
+ * @param {object} ctx - { dispatch, addTabset, removeEmptyTabset,
+ *   moveToNewTabset, moduleAPI }
  */
 export function buildMenuCommandTable(ctx) {
   const {
-    loadLayout,
-    resetLayout,
-    openWorkflowStep,
+    dispatch,
     addTabset,
     removeEmptyTabset,
     moveToNewTabset,
-    openModule,
     moduleAPI,
   } = ctx;
 
-  // Pipeline-step accelerators (Cmd+1..5) route through openWorkflowStep — the
-  // same non-destructive morph + dirty/mounted fast-path that WorkflowBar clicks
-  // use — so keyboard and mouse navigation behave identically. Keyed by step id
-  // (`workflow-step-<id>`) from the shared catalog so order/naming never drift.
+  // Pipeline-step accelerators (Cmd+1..5) route through the open-workflow-step
+  // intent — the same non-destructive morph + dirty/mounted fast-path that
+  // WorkflowBar clicks use — so keyboard and mouse navigation behave
+  // identically. Keyed by step id (`workflow-step-<id>`) from the shared catalog
+  // so order/naming never drift.
   const stepCommands = {};
   for (const { step, moduleId } of WORKFLOW_STEPS) {
-    stepCommands[`workflow-step-${step}`] = () => openWorkflowStep(moduleId);
+    stepCommands[`workflow-step-${step}`] = () =>
+      dispatch({ type: 'open-workflow-step', moduleId });
   }
 
   return {
@@ -59,20 +64,20 @@ export function buildMenuCommandTable(ctx) {
 
     // Layout template commands (secondary, non-pipeline layouts moved to the
     // Window ▸ Layout templates submenu, no accelerators). These still replace
-    // the layout via loadLayout — they are not pipeline steps.
-    'layout-template-review': () => loadLayout('review'),
-    'layout-review': () => loadLayout('review'),
-    'layout-template-comparison': () => loadLayout('comparison'),
-    'layout-comparison': () => loadLayout('comparison'),
-    'layout-template-full-image': () => loadLayout('review'),
-    'layout-template-stats': () => loadLayout('database'),
-    'layout-database': () => loadLayout('database'),
-    'layout-review-with-logs': () => loadLayout('review-with-logs'),
-    'layout-full-review': () => loadLayout('full-review'),
-    'layout-queue-review': () => loadLayout('queue-review'),
+    // the layout via the load-layout intent — they are not pipeline steps.
+    'layout-template-review': () => dispatch({ type: 'load-layout', name: 'review' }),
+    'layout-review': () => dispatch({ type: 'load-layout', name: 'review' }),
+    'layout-template-comparison': () => dispatch({ type: 'load-layout', name: 'comparison' }),
+    'layout-comparison': () => dispatch({ type: 'load-layout', name: 'comparison' }),
+    'layout-template-full-image': () => dispatch({ type: 'load-layout', name: 'review' }),
+    'layout-template-stats': () => dispatch({ type: 'load-layout', name: 'database' }),
+    'layout-database': () => dispatch({ type: 'load-layout', name: 'database' }),
+    'layout-review-with-logs': () => dispatch({ type: 'load-layout', name: 'review-with-logs' }),
+    'layout-full-review': () => dispatch({ type: 'load-layout', name: 'full-review' }),
+    'layout-queue-review': () => dispatch({ type: 'load-layout', name: 'queue-review' }),
 
     // "Reset layout" (Cmd+Shift+L): the one destructive rebuild, dirty-guarded.
-    'reset-layout': () => resetLayout(),
+    'reset-layout': () => dispatch({ type: 'reset-layout' }),
 
     // Layout manipulation commands
     'layout-add-column': () => addTabset('column'),
@@ -86,23 +91,23 @@ export function buildMenuCommandTable(ctx) {
     'layout-move-new-above': () => moveToNewTabset('above'),
     'layout-move-new-below': () => moveToNewTabset('below'),
 
-    // Open module commands
-    'open-image-viewer': () => openModule('image-viewer'),
-    'open-original-view': () => openModule('original-view'),
-    'open-log-viewer': () => openModule('log-viewer'),
-    'open-review-module': () => openModule('review-module'),
-    'open-statistics-dashboard': () => openModule('statistics-dashboard'),
-    'open-player-count': () => openModule('player-count'),
-    'open-culling': () => openModule('culling'),
-    'open-trash': () => openModule('trash'),
-    'open-import': () => openModule('import'),
-    'open-rename-nef': () => openModule('rename-nef'),
-    'open-database-management': () => openModule('database-management'),
-    'open-refine-faces': () => openModule('refine-faces'),
-    'open-file-queue': () => openModule('file-queue'),
-    'open-theme-editor': () => openModule('theme-editor'),
+    // Open module commands — each an adapter to the open-module intent.
+    'open-image-viewer': () => dispatch({ type: 'open-module', moduleId: 'image-viewer' }),
+    'open-original-view': () => dispatch({ type: 'open-module', moduleId: 'original-view' }),
+    'open-log-viewer': () => dispatch({ type: 'open-module', moduleId: 'log-viewer' }),
+    'open-review-module': () => dispatch({ type: 'open-module', moduleId: 'review-module' }),
+    'open-statistics-dashboard': () => dispatch({ type: 'open-module', moduleId: 'statistics-dashboard' }),
+    'open-player-count': () => dispatch({ type: 'open-module', moduleId: 'player-count' }),
+    'open-culling': () => dispatch({ type: 'open-module', moduleId: 'culling' }),
+    'open-trash': () => dispatch({ type: 'open-module', moduleId: 'trash' }),
+    'open-import': () => dispatch({ type: 'open-module', moduleId: 'import' }),
+    'open-rename-nef': () => dispatch({ type: 'open-module', moduleId: 'rename-nef' }),
+    'open-database-management': () => dispatch({ type: 'open-module', moduleId: 'database-management' }),
+    'open-refine-faces': () => dispatch({ type: 'open-module', moduleId: 'refine-faces' }),
+    'open-file-queue': () => dispatch({ type: 'open-module', moduleId: 'file-queue' }),
+    'open-theme-editor': () => dispatch({ type: 'open-module', moduleId: 'theme-editor' }),
 
-    'open-preferences': () => openModule('preferences'),
+    'open-preferences': () => dispatch({ type: 'open-module', moduleId: 'preferences' }),
 
     // Theme commands
     'theme-light': () => themeManager.setPreference('light'),

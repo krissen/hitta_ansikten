@@ -14,6 +14,8 @@ const { BackendService } = require("./backend-service");
 const { createApplicationMenu } = require("./menu");
 const { t } = require("../i18n");
 const { parseCliArgs } = require("./cli-args");
+const { resolveLaunchCommand } = require("./launch-command");
+const { createLaunchQueue } = require("./launch-queue");
 const { deriveRawToken } = require("./raw-match");
 const { createRawIndexCache } = require("./raw-index");
 
@@ -234,41 +236,30 @@ function resolveImportDest(patterns) {
   return path.resolve(expanded);
 }
 
-// Send files to renderer's file queue
-function sendFilesToQueue(files, position, startQueue, clear = false) {
-  if (!mainWindow) return;
-  // A bare --clear (no files) is still a valid intent: empty the queue.
-  if (files.length === 0 && !clear) return;
-
-  console.log(
-    `[Main] Sending ${files.length} files to queue (position: ${position}, start: ${startQueue}, clear: ${clear})`,
-  );
-  mainWindow.webContents.send("queue-files", {
-    files,
-    position,
-    startQueue,
-    clear,
+// Resolve a parsed CLI intent into a single workspace command, doing all path
+// expansion up front (launch-command.js is the pure, unit-tested decision; the
+// filesystem expanders are injected here). Returns { command, initialFile }.
+function resolveLaunch(args) {
+  return resolveLaunchCommand(args, {
+    expandFolders: expandFolderPaths,
+    expandFiles: expandFilePaths,
+    resolveImportDest,
   });
 }
 
-// Send a culling scope (folders) to the renderer. clear=true replaces the
-// current roots; otherwise the folders are appended. recursive controls whether
-// sub-folders are scanned (default off — just the named folder).
-function sendCullingScope(roots, clear = false, recursive = false) {
-  if (!mainWindow) return;
-  console.log(
-    `[Main] Sending ${roots.length} folder(s) to culling (clear: ${clear}, recursive: ${recursive})`,
-  );
-  mainWindow.webContents.send("open-culling", { roots, clear, recursive });
-}
+// Deliver a workspace command to the renderer, but only after the renderer has
+// completed the workspace-ready handshake — before that its router listener
+// isn't attached and an IPC send would be lost. A FIFO queue holds commands
+// until ready (so an initial launch and a second-instance launch that both race
+// ahead deliver in order, not clobbering each other) and re-arms across renderer
+// reloads (markNotReady on did-start-loading below).
+const launchQueue = createLaunchQueue((cmd) => {
+  console.log("[Main] Sending workspace-command:", cmd.type);
+  mainWindow?.webContents.send("workspace-command", cmd);
+});
 
-// Open the import module, optionally pre-filling a destination folder. The
-// source card is autodetected by the module itself; destination may be undefined
-// (module uses its preference default).
-function sendImportScope(destination) {
-  if (!mainWindow) return;
-  console.log(`[Main] Opening import (destination: ${destination || "default"})`);
-  mainWindow.webContents.send("open-import", { destination });
+function sendWorkspaceCommand(intent) {
+  launchQueue.enqueue(intent);
 }
 
 /**
@@ -315,6 +306,14 @@ function createWorkspaceWindow() {
     mainWindow = null;
   });
 
+  // Re-arm the launch-command hold whenever the renderer starts (re)loading
+  // (Cmd+R, crash reload, navigation). Until it re-mounts and re-signals
+  // workspace-ready, its command router is gone, so a command sent now would
+  // hit a router-less page and be dropped; markNotReady queues it instead.
+  mainWindow.webContents.on("did-start-loading", () => {
+    launchQueue.markNotReady();
+  });
+
   // Track DevTools open/close state for renderer
   mainWindow.webContents.on("devtools-opened", () => {
     mainWindow.webContents.send("devtools-state-changed", true);
@@ -355,26 +354,17 @@ app.on("second-instance", async (event, argv, workingDirectory) => {
   const args = parseCommandLineArgs(argv);
   console.log("[Main] Parsed args:", JSON.stringify(args));
 
-  if (args.verb === "culling") {
-    // Culling target: resolve folders and hand the scope to the culling module.
-    const roots = expandFolderPaths(args.files);
-    if (roots.length > 0 || args.clear) {
-      sendCullingScope(roots, args.clear, args.recursive);
-    }
-  } else if (args.verb === "import") {
-    // Import target: always open the module (source card is autodetected), with
-    // the optional destination folder pre-filled.
-    sendImportScope(resolveImportDest(args.files));
-  } else if (args.files.length > 0 || args.clear) {
-    const files = await expandFilePaths(args.files);
-    console.log("[Main] Expanded files:", JSON.stringify(files));
-    if (args.queuePosition || args.clear) {
-      sendFilesToQueue(files, args.queuePosition, args.startQueue, args.clear);
-    } else if (files.length === 1) {
-      // Single file without queue flag - open directly
-      mainWindow?.webContents.send("menu-command", "load-image");
-      // TODO: Actually load the file
-    }
+  // Resolve to a single workspace command and enqueue it. The window is normally
+  // up and ready, so the queue delivers immediately; if a reload is in flight it
+  // holds until the next workspace-ready (in FIFO order behind any earlier
+  // launch). A single Finder file (resolveLaunchCommand returns null, sets
+  // initialFilePath) is turned into an explicit load-image command here, since
+  // the renderer already consumed its one-shot get-initial-file on first mount.
+  const { command, initialFile } = await resolveLaunch(args);
+  if (command) {
+    sendWorkspaceCommand(command);
+  } else if (initialFile) {
+    sendWorkspaceCommand({ type: "load-image", payload: { imagePath: initialFile } });
   }
 
   // Focus main window
@@ -425,6 +415,21 @@ app.whenReady().then(async () => {
     return;
   }
 
+  // Resolve the launch command BEFORE creating the window: the renderer reads
+  // `willLaunch` synchronously (get-launch-intent-sync) at preload time to decide
+  // whether to suppress the startup landing without a flash, so the decision must
+  // be made — including path expansion — before that sync read can happen.
+  try {
+    const resolved = await resolveLaunch(initialArgs);
+    // Enqueue now: the queue holds it (renderer not ready yet) and delivers on
+    // the workspace-ready handshake.
+    if (resolved.command) sendWorkspaceCommand(resolved.command);
+    if (resolved.initialFile) initialFilePath = resolved.initialFile;
+    console.log("[Main] Launch command:", resolved.command ? resolved.command.type : "(none)");
+  } catch (err) {
+    console.error("[Main] Failed to resolve launch command:", err);
+  }
+
   // Create workspace window
   updateSplashStatus(t("dialogs.splash.ready"), 100);
   createWorkspaceWindow();
@@ -437,46 +442,10 @@ app.whenReady().then(async () => {
     mainWindow.show();
   });
 
-  // Handle initial files from command line
-  if (initialArgs.verb === "culling") {
-    // Culling target: wait for the renderer, then hand over the folder scope.
-    const roots = expandFolderPaths(initialArgs.files);
-    if (roots.length > 0 || initialArgs.clear) {
-      mainWindow.webContents.once("did-finish-load", () => {
-        setTimeout(() => {
-          sendCullingScope(roots, initialArgs.clear, initialArgs.recursive);
-        }, 1000); // Give the culling module time to mount
-      });
-    }
-  } else if (initialArgs.verb === "import") {
-    // Import target: always open the module once the renderer is ready.
-    const destination = resolveImportDest(initialArgs.files);
-    mainWindow.webContents.once("did-finish-load", () => {
-      setTimeout(() => {
-        sendImportScope(destination);
-      }, 1000); // Give the import module time to mount
-    });
-  } else if (initialArgs.files.length > 0 || initialArgs.clear) {
-    const files = await expandFilePaths(initialArgs.files);
-    if (files.length > 0 || initialArgs.clear) {
-      if (initialArgs.queuePosition || initialArgs.clear) {
-        // Add to / clear queue - wait for renderer to be ready
-        mainWindow.webContents.once("did-finish-load", () => {
-          setTimeout(() => {
-            sendFilesToQueue(
-              files,
-              initialArgs.queuePosition,
-              initialArgs.startQueue,
-              initialArgs.clear,
-            );
-          }, 1000); // Give FileQueueModule time to mount
-        });
-      } else if (files.length === 1) {
-        // Single file without queue flag - set as initial file
-        initialFilePath = files[0];
-      }
-    }
-  }
+  // The resolved launch command (if any) is delivered once the renderer signals
+  // workspace-ready (see the ipcMain.on('workspace-ready') handler) — a
+  // deterministic handshake, replacing the old did-finish-load + 1000ms
+  // setTimeout that only guessed when the module had mounted.
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -549,16 +518,27 @@ ipcMain.handle("get-version-info", () => {
   return versionInfo;
 });
 
-// Launch intent (verb/files/clear) parsed from the command line, read
-// synchronously by the renderer before its first paint so it can skip the
-// startup landing page when the app was launched with a CLI target. Synchronous
-// (sendSync) so there is no render where the landing flashes before we know.
+// Launch intent read synchronously by the renderer before its first paint so it
+// can skip the startup landing page when a launch command will open something.
+// `willLaunch` is resolved AFTER path expansion (resolveLaunchCommand ran before
+// the window was created), so a path that expands to nothing still reports
+// truthfully — the renderer no longer guesses from raw argument counts.
+// Synchronous (sendSync) so there is no render where the landing flashes.
 ipcMain.on("get-launch-intent-sync", (e) => {
   e.returnValue = {
-    verb: initialArgs.verb,
-    hasFiles: initialArgs.files.length > 0,
-    clear: initialArgs.clear,
+    willLaunch: launchQueue.pending() > 0 || initialFilePath != null,
   };
+});
+
+// Workspace-ready handshake: the renderer signals once its command router and
+// listeners are live. Only then is it safe to deliver held launch commands — an
+// earlier IPC send would land before the router's listener is attached and be
+// lost. Replaces the did-finish-load + 1000ms setTimeout timing lottery. The
+// renderer re-signals on every mount, so this also drives redelivery after a
+// reload (see markNotReady on did-start-loading).
+ipcMain.on("workspace-ready", () => {
+  console.log("[Main] Renderer workspace-ready");
+  launchQueue.markReady();
 });
 
 // Get initial file path (if app was launched with a file argument)

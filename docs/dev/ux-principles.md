@@ -142,6 +142,32 @@ These are hard rules for anyone adding or moving UI.
    in `workflowSteps.js` if it is a pipeline step, and the bar/landing pick it up
    automatically.
 
+6. **One router opens everything.** Every way to open a module, enter a step, or
+   load a layout goes through the single command router
+   (`workspace/flexlayout/workspaceCommands.js`) as a typed intent. The menu
+   dispatch table, the `window.workspace` global, the in-app moduleAPI `open-*`
+   events, and the main-process CLI launch bridge are all **thin adapters** that
+   build an intent and call `dispatch` — never a private path to `enterStep` /
+   `openModule`. New navigation joins this router; it does not add a fourth
+   mechanism.
+   - The router **buffers** intents dispatched before the workspace is ready and
+     flushes them in order on `markReady()`. This covers the "router not up yet"
+     race. The separate "target module not mounted yet" race (a morph mounts the
+     destination lazily; its listener subscribes a tick later) is still guarded
+     per hand-off by `waitForListeners` inside the router — keep that guard on any
+     new hand-off intent.
+   - **Cold-start launch uses a handshake, not a timer.** The renderer sends the
+     `workspace-ready` IPC once its router and listeners are live; the main
+     process holds its resolved launch command until then and delivers it as a
+     `workspace-command`. Do not reintroduce a `setTimeout`/`did-finish-load`
+     delay to "wait for the renderer" — signal readiness explicitly.
+   - **The main process decides the launch AFTER path expansion.** `resolveLaunchCommand`
+     (`src/main/launch-command.js`) expands paths first, so a path that matches
+     nothing still yields an explicit command (open the step empty) and the
+     renderer never guesses landing-suppression from raw argument counts. A CLI
+     verb whose paths expand to nothing opens that step's view **empty** rather
+     than stranding in the default layout.
+
 ---
 
 ## Style rules
