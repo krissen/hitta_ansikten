@@ -488,6 +488,15 @@ export function FlexLayoutWorkspace() {
   // reuse the same signal here, but — since a step switch has no "keep Review
   // open" fallback — confirm before discarding. Cancel leaves everything as is.
   const openWorkflowStep = useCallback(async (moduleId) => {
+    const step = getModuleStep(moduleId);
+    // Clicking the step that is already active is not a step change: just focus
+    // its surface (openModule selects the existing singleton) and stop. Falling
+    // through would run the dirty prompt + layout reload and could discard
+    // unsaved Review edits even though the user didn't leave the step.
+    if (step != null && step === activeStep) {
+      openModule(moduleId);
+      return;
+    }
     if (reviewDirtyRef.current.size > 0) {
       const ok = await confirm({
         message: t('workflowBar.unsavedStepChange'),
@@ -498,9 +507,9 @@ export function FlexLayoutWorkspace() {
       // tracked edits are gone — clear the set so a stale entry can't re-prompt.
       reviewDirtyRef.current.clear();
     }
-    setActiveStep(getModuleStep(moduleId));
+    setActiveStep(step);
     openLandingStep(moduleId);
-  }, [confirm, openLandingStep]);
+  }, [activeStep, confirm, openModule, openLandingStep]);
 
   // Swap active panel with panel in specified direction (Cmd+Arrow)
   const swapActivePanel = useCallback((direction) => {

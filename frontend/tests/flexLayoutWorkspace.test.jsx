@@ -362,6 +362,24 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
     expect(tabComponents(window.workspace.model)).toContain('player-count');
   });
 
+  it('clicking the already-active step is a focus no-op: no confirm, no reload, even when dirty', async () => {
+    // Make Review the active step via the normal hand-off (also mounts the queue).
+    const openReview = moduleApiHandler('open-review-queue');
+    await act(async () => { await openReview({ roots: ['/events/cupen'] }); });
+    const reviewBefore = reviewTabId(window.workspace.model);
+    expect(reviewBefore).toBeTruthy();
+
+    // Dirty, then click the SAME (active) step.
+    const dirty = moduleApiHandler('review-dirty');
+    await act(async () => { dirty({ imagePath: '/x.nef', dirty: true }); });
+    h.confirm.mockClear();
+    await act(async () => { await window.workspace.openWorkflowStep('review-module'); });
+
+    // No prompt, and the review node id is unchanged → the layout was not rebuilt.
+    expect(h.confirm).not.toHaveBeenCalled();
+    expect(reviewTabId(window.workspace.model)).toBe(reviewBefore);
+  });
+
   it('queue-files IPC mounts the queue when absent and re-emits the payload as file-queue-load', async () => {
     expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
     const handler = ipcHandler('queue-files');
