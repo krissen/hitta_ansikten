@@ -79,10 +79,17 @@ export function useReviewKeyboard(handlers, { isActive }) {
         return;
       }
 
+      // Bare-key shortcuts (digits, letters) must ignore modified presses so
+      // Cmd/Ctrl/Alt combos fall through to the Electron menu accelerators
+      // (e.g. Cmd+1..5 switch pipeline steps, menu.js). Without this guard the
+      // DOM preventDefault below fires before the accelerator, so the menu
+      // command never runs — and the plain-key action wrongly triggers too.
+      const bareKey = !e.metaKey && !e.ctrlKey && !e.altKey;
+
       // Number keys - select alternative (1-N) for current face
       const maxAlt = h.maxAlternatives();
       const keyNum = parseInt(e.key, 10);
-      if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= maxAlt && !isInput) {
+      if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= maxAlt && !isInput && bareKey) {
         e.preventDefault();
         h.selectAlternative(keyNum - 1);
         return;
@@ -112,35 +119,35 @@ export function useReviewKeyboard(handlers, { isActive }) {
       }
 
       // A to confirm
-      if ((e.key === 'a' || e.key === 'A') && !isInput) {
+      if ((e.key === 'a' || e.key === 'A') && !isInput && bareKey) {
         e.preventDefault();
         h.confirmKey();
         return;
       }
 
       // I to ignore
-      if ((e.key === 'i' || e.key === 'I') && !isInput) {
+      if ((e.key === 'i' || e.key === 'I') && !isInput && bareKey) {
         e.preventDefault();
         h.ignore();
         return;
       }
 
       // R to focus input
-      if ((e.key === 'r' || e.key === 'R') && !isInput) {
+      if ((e.key === 'r' || e.key === 'R') && !isInput && bareKey) {
         e.preventDefault();
         h.focusInput();
         return;
       }
 
       // X to skip image (save pending and advance)
-      if ((e.key === 'x' || e.key === 'X') && !isInput) {
+      if ((e.key === 'x' || e.key === 'X') && !isInput && bareKey) {
         e.preventDefault();
         h.skipImage();
         return;
       }
 
       // M to add manual face
-      if ((e.key === 'm' || e.key === 'M') && !isInput) {
+      if ((e.key === 'm' || e.key === 'M') && !isInput && bareKey) {
         e.preventDefault();
         h.addManualFace();
         return;
