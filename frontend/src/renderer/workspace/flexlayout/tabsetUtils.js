@@ -6,6 +6,47 @@
 import { Actions } from 'flexlayout-react';
 
 /**
+ * Collect every tabset in the model with its geometry, for placement decisions.
+ *
+ * @param {import('flexlayout-react').Model} model
+ * @returns {Array<{ node: object, weight: number, rect: object|null, area: number }>}
+ */
+function collectTabsets(model) {
+  const tabsets = [];
+  model.visitNodes((node) => {
+    if (node.getType() !== 'tabset') return;
+    const rect = node.getRect?.() || null;
+    const area = rect ? rect.width * rect.height : 0;
+    tabsets.push({ node, weight: node.getWeight?.() ?? 0, rect, area });
+  });
+  return tabsets;
+}
+
+/**
+ * The main working area: the LARGEST tabset by rendered area, falling back to
+ * the highest WEIGHT before the first measure pass (when every rect is still 0).
+ *
+ * Race guard: immediately after a layout loads, the render/measure pass may not
+ * have run yet and every tabset rect is 0. An area-only pick would then land on
+ * the first-visited tabset (the narrow 15% side column). The weight fallback
+ * keeps the main area as the target in that window.
+ *
+ * @param {import('flexlayout-react').Model} model
+ * @returns {object | null} the tabset node, or null if there are none.
+ */
+function largestTabset(model) {
+  let bestArea = 0;
+  let bestWeight = -1;
+  let byArea = null;
+  let byWeight = null;
+  for (const ts of collectTabsets(model)) {
+    if (ts.area > bestArea) { bestArea = ts.area; byArea = ts.node; }
+    if (ts.weight > bestWeight) { bestWeight = ts.weight; byWeight = ts.node; }
+  }
+  return byArea || byWeight;
+}
+
+/**
  * Choose which tabset a newly-opened module should dock into.
  *
  * Prefers the active tabset (where the user is working). When there is none —
@@ -13,12 +54,8 @@ import { Actions } from 'flexlayout-react';
  * clicked any tab — it falls back to the LARGEST tabset by rendered area so the
  * module lands in the main working area, not a narrow side column.
  *
- * Race guard: immediately after a layout loads, the render/measure pass may not
- * have run yet and every tabset rect is still 0. An area-only pick would then
- * land on the first-visited tabset (the narrow 15% Review column), opening the
- * module in a cramped side panel while the user watches the large Image Viewer —
- * so the switch appears to do nothing. When no area is measured yet, fall back
- * to the highest-WEIGHT tabset (the main area).
+ * This is the ACTIVE-tabset choice used for keyboard ownership and legacy
+ * openers. Deterministic placement-on-open lives in resolvePlacementTabset.
  *
  * @param {import('flexlayout-react').Model} model
  * @returns {import('flexlayout-react').TabSetNode | null}
@@ -32,20 +69,100 @@ export function resolveTargetTabset(model) {
   // fallback below is effectively dead in normal use. It's kept deliberately —
   // this stays correct for any caller or code path that reaches a model before
   // the guarantee has run.
+  return largestTabset(model);
+}
 
-  let bestArea = 0;
-  let bestWeight = -1;
-  let byArea = null;
-  let byWeight = null;
-  model.visitNodes((node) => {
-    if (node.getType() !== 'tabset') return;
-    const rect = node.getRect?.();
-    const area = rect ? rect.width * rect.height : 0;
-    if (area > bestArea) { bestArea = area; byArea = node; }
-    const weight = node.getWeight?.() ?? 0;
-    if (weight > bestWeight) { bestWeight = weight; byWeight = node; }
-  });
-  return byArea || byWeight;
+/**
+ * The narrow side column to reuse for a 'side' module, or null if none exists.
+ *
+ * A side column is any tabset strictly narrower than the main area. When
+ * geometry is measured, the LEFT-most narrow tabset wins (side columns live to
+ * the left of main); before the first measure pass — every rect 0 — the pick
+ * falls back to the narrowest by weight.
+ *
+ * @param {import('flexlayout-react').Model} model
+ * @param {object} main the main-area tabset node to compare against.
+ * @returns {object | null}
+ */
+function narrowSideTabset(model, main) {
+  const mainWeight = main.getWeight?.() ?? 0;
+  const mainRect = main.getRect?.() || null;
+  const narrow = collectTabsets(model)
+    .filter((ts) => ts.node !== main && ts.weight < mainWeight);
+  if (!narrow.length) return null;
+
+  if (mainRect) {
+    const left = narrow.filter((ts) => ts.rect && ts.rect.x < mainRect.x);
+    if (left.length) {
+      left.sort((a, b) => a.rect.x - b.rect.x);
+      return left[0].node;
+    }
+  }
+  narrow.sort((a, b) => a.weight - b.weight);
+  return narrow[0].node;
+}
+
+/**
+ * The bottom bar to reuse for a 'bottom' module, or null if none exists.
+ *
+ * A bottom bar is a tabset (other than main) that sits in the lower half of the
+ * main area. Only detectable once geometry is measured; before that it returns
+ * null and the caller creates a fresh BOTTOM split.
+ *
+ * @param {import('flexlayout-react').Model} model
+ * @param {object} main the main-area tabset node to compare against.
+ * @returns {object | null}
+ */
+function bottomBarTabset(model, main) {
+  const mainRect = main.getRect?.() || null;
+  if (!mainRect) return null;
+  const threshold = mainRect.y + mainRect.height * 0.5;
+  const below = collectTabsets(model)
+    .filter((ts) => ts.node !== main && ts.rect && ts.rect.y >= threshold);
+  if (!below.length) return null;
+  below.sort((a, b) => b.rect.y - a.rect.y);
+  return below[0].node;
+}
+
+/**
+ * Deterministic placement for a newly-opened module, driven by its ROLE rather
+ * than by wherever the user last clicked. This is the fix for the "same command,
+ * different result" problem: a 'main' module always lands in the main working
+ * area even when a narrow side column happens to be the active tabset.
+ *
+ * Return contract (a placement descriptor, no side effects):
+ *   { tabsetId }               dock as a CENTER tab into an existing tabset.
+ *   { split, refTabsetId }     create a new tabset by splitting `refTabsetId`;
+ *                              `split` is 'left' or 'bottom'.
+ *   null                       no tabset exists to place against.
+ *
+ * Roles:
+ *   'main'   → the largest tabset (area, weight fallback).
+ *   'side'   → an existing narrow left column if one exists, else a LEFT split
+ *              off the main area.
+ *   'bottom' → an existing bottom bar if one exists, else a BOTTOM split off the
+ *              main area.
+ *
+ * @param {import('flexlayout-react').Model} model
+ * @param {'main' | 'side' | 'bottom'} role
+ * @returns {{ tabsetId: string } | { split: 'left' | 'bottom', refTabsetId: string } | null}
+ */
+export function resolvePlacementTabset(model, role) {
+  const main = largestTabset(model);
+  if (!main) return null;
+
+  if (role === 'side') {
+    const side = narrowSideTabset(model, main);
+    return side ? { tabsetId: side.getId() } : { split: 'left', refTabsetId: main.getId() };
+  }
+
+  if (role === 'bottom') {
+    const bottom = bottomBarTabset(model, main);
+    return bottom ? { tabsetId: bottom.getId() } : { split: 'bottom', refTabsetId: main.getId() };
+  }
+
+  // 'main' (and any unknown role): the main working area.
+  return { tabsetId: main.getId() };
 }
 
 /**
