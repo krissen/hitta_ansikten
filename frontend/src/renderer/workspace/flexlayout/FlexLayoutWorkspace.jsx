@@ -73,6 +73,12 @@ export function FlexLayoutWorkspace() {
   // step empty) and suppresses the landing accordingly.
   const willLaunch = !!window.ansiktenAPI?.launchIntent?.willLaunch;
   const [showLanding, setShowLanding] = useState(() => !willLaunch && !hasBeenWelcomed());
+  // Whether the workspace holds any open view (tab). Combined with showLanding it
+  // gates the WorkflowBar autohide: with only the welcome card / an empty
+  // workspace there's nothing behind the bar to uncover, so it must not hide.
+  // Default true — the mount layout always has tabs; handleModelChange keeps it
+  // in sync as tabs open/close. Seeded from the default layout below.
+  const [hasTabs, setHasTabs] = useState(true);
   // Dismiss the welcome card, and record "welcomed" ONLY if it was actually
   // showing. Every dismissal path (open a step, load an image, close via the
   // menu) routes through here. A CLI launch (willLaunch) dispatches a step/module
@@ -212,6 +218,7 @@ export function FlexLayoutWorkspace() {
     newModel.visitNodes((node) => {
       if (node.getType() === 'tab') tabCount += 1;
     });
+    setHasTabs(tabCount > 0);
     if (tabCount === 0) setShowLanding(true);
   }, []);
 
@@ -897,6 +904,7 @@ export function FlexLayoutWorkspace() {
           onOpenStep={openWorkflowStep}
           onOpenTool={openModule}
           autoHide={workflowBarAutoHide}
+          hasContent={!showLanding && hasTabs}
         />
       )}
       <div className="workspace-layout-host">

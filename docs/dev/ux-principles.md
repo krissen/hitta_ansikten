@@ -33,11 +33,19 @@ doing.
   dropdown, keyboard focus inside the bar (`:focus-within`), or the pointer
   resting on it pause the hide timer, so the row can't slide out from under a
   menu or mid tab-navigation (keyboard reach never depends on the mouse-only
-  hover-zone). The timer logic is a headless hook (`useWorkflowBarAutoHide`); the
-  slide + accent phosphor pulse are CSS-only and neutralised under
-  `prefers-reduced-motion`. Users who want the old always-visible behaviour turn
-  autohide off (`workspace.workflowBarAutoHide`) — independent of the
-  show/hide-entirely toggle (`workspace.showWorkflowBar`).
+  hover-zone). **Content gate:** autohide only runs when a view is actually open
+  behind the bar (`hasContent` = `!showLanding && tabCount > 0`); on the welcome
+  card / empty workspace the bar stays put — there is nothing behind it to
+  uncover, and it stays fully reachable on first run (this subsumes the earlier
+  first-run reachability concern). The `false→true` flip (a view opens) starts
+  the timer. `hasContent` gates the hook exactly like the `enabled` opt-out. When
+  revealed the bar floats as an inset pill (detached from the edges, rounded, an
+  accent phosphor glow) so it reads as hovering rather than a docked strip. The
+  timer logic is a headless hook (`useWorkflowBarAutoHide`); the slide + pill
+  glow are CSS-only and neutralised under `prefers-reduced-motion`. Users who
+  want the old always-visible behaviour turn autohide off
+  (`workspace.workflowBarAutoHide`) — independent of the show/hide-entirely
+  toggle (`workspace.showWorkflowBar`).
 - The **working-folder chip** shows which event folder the pipeline is anchored
   to (`shared/workingFolder.js`), and clicking it opens a dropdown with the live
   status of all three working sets at once — the file queue, the scan scope, and

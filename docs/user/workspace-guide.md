@@ -79,11 +79,16 @@ inaktivitet, så arbetsytan får hela höjden. Den kommer fram igen när du:
   sedan undan igen, eller
 - **tabbar** in i raden med tangentbordet.
 
+Raden **göms först när en vy är öppen** — på välkomstsidan eller en tom arbetsyta
+(ingen vy öppen) stannar den kvar, eftersom det inte finns något bakom den att
+frilägga. Den glider undan först när du öppnat ett steg eller en vy.
+
 En öppen meny (arbetsmapp-chippen eller **Verktyg ▾**) eller muspekaren som
 vilar på raden pausar nedräkningen, så raden aldrig försvinner mitt i ett val.
-Reveal-effekten är en kort vertikal glidning med ett svagt fosforsken i temats
-accentfärg; med **reducerad rörelse** påslaget i operativsystemet tonar raden
-in/ut utan animation.
+När raden är framme i autohide-läge svävar den som en **flytande kapsel** (lossnad
+från kanterna, rundade hörn, ett svagt fosforsken i temats accentfärg); reveal är
+en kort vertikal glidning. Med **reducerad rörelse** påslaget i operativsystemet
+tonar raden in/ut utan animation.
 
 Två oberoende inställningar under **Inställningar → Layout** styr raden:
 
