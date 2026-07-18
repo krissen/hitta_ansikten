@@ -153,7 +153,7 @@ frontend/
 │   ├── index.js                   # Window management, IPC, file watching
 │   └── backend-service.js         # Auto-starts FastAPI server
 ├── src/renderer/
-│   ├── workspace/flexlayout/      # FlexLayoutWorkspace + layouts, moduleRegistry, menuCommands, tabsetUtils
+│   ├── workspace/flexlayout/      # FlexLayoutWorkspace + workspaceCommands (router), moduleRegistry (catalog), workflowSteps/workflows/workspaceMorph/stepLayoutMemory, layouts, menuCommands, tabsetUtils
 │   ├── components/                # React module components (*.jsx)
 │   │   ├── ReviewModule.jsx       # Face review UI (keyboard nav, autocomplete)
 │   │   ├── review/                #   sub-parts: FaceCard, reviewActions, useReviewKeyboard
@@ -226,7 +226,7 @@ Config in `~/.local/share/faceid/config.json`:
 - Backend auto-starts with Electron; use `python -m api.server` for standalone
 - DetectionService caches results by file hash (check cache when debugging)
 - GitHub Actions releases triggered by `v*` tags (e.g., `v1.0.1`)
-- Launch CLI: `ansikten [faces|culling|import] [--clear] PATH...` — the `bin/ansikten` script forwards args to the app; parsing/routing lives in `frontend/src/main/cli-args.js` (one source of truth) → IPC `queue-files` (faces) / `open-culling` (culling) / `open-import` (import, optional destination). No verb = faces; faces and culling are separate working sets. `import` takes an optional *destination* folder (source card is autodetected); a bare `ansikten import` still opens the module
+- Launch CLI: `ansikten [faces|culling|import] [--clear] PATH...` — the `bin/ansikten` script forwards args to the app. Parsing lives in `frontend/src/main/cli-args.js` (pure grammar); the launch *decision* is made **after** path expansion in `frontend/src/main/launch-command.js` (`resolveLaunchCommand`) so a path that expands to nothing still yields an explicit command (open the step empty) instead of stranding in the default layout. The resolved command is delivered to the renderer via the `workspace-ready`/`workspace-command` handshake and dispatched as a typed intent (`queue-files` (faces) / `open-culling` (culling) / `open-import` (import, optional destination)) through the single command router `workspace/flexlayout/workspaceCommands.js`. No verb = faces; faces and culling are separate working sets. `import` takes an optional *destination* folder (source card is autodetected); a bare `ansikten import` still opens the module
 
 ---
 

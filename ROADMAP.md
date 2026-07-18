@@ -10,7 +10,7 @@ den här filen är den löpande backlogen/known-issues/teknisk skuld över alla
 horisonter; `performance-plan.md` är en smalare, release-scopad plan (sprintar,
 deliverables, DoD) för en prestandarelease.
 
-**Senast uppdaterad:** 2026-07-10
+**Senast uppdaterad:** 2026-07-18
 
 ---
 
@@ -18,7 +18,7 @@ deliverables, DoD) för en prestandarelease.
 
 ### Nu
 
-- [ ] **Navigeringsserien (clunky navigering)** — PR-serie som gör pipelinen till primär, alltid synlig navigation. PR 1 (deklarativ rollkatalog + deterministisk placering, #235) och PR 2 (fast WorkflowBar + [ux-principles.md](docs/dev/ux-principles.md), #236) mergade; PR 3 (morphing-motor + workflow-workspaces: `workspaceMorph.applyWorkspace` + `workflows.js`, `enterStep` som enda strukturella layoutväg, `Cmd+1`–`Cmd+5` → stegen, oförstörande stegbyte med bakgrundsparkering av filkö/smutsig Granska, #237) mergad; PR 4 (arbetsmängds-chip med statusdropdown + kö-märkning + enhetlig "Nästa steg"-hand-off + komplett Fortsätt-kedja review→count→cull; delad `useAnchoredDropdown`-hook extraherad — Nagelfars PR-2-not a avbockad) pågår. Kvar: PR 5 kommandorouter, PR 6 per-steg-layoutminne. Navigerings- och stilreglerna kodifieras i [docs/dev/ux-principles.md](docs/dev/ux-principles.md).
+(Inget just nu.)
 
 ### Kort sikt
 
@@ -35,7 +35,6 @@ deliverables, DoD) för en prestandarelease.
 - [ ] **Concurrency-limits för dyra endpoints** — ingen per-endpoint-semafor för `detect`/`thumbnail`/`preprocess` ännu. Kvarvarande post från [performance-plan.md](docs/dev/performance-plan.md) (Sprint 1).
 - [ ] **Auto-pausa bakgrundsrefresh för dolda/inaktiva moduler** — refresh är användarstyrd men pausas inte automatiskt när modulen inte ligger i aktiv tabset; minska även onödig global listener-rebinding. Kvarvarande post från [performance-plan.md](docs/dev/performance-plan.md) (Sprint 3).
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend).
-- [x] **FileQueueModule: `n`/`p`-genvägarna gatas nu companion-medvetet, inte på ren synlighet.** Löst i companion-flik-PR:en (filkön som dold flik bakom Bildvisaren i Granska-steget). `n`/`p` (nästa/föregående fil) körs nu så länge kön är **monterad och inte parkerad** i bakgrunds-kanten (dvs. den är del av det aktiva stegets arbetsyta), i stället för bara när den är synlig — så navigeringen fungerar medan Bildvisar-fliken ligger överst, men är inert när ett *annat* steg parkerar kön (parent = border). Övriga köangenter (Cmd+F, Cmd+A, `/`) är fortfarande synlighets-/fokusgatade. Gaten bygger på `keepMounted`/parkering från navigeringsserien, inte på en handhållen companion-id-lista. `PlayerCountModule` har ingen global tangentlyssnare (inget att migrera).
 
 ### Benchmark-spår (ansiktsigenkänning)
 
@@ -72,6 +71,8 @@ deliverables, DoD) för en prestandarelease.
 
 - [ ] **`resolvePlacementTabset` ignorerar `getMaximizedTabset`** — en side-/bottom-modul som öppnas medan en tabset är maximerad dockar bakom den maximerade vyn (den nya panelen läggs i sin roll-tabset men syns inte förrän maximeringen släpps). Egen placeringsklass; åtgärdas i en senare placerings-PR. Nagelfar-fynd från #235, icke-blockerande.
 - [ ] **Reviews `ArrowUp`/`ArrowDown`-grenar saknar bareKey-guard** — Cmd+Pil i Granska både stegar ansikte OCH swappar panel (dubbelfyr). Annan klass än #241:s accelerator-svällning eftersom panel-swappen är en renderer-handler, inte en meny-accelerator. Följd: lägg samma bareKey-guard på pilgrenarna om Cmd+Pil ska vara exklusivt panel-swap. Nagelfar-not från #241-granskningen.
+- [ ] **Tomt-workspace-detektionen räknar border-parkerade flikar som innehåll.** Ett workspace med ENBART en parkerad flik (t.ex. sista riktiga fliken stängd medan filkön är parkerad i bakgrunds-kanten) visar varken välkomstkort eller suspenderar autohide. Osannolik kant, ärvd från empty-detektionen (#242), konsekvent med befintligt beteende; fix = räkna endast icke-border-flikar om kortet/suspenden ska trigga där. Nagelfar-not från #245.
+- [ ] **`Cmd+Shift+L` är dubbelbunden.** Acceleratorn `CmdOrCtrl+Shift+L` sitter på både **Arkiv → Öppna i Lightroom** (`open-raw-in-lightroom`) och **Fönster → Återställ layout** (`reset-layout`) i `frontend/src/main/menu.js` — vilken som fyrar vid samtidig aktivering är odefinierat. Pre-existerande kollision (Lightroom-posten kom i v1.7.0, reset-layout-posten är äldre); upptäckt vid docs-svepet inför v1.8.0. Fix: ge en av dem en egen accelerator (t.ex. flytta Öppna i Lightroom till `Cmd+Alt+L`) och uppdatera [workspace-guide.md](docs/user/workspace-guide.md) därefter.
 
 ---
 
