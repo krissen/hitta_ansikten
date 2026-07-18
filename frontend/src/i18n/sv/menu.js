@@ -57,10 +57,10 @@ module.exports = {
   },
   "window": {
     "title": "Fönster",
+    "workflowSteps": "Arbetsflödessteg",
     "layoutTemplates": "Layoutmallar",
     "reviewMode": "Granskningsläge",
     "comparisonMode": "Jämförelseläge",
-    "fullImage": "Helbild",
     "statsMode": "Statistikläge",
     "queueReviewMode": "Köläge",
     "gridPresets": "Rutnätsförval",
@@ -74,6 +74,7 @@ module.exports = {
     "moveAbove": "Flytta panel till ny rad ovanför",
     "moveBelow": "Flytta panel till ny rad nedanför",
     "resetLayout": "Återställ layout",
+    "resetAllLayouts": "Återställ alla layouter",
     "exportLayout": "Exportera layout…",
     "importLayout": "Importera layout…",
     "minimize": "Minimera",
@@ -83,6 +84,7 @@ module.exports = {
   "help": {
     "title": "Hjälp",
     "keyboardShortcuts": "Tangentbordsgenvägar",
+    "showWelcome": "Visa välkomstguiden",
     "documentation": "Dokumentation",
     "userGuide": "Användarguide",
     "reportIssue": "Rapportera problem",

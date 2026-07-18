@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad, takeExternalLoad } from '../src/renderer/shared/scanScope.js';
+import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad, takeExternalLoad, subscribeScanScope } from '../src/renderer/shared/scanScope.js';
 
 const STORAGE_KEY = 'ansikten.scanScope';
 
@@ -71,6 +71,38 @@ describe('scanScopeHasSelection', () => {
   it('true when a folder or path-glob is present', () => {
     expect(scanScopeHasSelection({ roots: ['/a'], globs: [] })).toBe(true);
     expect(scanScopeHasSelection({ roots: [], globs: ['*.jpg'] })).toBe(true);
+  });
+});
+
+describe('subscribeScanScope (display-only)', () => {
+  beforeEach(() => setScanScope(null));
+
+  it('notifies a subscriber on publish with the current scope, then null on clear', () => {
+    const cb = vi.fn();
+    const unsub = subscribeScanScope(cb);
+    setScanScope({ roots: ['/a'], globs: [], recursive: true });
+    expect(cb).toHaveBeenCalledWith(expect.objectContaining({ roots: ['/a'] }));
+    setScanScope(null);
+    expect(cb).toHaveBeenLastCalledWith(null);
+    unsub();
+  });
+
+  it('unsubscribe stops notifications (so a display surface can detach cleanly)', () => {
+    const cb = vi.fn();
+    const unsub = subscribeScanScope(cb);
+    unsub();
+    setScanScope({ roots: ['/b'], globs: [] });
+    expect(cb).not.toHaveBeenCalled();
+  });
+
+  it('a throwing subscriber does not stop the others', () => {
+    const bad = vi.fn(() => { throw new Error('boom'); });
+    const good = vi.fn();
+    const u1 = subscribeScanScope(bad);
+    const u2 = subscribeScanScope(good);
+    setScanScope({ roots: ['/c'], globs: [] });
+    expect(good).toHaveBeenCalled();
+    u1(); u2();
   });
 });
 

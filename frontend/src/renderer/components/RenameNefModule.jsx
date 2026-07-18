@@ -480,9 +480,9 @@ export function RenameNefModule() {
               </details>
             )}
             {resultRoots.length > 0 && (
-              <div className="rename-nef-result-actions">
+              <div className="rename-nef-result-actions handoff-next">
                 <Button
-                  variant={result.errors.length > 0 ? 'secondary' : 'primary'}
+                  variant="primary"
                   onClick={() => emit('open-review-queue', { roots: resultRoots })}
                 >
                   {t('renameNef.reviewFaces')}

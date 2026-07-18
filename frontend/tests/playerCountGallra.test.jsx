@@ -38,7 +38,8 @@ vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
 }));
 
 import { PlayerCountModule } from '../src/renderer/components/PlayerCountModule.jsx';
-import { setScanScope } from '../src/renderer/shared/scanScope.js';
+import { setScanScope, signalExternalLoad, takeExternalLoad } from '../src/renderer/shared/scanScope.js';
+import { clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
 const countCalls = () =>
   postMock.mock.calls.filter(([url]) => url === '/api/v1/players/count');
@@ -50,6 +51,11 @@ describe('PlayerCountModule — "Gallra" button hands over the live input scope'
     postMock.mockClear();
     getMock.mockClear();
     emitMock.mockClear();
+    // Running a count now anchors the working folder; clear it between tests so
+    // adopt-on-mount's anchor-prefill fallback can't leak a selection into the
+    // "no selection" case.
+    clearWorkingFolder();
+    takeExternalLoad(); // clear any leaked one-shot external-load flag
     globalThis.window.ansiktenAPI = {
       watchFolder: vi.fn(),
       unwatchFolder: vi.fn(),
@@ -80,7 +86,7 @@ describe('PlayerCountModule — "Gallra" button hands over the live input scope'
     expect(countCalls().length).toBe(1); // still only the adopt count
 
     // Click the toolbar Gallra button.
-    fireEvent.click(screen.getByText('Gallra'));
+    fireEvent.click(screen.getByText(/Gallra/));
 
     await waitFor(() => expect(cullPlayerEmits().length).toBe(1));
     const payload = cullPlayerEmits()[0][1];
@@ -96,7 +102,20 @@ describe('PlayerCountModule — "Gallra" button hands over the live input scope'
   it('is disabled when there is no selection (no folders, no wildcard)', async () => {
     setScanScope(null); // nothing to adopt
     render(<PlayerCountModule />);
-    const button = screen.getByText('Gallra').closest('button');
+    const button = screen.getByText(/Gallra/).closest('button');
     expect(button.disabled).toBe(true);
+  });
+
+  it('adopt-on-mount does NOT run a count when an external load was signalled', async () => {
+    // The open-count hand-off signals an external load before Räkna mounts; the
+    // count-load consumer will drive the count, so adopt-on-mount must stand down
+    // even though a scan scope is present (scope A seeded in beforeEach).
+    signalExternalLoad();
+    render(<PlayerCountModule />);
+    // Give the mount effects a tick; no adopt count should fire.
+    await waitFor(() => expect(getMock).toHaveBeenCalled());
+    expect(countCalls().length).toBe(0);
+    // The one-shot flag was consumed.
+    expect(takeExternalLoad()).toBe(false);
   });
 });

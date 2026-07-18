@@ -21,6 +21,7 @@ module.exports = {
   originalView: require('./originalView'),
   startupStatus: require('./startupStatus'),
   startupLanding: require('./startupLanding'),
+  workflowBar: require('./workflowBar'),
   playerCount: require('./playerCount'),
   errors: require('./errors'),
   workspace: require('./workspace'),

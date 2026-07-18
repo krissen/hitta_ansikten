@@ -399,6 +399,59 @@ describe('FileQueueModule — queue basics (characterization)', () => {
   });
 });
 
+describe('FileQueueModule — n/p navigation gate (companion-tab visibility)', () => {
+  // A FlexLayout tab-node stub. parked → parent is a border (a different pipeline
+  // step is active). Otherwise it is a real tabset tab; `visible:false` models the
+  // review step where the queue is mounted BEHIND the Image Viewer tab.
+  function fakeNode({ parked, visible }) {
+    const parentType = parked ? 'border' : 'tabset';
+    return {
+      isVisible: () => visible,
+      getParent: () => ({ getType: () => parentType }),
+    };
+  }
+
+  async function pressKey(key) {
+    await act(async () => {
+      fireEvent.keyDown(document, { key });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  it('advances on "n" while the queue is the hidden companion tab (mounted, not parked)', async () => {
+    await mountQueue(fakeNode({ parked: false, visible: false }));
+    await addViaIpc(['/p/a.jpg', '/p/b.jpg']);
+    h.emit.mockClear();
+    await pressKey('n');
+    // Navigation reached loadFile → a load-image command was emitted.
+    expect(lastEmit('load-image')).toBeTruthy();
+  });
+
+  it('does NOT navigate on "n" while the queue is parked in the background (another step active)', async () => {
+    await mountQueue(fakeNode({ parked: true, visible: false }));
+    await addViaIpc(['/p/a.jpg', '/p/b.jpg']);
+    h.emit.mockClear();
+    await pressKey('n');
+    expect(lastEmit('load-image')).toBeUndefined();
+  });
+
+  it('ignores "n" while typing in an input even when the queue is active', async () => {
+    await mountQueue(fakeNode({ parked: false, visible: true }));
+    await addViaIpc(['/p/a.jpg', '/p/b.jpg']);
+    h.emit.mockClear();
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    await act(async () => {
+      fireEvent.keyDown(input, { key: 'n' });
+      await Promise.resolve();
+    });
+    expect(lastEmit('load-image')).toBeUndefined();
+    input.remove();
+  });
+});
+
 describe('FileQueueModule — preprocessing orchestration (characterization)', () => {
   it('enqueues eligible fresh files with the preprocessing manager', async () => {
     await mountQueue();

@@ -24,7 +24,7 @@ export const SHORTCUT_SECTIONS = [
     title: t('shortcuts.sections.layout'),
     modules: [],
     shortcuts: [
-      { keys: ['Cmd', '1-4'], desc: t('shortcuts.desc.layout.switchTemplate') },
+      { keys: ['Cmd', '1-5'], desc: t('shortcuts.desc.layout.switchStep') },
       { keys: ['Cmd', 'Shift', ']'], desc: t('shortcuts.desc.layout.addColumn') },
       { keys: ['Cmd', 'Shift', '['], desc: t('shortcuts.desc.layout.removeColumn') },
       { keys: ['Cmd', 'Shift', '}'], desc: t('shortcuts.desc.layout.addRow') },

@@ -1,137 +1,32 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
 
-// Mock the backend context so we control the /import/volumes response.
-const mockGet = vi.fn();
-vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
-  useBackend: () => ({ api: { get: mockGet } }),
-}));
-
-// The continue row emits in-app hand-off events; capture them via a stubbed bus.
-const mockEmit = vi.fn();
-vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
-  useEmitEvent: () => mockEmit,
-  useModuleEvent: () => {},
-  useModuleAPI: () => ({ emit: mockEmit, on: () => () => {} }),
-}));
-
+// StartupLanding is now a pure welcome/orientation card (PR 6 trim): the step
+// grid, tools grid and continue row moved to the persistent WorkflowBar, which
+// is the single source for navigation and continuation. The component no longer
+// touches the backend, the module bus or the working-folder anchor, so no mocks
+// are needed.
 import { StartupLanding } from '../src/renderer/components/StartupLanding.jsx';
-import { setWorkingFolder, clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
-describe('StartupLanding', () => {
-  beforeEach(() => {
-    mockGet.mockReset();
-    mockEmit.mockReset();
-    clearWorkingFolder();
+describe('StartupLanding — welcome card', () => {
+  it('renders the welcome title, subtitle and workflow-bar hint', () => {
+    render(<StartupLanding />);
+    expect(screen.getByText('Kom igång')).toBeTruthy();
+    // Subtitle + hint are present (Swedish copy from the i18n catalog).
+    expect(screen.getByText(/hela flödet/)).toBeTruthy();
+    expect(screen.getByText(/arbetsflödesraden/)).toBeTruthy();
   });
 
-  it('renders the workflow steps in order, then the tools', async () => {
-    mockGet.mockResolvedValue({ volumes: [] });
-    render(<StartupLanding onOpenModule={() => {}} />);
-
-    const buttons = await screen.findAllByRole('button');
-    expect(buttons.map((b) => b.textContent)).toEqual([
-      // Workflow steps (unchanged order)
-      '1.Importera',
-      '2.Byt namn',
-      '3.Granska ansikten',
-      '4.Räkna spelare',
-      '5.Gallra spelare',
-      // Tools (remaining views), appended
-      'Databashantering',
-      'Förfina ansikten',
-      'Filkö',
-      'Statistik',
-      'Loggar',
-      'Inställningar',
-      'Temaredigerare',
-    ]);
+  it('exposes an accessible region label', () => {
+    render(<StartupLanding />);
+    expect(screen.getByRole('region', { name: 'Kom igång' })).toBeTruthy();
   });
 
-  it('disables Import when no card volume is present', async () => {
-    mockGet.mockResolvedValue({ volumes: [] });
-    render(<StartupLanding onOpenModule={() => {}} />);
-
-    const importBtn = screen.getByRole('button', { name: /Importera/ });
-    await waitFor(() => expect(importBtn.disabled).toBe(true));
-  });
-
-  it('enables Import when a card volume is present', async () => {
-    mockGet.mockResolvedValue({ volumes: [{ mount: '/Volumes/EOS_DIGITAL' }] });
-    render(<StartupLanding onOpenModule={() => {}} />);
-
-    const importBtn = screen.getByRole('button', { name: /Importera/ });
-    await waitFor(() => expect(importBtn.disabled).toBe(false));
-  });
-
-  it('calls onOpenModule with the step id when a step is clicked', async () => {
-    mockGet.mockResolvedValue({ volumes: [] });
-    const onOpenModule = vi.fn();
-    render(<StartupLanding onOpenModule={onOpenModule} />);
-
-    fireEvent.click(screen.getByRole('button', { name: /Granska ansikten/ }));
-    expect(onOpenModule).toHaveBeenCalledWith('review-module');
-  });
-
-  it('opens a tool module (e.g. Databashantering) when clicked', async () => {
-    mockGet.mockResolvedValue({ volumes: [] });
-    const onOpenModule = vi.fn();
-    render(<StartupLanding onOpenModule={onOpenModule} />);
-
-    // Await the async card-volume effect so the click doesn't race a pending act().
-    fireEvent.click(await screen.findByRole('button', { name: /Databashantering/ }));
-    expect(onOpenModule).toHaveBeenCalledWith('database-management');
-  });
-
-  it('does not let a disabled Import button fire onOpenModule', async () => {
-    mockGet.mockResolvedValue({ volumes: [] });
-    const onOpenModule = vi.fn();
-    render(<StartupLanding onOpenModule={onOpenModule} />);
-
-    const importBtn = screen.getByRole('button', { name: /Importera/ });
-    await waitFor(() => expect(importBtn.disabled).toBe(true));
-    fireEvent.click(importBtn);
-    expect(onOpenModule).not.toHaveBeenCalled();
-  });
-});
-
-describe('StartupLanding — continue row (working-folder anchor)', () => {
-  beforeEach(() => {
-    mockGet.mockReset();
-    mockGet.mockResolvedValue({ volumes: [] });
-    mockEmit.mockReset();
-    clearWorkingFolder();
-  });
-
-  it('shows no continue row when there is no anchor', () => {
-    render(<StartupLanding onOpenModule={() => {}} />);
-    expect(screen.queryByText(/Aktuell mapp/)).toBeNull();
+  it('renders NO navigation controls (steps/tools/continue live in the WorkflowBar)', () => {
+    render(<StartupLanding />);
+    // No step/tool buttons and no "Fortsätt" continue button on the landing.
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: /Fortsätt/ })).toBeNull();
-  });
-
-  it('after import: offers "Fortsätt: Byt namn" and emits open-rename-nef with the roots', () => {
-    setWorkingFolder({ roots: ['/events/cupen'], step: 'import' });
-    render(<StartupLanding onOpenModule={() => {}} />);
-
-    expect(screen.getByText('Aktuell mapp: cupen')).toBeTruthy();
-    const btn = screen.getByRole('button', { name: /Fortsätt: Byt namn/ });
-    fireEvent.click(btn);
-    expect(mockEmit).toHaveBeenCalledWith('open-rename-nef', { roots: ['/events/cupen'] });
-  });
-
-  it('after rename: offers "Fortsätt: Granska ansikten" and emits open-review-queue with the roots', () => {
-    setWorkingFolder({ roots: ['/events/cupen'], step: 'rename' });
-    render(<StartupLanding onOpenModule={() => {}} />);
-
-    expect(screen.getByText('Aktuell mapp: cupen')).toBeTruthy();
-    const btn = screen.getByRole('button', { name: /Fortsätt: Granska ansikten/ });
-    fireEvent.click(btn);
-    expect(mockEmit).toHaveBeenCalledWith('open-review-queue', { roots: ['/events/cupen'] });
-  });
-
-  it('shows no continue row for an anchor whose step has no next hand-off', () => {
-    setWorkingFolder({ roots: ['/events/cupen'], step: 'review' });
-    render(<StartupLanding onOpenModule={() => {}} />);
     expect(screen.queryByText(/Aktuell mapp/)).toBeNull();
   });
 });

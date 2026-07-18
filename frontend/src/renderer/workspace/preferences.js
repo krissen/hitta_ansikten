@@ -101,6 +101,10 @@ export class PreferencesManager {
           showToastOnResume: false    // Show toast when preprocessing resumes
         }
       },
+      workspace: {
+        showWorkflowBar: true, // Show the persistent pipeline navigation row above the layout
+        workflowBarAutoHide: true // Slide the navigation row away when idle (reveal on hover/step change)
+      },
       layout: {
         defaultGridPreset: '70-30', // Default grid split ratio: '50-50', '60-40', '70-30', '30-70', '40-60'
         defaultTemplate: 'review', // Default layout template: 'review', 'comparison', 'full-image', 'stats'

@@ -17,7 +17,8 @@ import { useConfirm } from '../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../shared/debug.js';
 import { apiClient } from '../shared/api-client.js';
 import { scrollBehavior } from '../shared/motion.js';
-import { getWorkingFolder } from '../shared/workingFolder.js';
+import { getWorkingFolder, setWorkingFolder } from '../shared/workingFolder.js';
+import { setQueueStatus } from '../shared/queueStatus.js';
 import { PreprocessingStatus } from '../services/preprocessing/index.js';
 import { Icon } from './Icon.jsx';
 import { Button, IconButton, EmptyState } from './shared';
@@ -30,7 +31,7 @@ import {
   getToastDurationMultiplier,
   getInsertModePreference,
 } from './fileQueue/fileQueuePrefs.js';
-import { generateId, SUPPORTED_EXTENSIONS } from './fileQueue/queueUtils.js';
+import { generateId, SUPPORTED_EXTENSIONS, queueFolder } from './fileQueue/queueUtils.js';
 import { usePreprocessing } from './fileQueue/usePreprocessing.js';
 import { useNefRename } from './fileQueue/useNefRename.js';
 import { useFileQueue } from './fileQueue/useFileQueue.js';
@@ -197,6 +198,18 @@ export function FileQueueModule({ node }) {
       done: done,
       remaining: remaining,
       preprocessed: preprocessed
+    });
+    // Mirror the snapshot into the shared store so the WorkflowBar chip dropdown
+    // (mounted outside this module) can show which folder the queue holds and how
+    // far it's got, with the current value available on its mount. Empty queue →
+    // null, so the chip reads "Ingen kö".
+    setQueueStatus(q.length === 0 ? null : {
+      folder: queueFolder(q),
+      count: q.length,
+      current: currentIdx,
+      done,
+      remaining,
+      preprocessed,
     });
   }, [emit, currentIndex]);
 
@@ -802,18 +815,19 @@ export function FileQueueModule({ node }) {
       return;
     }
 
-    // Ensure the review surface (Review + Image Viewer) is mounted/visible before
-    // the image loads: Review consumes `image-loaded` (emitted by ImageViewer
-    // right after the load) to run detection, so it must be listening before that
-    // fires. The workspace owns the decision — in a saved queue-only layout it
-    // switches to the pipeline layout rather than stacking Review behind the
-    // viewer in the queue's tabset; otherwise it just focuses both. Review's
-    // late-mount recovery (request-current-image on mount) still covers layouts
-    // that gain a Review panel after an image was already loaded.
-    if (window.workspace?.ensureReviewSurface) {
-      window.workspace.ensureReviewSurface();
+    // Ensure the review surface (File Queue + Review + Image Viewer) is
+    // mounted/visible before the image loads: Review consumes `image-loaded`
+    // (emitted by ImageViewer right after the load) to run detection, so it must
+    // be listening before that fires. enterStep('review') MORPHS the live model
+    // into the review workspace — it never rebuilds, so this File Queue is not
+    // remounted mid-loadFile (its currentFileRef/currentIndex survive), and a
+    // Review/Viewer already present keeps its instance. When the trio is already
+    // in place the morph is a cheap no-op. Review's late-mount recovery
+    // (request-current-image on mount) still covers a Review added after a load.
+    if (window.workspace?.enterStep) {
+      window.workspace.enterStep('review');
     } else if (window.workspace?.openModule) {
-      // Fallback for an older workspace without the helper: focus both, viewer last.
+      // Fallback for an older workspace without the morph engine: focus both.
       window.workspace.openModule('review-module');
       window.workspace.openModule('image-viewer');
     }
@@ -1319,6 +1333,10 @@ export function FileQueueModule({ node }) {
     }
     if (clear) clearQueue();
     addFiles(files, position);
+    // Advance the pipeline anchor to the Review step so "Fortsätt →" can chain
+    // review → count (an earlier import/rename set it to their own step). This
+    // only re-points the shared anchor; adoption downstream stays opt-in.
+    setWorkingFolder({ roots: dirs, step: 'review' });
     if (startQueue) setTimeout(() => startNextEligible(), 100);
   }, [addFiles, clearQueue, startNextEligible, showToast]);
 
@@ -1405,7 +1423,35 @@ export function FileQueueModule({ node }) {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Skip keyboard handling when this tab is hidden in FlexLayout
+      // Whether this queue tab is parked in the background border — i.e. a
+      // DIFFERENT pipeline step is active and the queue was pushed aside. Parked
+      // ⇒ inert for keyboard. This differs from merely hidden: in the review step
+      // the queue is mounted-but-hidden BEHIND the Image Viewer tab (companion
+      // model), where n/p must still drive navigation.
+      const parked = node?.getParent?.()?.getType?.() === 'border';
+
+      // n/p file navigation is the owner's primary review gesture. It must keep
+      // working while the queue is the hidden companion tab, so it is gated on
+      // "mounted and not parked" rather than on visibility — node.isVisible() is
+      // false for a hidden-but-mounted tab, and gating n/p on it would silently
+      // break navigation the moment the Image Viewer tab is on top. Typing in an
+      // input/textarea (e.g. the filter) still suppresses it.
+      const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+      if (!parked && !inField && !e.metaKey && !e.ctrlKey) {
+        if (e.key === 'n' || e.key === 'N') {
+          e.preventDefault();
+          advanceToNext();
+          return;
+        }
+        if (e.key === 'p' || e.key === 'P') {
+          e.preventDefault();
+          const prevIndex = currentIndex - 1;
+          if (prevIndex >= 0) loadFile(prevIndex);
+          return;
+        }
+      }
+
+      // Everything below depends on the tab being actually visible + focused.
       if (node && !node.isVisible()) return;
 
       // Escape closes filter when filter input is focused
@@ -1460,22 +1506,6 @@ export function FileQueueModule({ node }) {
         }
       }
 
-      // N - next file
-      if (e.key === 'n' || e.key === 'N') {
-        if (!e.metaKey && !e.ctrlKey) {
-          e.preventDefault();
-          advanceToNext();
-        }
-      }
-
-      // P - previous file
-      if ((e.key === 'p' || e.key === 'P') && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
-        const prevIndex = currentIndex - 1;
-        if (prevIndex >= 0) {
-          loadFile(prevIndex);
-        }
-      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
@@ -1517,6 +1547,14 @@ export function FileQueueModule({ node }) {
   visibleIdsRef.current = visibleIds;
 
   const activeFile = currentIndex >= 0 ? queue[currentIndex] : null;
+
+  // Source-folder label so the queue isn't anonymous ("Kö: <mapp>"). Derived
+  // from the queued files' common parent; hidden when the queue is empty.
+  const sourceFolderName = useMemo(() => {
+    const folder = queueFolder(queue);
+    if (!folder) return null;
+    return folder.replace(/\/+$/, '').split('/').pop() || folder;
+  }, [queue]);
 
   // Empty-queue offer: if the working-folder anchor points somewhere (an earlier
   // pipeline step set it), surface a one-click "load this folder" button in the
@@ -1560,7 +1598,14 @@ export function FileQueueModule({ node }) {
     >
       {/* Header */}
       <div className="module-header">
-        <span className="module-title">{t('fileQueue.title')}</span>
+        <span className="module-title">
+          {t('fileQueue.title')}
+          {sourceFolderName && (
+            <span className="file-queue-source" title={t('fileQueue.sourceFolderTitle')}>
+              {t('fileQueue.sourceFolder', { name: sourceFolderName })}
+            </span>
+          )}
+        </span>
         <div className="file-queue-actions">
           <IconButton
             icon="plus"

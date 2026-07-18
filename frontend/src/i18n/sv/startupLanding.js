@@ -1,11 +1,12 @@
 // Swedish catalog namespace: startupLanding
 module.exports = {
   "title": "Kom igång",
-  "subtitle": "Följ stegen i ordning, eller öppna ett verktyg direkt.",
-  "workflow": "Arbetsflöde",
-  "tools": "Verktyg",
-  "importCardHint": "Sätt i ett minneskort för att importera",
-  "currentFolder": "Aktuell mapp: {name}",
+  "subtitle": "Ansikten tar dig genom hela flödet — från minneskort till färdigt gallrade bilder.",
+  "barHint": "Välj ett steg i arbetsflödesraden överst, eller dra in filer för att börja.",
+  // Continuation labels — still used by the WorkflowBar's "Fortsätt →" button via
+  // CONTINUE_BY_STEP (workspace/flexlayout/workflowSteps.js).
   "continueRename": "Fortsätt: Byt namn",
-  "continueReview": "Fortsätt: Granska ansikten"
+  "continueReview": "Fortsätt: Granska ansikten",
+  "continueCount": "Fortsätt: Räkna spelare",
+  "continueCull": "Fortsätt: Gallra"
 };

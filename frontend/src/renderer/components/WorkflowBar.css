@@ -1,0 +1,373 @@
+/* WorkflowBar — persistent pipeline navigation row.
+   Theme-conformant: existing variables only, no new keys, no hardcoded colors.
+   Tested in light and dark themes. */
+
+/* Workspace shell: stacks the bar above the FlexLayout host. The host is the
+   positioned, flex-filled container FlexLayout's absolutely-positioned
+   .flexlayout__layout fills. */
+.workspace-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  /* Positioning context for the autohide bar + hover-zone, which lift out of
+     flow and overlay the layout host (see .workflow-bar.autohide below). */
+  position: relative;
+}
+
+.workspace-layout-host {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.workflow-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 var(--space-sm);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--font-sm);
+  user-select: none;
+  /* Positioned + lifted so the Verktyg dropdown (a descendant, absolutely
+     positioned below the row) paints above the FlexLayout host that follows
+     in the DOM. NOT overflow:hidden — that would clip the dropdown; the steps
+     group clips itself instead (below). */
+  position: relative;
+  z-index: 5;
+}
+
+/* --- Autohide -------------------------------------------------------------
+   With autohide on, the row lifts out of flow and floats over the top of the
+   layout host as an inset pill (Lightroom module-row style, but detached from
+   the edges so it reads as hovering): a horizontal inset + small top gap,
+   rounded corners, an elevated surface and a soft accent phosphor glow. The
+   workspace reclaims the full height and FlexLayout never re-layouts as the
+   pill shows/hides — it slides between shown (translateY 0) and hidden
+   (translateY above the top edge), re-pulsing the glow each time it returns.
+   Existing tokens only; reduced motion handled below + by the global block. */
+.workflow-bar.autohide {
+  position: absolute;
+  /* Detach from the edges → a floating capsule, not an edge-to-edge bar. */
+  top: var(--space-xs);
+  left: var(--space-sm);
+  right: var(--space-sm);
+  /* Above the welcome card (--z-sticky), below modals (--z-modal), so the
+     overlaying row stays reachable on the first-run / empty workspace where the
+     card fills the host (StartupLanding) — otherwise the card would paint over
+     the row and its hover-zone and swallow their clicks. */
+  z-index: calc(var(--z-sticky) + 100);
+  /* Floating-pill look: elevated surface, full rounded border, drop shadow +
+     a resting accent glow (the phosphor animation settles onto this glow). */
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg), 0 0 10px -4px var(--accent-primary);
+  transition: transform 220ms ease;
+  will-change: transform;
+}
+
+/* Phosphor reveal: runs once whenever the pill is in its shown state. Toggling
+   .hidden drops the rule (animation removed) and restoring it replays fresh, so
+   every hidden→shown cycle re-blooms the accent glow. The 100% keyframe equals
+   the resting box-shadow above, so it settles without a snap. */
+.workflow-bar.autohide:not(.hidden) {
+  animation: workflow-bar-phosphor 620ms ease-out;
+}
+
+.workflow-bar.autohide.hidden {
+  /* Clear the top gap as well as the pill height so nothing peeks; drop the
+     shadow/glow so it can't bleed past the top edge while parked. */
+  transform: translateY(calc(-100% - var(--space-sm)));
+  box-shadow: none;
+}
+
+@keyframes workflow-bar-phosphor {
+  0% {
+    box-shadow: var(--shadow-lg), 0 0 0 0 transparent;
+  }
+  40% {
+    box-shadow: var(--shadow-lg), 0 3px 16px -2px var(--accent-primary);
+  }
+  100% {
+    box-shadow: var(--shadow-lg), 0 0 10px -4px var(--accent-primary);
+  }
+}
+
+/* Reduced motion: no slide, no glow — a plain instant fade instead. Kept
+   explicit (not just the global neutraliser) so the hidden bar truly leaves the
+   pointer/tab order rather than sitting invisibly at translateY 0. */
+.workflow-bar.autohide.reduced-motion {
+  transition: none;
+  animation: none;
+}
+
+.workflow-bar.autohide.reduced-motion.hidden {
+  transform: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Top-edge catch-strip that reveals the hidden bar on hover. A hairline in the
+   theme border colour hints where the row lives without shouting. */
+.workflow-bar-hover-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  /* Same band as the bar (above the welcome card) so the strip is hittable when
+     the row is hidden; the revealed bar paints over it by DOM order. */
+  z-index: calc(var(--z-sticky) + 100);
+  background: var(--border-subtle);
+  opacity: 0.5;
+}
+
+.workflow-bar-hover-zone.inert {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.workflow-bar-steps {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  /* Clip the step group (not the whole bar) when the window is too narrow, so
+     the chip/tools stay visible and the dropdown is never clipped. */
+  overflow: hidden;
+}
+
+/* A pipeline step button — quiet by default, retro-inverted when active. */
+.workflow-bar-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 24px;
+  padding: 0 var(--space-sm);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.workflow-bar-step:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Active step: inverted fill (retro highlight), underlined label. */
+.workflow-bar-step.active {
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+  border-color: var(--accent-primary);
+}
+
+.workflow-bar-step.active .workflow-bar-step-label {
+  text-decoration: underline;
+}
+
+.workflow-bar-step-ordinal {
+  font-family: var(--font-mono);
+  opacity: 0.7;
+}
+
+.workflow-bar-spacer {
+  flex: 1 1 auto;
+}
+
+/* Working-folder chip — a button opening the working-set status dropdown. */
+.workflow-bar-chip-wrap {
+  position: relative;
+}
+
+.workflow-bar-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 240px;
+  height: 24px;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.workflow-bar-chip:hover,
+.workflow-bar-chip.active {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+}
+
+.workflow-bar-chip.empty {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.workflow-bar-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chip dropdown: per-working-set status + opt-in actions. */
+.workflow-bar-chip-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 280px;
+  max-width: 360px;
+  padding: var(--space-xs);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-style: normal;
+}
+
+.workflow-bar-chip-section-title {
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--text-tertiary);
+  font-size: var(--font-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workflow-bar-chip-sets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-bar-chip-set {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+}
+
+.workflow-bar-chip-set-label {
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  font-weight: 600;
+}
+
+.workflow-bar-chip-set-value {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-bar-chip-set.empty .workflow-bar-chip-set-value {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.workflow-bar-chip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+/* "Fortsätt →" — primary emphasis via accent. */
+.workflow-bar-continue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 24px;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-sm);
+  background: var(--accent-primary);
+  color: var(--text-on-accent);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.workflow-bar-continue:hover {
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+}
+
+/* Verktyg ▾ menu. */
+.workflow-bar-tools {
+  position: relative;
+}
+
+.workflow-bar-tools-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  height: 24px;
+  padding: 0 var(--space-sm);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.workflow-bar-tools-toggle:hover,
+.workflow-bar-tools-toggle.active {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.workflow-bar-tools-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  min-width: 180px;
+  margin: 0;
+  padding: var(--space-xs);
+  list-style: none;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.workflow-bar-tools-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  height: 28px;
+  padding: 0 var(--space-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.workflow-bar-tools-item:hover {
+  background: var(--bg-hover);
+}

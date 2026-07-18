@@ -432,41 +432,70 @@ function createApplicationMenu(mainWindow) {
       label: t('menu.window.title'),
       submenu: [
         {
+          // Pipeline steps (Cmd+1..5) — the primary navigation. Each MORPHS the
+          // live workspace into the step (preserving mounted module state) rather
+          // than replacing the layout. Order matches the WorkflowBar and the
+          // shared workflowSteps catalog: Import → Rename → Review → Count → Cull.
+          label: t('menu.window.workflowSteps'),
+          submenu: [
+            {
+              label: t('modules.import'),
+              accelerator: 'CmdOrCtrl+1',
+              click: () => {
+                sendMenuCommand('workflow-step-import');
+              }
+            },
+            {
+              label: t('modules.rename-nef'),
+              accelerator: 'CmdOrCtrl+2',
+              click: () => {
+                sendMenuCommand('workflow-step-rename');
+              }
+            },
+            {
+              label: t('modules.review-module'),
+              accelerator: 'CmdOrCtrl+3',
+              click: () => {
+                sendMenuCommand('workflow-step-review');
+              }
+            },
+            {
+              label: t('modules.player-count'),
+              accelerator: 'CmdOrCtrl+4',
+              click: () => {
+                sendMenuCommand('workflow-step-count');
+              }
+            },
+            {
+              label: t('modules.culling'),
+              accelerator: 'CmdOrCtrl+5',
+              click: () => {
+                sendMenuCommand('workflow-step-culling');
+              }
+            }
+          ]
+        },
+        {
+          // Secondary layout templates — no accelerators (Cmd+1..5 now drive the
+          // pipeline steps above). These replace the layout wholesale.
+          //
+          // "Helbild" is intentionally NOT here: it never mapped to a full-image
+          // layout (its old action loaded the review layout), and a full image is
+          // already reachable via Visa → Bildvisare (Cmd+,), so keeping a
+          // mislabeled duplicate only confused. Comparison and Stats both carry
+          // accurate labels and real layouts.
           label: t('menu.window.layoutTemplates'),
           submenu: [
             {
-              label: t('menu.window.reviewMode'),
-              accelerator: 'CmdOrCtrl+1',
-              click: () => {
-                sendMenuCommand( 'layout-template-review');
-              }
-            },
-            {
               label: t('menu.window.comparisonMode'),
-              accelerator: 'CmdOrCtrl+2',
               click: () => {
-                sendMenuCommand( 'layout-template-comparison');
-              }
-            },
-            {
-              label: t('menu.window.fullImage'),
-              accelerator: 'CmdOrCtrl+3',
-              click: () => {
-                sendMenuCommand( 'layout-template-full-image');
+                sendMenuCommand('layout-template-comparison');
               }
             },
             {
               label: t('menu.window.statsMode'),
-              accelerator: 'CmdOrCtrl+4',
               click: () => {
-                sendMenuCommand( 'layout-template-stats');
-              }
-            },
-            {
-              label: t('menu.window.queueReviewMode'),
-              accelerator: 'CmdOrCtrl+5',
-              click: () => {
-                sendMenuCommand('layout-queue-review');
+                sendMenuCommand('layout-template-stats');
               }
             }
           ]
@@ -585,6 +614,12 @@ function createApplicationMenu(mainWindow) {
           }
         },
         {
+          label: t('menu.window.resetAllLayouts'),
+          click: () => {
+            sendMenuCommand( 'reset-all-layouts');
+          }
+        },
+        {
           label: t('menu.window.exportLayout'),
           click: () => {
             sendMenuCommand( 'export-layout');
@@ -625,6 +660,12 @@ function createApplicationMenu(mainWindow) {
           accelerator: 'CmdOrCtrl+/',
           click: () => {
             sendMenuCommand('show-keyboard-shortcuts');
+          }
+        },
+        {
+          label: t('menu.help.showWelcome'),
+          click: () => {
+            sendMenuCommand('show-welcome');
           }
         },
         { type: 'separator' },

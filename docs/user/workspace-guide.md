@@ -27,6 +27,75 @@ Workspace är ett modulärt gränssnitt byggt med FlexLayout. Paneler kan dockas
 | **Inställningar** | Inställningar |
 | **Temaredigerare** | Anpassa utseende |
 
+### Arbetsflödesrad
+
+Överst i arbetsytan ligger en fast **arbetsflödesrad** som alltid visar de fem
+pipeline-stegen i ordning:
+
+`1 Importera · 2 Byt namn · 3 Granska · 4 Räkna · 5 Gallra`
+
+- **Klicka på ett steg** — eller tryck **`Cmd+1`–`Cmd+5`** — för att gå dit.
+- Att byta steg **omformar** (morphar) arbetsytan mot det nya steget i stället
+  för att byggas om från grunden: moduler som redan är igång **behåller sitt
+  läge**. En pågående **filkö** och en **Granska**-panel med osparade ändringar
+  försvinner inte — de parkeras levande i en hopfälld **Bakgrund**-flik längst
+  ner och kommer tillbaka när du går tillbaka till steget. Därför frågar ett
+  stegbyte **aldrig** om du vill kasta osparat; bara **Återställ layout**
+  (`Cmd+Shift+L`) bygger om steget och frågar först om det finns osparat.
+- **Varje steg minns sin layout.** Justerar du ett steg — drar en panelkant,
+  lägger till en kolumn — kommer ändringen tillbaka nästa gång du går in i just
+  det steget. Varje steg har sitt eget minne, så Granska och Gallra kan se olika
+  ut. **Återställ layout** nollar det *aktuella* stegets minne till fabriksläge;
+  **Återställ alla layouter** (i **Fönster**-menyn) nollar alla stegen.
+- Det **aktiva steget** är markerat, så du alltid ser var i flödet du är.
+- **Arbetsmapp-chippen** (📁) till höger visar vilken mapp pipelinen är förankrad
+  till. **Klicka på den** för att öppna en översikt över de tre arbetsmängderna:
+  - **Kö** — hur många filer filkön har (och hur många som är klara) och från
+    vilken mapp.
+  - **Skanning** — mappen Räkna/Gallra arbetar mot, plus om skanningen är
+    rekursiv, har globfilter eller ett datumspann.
+  - **Ankare** — mappen pipelinen är förankrad till och vilket steg som satte den.
+
+  Under statusen finns tre knappar som du styr själv (ingenting laddas
+  automatiskt): **Byt mapp…** väljer en ny mapp och sätter bara ankaret;
+  **Använd i Granska** öppnar Granska med ankarets mapp; **Använd i Räkna/Gallra**
+  öppnar Räkna med ankarets mapp.
+- Filkömodulens huvud visar källmappen (**Kö: `<mapp>`**), så du ser vilken kö
+  som hör till vilket flöde.
+- När ett steg har ett känt nästa steg visas en **Fortsätt →**-knapp som tar dig
+  vidare med samma mapp — hela vägen `Importera → Byt namn → Granska → Räkna →
+  Gallra`. Mellan stegen heter framåtknappen enhetligt **Nästa steg: `<verb>`
+  →**.
+- **Verktyg ▾** öppnar övriga vyer (Databashantering, Statistik, Loggar,
+  Inställningar, m.fl.) som inte är en del av det linjära flödet.
+
+**Automatisk döljning.** Som standard glider raden undan efter några sekunders
+inaktivitet, så arbetsytan får hela höjden. Den kommer fram igen när du:
+
+- för muspekaren till skärmens **överkant** (en tunn kantlinje visar var raden
+  ligger),
+- **byter steg** (klick, `Cmd+1`–`Cmd+5` eller en **Fortsätt →**/hand-off) — då
+  visas raden en kort stund så du ser var det aktiva steget hamnade, och glider
+  sedan undan igen, eller
+- **tabbar** in i raden med tangentbordet.
+
+Raden **göms först när en vy är öppen** — på välkomstsidan eller en tom arbetsyta
+(ingen vy öppen) stannar den kvar, eftersom det inte finns något bakom den att
+frilägga. Den glider undan först när du öppnat ett steg eller en vy.
+
+En öppen meny (arbetsmapp-chippen eller **Verktyg ▾**) eller muspekaren som
+vilar på raden pausar nedräkningen, så raden aldrig försvinner mitt i ett val.
+När raden är framme i autohide-läge svävar den som en **flytande kapsel** (lossnad
+från kanterna, rundade hörn, ett svagt fosforsken i temats accentfärg); reveal är
+en kort vertikal glidning. Med **reducerad rörelse** påslaget i operativsystemet
+tonar raden in/ut utan animation.
+
+Två oberoende inställningar under **Inställningar → Layout** styr raden:
+
+- **Visa arbetsflödesrad** (på som standard) — döljer raden helt.
+- **Dölj arbetsflödesraden automatiskt** (på som standard) — slå av för att låta
+  raden **alltid vara synlig**.
+
 ---
 
 ## Tangentbordsgenvägar
@@ -67,6 +136,7 @@ I **Filkö** hamnar `Tab` på en rad i listan; `↑`/`↓` flyttar mellan radern
 | `1-9` | Välj matchningsalternativ |
 | `↑` / `↓` | Föregående/nästa ansikte |
 | `Tab` | Komplettera autocomplete-förslag |
+| `n` / `p` | Nästa/föregående **fil** i kön (fungerar även när filkön ligger dold bakom Bildvisaren) |
 | `x` | Hoppa till nästa fil |
 | `Alt+Enter` | Lägg till filnamnstillägg (fritext, ej personnamn) för aktuell bild |
 | `Cmd+⌫` | Flytta aktuell fil till papperskorgen och gå vidare (`Cmd+⌫` följer Finder; även Arkiv → "Flytta till papperskorgen") |
@@ -75,13 +145,22 @@ I **Filkö** hamnar `Tab` på en rad i listan; `↑`/`↓` flyttar mellan radern
 
 ### Layout
 
+`Cmd+1`–`Cmd+5` byter **arbetsflödessteg** (omformar arbetsytan, se
+[Arbetsflödesrad](#arbetsflödesrad)). De tidigare layoutmallarna (Jämförelseläge,
+Statistikläge) ligger nu under **Fönster → Layoutmallar** utan kortkommando.
+
+Varje steg minns sin egen layout (se [Arbetsflödesrad](#arbetsflödesrad)).
+**Återställ layout** nollar det aktuella stegets minne till fabriksläge;
+**Fönster → Återställ alla layouter** nollar alla stegen.
+
 | Genväg | Funktion |
 |--------|----------|
-| `Cmd+1` | Granskningsläge |
-| `Cmd+2` | Jämförelseläge |
-| `Cmd+3` | Helbild |
-| `Cmd+4` | Statistikläge |
-| `Cmd+5` | Köläge |
+| `Cmd+1` | Importera |
+| `Cmd+2` | Byt namn |
+| `Cmd+3` | Granska |
+| `Cmd+4` | Räkna spelare |
+| `Cmd+5` | Gallra |
+| `Cmd+Shift+L` | Återställ layout — aktuellt steg (frågar vid osparat) |
 | `Cmd+Shift+]` | Lägg till kolumn |
 | `Cmd+Shift+[` | Ta bort kolumn |
 
@@ -189,6 +268,11 @@ ansikten culling MAPP             # bara MAPP
 ansikten culling -r MAPP          # MAPP + alla undermappar
 ```
 
+**Om en sökväg inte matchar något** (felstavning eller en glob utan träffar,
+t.ex. `ansikten culling /finns-inte`) öppnas ändå målsteget — men **tomt** —
+i stället för att appen fastnar i standardlayouten. Du landar alltså i Gallra-
+respektive Granska-vyn och kan välja mapp/filer därifrån.
+
 **Installation:** kommandot är skriptet [`bin/ansikten`](../../bin/ansikten) i
 repot. Länka in det i din PATH:
 
@@ -202,22 +286,21 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 
 ## Arbetsflöde
 
-> **Startsida:** När appen startar utan filer i kön visas en startsida i
-> arbetsytan. Överst ligger arbetsflödesstegen i ordning (**Importera · Byt
-> namn · Granska ansikten · Räkna spelare · Gallra spelare**); under en
-> **Verktyg**-avdelare når du resten av vyerna direkt (Databashantering, Förfina
-> ansikten, Filkö, Statistik, Loggar, Inställningar, Temaredigerare). Varje knapp
-> öppnar respektive vy (fyller arbetsytan; Granska ansikten öppnar review-
-> layouten). **Importera** är aktiv bara när ett minneskort sitter i (uppdateras
-> automatiskt) — övriga är alltid valbara. Startsidan försvinner så fort du
-> öppnar en vy eller laddar en bild, och **kommer tillbaka om du stänger alla
-> öppna moduler** så arbetsytan aldrig blir tom utan väg vidare.
+> **Välkomstsida:** Allra första gången du öppnar appen visas en enkel
+> välkomstsida i arbetsytan — en hälsning som pekar dig mot **arbetsflödesraden**
+> överst. Den ligger *under* raden, så raden är synlig och klickbar hela tiden.
+> All navigation sker i raden: stegen (**Importera · Byt namn · Granska · Räkna ·
+> Gallra**), arbetsmapp-chippen, **Fortsätt →** och **Verktyg ▾**-menyn ligger
+> alla där, alltid synliga — även med tom arbetsyta. Välkomstsidan försvinner så
+> fort du öppnar en vy eller laddar en bild. Vid kommande starter visas den
+> **inte automatiskt** (du går direkt in i arbetsytan), men **stänger du alla
+> öppna vyer kommer den tillbaka** så arbetsytan aldrig blir tom utan väg vidare.
+> Vill du se den när som helst: **Hjälp → Visa välkomstguiden**.
 >
 > **Fortsätt där du var:** har du nyss importerat eller bytt namn i ett event
-> visar startsidan högst upp en rad "Aktuell mapp: {mapp}" med en
-> **Fortsätt**-knapp till nästa steg (efter import → *Byt namn*, efter namnbyte →
-> *Granska ansikten*) — mappen är då redan förvald. Ingenting laddas automatiskt;
-> raden är bara en genväg.
+> visar arbetsflödesraden en **Fortsätt →**-knapp till nästa steg med samma mapp
+> (efter import → *Byt namn*, efter namnbyte → *Granska ansikten*, osv). Ingenting
+> laddas automatiskt; knappen är bara en genväg. Se [Arbetsflödesrad](#arbetsflödesrad).
 
 ### 0. Importera från minneskort (valfritt)
 
@@ -231,7 +314,7 @@ Skriptet kräver att appen är installerad i `/Applications/Ansikten.app` (macOS
 1. Öppna **Byt namn** (`Cmd+Shift+B`), välj mappen (ev. glob `DSC*`). Målmappen förväljs från den senast använda eventmappen (importsteget) och faller annars tillbaka på senaste importdestination.
 2. **Förhandsgranska** visar `DSC… → YYMMDD_HHMMSS.NEF` (dubbletter får `-NN`; filer utan CreateDate hoppas över).
 3. **Byt namn** utför; befintliga målnamn skrivs aldrig över.
-4. När namnbytet är klart visas knappen **"Granska ansikten…"** i resultatet — den öppnar granskningsvyn (Filkö + Granska ansikten + Bildvisare) med den namnbytta mappen redan laddad i kön (nästa steg).
+4. När namnbytet är klart visas knappen **"Granska ansikten…"** i resultatet — den öppnar granskningsvyn (Granska ansikten + Bildvisare, med filkön som flik bakom Bildvisaren) med den namnbytta mappen redan laddad i kön (nästa steg).
 
 **Redan namngivna filer skyddas.** Filer vars namn redan bär sin EXIF-tidsstämpel — med eller utan namnsuffix (`260713_110145_Elis.NEF`), burst (`…-1.NEF`) eller båda — hoppas över som standard, så ett namnbyte aldrig strippar bort bekräftade namn. Förhandsgranskningen visar hur många som skyddas. Två kryssrutor:
 
@@ -254,7 +337,16 @@ eventmappen med ett klick.
 
 ### 2. Granska ansikten
 
-1. Klicka på en fil i kön för att ladda den
+Granska-steget visar **Granska ansikten** till vänster och **Bildvisaren** i den
+stora kolumnen. **Filkön ligger som en flik bakom Bildvisaren** i stället för en
+egen kolumn — den tar alltså inte upp plats hela tiden, men är ett tangenttryck
+bort: växla fram den med `Cmd+Shift+U` (eller klicka på dess flik). Kön driver
+granskningen i bakgrunden (auto-advance, laddar bilder, papperskorg/ångra), så
+`n`/`p` (nästa/föregående fil) fungerar hela tiden — även när Bildvisaren ligger
+överst. När du laddar en bild (klick i kön, `n`/`p`) höjs Bildvisaren automatiskt
+så bilden syns.
+
+1. Klicka på en fil i kön för att ladda den (öppna kön med `Cmd+Shift+U`)
 2. Ansikten visas i Granska ansikten-panelen
 3. För varje ansikte:
    - **Acceptera** (`A`/`Enter`) om matchningen är korrekt

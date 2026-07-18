@@ -10,7 +10,7 @@ den här filen är den löpande backlogen/known-issues/teknisk skuld över alla
 horisonter; `performance-plan.md` är en smalare, release-scopad plan (sprintar,
 deliverables, DoD) för en prestandarelease.
 
-**Senast uppdaterad:** 2026-07-10
+**Senast uppdaterad:** 2026-07-18
 
 ---
 
@@ -18,7 +18,7 @@ deliverables, DoD) för en prestandarelease.
 
 ### Nu
 
-(Inget just nu. Senast slutfört: Rename-journal & undo, PR-serien #222–#224 — se [CHANGELOG.md](CHANGELOG.md); journalformat och undo-semantik i [database.md](docs/dev/database.md).)
+(Inget just nu.)
 
 ### Kort sikt
 
@@ -35,8 +35,6 @@ deliverables, DoD) för en prestandarelease.
 - [ ] **Concurrency-limits för dyra endpoints** — ingen per-endpoint-semafor för `detect`/`thumbnail`/`preprocess` ännu. Kvarvarande post från [performance-plan.md](docs/dev/performance-plan.md) (Sprint 1).
 - [ ] **Auto-pausa bakgrundsrefresh för dolda/inaktiva moduler** — refresh är användarstyrd men pausas inte automatiskt när modulen inte ligger i aktiv tabset; minska även onödig global listener-rebinding. Kvarvarande post från [performance-plan.md](docs/dev/performance-plan.md) (Sprint 3).
 - [ ] Utveckla smidigare stöd för terminal-interaktion med backend (synkat med frontend).
-- [ ] **FileQueueModule: `n`/`p`-genvägarna är fortfarande enbart visibility-gate:ade** — efter aktiv-tabset-svepet (I1) gatar Review och Culling på aktiv tabset via `hooks/useActiveTabset.js`, men FileQueues globala `n`/`p` (nästa/föregående fil) körs så länge panelen är synlig. Ingen aktiv konflikt idag (varken Review eller Culling binder `n`/`p`, och FileQueue saknar delete-genväg), men FileQueue är en *companion-drivare*: den ska förbli aktiv medan Review/bildvisaren är aktiv, så en naiv migrering till "egen tabset aktiv" skulle bryta flödet. Kräver companion-modellering (companions = review/image-viewer) — egen PR. `PlayerCountModule` har ingen global tangentlyssnare (inget att migrera).
-- [ ] **Arbetsflödes-layoutpresets** — spara flerfönsterkonfigurationer per uppgift (t.ex. NEF-culling = fillista vänster + maximal preview höger). De flesta vyer är single-instance: öppna inte flera, skifta fokus till befintlig.
 
 ### Benchmark-spår (ansiktsigenkänning)
 
@@ -71,7 +69,10 @@ deliverables, DoD) för en prestandarelease.
 
 ### UI/UX
 
-- [ ] **CLI launch: landing döljs vid sökväg som expanderar till tomt** — renderaren härleder landningssidans suppression från råa arg-antalet (`hasFiles`), men huvudprocessen skickar bara handoff efter sökvägsexpansion (`expandFolderPaths`/`expandFilePaths` → `length>0 || clear`). En syntaktiskt giltig men icke-matchande sökväg (t.ex. `ansikten culling /typo` eller en glob utan träffar) döljer landningen utan att öppna något → användaren hamnar i default-layouten istället. Ren fix: låt huvudprocessen beräkna post-expansion-villkoret och exponera den boolean:en som launch intent istället för att renderaren gissar från råa argument (kräver async-hantering för faces). Pre-existerande edge (user-error), icke-blockerande; flaggad i PR #67-granskningen.
+- [ ] **`resolvePlacementTabset` ignorerar `getMaximizedTabset`** — en side-/bottom-modul som öppnas medan en tabset är maximerad dockar bakom den maximerade vyn (den nya panelen läggs i sin roll-tabset men syns inte förrän maximeringen släpps). Egen placeringsklass; åtgärdas i en senare placerings-PR. Nagelfar-fynd från #235, icke-blockerande.
+- [ ] **Reviews `ArrowUp`/`ArrowDown`-grenar saknar bareKey-guard** — Cmd+Pil i Granska både stegar ansikte OCH swappar panel (dubbelfyr). Annan klass än #241:s accelerator-svällning eftersom panel-swappen är en renderer-handler, inte en meny-accelerator. Följd: lägg samma bareKey-guard på pilgrenarna om Cmd+Pil ska vara exklusivt panel-swap. Nagelfar-not från #241-granskningen.
+- [ ] **Tomt-workspace-detektionen räknar border-parkerade flikar som innehåll.** Ett workspace med ENBART en parkerad flik (t.ex. sista riktiga fliken stängd medan filkön är parkerad i bakgrunds-kanten) visar varken välkomstkort eller suspenderar autohide. Osannolik kant, ärvd från empty-detektionen (#242), konsekvent med befintligt beteende; fix = räkna endast icke-border-flikar om kortet/suspenden ska trigga där. Nagelfar-not från #245.
+- [ ] **`Cmd+Shift+L` är dubbelbunden.** Acceleratorn `CmdOrCtrl+Shift+L` sitter på både **Arkiv → Öppna i Lightroom** (`open-raw-in-lightroom`) och **Fönster → Återställ layout** (`reset-layout`) i `frontend/src/main/menu.js` — vilken som fyrar vid samtidig aktivering är odefinierat. Pre-existerande kollision (Lightroom-posten kom i v1.7.0, reset-layout-posten är äldre); upptäckt vid docs-svepet inför v1.8.0. Fix: ge en av dem en egen accelerator (t.ex. flytta Öppna i Lightroom till `Cmd+Alt+L`) och uppdatera [workspace-guide.md](docs/user/workspace-guide.md) därefter.
 
 ---
 

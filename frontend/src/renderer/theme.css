@@ -786,3 +786,15 @@ textarea:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* ===========================
+   PIPELINE HAND-OFF ("Nästa steg: <verb> →")
+   Shared placement for the "next step" hand-off buttons so Import → Rename →
+   Review → Count → Culling all present the forward move the same way: a primary
+   button aligned to the bottom-right of its container. Event mechanics stay in
+   the modules; this only standardises the look/position. See docs/dev/ux-principles.md.
+   =========================== */
+.handoff-next {
+  display: flex;
+  justify-content: flex-end;
+}
