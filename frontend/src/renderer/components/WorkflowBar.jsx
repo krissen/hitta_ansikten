@@ -51,8 +51,9 @@ import './WorkflowBar.css';
  * @param {(moduleId: string) => void} props.onOpenStep - Open a pipeline step (existing landing paths).
  * @param {(moduleId: string) => void} props.onOpenTool - Open a non-pipeline tool as a tab.
  * @param {boolean} [props.autoHide=false] - Slide the row away when idle (opt-out preference).
+ * @param {boolean} [props.hasContent=true] - A view is open behind the bar; when false autohide is suspended.
  */
-export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = false }) {
+export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = false, hasContent = true }) {
   const emit = useEmitEvent();
 
   // The three working sets drive the chip + its dropdown. All three are shared
@@ -92,6 +93,7 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = fal
     enabled: autoHide,
     paused,
     activeStep,
+    hasContent,
   });
   // Reduced motion: the global media block already neutralises the transition;
   // this switches the hidden mechanism to a plain fade (no slide, no phosphor).
