@@ -171,8 +171,13 @@ Electron Renderer Process
     │   └── flexlayout/
     │       ├── index.jsx              # React entry
     │       ├── FlexLayoutWorkspace.jsx  # Main component
-    │       ├── moduleRegistry.js     # id → component mapping
-    │       ├── layouts.js            # Preset layout configurations
+    │       ├── workspaceCommands.js  # Single command router (typed intents)
+    │       ├── moduleRegistry.js     # Declarative module catalog (role + metadata)
+    │       ├── workflowSteps.js      # Pipeline steps / tools / continuation chain
+    │       ├── workflows.js          # Per-step factory layout specs
+    │       ├── workspaceMorph.js     # Non-destructive layout morph (applyWorkspace)
+    │       ├── stepLayoutMemory.js   # Per-step remembered layout
+    │       ├── layouts.js            # Non-pipeline preset layouts
     │       ├── menuCommands.js       # Menu/shortcut command dispatch
     │       ├── tabNames.js           # i18n tab titles
     │       └── tabsetUtils.js        # Active-tabset helpers
@@ -239,13 +244,37 @@ Row (root)
     └── Tab (Image Viewer)
 ```
 
-Preset layouts defined in `layouts.js` (`getLayoutByName` / `layoutNames`):
+`layouts.js` (`getLayoutByName` / `layoutNames`) holds the non-pipeline preset
+layouts still reachable from **Fönster → Layoutmallar**:
 - `review` - Review panel + Image Viewer
 - `review-with-logs` - Review + Image Viewer + Log Viewer
 - `comparison` - Image Viewer + Original View
 - `full-review` - Grid with Review, Image Viewer, Original View, Logs
 - `queue-review` - File Queue + Review + Image Viewer
 - `database` - Database Management + Statistics
+
+### Workflow steps and the command router
+
+Primary navigation is the five-step pipeline (Import → Rename → Review → Count →
+Culling), defined once in `workflowSteps.js` and rendered by the always-visible
+**WorkflowBar**. Switching step does **not** rebuild the model: `enterStep` calls
+`workspaceMorph.applyWorkspace`, which transforms the live FlexLayout model toward
+the target step's factory spec (`workflows.js`) with `moveNode`/`addNode`/`deleteTab`
+Actions, so a mounted module keeps its React instance (and state) across the switch.
+`keepMounted` modules (the File Queue) and modules with unsaved edits (a dirty
+Review) are parked alive in a collapsed background border rather than closed, so a
+step switch is non-destructive and never prompts. Each step remembers the shape the
+user leaves it in (`stepLayoutMemory.js`).
+
+Every way to open a module, enter a step, or load a layout — the menu dispatch
+table, the `window.workspace` global, the moduleAPI `open-*` events, and the
+main-process CLI launch bridge — is a thin adapter that builds a typed intent and
+calls `dispatch` on the single command router (`workspaceCommands.js`). The router
+buffers intents that arrive before the workspace signals `workspace-ready` and
+flushes them in order. Placement of a freshly-opened tab is resolved from the
+module's `role` in `moduleRegistry.js` (`main`/`side`/`bottom`), never from the
+active tabset. The interaction and navigation rules are codified in
+[UX Principles](ux-principles.md).
 
 ---
 
@@ -365,4 +394,5 @@ Stored in localStorage:
 
 - [API Reference](api-reference.md) - REST and WebSocket endpoints
 - [Database](database.md) - Data files and formats
+- [UX Principles](ux-principles.md) - Interaction and navigation rules
 - [Theming](theming.md) - CSS variable system
