@@ -42,46 +42,59 @@
 }
 
 /* --- Autohide -------------------------------------------------------------
-   With autohide on, the row lifts out of flow and overlays the top of the
-   layout host (Lightroom module-row style) so the workspace reclaims the full
-   height and FlexLayout never re-layouts as the bar shows/hides. It slides
-   between shown (translateY 0) and hidden (translateY -100%), with a short
-   phosphor afterglow in the theme accent each time it returns.
+   With autohide on, the row lifts out of flow and floats over the top of the
+   layout host as an inset pill (Lightroom module-row style, but detached from
+   the edges so it reads as hovering): a horizontal inset + small top gap,
+   rounded corners, an elevated surface and a soft accent phosphor glow. The
+   workspace reclaims the full height and FlexLayout never re-layouts as the
+   pill shows/hides — it slides between shown (translateY 0) and hidden
+   (translateY above the top edge), re-pulsing the glow each time it returns.
    Existing tokens only; reduced motion handled below + by the global block. */
 .workflow-bar.autohide {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  /* Detach from the edges → a floating capsule, not an edge-to-edge bar. */
+  top: var(--space-xs);
+  left: var(--space-sm);
+  right: var(--space-sm);
   /* Above the welcome card (--z-sticky), below modals (--z-modal), so the
      overlaying row stays reachable on the first-run / empty workspace where the
      card fills the host (StartupLanding) — otherwise the card would paint over
      the row and its hover-zone and swallow their clicks. */
   z-index: calc(var(--z-sticky) + 100);
+  /* Floating-pill look: elevated surface, full rounded border, drop shadow +
+     a resting accent glow (the phosphor animation settles onto this glow). */
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg), 0 0 10px -4px var(--accent-primary);
   transition: transform 220ms ease;
   will-change: transform;
 }
 
-/* Phosphor reveal: runs once whenever the bar is in its shown state. Toggling
+/* Phosphor reveal: runs once whenever the pill is in its shown state. Toggling
    .hidden drops the rule (animation removed) and restoring it replays fresh, so
-   every hidden→shown cycle re-pulses the accent glow along the bottom edge. */
+   every hidden→shown cycle re-blooms the accent glow. The 100% keyframe equals
+   the resting box-shadow above, so it settles without a snap. */
 .workflow-bar.autohide:not(.hidden) {
   animation: workflow-bar-phosphor 620ms ease-out;
 }
 
 .workflow-bar.autohide.hidden {
-  transform: translateY(-100%);
+  /* Clear the top gap as well as the pill height so nothing peeks; drop the
+     shadow/glow so it can't bleed past the top edge while parked. */
+  transform: translateY(calc(-100% - var(--space-sm)));
+  box-shadow: none;
 }
 
 @keyframes workflow-bar-phosphor {
   0% {
-    box-shadow: 0 0 0 0 transparent;
+    box-shadow: var(--shadow-lg), 0 0 0 0 transparent;
   }
-  35% {
-    box-shadow: 0 3px 14px -2px var(--accent-primary);
+  40% {
+    box-shadow: var(--shadow-lg), 0 3px 16px -2px var(--accent-primary);
   }
   100% {
-    box-shadow: 0 0 0 0 transparent;
+    box-shadow: var(--shadow-lg), 0 0 10px -4px var(--accent-primary);
   }
 }
 
