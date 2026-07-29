@@ -33,7 +33,7 @@ a backend that does not expose it) is skipped, never a reason to gate.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -59,7 +59,7 @@ def variance_of_laplacian(gray: np.ndarray) -> float:
     return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
 
-def crop_sharpness(rgb_crop: np.ndarray) -> Optional[float]:
+def crop_sharpness(rgb_crop: np.ndarray) -> float | None:
     """Variance-of-Laplacian sharpness of an RGB face crop.
 
     Returns ``None`` for an empty/degenerate crop (nothing to measure).
@@ -82,9 +82,9 @@ class QualitySignals:
     with a missing signal simply skips that component of the gate.
     """
 
-    det_score: Optional[float] = None
-    crop_px: Optional[int] = None
-    sharpness: Optional[float] = None
+    det_score: float | None = None
+    crop_px: int | None = None
+    sharpness: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -94,7 +94,7 @@ class QualitySignals:
         }
 
     @classmethod
-    def from_dict(cls, d: Optional[dict[str, Any]]) -> "QualitySignals":
+    def from_dict(cls, d: dict[str, Any] | None) -> "QualitySignals":
         if not d:
             return cls()
         return cls(
@@ -114,7 +114,7 @@ class GateConfig:
     min_sharpness: float = DEFAULT_MIN_SHARPNESS
 
     @classmethod
-    def from_config(cls, config: Optional[dict[str, Any]]) -> "GateConfig":
+    def from_config(cls, config: dict[str, Any] | None) -> "GateConfig":
         """Build from an app config dict; absent keys fall back to defaults."""
         block = {}
         if config:
@@ -139,7 +139,7 @@ class GateResult:
     failures: list[str] = field(default_factory=list)
     signals: QualitySignals = field(default_factory=QualitySignals)
 
-    def note_sv(self) -> Optional[str]:
+    def note_sv(self) -> str | None:
         """User-facing Swedish note explaining a gated (not-enrolled) face.
 
         Returns ``None`` when the face passed (nothing to explain).
@@ -179,6 +179,6 @@ def evaluate(signals: QualitySignals, cfg: GateConfig) -> GateResult:
     return GateResult(passed=not failures, failures=failures, signals=signals)
 
 
-def gate_faces_enabled(config: Optional[dict[str, Any]]) -> bool:
+def gate_faces_enabled(config: dict[str, Any] | None) -> bool:
     """Convenience: is the enrollment-quality gate enabled in ``config``?"""
     return GateConfig.from_config(config).enabled

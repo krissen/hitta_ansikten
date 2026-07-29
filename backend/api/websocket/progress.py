@@ -9,7 +9,6 @@ import json
 import logging
 import queue
 from datetime import datetime
-from typing import Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -17,10 +16,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Active WebSocket connections
-active_connections: Set[WebSocket] = set()
+active_connections: set[WebSocket] = set()
 
 # Enabled log categories for broadcasting (empty = all enabled)
-enabled_log_categories: Set[str] = set()
+enabled_log_categories: set[str] = set()
 
 # Thread-safe queue required: emit() called from any thread, process_log_queue() in asyncio loop
 _log_queue = queue.Queue(maxsize=1000)
@@ -77,7 +76,7 @@ async def process_log_queue():
             logger.error(f"[WebSocket] Error processing log queue: {e}")
 
 
-def set_log_categories(categories: Set[str]):
+def set_log_categories(categories: set[str]):
     """Set which log categories to broadcast (empty = all)"""
     global enabled_log_categories
     enabled_log_categories = set(categories) if categories else set()

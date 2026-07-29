@@ -12,7 +12,7 @@ import threading
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Add parent directory to path to import CLI modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -46,11 +46,11 @@ class StatisticsService:
         # come from data sources NOT in the store — the attempt log
         # (attempt_stats.jsonl) and the app log (ansikten.log) — which change
         # on disk without bumping the store version.
-        self.cache: Dict[str, Any] = {}
-        self.cache_meta: Dict[str, tuple[int, float]] = {}  # key -> (version, ts)
+        self.cache: dict[str, Any] = {}
+        self.cache_meta: dict[str, tuple[int, float]] = {}  # key -> (version, ts)
         self.cache_ttl = 30.0  # TTL safety net for non-store (attempt-log) data
 
-    def _get_cached(self, key: str) -> Optional[Any]:
+    def _get_cached(self, key: str) -> Any | None:
         """Return the cached value if the store is unchanged and within TTL."""
         meta = self.cache_meta.get(key)
         if meta is None:
@@ -64,7 +64,7 @@ class StatisticsService:
             return None
         return self.cache.get(key)
 
-    def _set_cached(self, key: str, value: Any, version: Optional[int] = None):
+    def _set_cached(self, key: str, value: Any, version: int | None = None):
         """Cache a value tagged with a store version and timestamp.
 
         ``version`` must be the store version captured WHEN the data was read
@@ -84,7 +84,7 @@ class StatisticsService:
         self.cache_meta.clear()
         logger.info("[StatisticsService] Cache invalidated")
 
-    def count_faces_per_name(self, known_faces: Dict = None) -> Dict[str, int]:
+    def count_faces_per_name(self, known_faces: dict = None) -> dict[str, int]:
         """Count number of face encodings per person.
 
         When ``known_faces`` is not supplied, the counts are computed under the
@@ -98,7 +98,7 @@ class StatisticsService:
             )
         return {name: len(entries) for name, entries in known_faces.items()}
 
-    def calc_ignored_fraction(self, stats: List[Dict]) -> tuple[int, int, float]:
+    def calc_ignored_fraction(self, stats: list[dict]) -> tuple[int, int, float]:
         """Calculate fraction of faces that were ignored"""
         total = 0
         ignored = 0
@@ -118,7 +118,7 @@ class StatisticsService:
         frac = (ignored / total) if total else 0
         return ignored, total, frac
 
-    async def get_attempt_stats(self, stats: List[Dict] = None) -> List[Dict[str, Any]]:
+    async def get_attempt_stats(self, stats: list[dict] = None) -> list[dict[str, Any]]:
         """
         Calculate attempt statistics table
 
@@ -204,7 +204,7 @@ class StatisticsService:
 
         return result
 
-    async def get_top_faces(self, stats: List[Dict] = None, face_counts: Dict[str, int] = None) -> Dict[str, Any]:
+    async def get_top_faces(self, stats: list[dict] = None, face_counts: dict[str, int] = None) -> dict[str, Any]:
         """
         Get top 19 faces plus ignored count
 
@@ -250,7 +250,7 @@ class StatisticsService:
             "ignored_fraction": round(ignored_frac, 3),
         }
 
-    async def get_recent_images(self, n: int = 3, stats: List[Dict] = None) -> List[Dict[str, Any]]:
+    async def get_recent_images(self, n: int = 3, stats: list[dict] = None) -> list[dict[str, Any]]:
         """
         Get most recent processed images with names
 
@@ -295,7 +295,7 @@ class StatisticsService:
 
         return result
 
-    async def get_recent_logs(self, n: int = 3) -> List[Dict[str, str]]:
+    async def get_recent_logs(self, n: int = 3) -> list[dict[str, str]]:
         """
         Get last n lines from log file
 
@@ -341,7 +341,7 @@ class StatisticsService:
             logger.error(f"[StatisticsService] Failed to read log file: {e}")
             return [{"level": "error", "message": f"Could not read log file: {e}", "timestamp": ""}]
 
-    async def get_file_stats(self, filenames: List[str] = None, filepaths: List[str] = None) -> Dict[str, Dict[str, Any]]:
+    async def get_file_stats(self, filenames: list[str] = None, filepaths: list[str] = None) -> dict[str, dict[str, Any]]:
         """
         Get face detection stats for specific files.
         
@@ -442,7 +442,7 @@ class StatisticsService:
         logger.info(f"[Statistics] Returning stats for {len(result)}/{total} files")
         return result
 
-    async def get_summary(self) -> Dict[str, Any]:
+    async def get_summary(self) -> dict[str, Any]:
         """
         Get complete statistics summary
 

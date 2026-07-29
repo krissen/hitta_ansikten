@@ -40,8 +40,9 @@ increasing int starting at 0) so callers can cheaply detect staleness.
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from core import db
 
@@ -92,7 +93,7 @@ class FaceDBStore:
         # save. A save writes exactly this union and then clears it. Empty set
         # == clean (the old boolean ``_dirty`` is now ``bool(_dirty)``).
         self._dirty: set[str] = set()
-        self._save_timer: Optional[threading.Timer] = None
+        self._save_timer: threading.Timer | None = None
 
         # Recorded fingerprint per backing file; None => file absent at record time.
         self._fingerprints: dict[str, Fingerprint] = {}
@@ -136,7 +137,7 @@ class FaceDBStore:
                 fingerprints[key] = None
         return fingerprints
 
-    def _record_fingerprints(self, only: Optional[set[str]] = None) -> None:
+    def _record_fingerprints(self, only: set[str] | None = None) -> None:
         """Snapshot on-disk fingerprints as the store's known-good baseline.
 
         ``only`` restricts the update to the named collections (after a partial
@@ -219,7 +220,7 @@ class FaceDBStore:
     def mutate(self, fn: Callable[
         [dict[str, Any], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]],
         Any,
-    ], touches: Optional[set[str]] = None) -> Any:
+    ], touches: set[str] | None = None) -> Any:
         """Apply a mutation to the live collections under the store lock.
 
         ``fn`` is called as ``fn(known_faces, ignored_faces, hard_negatives,
@@ -335,7 +336,7 @@ class FaceDBStore:
 
 # --- Singleton access (lazy; no module-level construction) ---------------
 
-_store: Optional[FaceDBStore] = None
+_store: FaceDBStore | None = None
 _store_lock = threading.Lock()
 
 

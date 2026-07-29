@@ -51,7 +51,7 @@ in-flight matchers may keep using safely.
 
 import logging
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -68,10 +68,10 @@ class MatchingIndex:
 
         # -1 forces a build on first access (store versions start at 0).
         self._version = -1
-        self._known_lenient: Dict[str, np.ndarray] = {}
-        self._known_strict: List[Tuple[str, np.ndarray]] = []
-        self._ignored: Optional[np.ndarray] = None
-        self._known_hardneg: Dict[str, np.ndarray] = {}
+        self._known_lenient: dict[str, np.ndarray] = {}
+        self._known_strict: list[tuple[str, np.ndarray]] = []
+        self._ignored: np.ndarray | None = None
+        self._known_hardneg: dict[str, np.ndarray] = {}
 
     # ----- lazy rebuild -------------------------------------------------
 
@@ -96,7 +96,7 @@ class MatchingIndex:
             version = self._store.version
 
             # Lenient known: mirrors _known_candidates / _person_match_encodings.
-            known_lenient: Dict[str, np.ndarray] = {}
+            known_lenient: dict[str, np.ndarray] = {}
             for name, entries in known.items():
                 rows = []
                 for entry in entries:
@@ -113,7 +113,7 @@ class MatchingIndex:
 
             # Strict known: mirrors _match_encoding_alternatives (explicit
             # backend key, 1-D encodings only).
-            known_strict: List[Tuple[str, np.ndarray]] = []
+            known_strict: list[tuple[str, np.ndarray]] = []
             for name, entries in known.items():
                 rows = []
                 for entry in entries:
@@ -144,7 +144,7 @@ class MatchingIndex:
             # Hard negatives: same lenient backend rule as known_lenient, keyed
             # by person name. These are the encodings the user rejected for that
             # person; the match path uses them to skip the person entirely.
-            known_hardneg: Dict[str, np.ndarray] = {}
+            known_hardneg: dict[str, np.ndarray] = {}
             for name, entries in hardneg.items():
                 rows = []
                 for entry in entries:
@@ -181,22 +181,22 @@ class MatchingIndex:
 
     # ----- accessors (each ensures freshness) ---------------------------
 
-    def known_lenient_items(self) -> List[Tuple[str, np.ndarray]]:
+    def known_lenient_items(self) -> list[tuple[str, np.ndarray]]:
         """`(name, matrix)` pairs for nearest-person matching (insertion order)."""
         self._ensure_current()
         return list(self._known_lenient.items())
 
-    def known_strict_items(self) -> List[Tuple[str, np.ndarray]]:
+    def known_strict_items(self) -> list[tuple[str, np.ndarray]]:
         """`(name, matrix)` pairs for the alternatives ranking."""
         self._ensure_current()
         return list(self._known_strict)
 
-    def ignored_matrix(self) -> Optional[np.ndarray]:
+    def ignored_matrix(self) -> np.ndarray | None:
         """Stacked ignored-encoding matrix, or ``None`` when empty."""
         self._ensure_current()
         return self._ignored
 
-    def person_lenient_rows(self, name: str) -> List[np.ndarray]:
+    def person_lenient_rows(self, name: str) -> list[np.ndarray]:
         """Encoding rows for one person (lenient filter), or ``[]`` if absent."""
         self._ensure_current()
         matrix = self._known_lenient.get(name)
@@ -204,7 +204,7 @@ class MatchingIndex:
             return []
         return list(matrix)
 
-    def hardneg_matrix(self, name: str) -> Optional[np.ndarray]:
+    def hardneg_matrix(self, name: str) -> np.ndarray | None:
         """Stacked hard-negative matrix for `name`, or ``None`` when the person
         has no hard negatives for the active backend."""
         self._ensure_current()

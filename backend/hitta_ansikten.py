@@ -18,10 +18,11 @@ import shutil
 import signal
 import sys
 import time
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 from types import FrameType
-from typing import TYPE_CHECKING, Callable, Iterator
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from prompt_toolkit.completion import Completer

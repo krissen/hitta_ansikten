@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.db import get_file_hash
 
@@ -38,10 +38,10 @@ class CacheEntry:
     created_at: str
     last_accessed: str
     size_bytes: int
-    nef_jpg_path: Optional[str] = None
-    faces_json_path: Optional[str] = None
-    thumbnails: Optional[List[str]] = None
-    grid_thumb_path: Optional[str] = None
+    nef_jpg_path: str | None = None
+    faces_json_path: str | None = None
+    thumbnails: list[str] | None = None
+    grid_thumb_path: str | None = None
 
 
 class PreprocessingCache:
@@ -68,7 +68,7 @@ class PreprocessingCache:
     PROCESSING_TIMEOUT = 20.0  # Seconds to wait for another thread
     MAX_RETRIES = 3  # Max retry attempts if processing fails
 
-    def __init__(self, cache_dir: Optional[Path] = None, max_size_mb: int = DEFAULT_MAX_SIZE_MB):
+    def __init__(self, cache_dir: Path | None = None, max_size_mb: int = DEFAULT_MAX_SIZE_MB):
         self.cache_dir = Path(cache_dir) if cache_dir else self.DEFAULT_CACHE_DIR
         self.max_size_bytes = max_size_mb * 1024 * 1024
         self.index_path = self.cache_dir / 'index.json'
@@ -88,13 +88,13 @@ class PreprocessingCache:
 
         # Thread-safe in-progress tracking to prevent duplicate processing
         self._lock = threading.Lock()
-        self._in_progress: Dict[str, threading.Event] = {}
+        self._in_progress: dict[str, threading.Event] = {}
 
         # Ensure directories exist
         self._ensure_dirs()
 
         # Load or create index
-        self.index: Dict[str, CacheEntry] = self._load_index()
+        self.index: dict[str, CacheEntry] = self._load_index()
 
         logger.info(f"[PreprocessingCache] Initialized: {self.cache_dir}, "
                    f"max_size={max_size_mb}MB, entries={len(self.index)}")
@@ -104,7 +104,7 @@ class PreprocessingCache:
         for dir_path in [self.cache_dir, self.nef_dir, self.faces_dir, self.thumbs_dir, self.grid_dir]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
-    def _load_index(self) -> Dict[str, CacheEntry]:
+    def _load_index(self) -> dict[str, CacheEntry]:
         """Load cache index from disk."""
         if not self.index_path.exists():
             return {}
@@ -258,7 +258,7 @@ class PreprocessingCache:
             return Path(entry.grid_thumb_path).exists()
         return False
 
-    def get_grid_thumb(self, grid_key: str) -> Optional[str]:
+    def get_grid_thumb(self, grid_key: str) -> str | None:
         """Get path to a cached overview thumbnail."""
         entry = self.get_entry(grid_key)
         if entry and entry.grid_thumb_path and Path(entry.grid_thumb_path).exists():
@@ -278,7 +278,7 @@ class PreprocessingCache:
         logger.debug(f"[PreprocessingCache] Stored grid thumbnail: {grid_key}")
         return str(jpg_path)
 
-    def get_entry(self, file_hash: str) -> Optional[CacheEntry]:
+    def get_entry(self, file_hash: str) -> CacheEntry | None:
         """Get cache entry by file hash, updating last_accessed."""
         entry = self.index.get(file_hash)
         if entry:
@@ -293,7 +293,7 @@ class PreprocessingCache:
             return Path(entry.nef_jpg_path).exists()
         return False
 
-    def get_nef_conversion(self, file_hash: str) -> Optional[str]:
+    def get_nef_conversion(self, file_hash: str) -> str | None:
         """Get path to cached NEF conversion."""
         entry = self.get_entry(file_hash)
         if entry and entry.nef_jpg_path and Path(entry.nef_jpg_path).exists():
@@ -320,7 +320,7 @@ class PreprocessingCache:
             return Path(entry.faces_json_path).exists()
         return False
 
-    def get_face_detection(self, file_hash: str) -> Optional[Dict]:
+    def get_face_detection(self, file_hash: str) -> dict | None:
         """Get cached face detection results."""
         entry = self.get_entry(file_hash)
         if entry and entry.faces_json_path and Path(entry.faces_json_path).exists():
@@ -328,7 +328,7 @@ class PreprocessingCache:
                 return json.load(f)
         return None
 
-    def store_face_detection(self, file_hash: str, original_path: str, faces_data: Dict) -> str:
+    def store_face_detection(self, file_hash: str, original_path: str, faces_data: dict) -> str:
         """Store face detection results in cache."""
         json_path = self.faces_dir / f'{file_hash}.json'
 
@@ -348,7 +348,7 @@ class PreprocessingCache:
             return all(Path(p).exists() for p in entry.thumbnails)
         return False
 
-    def get_thumbnails(self, file_hash: str) -> Optional[List[str]]:
+    def get_thumbnails(self, file_hash: str) -> list[str] | None:
         """Get cached thumbnail paths."""
         entry = self.get_entry(file_hash)
         if entry and entry.thumbnails:
@@ -357,7 +357,7 @@ class PreprocessingCache:
                 return existing
         return None
 
-    def store_thumbnails(self, file_hash: str, original_path: str, thumbnails: List[bytes]) -> List[str]:
+    def store_thumbnails(self, file_hash: str, original_path: str, thumbnails: list[bytes]) -> list[str]:
         """Store face thumbnails in cache."""
         thumb_dir = self.thumbs_dir / file_hash
         thumb_dir.mkdir(parents=True, exist_ok=True)
@@ -424,7 +424,7 @@ class PreprocessingCache:
         """Get total cache size in bytes."""
         return sum(e.size_bytes for e in self.index.values())
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get cache status information."""
         total_size = self.get_total_size()
         return {
@@ -436,7 +436,7 @@ class PreprocessingCache:
             'usage_percent': round((total_size / self.max_size_bytes) * 100, 1) if self.max_size_bytes > 0 else 0
         }
 
-    def set_priority_hashes(self, hashes: List[str]):
+    def set_priority_hashes(self, hashes: list[str]):
         """Set file hashes that should be evicted last (files currently in queue)."""
         self.priority_hashes = set(hashes)
         logger.debug(f"[PreprocessingCache] Priority hashes updated: {len(hashes)} files")
@@ -542,10 +542,10 @@ class PreprocessingCache:
 
 
 # Singleton instance
-_cache_instance: Optional[PreprocessingCache] = None
+_cache_instance: PreprocessingCache | None = None
 
 
-def get_cache(cache_dir: Optional[Path] = None, max_size_mb: int = PreprocessingCache.DEFAULT_MAX_SIZE_MB) -> PreprocessingCache:
+def get_cache(cache_dir: Path | None = None, max_size_mb: int = PreprocessingCache.DEFAULT_MAX_SIZE_MB) -> PreprocessingCache:
     """Get or create the singleton cache instance."""
     global _cache_instance
 
