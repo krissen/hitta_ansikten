@@ -34,6 +34,22 @@ deliverables, DoD) för en prestandarelease.
     negativt måste ratt-fasen ritas om (absoluta rattar med ändlägen,
     X-TOUCH Editor i VM, eller ingen ratt-fas) — ett ägarbeslut, inte ett
     tyst val. **Kör E4 först av alla.**
+  - [x] **Loggmätning av namnfördelningen** (`backend/benchmarks/label_usage.py`,
+    körs med `python -m benchmarks.label_usage`). Mätt på
+    `attempt_stats.jsonl` (7 785 bilder, 2025-06-07 → 2026-07-17): `ignorerad`
+    är 42 % av 25 009 etiketter, topp-8 globalt täcker bara 38 % av 203 namn,
+    men topp-16 **inom en shoot** täcker 97 %. Konsekvenserna — namnknappar
+    scopade till arbetsmängden, alla 16 knapparna till namn (åtgärder flyttar
+    till rattryckens note 0–7), och `ignorera` som den mest lättträffade
+    kontrollen — står i [docs/dev/midi.md](docs/dev/midi.md).
+  - [ ] **Öppen fråga: instrumentering av åtgärdsfrekvens.**
+    `attempt_stats.jsonl` loggar *utfall*, inte tangenttryck — schemat
+    (`core/attempts.py`, `log_attempt_stats`) saknar navigation, vybyten,
+    gallringsåtgärder och vilken tangent som trycktes. **Namnfrekvens är
+    alltså mätt, åtgärdsfrekvens är det inte**, och tabellen i midi.md får
+    inte läsas som en rangordning av handlingar. Att rangordna åtgärder
+    kräver ny instrumentering. **Bygg den inte nu** — noterad så att frågan
+    inte tappas, inte som beställd uppgift.
   - [ ] Övriga fynd med konsekvens: E1 avgör om Ansikten kan dela enheten med
     Lightroom + MIDI2LR, E5 avgör om ingångsfiltrering av egengenererade
     meddelanden behövs (TX note 0–15 krockar numeriskt med RX note 0–15),
