@@ -60,6 +60,31 @@ export const HANDOFFS = {
 };
 
 /**
+ * Intent types the router handles directly — the cases of the switch in `run`
+ * below. Kept beside HANDOFFS so the two together describe everything dispatch
+ * accepts.
+ */
+const CORE_INTENT_TYPES = [
+  'enter-step',
+  'open-module',
+  'open-workflow-step',
+  'reset-layout',
+  'reset-all-layouts',
+  'load-layout',
+];
+
+/**
+ * Every intent type dispatch accepts. Exported so a caller that declares intents
+ * as data (the action catalog) can be validated against the router rather than
+ * carrying a second copy of the list.
+ * @type {readonly string[]}
+ */
+export const ROUTER_INTENT_TYPES = Object.freeze([
+  ...CORE_INTENT_TYPES,
+  ...Object.keys(HANDOFFS),
+]);
+
+/**
  * Run one hand-off: (optionally signal an external load, so a downstream
  * adopt-on-mount skips a redundant scanScope-driven count), morph into the
  * step, wait for the target module to subscribe, then emit the payload.
