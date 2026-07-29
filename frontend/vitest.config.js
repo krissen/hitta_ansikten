@@ -18,6 +18,11 @@ export default defineConfig({
     // test still fails — 20 s later instead of 5 s. Nothing sits out the clock
     // deliberately.
     testTimeout: 20000,
+    // Same reasoning for hooks (default 10 s). Several suites do the module's
+    // `await import(...)` inside beforeAll to control mock ordering, so the hook
+    // pays the transform cost for a whole component tree — the one-time cost the
+    // contention multiplies hardest.
+    hookTimeout: 20000,
   },
   esbuild: {
     jsx: 'automatic',
