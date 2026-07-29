@@ -21,7 +21,7 @@ import { TrashPanel } from './TrashPanel.jsx';
 import { CullingGrid } from './CullingGrid.jsx';
 import { gridThumbnailCache } from '../shared/grid-thumbnail-cache.js';
 import { gridNavTarget } from './culling-grid-nav.js';
-import { preferences } from '../workspace/preferences.js';
+import { preferences, DEFAULT_EXTERNAL_EDITOR } from '../workspace/preferences.js';
 import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
 import { getWorkingFolder } from '../shared/workingFolder.js';
 import { isTabsetActive } from '../hooks/useActiveTabset.js';
@@ -1251,17 +1251,19 @@ export function CullingModule({ node }) {
   const commitNameToggleRef = useRef(null);
   commitNameToggleRef.current = commitNameToggle;
 
-  // ----- open original NEF in Lightroom ------------------------------
+  // ----- open original NEF in the external editor --------------------
   // The developed JPEG and its source NEF share only the leading timestamp
   // token; the main process resolves it recursively under the configured RAW
-  // root and opens it in Lightroom (macOS). Failure surfaces on the error line.
+  // root and opens it in the configured editor (macOS). Failure surfaces on
+  // the error line.
   const openRawInLightroom = useCallback(async (imagePath) => {
     if (!imagePath) return;
-    // Default here too so the scanned root, the IPC payload, and any error
-    // message all agree even if the preference is unset or cleared.
+    // Defaults here too so the scanned root, the IPC payload, and any error
+    // message all agree even if a preference is unset or cleared.
     const rawRoot = preferences.get('paths.rawRoot') || '~/Pictures/nerladdat';
+    const editor = preferences.get('paths.externalEditor') || DEFAULT_EXTERNAL_EDITOR;
     try {
-      const res = await window.ansiktenAPI?.invoke('open-raw-in-lightroom', { imagePath, rawRoot });
+      const res = await window.ansiktenAPI?.invoke('open-raw-in-lightroom', { imagePath, rawRoot, editor });
       if (res?.ok) return;
       const reason = res?.reason;
       if (reason === 'not-found') {
@@ -1273,7 +1275,10 @@ export function CullingModule({ node }) {
       } else if (reason === 'unsupported-platform') {
         setError(t('culling.errors.unsupportedPlatform'));
       } else {
-        setError(t('culling.errors.lightroomFailed', { detail: res?.error ? `: ${res.error}` : '' }));
+        setError(t('culling.errors.editorFailed', {
+          editor: res?.editor || editor,
+          detail: res?.error ? `: ${res.error}` : ''
+        }));
       }
     } catch (err) {
       setError(err.message || String(err));
