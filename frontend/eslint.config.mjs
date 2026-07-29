@@ -67,17 +67,21 @@ export default [
     },
   },
 
-  // Main process, build scripts and other Node code.
+  // Main process, build scripts and other Node code. The standalone browser
+  // tools under scripts/ are excluded here: flat config *merges* globals
+  // rather than overriding them, so without this negation those files would
+  // carry both Node and browser globals and a stray Node-only API would lint
+  // clean in a file that only ever runs in Chrome.
   {
     files: ['src/main/**/*.js', 'scripts/**/*.js', 'main.js', '*.config.js', '*.config.mjs'],
+    ignores: ['scripts/midi-probe/**/*.js'],
     languageOptions: {
       globals: { ...globals.node },
     },
   },
 
   // Standalone browser tools under scripts/ (opened directly in Chrome, never
-  // bundled). Browser globals only — they never run under Node. Must come
-  // after the Node block above so it wins for these files.
+  // bundled). Browser globals only — they never run under Node.
   {
     files: ['scripts/midi-probe/**/*.js'],
     languageOptions: {
