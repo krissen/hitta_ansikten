@@ -58,7 +58,7 @@ module.exports = {
     "rename": "Byt namn",
     "cull": "Gallra",
     "undoLast": "Ångra senaste",
-    "openInLightroom": "Öppna i Lightroom"
+    "openInLightroom": "Öppna i extern editor"
   },
   "grid": {
     "overviewLabel": "Miniatyröversikt"

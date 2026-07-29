@@ -33,7 +33,7 @@ describe('i18n t()', () => {
     expect(t('menu.view.title')).toBe('Visa');
     expect(t('menu.window.title')).toBe('Fönster');
     expect(t('menu.help.title')).toBe('Hjälp');
-    expect(t('menu.file.openInLightroom')).toBe('Öppna i Lightroom');
+    expect(t('menu.file.openInLightroom')).toBe('Öppna original i extern editor');
     expect(t('menu.app.aboutDetail', { version: 'dev' })).toContain('Version: dev');
   });
 
