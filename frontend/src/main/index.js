@@ -605,14 +605,15 @@ ipcMain.handle("open-raw-in-lightroom", async (event, { imagePath, rawRoot, edit
 
   // `open -a` takes either an application name or a path to an .app bundle;
   // expand ~ so a path form works the same way rawRoot does.
-  let app = editor || "Adobe Lightroom Classic";
-  if (app.startsWith("~")) app = path.join(os.homedir(), app.slice(1));
+  // Named editorApp, not app: `app` is Electron's imported singleton.
+  let editorApp = editor || "Adobe Lightroom Classic";
+  if (editorApp.startsWith("~")) editorApp = path.join(os.homedir(), editorApp.slice(1));
 
   return await new Promise((resolve) => {
-    execFile("open", ["-a", app, match], (err) => {
+    execFile("open", ["-a", editorApp, match], (err) => {
       if (err) {
-        console.error(`[Main] Failed to open in "${app}":`, err.message);
-        resolve({ ok: false, reason: "open-failed", error: err.message, path: match, editor: app });
+        console.error(`[Main] Failed to open in "${editorApp}":`, err.message);
+        resolve({ ok: false, reason: "open-failed", error: err.message, path: match, editor: editorApp });
       } else {
         resolve({ ok: true, path: match });
       }
