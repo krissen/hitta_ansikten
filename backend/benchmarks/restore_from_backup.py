@@ -154,17 +154,22 @@ def process_entry(entry: dict, manifest: Manifest, counters: dict, clock: dict) 
 
     last_hash = None
     last_bytes = 0
-    used = None
+    last_cand = None
     for cand in entry["candidates"]:
         ok, err = dump_to(cand["snapshot"], cand["path"], tmp)
         if not ok:
             continue
         got = sha1_file(tmp)
+        # Stage the bytes now, while they are still the ones we just hashed.
+        # dump_to() opens tmp with "wb", so a later candidate — including one
+        # that fails — truncates it. Deferring the move to after the loop would
+        # stage whatever the last attempt left behind while the manifest
+        # recorded this candidate's hash and size.
+        os.replace(tmp, dest)
         last_hash = got
-        last_bytes = os.path.getsize(tmp)
+        last_bytes = os.path.getsize(dest)
+        last_cand = cand
         if got == sha1:
-            os.replace(tmp, dest)
-            used = cand
             rec = {
                 "sha1": sha1, "basename": basename, "staged_path": dest,
                 "expected_sha1": sha1, "restored_sha1": got, "verified": True,
@@ -178,19 +183,20 @@ def process_entry(entry: dict, manifest: Manifest, counters: dict, clock: dict) 
                 counters["done"] += 1
             _progress(counters, clock, entry)
             return
-    # No candidate matched the recorded hash: keep last dump (if any) as mismatch.
+    # No candidate matched the recorded hash: dest holds the last candidate that
+    # dumped successfully (staged inside the loop), so the provenance below is
+    # that candidate's — not candidates[0]'s.
+    if os.path.exists(tmp):
+        os.remove(tmp)
     if last_hash is not None:
-        os.replace(tmp, dest)
         rec = {
             "sha1": sha1, "basename": basename, "staged_path": dest,
             "expected_sha1": sha1, "restored_sha1": last_hash, "verified": False,
             "bytes": last_bytes, "face_count": entry["face_count"],
-            "archive_path": entry["candidates"][0]["path"], "snapshot": None,
+            "archive_path": last_cand["path"], "snapshot": last_cand["snapshot"],
             "note": "hash_mismatch",
         }
     else:
-        if os.path.exists(tmp):
-            os.remove(tmp)
         rec = {
             "sha1": sha1, "basename": basename, "staged_path": None,
             "expected_sha1": sha1, "restored_sha1": None, "verified": False,
