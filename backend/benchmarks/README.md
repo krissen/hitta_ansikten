@@ -69,6 +69,18 @@ staging directory and re-run `resolve.py` pointing at it. See the feasibility
 report's "Backup recovery procedure" section for the exact restic commands and
 the estimated data volume.
 
+`restore_from_backup.py` automates the bulk fetch: `restic dump` over ssh,
+streamed locally, every file SHA1-verified against the database, resumable via
+`_data/restore_manifest.json`. It is what performed the B2 restore.
+
+**It cannot be run as-is.** Its input, `_data/restore_worklist.json`, was
+generated ad hoc and never committed (`_data/` is gitignored).
+`resolve.py --json` already supplies three of the four fields it consumes
+(`sha1`, `recorded_basenames`, `face_count`); the missing one is `candidates`,
+the per-hash archive locations that came from `kosha find`. Rebuilding the
+worklist means joining those two, and no committed tool does that join. The
+script's docstring documents the expected shape.
+
 ## Model abstractions, cache & baseline (PR B2)
 
 On top of the B1 resolver sits a small model-evaluation core:

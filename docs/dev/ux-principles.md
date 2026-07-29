@@ -75,6 +75,13 @@ doing.
 - The pipeline steps, tools and continuation chain come from **one** source:
   `workflowSteps.js` (`WORKFLOW_STEPS`, `WORKFLOW_TOOLS`, `CONTINUE_BY_STEP`).
   The WorkflowBar renders them; never fork this list.
+- Actions follow the same rule as the steps: what a user can trigger is declared
+  once, in the action catalog (`workspace/actions/actionCatalog.js`). The
+  shortcuts overlay derives its sections from it (`shortcutSections.js`) instead
+  of carrying a parallel list. Adding a shortcut means adding an action, not
+  editing two files that can drift — and an action that is deliberately
+  undocumented in the overlay says so (`help: false`) rather than being absent.
+  See [Architecture](architecture.md) for the entry shape.
 - A module's placement is a property of the module, not of the moment — see the
   navigation rules. The same command always lands a module in the same kind of
   area.
