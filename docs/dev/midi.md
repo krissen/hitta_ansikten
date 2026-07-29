@@ -48,13 +48,20 @@ Notes that matter:
 - **`probe.js` is a classic script, not an ES module.** Chrome blocks
   `type="module"` over `file://` (opaque origin, CORS), which would defeat the
   double-click-and-go requirement. The file is one IIFE instead.
-- **If no permission prompt appears on `file://`**, serve the directory over
-  localhost and use that URL instead — permissions cannot always be granted to
-  an opaque origin:
+- **Open question: does `file://` actually get a MIDI permission prompt?**
+  Web MIDI needs a secure context, which `file://` nominally satisfies, but a
+  `file://` page has an *opaque* origin and Chrome cannot always persist a
+  permission grant to one. This was **not verified** — the page was tested over
+  `http://localhost`, because the tooling used to drive Chrome refuses
+  `file://` URLs. So the double-click-and-go path is plausible but unproven.
+  Settle it in the first minutes with the hardware; if no prompt appears,
+  serve the directory over localhost and use that URL instead:
   ```
   cd frontend/scripts/midi-probe && python3 -m http.server 8000
   # then open http://localhost:8000/probe.html
   ```
+  If localhost turns out to be required, say so here and stop presenting
+  `file://` as the primary route.
 - **SysEx** must be requested *before* connecting (checkbox), because it is a
   parameter of `requestMIDIAccess`. None of E1–E6 need it; it is there for the
   device-info message from `x-touch-mini-handson.md`.
@@ -105,7 +112,7 @@ one source directory reviewed on one date).
 
 | Measure | Value |
 | --- | --- |
-| Labels total | 25 009 |
+| Labels total | 25 009 (of 25 011 raw — see below) |
 | — of which `ignorerad` | **10 492 (42 %)** |
 | Reviews not `ok` (retry, skipped, no_faces, all_ignored) | 358 |
 | Unique names, whole corpus | 203 |
@@ -155,11 +162,17 @@ commands. Establishing which *actions* dominate would need new
 instrumentation, which is an open question in [ROADMAP.md](../../ROADMAP.md)
 and deliberately not built yet.
 
-Two smaller caveats. The 358 non-`ok` reviews are counted per attempt across
+**Two malformed labels are excluded, not silently ignored.** The raw label
+count is 25 011. Two entries carry an index prefix with an empty name
+(`"#7\n"`, `"#2\n"`) and are dropped; **25 009 is the count after that
+exclusion**, and the script prints the dropped count on its own line so the
+discrepancy is always visible rather than inferred. The same two entries
+explain the name count: 205 distinct label strings, minus the empty one, minus
+`ignorerad` — which is an action, not a person — gives 203 names.
+
+One further caveat: the 358 non-`ok` reviews are counted per attempt across
 the whole corpus (4.6 % of reviewed images) and say only that a review did not
-land cleanly on the first pass — not why. And two malformed labels carrying an
-index prefix with an empty name are dropped by the script; 25 009 is the count
-after that.
+land cleanly on the first pass — not why.
 
 ---
 
