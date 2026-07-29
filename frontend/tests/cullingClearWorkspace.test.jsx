@@ -191,45 +191,57 @@ describe('CullingModule — root chip removal', () => {
 });
 
 describe('CullingModule — clear cancels pending refreshes (Codex round 2)', () => {
+  // Driven off a fake clock: the debounce window is advanced exactly rather than
+  // slept through on the real clock, so the test neither depends on wall-clock
+  // margins nor spends REFRESH_DEBOUNCE_MS doing nothing.
   it('clearing while a folder-watch refresh is scheduled does not POST a null query', async () => {
-    let folderCb = null;
-    globalThis.window.ansiktenAPI = {
-      watchFolder: vi.fn(),
-      unwatchFolder: vi.fn(),
-      onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
-      invoke: vi.fn().mockResolvedValue([]),
-    };
-    const { container } = await mountCulling();
-    await loadFiles(['/p']);
+    vi.useFakeTimers();
+    try {
+      let folderCb = null;
+      globalThis.window.ansiktenAPI = {
+        watchFolder: vi.fn(),
+        unwatchFolder: vi.fn(),
+        onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
+        invoke: vi.fn().mockResolvedValue([]),
+      };
+      const { container } = await mountCulling();
+      await loadFiles(['/p']);
 
-    // Schedule a debounced folder-change refresh (its callback reads
-    // lastQueryRef.current at fire time — null after a clear → loadList(null)).
-    expect(typeof folderCb).toBe('function');
-    folderCb();
+      // Schedule a debounced folder-change refresh (its callback reads
+      // lastQueryRef.current at fire time — null after a clear → loadList(null)).
+      expect(typeof folderCb).toBe('function');
+      folderCb();
 
-    // Clear the workspace (Rensa) while that timer is pending.
-    const rensa = findButton(container, 'Rensa');
-    const filesBefore = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
-    await act(async () => {
-      fireEvent.click(rensa);
-      await Promise.resolve();
-    });
+      // Clear the workspace (Rensa) while that timer is pending.
+      const rensa = findButton(container, 'Rensa');
+      const filesBefore = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+      // Full macrotask flush rather than a counted microtask: every assertion
+      // below is negative, and a negative assertion cannot tell "the clear
+      // cancelled the refresh" from "the continuation never ran". Free here
+      // because the clock is already fake.
+      await act(async () => {
+        fireEvent.click(rensa);
+        await vi.advanceTimersByTimeAsync(0);
+      });
 
-    // Wait past the debounce window: the cancelled refresh must never fire.
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, REFRESH_MS + 100));
-    });
+      // Advance past the debounce window: the cancelled refresh must never fire.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(REFRESH_MS * 2);
+      });
 
-    const filesAfter = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
-    expect(filesAfter).toBe(filesBefore);
-    // Specifically: no /culling/files POST with a null/undefined body.
-    const nullBody = h.api.post.mock.calls.filter(
-      ([p, body]) => p.includes('/culling/files') && body == null
-    );
-    expect(nullBody).toHaveLength(0);
-    // Workspace stays cleared.
-    expect(container.querySelector('.culling-files li')).toBeNull();
-    expect(getScanScope()).toBeNull();
+      const filesAfter = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+      expect(filesAfter).toBe(filesBefore);
+      // Specifically: no /culling/files POST with a null/undefined body.
+      const nullBody = h.api.post.mock.calls.filter(
+        ([p, body]) => p.includes('/culling/files') && body == null
+      );
+      expect(nullBody).toHaveLength(0);
+      // Workspace stays cleared.
+      expect(container.querySelector('.culling-files li')).toBeNull();
+      expect(getScanScope()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

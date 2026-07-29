@@ -9,6 +9,16 @@
  * only runs under jsdom (Vitest); real browsers keep their native behaviour.
  */
 
+import { configure } from '@testing-library/react';
+
+// Testing Library gives waitFor/findBy a 1000 ms budget. The same CPU contention
+// that drove the per-test budget up (see testTimeout in vitest.config.js) can
+// starve a re-render past one second, which would only move the flake from
+// "test timed out" to "unable to find". These helpers poll, so a longer budget
+// cannot mask a race: a change that never lands still fails, and one that lands
+// in 20 ms still returns in 20 ms.
+configure({ asyncUtilTimeout: 10000 });
+
 // jsdom does not implement `window.matchMedia`. CanvasImageView uses it to track
 // device-pixel-ratio changes, so any component test that mounts the canvas viewer
 // (ImageViewer, CullingModule loupe, …) needs a minimal stub. Real browsers keep

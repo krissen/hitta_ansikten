@@ -41,6 +41,7 @@ import { t } from '../src/i18n/index.js';
 // behavior-neutral seam added for this fence (noted in the PR body).
 // ---------------------------------------------------------------------------
 import { FileQueueModule } from '../src/renderer/components/FileQueueModule.jsx';
+import { apiClient } from '../src/renderer/shared/api-client.js';
 import { naturalSortCompare } from '../src/renderer/components/fileQueue/queueUtils.js';
 import {
   getAutoLoadPreference,
@@ -275,6 +276,15 @@ beforeEach(() => {
     if (path.includes('/culling/restore')) return Promise.resolve({ restored: ['t1'] });
     return Promise.resolve({});
   });
+
+  // usePreprocessing's cache-priority effect schedules a 500 ms timer that
+  // calls apiClient.setPriorityCacheHashes(). The afterEach below runs
+  // vi.restoreAllMocks(), which strips the mockResolvedValue set at mock-factory
+  // time — so on a machine slow enough for a test to outlive that timer, the
+  // call returned undefined and the pending timer blew up. Re-arm the
+  // implementation every test so the timer always finds a working transport.
+  apiClient.batchDeleteCache.mockResolvedValue({});
+  apiClient.setPriorityCacheHashes.mockResolvedValue({});
 
   try { localStorage.clear(); } catch { /* ignore */ }
 
