@@ -575,7 +575,7 @@ export function PreferencesModule({ api }) {
       <TextField
         label={t('preferences.files.externalEditor.label')}
         hint={t('preferences.files.externalEditor.hint')}
-        value={prefs.paths?.externalEditor || DEFAULT_EXTERNAL_EDITOR}
+        value={prefs.paths?.externalEditor ?? ''}
         onChange={(v) => updatePref('paths.externalEditor', v)}
         placeholder={DEFAULT_EXTERNAL_EDITOR}
       />
