@@ -5,7 +5,6 @@ Provides statistical data and analytics for the workspace dashboard.
 """
 
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -23,7 +22,7 @@ router = APIRouter()
 class AttemptStat(BaseModel):
     """Statistics for a specific detection attempt configuration"""
     backend: str
-    upsample: Optional[int]
+    upsample: int | None
     scale_label: str
     scale_px: int
     used_count: int
@@ -37,14 +36,14 @@ class TopFace(BaseModel):
     """Person with face count"""
     name: str
     face_count: int
-    percentage: Optional[int] = None
+    percentage: int | None = None
 
 
 class RecentImage(BaseModel):
     """Recently processed image with detected people"""
     filename: str
     timestamp: str
-    person_names: List[str]
+    person_names: list[str]
     source: str = "cli"  # 'cli' or 'ansikten'
 
 
@@ -57,13 +56,13 @@ class LogLine(BaseModel):
 
 class StatisticsSummary(BaseModel):
     """Complete statistics summary for dashboard"""
-    attempt_stats: List[AttemptStat]
-    top_faces: List[TopFace]
+    attempt_stats: list[AttemptStat]
+    top_faces: list[TopFace]
     ignored_count: int
     ignored_total: int
     ignored_fraction: float
-    recent_images: List[RecentImage]
-    recent_logs: List[LogLine]
+    recent_images: list[RecentImage]
+    recent_logs: list[LogLine]
     total_files_processed: int
 
 
@@ -97,7 +96,7 @@ async def get_statistics_summary():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/statistics/attempt-stats", response_model=List[AttemptStat])
+@router.get("/statistics/attempt-stats", response_model=list[AttemptStat])
 async def get_attempt_stats():
     """
     Get just attempt statistics table
@@ -137,7 +136,7 @@ async def get_top_faces():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/statistics/recent-images", response_model=List[RecentImage])
+@router.get("/statistics/recent-images", response_model=list[RecentImage])
 async def get_recent_images(n: int = 3):
     """
     Get most recently processed images
@@ -157,7 +156,7 @@ async def get_recent_images(n: int = 3):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/statistics/recent-logs", response_model=List[LogLine])
+@router.get("/statistics/recent-logs", response_model=list[LogLine])
 async def get_recent_logs(n: int = 3):
     """
     Get most recent log entries
@@ -178,7 +177,7 @@ async def get_recent_logs(n: int = 3):
 
 
 @router.get("/statistics/processed-files")
-async def get_processed_files(n: int = 200, source: Optional[str] = None):
+async def get_processed_files(n: int = 200, source: str | None = None):
     """
     Get list of recently processed files for CLI use
 
@@ -209,14 +208,14 @@ async def get_processed_files(n: int = 200, source: Optional[str] = None):
 
 class FileStatsRequest(BaseModel):
     """Request body for file stats lookup"""
-    filenames: Optional[List[str]] = None
-    filepaths: Optional[List[str]] = None
+    filenames: list[str] | None = None
+    filepaths: list[str] | None = None
 
 
 class FileStatInfo(BaseModel):
     """Stats for a single file"""
     face_count: int
-    persons: List[str]
+    persons: list[str]
 
 
 @router.post("/statistics/file-stats")

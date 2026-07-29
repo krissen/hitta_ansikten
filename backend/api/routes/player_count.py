@@ -5,7 +5,7 @@ folder/glob/date-span selection.
 """
 
 import logging
-from typing import List, Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -20,27 +20,27 @@ router = APIRouter()
 class PlayerCountRequest(BaseModel):
     """Folder/glob/date-span selection plus counting options."""
 
-    roots: List[str] = []
-    globs: List[str] = []
-    extension_preset: Optional[str] = None  # 'jpg' | 'nef' | 'raw' | 'images' | 'all'
-    extensions: Optional[List[str]] = None  # explicit override, e.g. ['.jpg']
+    roots: list[str] = []
+    globs: list[str] = []
+    extension_preset: str | None = None  # 'jpg' | 'nef' | 'raw' | 'images' | 'all'
+    extensions: list[str] | None = None  # explicit override, e.g. ['.jpg']
     recursive: bool = True
-    date_from: Optional[str] = None  # YYYY-MM-DD or YYMMDD
-    date_to: Optional[str] = None
+    date_from: str | None = None  # YYYY-MM-DD or YYMMDD
+    date_to: str | None = None
     gap_minutes: int = 30
     baseline: Literal["median", "mean"] = "median"
     min_images: int = 3
     per_match: bool = False
-    tranare: Optional[List[str]] = None  # override coach exclusion list
-    publik: Optional[List[str]] = None  # override audience exclusion list
-    grupp: Optional[List[str]] = None  # override group-photo exclusion list
+    tranare: list[str] | None = None  # override coach exclusion list
+    publik: list[str] | None = None  # override audience exclusion list
+    grupp: list[str] | None = None  # override group-photo exclusion list
     # Session-only pins (GUI right-click moves): a pinned name is removed from
     # all exclusion sets and lands only in its pinned bucket. `spelare` also
     # bypasses min_images. Never persisted.
-    spelare: Optional[List[str]] = None
-    session_tranare: Optional[List[str]] = None
-    session_publik: Optional[List[str]] = None
-    session_grupp: Optional[List[str]] = None
+    spelare: list[str] | None = None
+    session_tranare: list[str] | None = None
+    session_publik: list[str] | None = None
+    session_grupp: list[str] | None = None
 
 
 class ExclusionConfigRequest(BaseModel):
@@ -53,11 +53,11 @@ class ExclusionConfigRequest(BaseModel):
     them unchanged.
     """
 
-    tranare: List[str]
-    publik: List[str]
-    grupp: Optional[List[str]] = None
-    always_grupp: Optional[List[str]] = None
-    always_publik: Optional[List[str]] = None
+    tranare: list[str]
+    publik: list[str]
+    grupp: list[str] | None = None
+    always_grupp: list[str] | None = None
+    always_publik: list[str] | None = None
 
 
 @router.get("/players/exclusions")

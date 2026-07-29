@@ -10,7 +10,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from api.services.db_store import get_db_store
 from core import fs_ops
@@ -58,7 +58,7 @@ DEFAULT_RENAME_CONFIG = {
 # EXIF and date extraction
 # ============================================================================
 
-def extract_exif_datetime(file_path: Path) -> Optional[datetime]:
+def extract_exif_datetime(file_path: Path) -> datetime | None:
     """
     Extract DateTimeOriginal from image EXIF data.
 
@@ -128,7 +128,7 @@ def extract_exif_datetime(file_path: Path) -> Optional[datetime]:
     return None
 
 
-def get_file_datetime(file_path: Path) -> Optional[datetime]:
+def get_file_datetime(file_path: Path) -> datetime | None:
     """
     Get file modification datetime.
 
@@ -146,7 +146,7 @@ def get_file_datetime(file_path: Path) -> Optional[datetime]:
         return None
 
 
-def extract_filename_datetime(fname: str) -> Optional[datetime]:
+def extract_filename_datetime(fname: str) -> datetime | None:
     """
     Extract datetime from filename pattern YYMMDD_HHMMSS.
 
@@ -167,7 +167,7 @@ def extract_filename_datetime(fname: str) -> Optional[datetime]:
     return None
 
 
-def get_prefix_datetime(file_path: Path, config: Dict[str, Any]) -> Optional[datetime]:
+def get_prefix_datetime(file_path: Path, config: dict[str, Any]) -> datetime | None:
     """
     Get datetime for prefix based on configuration.
 
@@ -228,7 +228,7 @@ _EXT_PATTERN = "|".join(re.escape(ext) for ext in SUPPORTED_EXTENSIONS)
 # Sidecar file handling
 # ============================================================================
 
-def find_sidecar_files(file_path: Path, extensions: List[str]) -> List[Path]:
+def find_sidecar_files(file_path: Path, extensions: list[str]) -> list[Path]:
     """
     Find sidecar files for a given image file.
 
@@ -272,7 +272,7 @@ def find_sidecar_files(file_path: Path, extensions: List[str]) -> List[Path]:
 # Utility functions (ported from hitta_ansikten.py)
 # ============================================================================
 
-def extract_prefix_suffix(fname: str) -> Tuple[Optional[str], Optional[str]]:
+def extract_prefix_suffix(fname: str) -> tuple[str | None, str | None]:
     """
     Extract timestamp prefix and extension suffix from filename.
 
@@ -310,7 +310,7 @@ def is_unrenamed(fname: str) -> bool:
     return bool(m)
 
 
-def split_fornamn_efternamn(namn: str) -> Tuple[str, str]:
+def split_fornamn_efternamn(namn: str) -> tuple[str, str]:
     """
     Split full name into first name and last name.
 
@@ -327,9 +327,9 @@ def split_fornamn_efternamn(namn: str) -> Tuple[str, str]:
 
 
 def resolve_fornamn_dubletter(
-    all_persons: List[str],
-    config: Optional[Dict[str, Any]] = None
-) -> Dict[str, str]:
+    all_persons: list[str],
+    config: dict[str, Any] | None = None
+) -> dict[str, str]:
     """
     Resolve first name collisions by adding surname initials.
 
@@ -359,8 +359,8 @@ def resolve_fornamn_dubletter(
         return {namn: namn.replace(" ", "_") for namn in set(all_persons) if namn}
 
     # Build map: first_name -> set of last names
-    fornamn_map: Dict[str, set] = {}
-    namn_map: Dict[str, Tuple[str, str]] = {}
+    fornamn_map: dict[str, set] = {}
+    namn_map: dict[str, tuple[str, str]] = {}
 
     for namn in set(all_persons):
         fornamn, efternamn = split_fornamn_efternamn(namn)
@@ -372,7 +372,7 @@ def resolve_fornamn_dubletter(
         namn_map[namn] = (fornamn, efternamn)
 
     # Determine short name for each person
-    kortnamn: Dict[str, str] = {}
+    kortnamn: dict[str, str] = {}
     for namn, (fornamn, efternamn) in namn_map.items():
         efternamnset = fornamn_map[fornamn] - {""}
         has_collision = len(efternamnset) > 1
@@ -402,7 +402,7 @@ def resolve_fornamn_dubletter(
     return kortnamn
 
 
-def build_new_filename(fname: str, personer: List[str], namnmap: Dict[str, str]) -> Optional[str]:
+def build_new_filename(fname: str, personer: list[str], namnmap: dict[str, str]) -> str | None:
     """
     Build new filename with person names (legacy function for compatibility).
     """
@@ -411,12 +411,12 @@ def build_new_filename(fname: str, personer: List[str], namnmap: Dict[str, str])
 
 def build_new_filename_with_config(
     fname: str,
-    personer: List[str],
-    namnmap: Dict[str, str],
-    file_path: Optional[Path],
-    config: Optional[Dict[str, Any]],
-    manual_suffix: Optional[str] = None
-) -> Optional[str]:
+    personer: list[str],
+    namnmap: dict[str, str],
+    file_path: Path | None,
+    config: dict[str, Any] | None,
+    manual_suffix: str | None = None
+) -> str | None:
     """
     Build new filename with person names using configuration.
 
@@ -534,11 +534,11 @@ def build_new_filename_with_config(
 
 
 def collect_persons_for_files(
-    filelist: List[str],
-    known_faces: Dict[str, List],
-    processed_files: Optional[List] = None,
-    attempt_log: Optional[List] = None
-) -> Dict[str, List[str]]:
+    filelist: list[str],
+    known_faces: dict[str, list],
+    processed_files: list | None = None,
+    attempt_log: list | None = None
+) -> dict[str, list[str]]:
     """
     Collect person names for each file from database and attempt log.
 
@@ -560,8 +560,8 @@ def collect_persons_for_files(
         Dict mapping full file path to list of person names in detection order.
     """
     # Build index for encodings.pkl: filename -> names, hash -> names
-    file_to_persons: Dict[str, List[str]] = {}
-    hash_to_persons: Dict[str, List[str]] = {}
+    file_to_persons: dict[str, list[str]] = {}
+    hash_to_persons: dict[str, list[str]] = {}
 
     for name, entries in known_faces.items():
         for entry in entries:
@@ -577,7 +577,7 @@ def collect_persons_for_files(
                         hash_to_persons[h].append(name)
 
     # Build hash map for current files - keyed by FULL PATH to avoid basename collisions
-    filehash_map: Dict[str, Optional[str]] = {}
+    filehash_map: dict[str, str | None] = {}
     for f in filelist:
         fpath = Path(f)
         if fpath.exists():
@@ -598,9 +598,9 @@ def collect_persons_for_files(
     if attempt_log is None:
         attempt_log = load_attempt_log()
 
-    stats_by_hash: Dict[str, List[str]] = {}
-    stats_by_name: Dict[str, List[str]] = {}
-    basename_count: Dict[str, int] = {}
+    stats_by_hash: dict[str, list[str]] = {}
+    stats_by_name: dict[str, list[str]] = {}
+    basename_count: dict[str, int] = {}
 
     for entry in attempt_log:
         fn = Path(entry.get("filename", "")).name
@@ -630,7 +630,7 @@ def collect_persons_for_files(
                         stats_by_name[fn] = persons
                         basename_count[fn] = basename_count.get(fn, 0) + 1
 
-    result: Dict[str, List[str]] = {}
+    result: dict[str, list[str]] = {}
     for f in filelist:
         fpath = Path(f)
         fname = fpath.name
@@ -670,7 +670,7 @@ def collect_persons_for_files(
 # Path validation
 # ============================================================================
 
-def validate_path_security(file_path: str) -> Tuple[bool, str]:
+def validate_path_security(file_path: str) -> tuple[bool, str]:
     """
     Validate a file path for security concerns.
 
@@ -727,16 +727,16 @@ class RenameService:
     def __init__(self):
         logger.info("[RenameService] Initializing...")
 
-    def get_default_config(self) -> Dict[str, Any]:
+    def get_default_config(self) -> dict[str, Any]:
         """Return default rename configuration."""
         return DEFAULT_RENAME_CONFIG.copy()
 
     def preview_rename(
         self,
-        file_paths: List[str],
+        file_paths: list[str],
         allow_renamed: bool = False,
-        config: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        config: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Generate preview of proposed renames without executing.
 
@@ -794,7 +794,7 @@ class RenameService:
         # Build a manual-suffix map keyed by full path (content-hash lookup).
         # A free-text suffix is NOT a person name and never touches the DB.
         from api.services.manual_suffix_service import get_manual_suffix
-        suffix_map: Dict[str, str] = {}
+        suffix_map: dict[str, str] = {}
         for fp in validated_paths:
             p = Path(fp)
             if p.exists():
@@ -922,10 +922,10 @@ class RenameService:
 
     def execute_rename(
         self,
-        file_paths: List[str],
+        file_paths: list[str],
         allow_renamed: bool = False,
-        config: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        config: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """
         Execute file renames.
 
@@ -1002,7 +1002,7 @@ class RenameService:
         }
 
 
-    def _update_database_paths(self, renamed_files: List[Dict[str, str]],
+    def _update_database_paths(self, renamed_files: list[dict[str, str]],
                                match: str = "basename") -> int:
         """
         Update database entries to reflect renamed files.

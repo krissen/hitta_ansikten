@@ -58,8 +58,7 @@ extend-exclude = [
 
 [tool.ruff.lint]
 # Explicit rule set: ruff's classic default (E4/E7/E9 + F) plus import
-# sorting (I). Pragmatic: keep the rule set to what the existing code
-# already satisfies after safe autofixes.
+# sorting (I) and the modern-typing family (UP006/UP035/UP045).
 #
 # Listed explicitly rather than as `extend-select = ["I"]` because the
 # implicit default set is version-dependent. Ruff 0.16.0 widened it and
@@ -67,7 +66,19 @@ extend-exclude = [
 # pytest, so the backend tests stopped running too). Pinning the set here
 # means a new ruff release can no longer silently change which rules apply;
 # adopting new rules is a deliberate edit to this list.
-select = ["E4", "E7", "E9", "F", "I"]
+#
+# The remaining rules ruff 0.16 would add by default (LOG015, G201, BLE001,
+# DTZ005, SIM102, RUF100, E402) are adopted family by family, not at once.
+select = [
+    "E4",
+    "E7",
+    "E9",
+    "F",
+    "I",
+    "UP006",  # List[x] -> list[x]
+    "UP035",  # deprecated typing imports
+    "UP045",  # Optional[x] -> x | None
+]
 
 [tool.ruff.lint.per-file-ignores]
 # server.py imports its routers after the FastAPI app is constructed to

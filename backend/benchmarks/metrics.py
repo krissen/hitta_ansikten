@@ -28,8 +28,8 @@ Metric families:
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Sequence
 
 import numpy as np
 

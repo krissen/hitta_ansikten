@@ -6,7 +6,7 @@ Endpoints for file operations including rename functionality.
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -29,53 +29,53 @@ router = APIRouter()
 class RenameConfig(BaseModel):
     """Configuration for rename operations."""
     # Prefix source: 'filename', 'exif', 'filedate'
-    prefixSource: Optional[str] = None
+    prefixSource: str | None = None
     # Fallback if EXIF missing: 'filedate', 'skip', 'original'
-    exifFallback: Optional[str] = None
+    exifFallback: str | None = None
     # Date pattern for formatting (Python strftime)
-    datePattern: Optional[str] = None
+    datePattern: str | None = None
     # Filename pattern template with variables: {prefix}, {names}, {ext}, {original}, {date}, {time}
-    filenamePattern: Optional[str] = None
+    filenamePattern: str | None = None
     # Name formatting
-    useFirstNameOnly: Optional[bool] = None
-    nameSeparator: Optional[str] = None
-    removeDiacritics: Optional[bool] = None
+    useFirstNameOnly: bool | None = None
+    nameSeparator: str | None = None
+    removeDiacritics: bool | None = None
     # Disambiguation
-    disambiguationStyle: Optional[str] = None  # 'initial' or 'full'
-    alwaysIncludeSurname: Optional[bool] = None
+    disambiguationStyle: str | None = None  # 'initial' or 'full'
+    alwaysIncludeSurname: bool | None = None
     # File handling
-    allowAlreadyRenamed: Optional[bool] = None
-    includeIgnoredFaces: Optional[bool] = None
+    allowAlreadyRenamed: bool | None = None
+    includeIgnoredFaces: bool | None = None
     # Sidecar files
-    renameSidecars: Optional[bool] = None  # Also rename associated sidecar files (XMP, etc)
-    sidecarExtensions: Optional[List[str]] = None  # Extensions to look for (case insensitive)
+    renameSidecars: bool | None = None  # Also rename associated sidecar files (XMP, etc)
+    sidecarExtensions: list[str] | None = None  # Extensions to look for (case insensitive)
 
 
 class RenamePreviewRequest(BaseModel):
-    file_paths: List[str]
+    file_paths: list[str]
     allow_renamed: bool = False
-    config: Optional[RenameConfig] = None
+    config: RenameConfig | None = None
 
 
 class RenamePreviewItem(BaseModel):
     original_path: str
     original_name: str
-    new_name: Optional[str] = None
-    persons: List[str]
+    new_name: str | None = None
+    persons: list[str]
     status: str  # 'ok', 'no_persons', 'already_renamed', 'conflict', 'file_not_found', 'build_failed'
-    conflict_with: Optional[str] = None
-    sidecars: List[str] = []  # List of sidecar files that will be renamed
+    conflict_with: str | None = None
+    sidecars: list[str] = []  # List of sidecar files that will be renamed
 
 
 class RenamePreviewResponse(BaseModel):
-    items: List[RenamePreviewItem]
-    name_map: Dict[str, str]  # full_name -> short_name mapping
+    items: list[RenamePreviewItem]
+    name_map: dict[str, str]  # full_name -> short_name mapping
 
 
 class RenameExecuteRequest(BaseModel):
-    file_paths: List[str]
+    file_paths: list[str]
     allow_renamed: bool = False
-    config: Optional[RenameConfig] = None
+    config: RenameConfig | None = None
 
 
 class SidecarRenameResult(BaseModel):
@@ -86,7 +86,7 @@ class SidecarRenameResult(BaseModel):
 class RenameResult(BaseModel):
     original: str
     new: str
-    sidecars: List[SidecarRenameResult] = []  # Sidecar files that were renamed
+    sidecars: list[SidecarRenameResult] = []  # Sidecar files that were renamed
 
 
 class SkippedFile(BaseModel):
@@ -100,16 +100,16 @@ class ErrorFile(BaseModel):
 
 
 class RenameExecuteResponse(BaseModel):
-    renamed: List[RenameResult]
-    skipped: List[SkippedFile]
-    errors: List[ErrorFile]
+    renamed: list[RenameResult]
+    skipped: list[SkippedFile]
+    errors: list[ErrorFile]
     db_entries_updated: int = 0  # Number of database entries updated to reflect new paths
 
 
 class RenameConfigResponse(BaseModel):
     """Response containing default rename configuration."""
-    config: Dict[str, Any]
-    presets: Dict[str, Dict[str, str]]
+    config: dict[str, Any]
+    presets: dict[str, dict[str, str]]
 
 
 class ManualSuffixRequest(BaseModel):
@@ -120,7 +120,7 @@ class ManualSuffixRequest(BaseModel):
 
 class ManualSuffixResponse(BaseModel):
     """Stored suffix state plus the normalized preview."""
-    hash: Optional[str] = None
+    hash: str | None = None
     suffix: str  # normalized (filesystem-safe) form
     raw: str     # stored raw text (empty when cleared)
 

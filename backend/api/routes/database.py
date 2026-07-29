@@ -9,7 +9,6 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
-from typing import List
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -32,7 +31,7 @@ class PersonProfile(BaseModel):
 class PersonName(BaseModel):
     name: str
 
-@router.get("/database/people", response_model=List[PersonProfile])
+@router.get("/database/people", response_model=list[PersonProfile])
 async def get_people():
     """
     Get list of all people in database
@@ -48,7 +47,7 @@ async def get_people():
         logger.error(f"[Database] Error fetching people: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/database/people/names", response_model=List[str])
+@router.get("/database/people/names", response_model=list[str])
 async def get_people_names():
     """
     Get list of all person names in database (for autocomplete)

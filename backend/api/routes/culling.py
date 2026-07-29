@@ -5,7 +5,6 @@ restore them via the app-managed trash.
 """
 
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -18,22 +17,22 @@ router = APIRouter()
 
 
 class CullingFilesRequest(BaseModel):
-    roots: List[str] = []
-    globs: List[str] = []
-    extension_preset: Optional[str] = "jpg"
+    roots: list[str] = []
+    globs: list[str] = []
+    extension_preset: str | None = "jpg"
     recursive: bool = True
-    date_from: Optional[str] = None
-    date_to: Optional[str] = None
-    player: Optional[str] = None
-    name_glob: Optional[str] = None
+    date_from: str | None = None
+    date_to: str | None = None
+    player: str | None = None
+    name_glob: str | None = None
 
 
 class TrashRequest(BaseModel):
-    paths: List[str]
+    paths: list[str]
 
 
 class RestoreRequest(BaseModel):
-    ids: List[str]
+    ids: list[str]
 
 
 class RenameRequest(BaseModel):
@@ -42,7 +41,7 @@ class RenameRequest(BaseModel):
 
 
 class EmptyRequest(BaseModel):
-    ids: Optional[List[str]] = None
+    ids: list[str] | None = None
 
 
 class RetentionRequest(BaseModel):

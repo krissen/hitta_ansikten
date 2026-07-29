@@ -5,7 +5,6 @@ EXIF-based NEF renaming (YYMMDD_HHMMSS.NEF) with preview/confirm. See
 """
 
 import logging
-from typing import List
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -18,8 +17,8 @@ router = APIRouter()
 
 
 class RenameNefRequest(BaseModel):
-    roots: List[str] = []
-    globs: List[str] = []
+    roots: list[str] = []
+    globs: list[str] = []
     # Default off: rename only the chosen folder's top level, not subfolders.
     recursive: bool = False
     # Default off: already-named files (timestamp + name/burst suffix) are
@@ -58,8 +57,8 @@ async def execute(request: RenameNefRequest):
 
 
 class RestoreNamesRequest(BaseModel):
-    roots: List[str] = []
-    globs: List[str] = []
+    roots: list[str] = []
+    globs: list[str] = []
     recursive: bool = False
 
 
