@@ -75,6 +75,19 @@ config**. The 947 figure quoted above and in ROADMAP was taken under the *old*
 configuration, before the modern-typing family was adopted; it does not describe
 what is left. The measured total was 292.
 
+**How to measure a family — applies to every phase below.** Always measure with
+`--extend-select <RULE>` on top of the locked set, never with `--select`:
+
+```bash
+ruff check . --extend-select RUF100 --statistics   # correct
+ruff check . --select RUF100                       # wrong — replaces the set
+```
+
+`--select` *replaces* the rule set instead of extending it, so the rules that are
+normally on get switched off. Any `# noqa` naming one of them then looks unused
+and the count comes out too high. Measuring `RUF100` that way gave 30 and 24
+findings; the actual number under the project's configuration is 22.
+
 | PR | rules | count | character |
 |---|---|---|---|
 | 1.1a | `RUF100` | 22 | autofix, but **not** mechanical — see the noqa warning below. **Done** |
