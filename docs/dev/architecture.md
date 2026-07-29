@@ -214,6 +214,47 @@ state, and the face-box overlay (drawn via `drawOverlay`). The viewport math
 `shared/canvasViewport.js`; contain-fit geometry stays in `shared/fitTransform.js`.
 The same core is intended for reuse by the culling loupe.
 
+### Session Permission Model
+
+Browser permissions are **deny-by-default**. Without an explicit handler an
+Electron session falls back to the built-in default, which grants most requests
+(camera, microphone, geolocation, notifications) to whatever page it loads — a
+needlessly wide surface for a local `file://` workspace.
+
+`src/main/permissions.js` owns the policy; `installPermissionPolicies()` in
+`src/main/index.js` installs it on app ready, before any window loads content:
+
+| Session | Window | Allowed |
+|---------|--------|---------|
+| `persist:ansikten` | Workspace | `clipboard-sanitized-write` (copy-logs button in the log viewer) |
+| default session | Splash (sets no partition) | nothing |
+| any later session | — | nothing, via the `session-created` catch-all |
+
+The catch-all matters because the table above would otherwise only cover the
+two sessions that existed when it was written: a future `BrowserView`,
+`<webview>` or extra partition would be born on Electron's permissive default.
+`installSessionPermissionDefaults()` hooks `app.on('session-created')` and gives
+anything unrecognised an empty allowlist. Sessions that already carry a
+deliberate policy are skipped, so the two orders are both safe — the event fires
+synchronously inside `session.fromPartition()`, before the caller installs its
+allowlist, and the deliberate policy then overrides the catch-all. The default
+session exists before app ready and never fires the event, which is why it is
+named explicitly. Measured on a normal run (startup, workspace load, DevTools
+open), Electron creates exactly these two sessions and no hidden internal one.
+
+Two handlers are installed per session, `setPermissionRequestHandler` and
+`setPermissionCheckHandler`: Chromium consults the synchronous *check* before the
+asynchronous *request* on several paths, so installing only the request handler
+would leave the check on Electron's permissive default and make the outcome
+path-dependent. Both handlers share one decision function built from one
+allowlist, so they cannot drift apart. Denials are logged with the `[Main]`
+prefix (request denials always, check denials once per permission since checks
+can be polled), so a missing allowlist entry surfaces as a log line rather than a
+silent no-op. Adding a permission means adding it to the allowlist in
+`permissions.js` — nowhere else, and in the same change as the code that calls
+it: a permission granted ahead of its consumer is an open hole for as long as
+the consumer is missing.
+
 ### Module Communication
 
 Modules communicate via `ModuleAPI`:
