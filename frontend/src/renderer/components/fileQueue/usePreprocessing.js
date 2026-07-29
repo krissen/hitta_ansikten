@@ -237,8 +237,16 @@ export function usePreprocessing(queue, {
         .map(item => preprocessingStatus[item.filePath]?.hash)
         .filter(Boolean);
 
-      // Always send, even empty list to clear old priorities
-      apiClient.setPriorityCacheHashes(queueHashes).catch(() => {});
+      // Always send, even empty list to clear old priorities. This is a
+      // fire-and-forget call from a timer callback, so anything it throws
+      // synchronously would escape as an uncaught exception rather than a
+      // rejected promise — wrap it so a failing (or absent) transport can never
+      // take down the surrounding context.
+      try {
+        Promise.resolve(apiClient.setPriorityCacheHashes(queueHashes)).catch(() => {});
+      } catch {
+        /* cache priority is best-effort */
+      }
     }, 500);
 
     return () => {
