@@ -79,11 +79,13 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          // Cmd+, is the macOS convention for preferences. It lives here rather
-          // than on the Moduler entry so the platform shortcut sits where users
-          // expect it; Moduler keeps Cmd+Shift+P as a second route.
+          // Cmd+, is the macOS convention for preferences. Literal 'Cmd' rather
+          // than 'CmdOrCtrl': this whole submenu is mac-only, so the OrCtrl half
+          // would be unreachable and would read as if non-mac were covered here.
+          // Windows/Linux get the same key from the Arkiv menu (see below).
+          // Moduler keeps Cmd+Shift+P as a second route on every platform.
           label: t('menu.app.preferences'),
-          accelerator: 'CmdOrCtrl+,',
+          accelerator: 'Cmd+,',
           click: () => {
             sendMenuCommand('open-preferences');
           }
@@ -198,6 +200,18 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         ...(!isMac ? [
+          {
+            // Windows/Linux counterpart to the mac app menu's Inställningar.
+            // Ctrl+, is the preferences convention there too (VS Code, GNOME),
+            // and without this entry the key would be bound to nothing at all
+            // once it moved off Visa → Bildvisare.
+            label: t('menu.app.preferences'),
+            accelerator: 'Ctrl+,',
+            click: () => {
+              sendMenuCommand('open-preferences');
+            }
+          },
+          { type: 'separator' },
           {
             label: t('menu.file.quit'),
             accelerator: 'CmdOrCtrl+Q',

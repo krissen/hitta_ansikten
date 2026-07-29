@@ -146,9 +146,9 @@ Komplett referens för alla tangentbordsgenvägar i Ansikten.
 
 **Bildvisaren** har ingen genväg — den öppnas via **Visa → Bildvisare**.
 
-**Inställningar** nås både via `Cmd+,` (macOS-konventionen, i Ansikten-menyn)
-och `Cmd+Shift+P` (Moduler-menyn). På Windows/Linux finns bara `Ctrl+Shift+P`,
-eftersom appmenyn med `Ctrl+,` är macOS-specifik.
+**Inställningar** nås både via `Cmd+,` och `Cmd+Shift+P` (Moduler-menyn) på
+alla plattformar. Själva menyposten med `Cmd+,` ligger i Ansikten-menyn på
+macOS och i Arkiv-menyn på Windows/Linux, där genvägen skrivs `Ctrl+,`.
 
 ---
 
