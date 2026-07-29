@@ -39,8 +39,19 @@ from pathlib import Path
 
 DEFAULT_LOG = Path("~/.local/share/faceid/attempt_stats.jsonl").expanduser()
 
+try:
+    # Reuse the backend's canonical ignore-marker set when available.
+    from core.naming import IGNORE_MARKERS
+except Exception:  # pragma: no cover - fallback if run outside the backend tree
+    IGNORE_MARKERS = frozenset({"ignorerad", "ign", "okänt", "okant"})
+
 # The label the reviewer picks when a detected face should not be enrolled.
 # It is an *action*, not a person, and is counted separately everywhere.
+#
+# Every marker in IGNORE_MARKERS folds into this one bucket. Only "ignorerad"
+# occurs in the current corpus, but a log carrying "ign"/"okänt"/"okant" would
+# otherwise count them as people, inflating both the name count and top-N
+# coverage.
 IGNORE_LABEL = "ignorerad"
 
 # A review outcome of "ok" means the attempt was accepted. Anything else
@@ -49,17 +60,28 @@ IGNORE_LABEL = "ignorerad"
 OK_RESULT = "ok"
 
 
-def label_name(label: dict) -> str:
+def label_name(label: dict | str) -> str:
     """Extract the person name from one label entry.
 
     Labels are stored for display as ``"#3\\nElis Niemi"`` — an index prefix,
     a newline, then the name. A few malformed entries carry the prefix with an
     empty name; those are dropped by the caller.
+
+    Accepts a bare string as well as the usual dict, matching
+    ``core.db.extract_face_labels`` and ``core.naming``. The whole corpus is
+    dicts today, but the app's own helpers tolerate strings and a dict-only
+    reader would raise on the first one.
+
+    Any ignore marker is normalised to ``IGNORE_LABEL`` so the variants share
+    one bucket instead of being counted as people.
     """
-    text = label.get("label", "")
+    text = label.get("label", "") if isinstance(label, dict) else label
     if not isinstance(text, str):
         return ""
-    return text.split("\n")[-1].strip()
+    name = text.split("\n")[-1].strip()
+    if name.lower() in IGNORE_MARKERS:
+        return IGNORE_LABEL
+    return name
 
 
 def load_records(log_path: Path) -> list[dict]:
