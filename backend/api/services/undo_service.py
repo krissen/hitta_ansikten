@@ -31,7 +31,7 @@ from pathlib import Path
 # Backend root on sys.path to import the CLI core (mirrors the sibling services).
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from core import fs_ops  # noqa: E402
+from core import fs_ops
 
 logger = logging.getLogger(__name__)
 

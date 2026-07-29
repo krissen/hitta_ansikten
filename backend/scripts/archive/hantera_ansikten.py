@@ -12,7 +12,7 @@ from prompt_toolkit.completion import WordCompleter
 # Archived tool: add backend/ (three levels up) to sys.path so faceid_db resolves.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from faceid_db import (  # noqa: E402
+from faceid_db import (
     load_attempt_log,
     load_database,
     load_processed_files,

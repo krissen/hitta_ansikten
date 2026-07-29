@@ -270,7 +270,12 @@ def show_temp_image(
     preview_path: str | Path,
     config: dict[str, Any],
     image_path: str | Path | None = None,
-    last_shown: list[str | None] = [None],  # noqa: B006
+    # Deliberate mutable default: the one-slot list is call-to-call state, not a
+    # value. No caller passes it, so every call shares the same list and the last
+    # path shown survives between calls. Nothing reads it back today — it is only
+    # written at the end of this function — but the shared list is the point, so
+    # do not "fix" it into `None`.
+    last_shown: list[str | None] = [None],
 ) -> None:
     """
     Display a preview image in the configured viewer app.

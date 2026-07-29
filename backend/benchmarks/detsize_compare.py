@@ -24,7 +24,7 @@ import numpy as np
 # Allow running as a script from anywhere inside the repo.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from face_backends import InsightFaceBackend  # noqa: E402
+from face_backends import InsightFaceBackend
 
 RAW_EXTENSIONS = {".nef", ".cr2", ".arw", ".raf", ".dng", ".orf", ".rw2"}
 MAX_DIMENSION = 4500  # Production downscales detection input to this long side.
