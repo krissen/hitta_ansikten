@@ -215,9 +215,13 @@ describe('CullingModule — clear cancels pending refreshes (Codex round 2)', ()
       // Clear the workspace (Rensa) while that timer is pending.
       const rensa = findButton(container, 'Rensa');
       const filesBefore = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+      // Full macrotask flush rather than a counted microtask: every assertion
+      // below is negative, and a negative assertion cannot tell "the clear
+      // cancelled the refresh" from "the continuation never ran". Free here
+      // because the clock is already fake.
       await act(async () => {
         fireEvent.click(rensa);
-        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(0);
       });
 
       // Advance past the debounce window: the cancelled refresh must never fire.

@@ -247,8 +247,15 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       expect(container.querySelector('.player-count-refreshing')).not.toBeNull();
 
       // Remove the only chip → empty clear branch must fence the in-flight refresh.
+      //
+      // advanceTimersByTimeAsync(0) rather than a bare act(): it flushes a whole
+      // macrotask, not just the microtask queue. Everything asserted from here
+      // on is negative, and a negative assertion cannot tell "the fence held"
+      // from "the continuation never ran" — so the flush must not silently
+      // depend on how many awaits runCount happens to have before its seq check.
+      // Free under the fake clock.
       const remove = container.querySelector('.input-bar-chip-remove');
-      await act(async () => { fireEvent.click(remove); });
+      await act(async () => { fireEvent.click(remove); await vi.advanceTimersByTimeAsync(0); });
       expect(container.querySelector('.input-bar-chip-remove')).toBeNull();
 
       // Fynd 4: the clear releases the refresh spinner even though the fenced
@@ -257,7 +264,7 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       expect(container.querySelector('.player-count-refreshing')).toBeNull();
 
       // The stale refresh resolves AFTER the clear: it must NOT repopulate.
-      await act(async () => { resolveRefresh(populated); });
+      await act(async () => { resolveRefresh(populated); await vi.advanceTimersByTimeAsync(0); });
 
       expect(getScanScope()).toBeNull();
       // Empty-state prompt is (still) shown — the late response did not repopulate.
@@ -300,8 +307,9 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       postMock.mockClear();
 
       // Remove the only chip → empty clear branch must clearTimeout the refresh.
+      // Full macrotask flush, for the same reason as the sister test above.
       const remove = container.querySelector('.input-bar-chip-remove');
-      await act(async () => { fireEvent.click(remove); });
+      await act(async () => { fireEvent.click(remove); await vi.advanceTimersByTimeAsync(0); });
       expect(container.querySelector('.input-bar-chip-remove')).toBeNull();
 
       // Advance past the debounce window: the cancelled refresh must never POST.
