@@ -278,12 +278,19 @@ active tabset. The interaction and navigation rules are codified in
 
 ### Action catalog
 
-`workspace/actions/actionCatalog.js` declares every user-triggerable action as
-data. It exists because the semantics of "what a user can do" otherwise live only
-inside four independent keyboard listeners (`useKeyboardShortcuts.js`,
+`workspace/actions/actionCatalog.js` declares user-triggerable actions as data.
+It exists because the semantics of "what a user can do" otherwise live inside
+four independent keyboard listeners (`useKeyboardShortcuts.js`,
 `review/useReviewKeyboard.js`, `CullingModule.jsx`, `FlexLayoutWorkspace.jsx`),
 with the shortcuts-help overlay keeping a hand-maintained copy of the same list —
 two sources that drift, and no place to ask "which actions exist?".
+
+**Coverage today is those four keyboard listeners.** The app menu
+(`src/main/menu.js` → `menu-command` IPC → `flexlayout/menuCommands.js`) is a
+third way to trigger an action, and its roughly two dozen menu-only actions
+(`Cmd+S` save-all, theme switching, layout templates, the `Cmd+Shift+<letter>`
+module accelerators) are **not** in the catalog yet — see
+[ROADMAP.md](../../ROADMAP.md).
 
 Each entry declares:
 
@@ -293,7 +300,7 @@ Each entry declares:
 | `owner` | Module id from `moduleRegistry.js` that performs it, or `null` |
 | `section` | Shortcuts-help section (`SECTIONS`) |
 | `titleKey` | i18n key — never a resolved string, so the catalog is import-safe |
-| `keys` | Keyboard bindings |
+| `keys` | Keyboard bindings; a `×2` suffix means a double-tap |
 | `kind` | `trigger` (discrete), `range` (absolute value), `delta` (signed change) |
 | `scope` | `global` (window focus), `module` (owner mounted), `destructive` (mounted, left out of default mappings) |
 | `route` | `{ via: 'emit', event }` (moduleAPI) or `{ via: 'dispatch', intent }` (command router), or `null` |
@@ -303,6 +310,17 @@ The catalog is pure data — no React, no i18n resolution, no import side effect
 so it is unit-testable (`tests/actionCatalog.test.js`) and readable by non-UI
 code. `SHORTCUT_SECTIONS` is derived from it, guarded by a characterization test
 (`tests/shortcutSections.test.js`) that locks the overlay's exact output.
+
+Route targets are validated, not just their shape: an `emit` event must have a
+subscriber **and** something in the app must still send it (a legacy event that
+is only still listened for is not a target), and a dispatch `intent.type` must be
+one of `ROUTER_INTENT_TYPES`, exported from `workspaceCommands.js`. An intent
+that leaves a field to the caller declares it with `fills: ['moduleId']`, so a
+template is distinguishable from an omission.
+
+A property with one bus event per state (face boxes on/off, single/all,
+auto-center, file info) is **two** actions, one per state — the bus has no toggle
+event — and the keyboard key that toggles is listed on both.
 
 `route: null` marks an action that no bus can reach yet because it is implemented
 inline in a keyboard listener. Migrating those listeners onto the catalog is
