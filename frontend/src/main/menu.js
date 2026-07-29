@@ -79,7 +79,13 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          // Cmd+, is the macOS convention for preferences. Literal 'Cmd' rather
+          // than 'CmdOrCtrl': this whole submenu is mac-only, so the OrCtrl half
+          // would be unreachable and would read as if non-mac were covered here.
+          // Windows/Linux get the same key from the Arkiv menu (see below).
+          // Moduler keeps Cmd+Shift+P as a second route on every platform.
           label: t('menu.app.preferences'),
+          accelerator: 'Cmd+,',
           click: () => {
             sendMenuCommand('open-preferences');
           }
@@ -195,6 +201,18 @@ function createApplicationMenu(mainWindow) {
         { type: 'separator' },
         ...(!isMac ? [
           {
+            // Windows/Linux counterpart to the mac app menu's Inställningar.
+            // Ctrl+, is the preferences convention there too (VS Code, GNOME),
+            // and without this entry the key would be bound to nothing at all
+            // once it moved off Visa → Bildvisare.
+            label: t('menu.app.preferences'),
+            accelerator: 'Ctrl+,',
+            click: () => {
+              sendMenuCommand('open-preferences');
+            }
+          },
+          { type: 'separator' },
+          {
             label: t('menu.file.quit'),
             accelerator: 'CmdOrCtrl+Q',
             role: 'quit'
@@ -208,8 +226,9 @@ function createApplicationMenu(mainWindow) {
       label: t('menu.view.title'),
       submenu: [
         {
+          // No accelerator: Cmd+, moved to Inställningar in the app menu, where
+          // the macOS convention puts it. The image viewer stays reachable here.
           label: t('modules.image-viewer'),
-          accelerator: 'CmdOrCtrl+,',
           click: () => {
             sendMenuCommand('open-image-viewer');
           }
@@ -481,7 +500,7 @@ function createApplicationMenu(mainWindow) {
           //
           // "Helbild" is intentionally NOT here: it never mapped to a full-image
           // layout (its old action loaded the review layout), and a full image is
-          // already reachable via Visa → Bildvisare (Cmd+,), so keeping a
+          // already reachable via Visa → Bildvisare, so keeping a
           // mislabeled duplicate only confused. Comparison and Stats both carry
           // accurate labels and real layouts.
           label: t('menu.window.layoutTemplates'),
