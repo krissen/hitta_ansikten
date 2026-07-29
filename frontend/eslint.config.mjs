@@ -75,6 +75,16 @@ export default [
     },
   },
 
+  // Standalone browser tools under scripts/ (opened directly in Chrome, never
+  // bundled). Browser globals only — they never run under Node. Must come
+  // after the Node block above so it wins for these files.
+  {
+    files: ['scripts/midi-probe/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.browser },
+    },
+  },
+
   // Shared code that runs in both contexts (i18n, shared helpers).
   {
     files: ['src/i18n/**/*.js'],
