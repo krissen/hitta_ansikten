@@ -37,6 +37,13 @@ describe('i18n t()', () => {
     expect(t('menu.app.aboutDetail', { version: 'dev' })).toContain('Version: dev');
   });
 
+  it('resolves the external-editor strings (a typo would render the raw key)', () => {
+    expect(t('preferences.files.externalEditor.label')).toBe('Extern editor');
+    expect(t('preferences.files.externalEditor.hint')).toContain('.app');
+    expect(t('culling.errors.editorFailed', { editor: 'Capture One', detail: '' }))
+      .toContain('"Capture One"');
+  });
+
   it('selects the plural form by count', () => {
     expect(t('common.selectedCount', { count: 1 })).toBe('1 vald');
     expect(t('common.selectedCount', { count: 0 })).toBe('0 valda');
