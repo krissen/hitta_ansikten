@@ -33,7 +33,10 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
-    "ruff>=0.6",
+    # Upper bound: the lint rule set is pinned in [tool.ruff.lint], but cap
+    # the version too so a new minor cannot change autofix or parser
+    # behaviour unannounced. Raise deliberately, not by drift.
+    "ruff>=0.6,<0.17",
 ]
 build = [
     "pyinstaller>=6.0",
@@ -54,9 +57,17 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Defaults (E4/E7/E9 + F) plus import sorting (I). Pragmatic: keep the
-# rule set to what the existing code already satisfies after safe autofixes.
-extend-select = ["I"]
+# Explicit rule set: ruff's classic default (E4/E7/E9 + F) plus import
+# sorting (I). Pragmatic: keep the rule set to what the existing code
+# already satisfies after safe autofixes.
+#
+# Listed explicitly rather than as `extend-select = ["I"]` because the
+# implicit default set is version-dependent. Ruff 0.16.0 widened it and
+# broke CI with 947 findings in untouched code (the ruff step runs before
+# pytest, so the backend tests stopped running too). Pinning the set here
+# means a new ruff release can no longer silently change which rules apply;
+# adopting new rules is a deliberate edit to this list.
+select = ["E4", "E7", "E9", "F", "I"]
 
 [tool.ruff.lint.per-file-ignores]
 # server.py imports its routers after the FastAPI app is constructed to
