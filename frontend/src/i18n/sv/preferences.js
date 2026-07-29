@@ -119,10 +119,14 @@ module.exports = {
     }
   },
   "files": {
-    "cullingHeader": "Gallring / Lightroom",
+    "cullingHeader": "Gallring / extern editor",
     "rawRoot": {
       "label": "RAW-mapp (NEF)",
-      "hint": "Rot som söks rekursivt för original-NEF vid 'Öppna i Lightroom' (tangent L) i Gallra spelare. ~/ tillåtet."
+      "hint": "Rot som söks rekursivt för original-NEF vid 'Öppna i extern editor' (tangent L) i Gallra spelare. ~/ tillåtet."
+    },
+    "externalEditor": {
+      "label": "Extern editor",
+      "hint": "Appen som original-NEF:en öppnas i (tangent L). Appnamn eller sökväg till en .app; ~/ tillåtet. Endast macOS."
     },
     "queueHeader": "Filkö",
     "autoLoad": {

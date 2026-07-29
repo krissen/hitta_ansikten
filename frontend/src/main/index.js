@@ -610,8 +610,10 @@ ipcMain.handle("open-file-dialog", async () => {
 
 // Resolve the original NEF for a developed JPEG (shared only via the leading
 // `YYMMDD_HHMMSS[-N]` timestamp token — the files live in different trees and
-// don't share a full name) and open it in Adobe Lightroom. macOS-only.
-ipcMain.handle("open-raw-in-lightroom", async (event, { imagePath, rawRoot } = {}) => {
+// don't share a full name) and open it in the configured external editor.
+// macOS-only. (Channel name kept for compatibility; renaming it is its own
+// refactor across preload allowlist, menu and renderer.)
+ipcMain.handle("open-raw-in-lightroom", async (event, { imagePath, rawRoot, editor } = {}) => {
   if (process.platform !== "darwin") {
     return { ok: false, reason: "unsupported-platform" };
   }
@@ -630,7 +632,7 @@ ipcMain.handle("open-raw-in-lightroom", async (event, { imagePath, rawRoot } = {
     // Cached lookup: the RAW root is scanned once and reused across keystrokes.
     // The index keys files by their leading token and keeps each token's paths
     // sorted, so this returns the same deterministic "first" match the old
-    // per-keystroke scan did; Lightroom shows it in-folder so burst neighbours
+    // per-keystroke scan did; the editor shows it in-folder so burst neighbours
     // remain visible.
     match = await rawIndexCache.lookup(root, token);
   } catch (err) {
@@ -640,11 +642,17 @@ ipcMain.handle("open-raw-in-lightroom", async (event, { imagePath, rawRoot } = {
 
   if (!match) return { ok: false, reason: "not-found", token };
 
+  // `open -a` takes either an application name or a path to an .app bundle;
+  // expand ~ so a path form works the same way rawRoot does.
+  // Named editorApp, not app: `app` is Electron's imported singleton.
+  let editorApp = editor || "Adobe Lightroom Classic";
+  if (editorApp.startsWith("~")) editorApp = path.join(os.homedir(), editorApp.slice(1));
+
   return await new Promise((resolve) => {
-    execFile("open", ["-a", "Adobe Lightroom", match], (err) => {
+    execFile("open", ["-a", editorApp, match], (err) => {
       if (err) {
-        console.error("[Main] Failed to open in Lightroom:", err.message);
-        resolve({ ok: false, reason: "open-failed", error: err.message, path: match });
+        console.error(`[Main] Failed to open in "${editorApp}":`, err.message);
+        resolve({ ok: false, reason: "open-failed", error: err.message, path: match, editor: editorApp });
       } else {
         resolve({ ok: true, path: match });
       }

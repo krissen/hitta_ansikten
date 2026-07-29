@@ -10,7 +10,7 @@ den här filen är den löpande backlogen/known-issues/teknisk skuld över alla
 horisonter; `performance-plan.md` är en smalare, release-scopad plan (sprintar,
 deliverables, DoD) för en prestandarelease.
 
-**Senast uppdaterad:** 2026-07-18
+**Senast uppdaterad:** 2026-07-29
 
 ---
 
@@ -18,6 +18,45 @@ deliverables, DoD) för en prestandarelease.
 
 ### Nu
 
+- **MIDI-styrenhet (Behringer X-TOUCH MINI)** — en fysisk kontrollyta för
+  pipelinen. Mät- och beslutsunderlaget ligger i
+  [docs/dev/midi.md](docs/dev/midi.md); allt som rör hårdvarans faktiska
+  beteende ska mätas där innan det byggs, inte antas från fabriksmanualen.
+  - [x] **PR 0 — hårdvarusond + dokumentmall.** `frontend/scripts/midi-probe/`
+    (fristående Chrome-sida, inget byggsteg, buntas aldrig) plus
+    [docs/dev/midi.md](docs/dev/midi.md) med experiment E1–E6, tomma
+    resultattabeller och en fabrikskarta märkt **OVERIFIERAD**.
+  - [ ] **Kör E1–E6 när enheten anlänt.** Inga mätvärden är ifyllda ännu.
+    Fabrikskartan i doc:en är ett påstående att verifiera, inte facit.
+  - [ ] **Fas 6 (rattar) är grindad på E4.** E4 avgör om en skrivning till
+    encoderns LED-krans också flyttar dess interna räknare, dvs. om absoluta
+    rattar kan fås att bete sig relativt utan Windows-editorn. Faller E4 ut
+    negativt måste ratt-fasen ritas om (absoluta rattar med ändlägen,
+    X-TOUCH Editor i VM, eller ingen ratt-fas) — ett ägarbeslut, inte ett
+    tyst val. **Kör E4 först av alla.**
+  - [x] **Loggmätning av namnfördelningen** (`backend/benchmarks/label_usage.py`,
+    körs med `python -m benchmarks.label_usage`). Mätt på
+    `attempt_stats.jsonl` (7 785 bilder, 2025-06-07 → 2026-07-17): `ignorerad`
+    är 42 % av 25 009 etiketter, topp-8 globalt täcker bara 38 % av 203 namn,
+    men topp-16 **inom en shoot** täcker 97 % (median; 93 % i snitt, största
+    shooten 43 namn). Konsekvenserna — namnknappar
+    scopade till arbetsmängden, alla 16 knapparna till namn (åtgärder flyttar
+    till rattryckens note 0–7), och `ignorera` som den mest lättträffade
+    kontrollen — står i [docs/dev/midi.md](docs/dev/midi.md). Sexton knappar
+    räcker inte i de största shootsen; tangentbordet måste finnas kvar som
+    utväg.
+  - [ ] **Öppen fråga: instrumentering av åtgärdsfrekvens.**
+    `attempt_stats.jsonl` loggar *utfall*, inte tangenttryck — schemat
+    (`core/attempts.py`, `log_attempt_stats`) saknar navigation, vybyten,
+    gallringsåtgärder och vilken tangent som trycktes. **Namnfrekvens är
+    alltså mätt, åtgärdsfrekvens är det inte**, och tabellen i midi.md får
+    inte läsas som en rangordning av handlingar. Att rangordna åtgärder
+    kräver ny instrumentering. **Bygg den inte nu** — noterad så att frågan
+    inte tappas, inte som beställd uppgift.
+  - [ ] Övriga fynd med konsekvens: E1 avgör om Ansikten kan dela enheten med
+    Lightroom + MIDI2LR, E5 avgör om ingångsfiltrering av egengenererade
+    meddelanden behövs (TX note 0–15 krockar numeriskt med RX note 0–15),
+    E6 avgör att fokusgrinden måste vara mjukvara.
 - [ ] **Anta ruff 0.16:s nya regler (eget svep, egen PR)** — CI-stabiliseringen låste regeluppsättningen till `select = ["E4", "E7", "E9", "F", "I"]` i `backend/pyproject.toml` utan att röra kod (se [CHANGELOG.md](CHANGELOG.md)). Kvar står **947 fynd, varav 540 autofixbara** (`ruff check . --fix`; 45 ytterligare bakom `--unsafe-fixes`), fördelade: 287 UP006, 182 UP045, 120 LOG015, 112 E402, 65 BLE001, 41 UP035, 41 G201, 27 RUF100, 26 DTZ005, 17 SIM102. Svepet rör nästan varje backend-fil, så det ska ligga ensamt i sin PR och köras när övriga backend-PR:er landat. Regelgrupperna kräver olika behandling — UP006/UP035/UP045 (moderna typannoteringar) och SIM102 är rena autofixar; BLE001 (blint `except Exception`) och DTZ005 (naiv `datetime.now()`) är genomgångar med verkliga beslut per ställe; E402 kan behöva fler `per-file-ignores` av samma skäl som `api/server.py` redan har ett. Utöka `select` grupp för grupp i takt med att koden städas, inte i ett svep i konfigen.
 
 ### Kort sikt
@@ -73,7 +112,7 @@ deliverables, DoD) för en prestandarelease.
 - [ ] **`resolvePlacementTabset` ignorerar `getMaximizedTabset`** — en side-/bottom-modul som öppnas medan en tabset är maximerad dockar bakom den maximerade vyn (den nya panelen läggs i sin roll-tabset men syns inte förrän maximeringen släpps). Egen placeringsklass; åtgärdas i en senare placerings-PR. Nagelfar-fynd från #235, icke-blockerande.
 - [ ] **Reviews `ArrowUp`/`ArrowDown`-grenar saknar bareKey-guard** — Cmd+Pil i Granska både stegar ansikte OCH swappar panel (dubbelfyr). Annan klass än #241:s accelerator-svällning eftersom panel-swappen är en renderer-handler, inte en meny-accelerator. Följd: lägg samma bareKey-guard på pilgrenarna om Cmd+Pil ska vara exklusivt panel-swap. Nagelfar-not från #241-granskningen.
 - [ ] **Tomt-workspace-detektionen räknar border-parkerade flikar som innehåll.** Ett workspace med ENBART en parkerad flik (t.ex. sista riktiga fliken stängd medan filkön är parkerad i bakgrunds-kanten) visar varken välkomstkort eller suspenderar autohide. Osannolik kant, ärvd från empty-detektionen (#242), konsekvent med befintligt beteende; fix = räkna endast icke-border-flikar om kortet/suspenden ska trigga där. Nagelfar-not från #245.
-- [ ] **`Cmd+Shift+L` är dubbelbunden.** Acceleratorn `CmdOrCtrl+Shift+L` sitter på både **Arkiv → Öppna i Lightroom** (`open-raw-in-lightroom`) och **Fönster → Återställ layout** (`reset-layout`) i `frontend/src/main/menu.js` — vilken som fyrar vid samtidig aktivering är odefinierat. Pre-existerande kollision (Lightroom-posten kom i v1.7.0, reset-layout-posten är äldre); upptäckt vid docs-svepet inför v1.8.0. Fix: ge en av dem en egen accelerator (t.ex. flytta Öppna i Lightroom till `Cmd+Alt+L`) och uppdatera [workspace-guide.md](docs/user/workspace-guide.md) därefter.
+- [ ] **`Cmd+Shift+L` är dubbelbunden.** Acceleratorn `CmdOrCtrl+Shift+L` sitter på både **Arkiv → Öppna original i extern editor** (`open-raw-in-lightroom`) och **Fönster → Återställ layout** (`reset-layout`) i `frontend/src/main/menu.js` — vilken som fyrar vid samtidig aktivering är odefinierat. Pre-existerande kollision (editor-posten kom i v1.7.0, reset-layout-posten är äldre); upptäckt vid docs-svepet inför v1.8.0. Fix: ge en av dem en egen accelerator (t.ex. flytta Öppna original i extern editor till `Cmd+Alt+L`) och uppdatera [workspace-guide.md](docs/user/workspace-guide.md) därefter.
 
 ---
 
@@ -88,6 +127,7 @@ deliverables, DoD) för en prestandarelease.
 - [ ] **Undo av import-batchar (`move`/`copy`) stöds inte.** PR 2 ångrar bara `rename` (Codex rond 4). En import-**flytt** (`move`) är ofta cross-device (kort→disk); en ångring skulle sluta i `Path.rename` som kastar `EXDEV` över filsystemsgräns, så den skulle faila just i normalfallet — och att flytta tillbaka till ett ev. utmatat minneskort är tveksam semantik. En import-**kopia** (`copy`) skulle ångras genom att radera målkopian — men bara om den är byte-identisk med källan (annars kan användaren ha redigerat den) och källan fortfarande finns; radering är dessutom mer destruktiv än en flytt tillbaka. Framtida cross-device move-back (copy+verify+delete över device-gräns) och opt-in copy-undo med tydlig GUI-bekräftelse om behovet uppstår.
 - [ ] **`RenameService._update_database_paths` matchar på basename i framåtvägen.** Forward-namnbytet bygger en basename-map (gammalt→nytt basnamn) och skriver om varje DB-post vars fil-/namn-basename matchar, oavsett katalog — så ett namnbyte i en mapp kan råka skriva om en DB-post med samma basename i en annan mapp. Undo-callsiten kringgår detta via `match="fullpath"` (PR 2, Codex rond 2), men framåtvägen lämnades orörd eftersom den saknar en bättre nyckel vid det tillfället (bara basenamnen är kända där). Härda genom att träda igenom fulla sökvägar även i forward-flödet (`file_paths` → gammal fullständig sökväg per post) om/ när det rörs härnäst.
 - [ ] **`undo_file` rensar known+ignored per hash men inte `hard_negatives`** — en ångrad fil kan lämna kvar hårda negativ som refererar dess encodings. Pre-existerande (oförändrad av #149); avgör om undo även ska purga matchande hardneg-poster. Noterat i granskningen av #149.
+- [ ] **Fyra divergerande mekanismer för "ignorera"-markörer, varav en delvis död.** Samma begrepp — etiketter som betyder "detta är ingen person" — filtreras på fyra olika sätt: `core/naming.py` har numera den kanoniska mängden `IGNORE_MARKERS` (`ignorerad`, `ign`, `okänt`, `okant`); `core/db.py:507` (`extract_face_labels`) saknar `okant`; `api/services/rename_service.py:619` upprepar fyrmängden ordagrant; och `api/services/statistics_service.py:115` använder en helt annan mekanism. **Den sista är delvis trasig:** den matchar mot *hela* etiketten inklusive `#N\n`-prefixet, så `label.strip().lower() == "ign"` aldrig kan bli sant för en prefixad etikett — `ign`-grenen fires alltså aldrig — och `okänt`/`okant` saknas helt. Den vägen **underräknar ignoreringar** jämfört med de tre andra. Defekten är i dag latent: den nuvarande korpusen innehåller noll förekomster av `ign`/`okänt`/`okant` (verifierat mot `attempt_stats.jsonl` via `benchmarks/label_usage.py`), så statistiksiffrorna är opåverkade — men en korpus med dem skulle ge olika svar beroende på vilken kodväg som frågas. Konsolidera mot `core.naming.IGNORE_MARKERS` och lyft prefixstrippningen till en delad hjälpare; `statistics_service` behöver dessutom rätta prefixmatchningen, inte bara byta mängd. Egen PR — konsolideringen är en beteendeändring i tre app-kodvägar.
 - [ ] **Latenta buggar i faceid_db, pinnade av karakteriseringstesterna (#125):** (1) `normalize_encoding_entry` muterar input-dicten in place och returnerar samma objekt; (2) asymmetrisk `encoding_hash` — dict-grenen sätter bara nyckeln när `encoding is not None`, så manuella ansikten saknar den helt (KeyError-risk downstream) medan bare-array-grenen alltid sätter den; (3) `load_database` propagerar rå `UnpicklingError` vid korrupt/otillåten pickle — en trasig fil fäller hela laddningen. Åtgärdas lämpligen i fas C/D av auditen (core/db.py-flytten eller FaceDBStore).
 
 ### Frontend
@@ -95,6 +135,7 @@ deliverables, DoD) för en prestandarelease.
 - [ ] **FileQueueModule accepterar bara 3 av 9 RAW-format** — `SUPPORTED_EXTENSIONS` listar nef/cr2/arw men backend hanterar även cr3/dng/raf/orf/rw2/raw (`core/files.py RAW_EXTENSIONS`); filer i de formaten avvisas i kön trots att pipelinen klarar dem. Avgör om det smala setet är medvetet; synka annars mot backend. Noterat i granskningen av #137.
 - [ ] **`_classifyError(null, response)` gör en oavsiktlig dubbelklassificering** — på non-ok-svar i api-client kastar `_classifyError` internt en TypeError (err är null, `err.name` läses) som yttre catch sväljer och omklassificerar; slutresultatet blir rätt men via en olycksväg. Gör `_classifyError` null-säker (`err?.name`). Pre-existerande; noterat i granskningen av #138.
 - [ ] **Tailwind-utilities `text-success/-warning/-error/-info` krockar med legacy-klasserna med samma namn.** `theme.css` definierar `.text-success` m.fl. (färg via `--color-*-text`); Tailwind-lagret genererar utilities med identiska namn (färg via `--color-*`). Legacy vinner alltid (olagrad CSS > Tailwinds `@layer utilities`), så beteendet är oförändrat idag — men namnkrocken är en fälla. Städas när `.status`-/`.text-*`-lagret migreras till utilities (fas B): ta bort legacy-reglerna i samma PR, så pekar namnet entydigt på Tailwind-utilityn. Se [theming.md](docs/dev/theming.md) (Tailwind-lagret).
+- [ ] **`PreferencesManager.load()` persisterar inte migreringen — `migrate()` körs om vid varje start.** `load()` skriver aldrig tillbaka det migrerade resultatet, och `mergeWithDefaults` kopierar den *lagrade* versionen över defaultens. En installation med äldre lagrad version står därför kvar på det versionsnumret, och `migrate()` körs om vid varje appstart tills någon orelaterad skrivning råkar spara (`save()` stämplar `this.version`). Ofarligt så länge `migrate()` är en ren sammanslagning, som i dag — men det första icke-idempotenta per-versionssteget som läggs in i sömmen kommer att köras om. Metodens kommentar kräver därför uttryckligen idempotens. Riktig fix: `this.save()` efter migrering i `load()` — egen PR, eftersom den ändrar *när* preferenser först skrivs till disk (i dag skrivs de inte alls förrän användaren sparar något). Pre-existerande; Nagelfar-not från #252 (issue-004, icke-blockerande).
 - [ ] **Roving tabindex — kvar: Preferences/ThemeEditor-sidonav.** Det gemensamma mönstret beslutades och implementerades i B7 för den värsta listan, `FileQueueItem` (100+ rader): en enda roving-target-rad är tabbar (`tabIndex 0`), övriga `-1`, pilar flyttar markören; dokumenterat i [accessibility.md](docs/dev/accessibility.md) §2a. Kvar att migrera till samma mönster: Preferences- och ThemeEditor-sidonavens `role="button"`-rader (mindre listor, lägre risk). Ursprung: Nagelfar-granskningen av #174. Följdfråga från #178: överväg `role="option"`+`role="listbox"` i stället för `role="button"` på FileQueueItem-raderna — button-rollen tillåter formellt inga interaktiva ättlingar (checkbox/IconButtons; axe flaggar), medan option-modellen är valid; avgörs ihop med sidonav-migreringen.
 - [ ] **`InputBar` har kvar hårdkodad svenska.** Den delade `InputBar` (används av Räkna spelare m.fl.) har oöversatta strängar ("+ Mapp", wildcard-placeholder, "Från"/"Till", filtypspresets, titlar). B7 migrerade bara dess knappar till `Button`-primitiven (för alias-städningen), inte i18n:en — utanför B7:s modul-scope. Ge den ett eget namespace (t.ex. `inputBar`) nästa gång en modul som bäddar in den rörs. Noterat i B7.
 - [ ] **ImageViewer: tema-cache-invalidering är bredare än nödvändigt.** `MutationObserver`:n på `<html>` bevakar `style`-attributet för att fånga ThemeEditors live-preview (inline CSS-vars utan event), men det betyder att *varje* inline-var-skrivning på `<html>` (t.ex. `--toast-opacity`) invaliderar färgcachen och triggar en omritning — harmlös men onödig koppling. Föredra på sikt ett scopat `theme-vars-changed`-event som ThemeEditor (och andra var-skrivare) skickar explicit, så observern kan tas bort. Noterat i granskningen av #142 (Nagelfar issue-003).

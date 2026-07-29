@@ -196,7 +196,7 @@ om automatiskt, och tas den sista mappen bort töms arbetsytan.
 | `Esc` | **Enkelbild:** tillbaka till översikten (om inget redigeras). Annars: kasta förhandsgranskningens avbockade namn |
 | `Cmd+Enter` | Tillämpa avbockade namn från förhandsgranskningen (byter namn på filen) |
 | `Cmd+Z` | Ångra (återställ senast gallrade bild) |
-| `L` | Öppna aktuell bilds original-NEF i Lightroom (även högerklick-menyn) |
+| `L` | Öppna aktuell bilds original-NEF i den externa editorn (även högerklick-menyn) |
 
 I **rutnätet** är klick på ett spelarnamn i statistik-kolumnen lägesberoende:
 **enkelklick markerar** (highlightar) spelarens miniatyrer utan att filtrera bort
@@ -213,7 +213,7 @@ I **rutnätet** är klick på ett spelarnamn i statistik-kolumnen lägesberoende
 | `Cmd+Shift+B` | Byt namn (NEF) |
 | `Cmd+Shift+K` | Räkna spelare |
 | `Cmd+Shift+G` | Gallra spelare |
-| `Cmd+Shift+L` | Öppna i Lightroom (original-NEF för aktuell bild i Gallra spelare) |
+| `Cmd+Shift+L` | Öppna i extern editor (original-NEF för aktuell bild i Gallra spelare) |
 | `Cmd+,` | Inställningar |
 | `Cmd+S` | Spara ändringar |
 
@@ -495,10 +495,18 @@ antal.
 - **Layout** - Layoutmallar och rutnät
 - **Bildvisare** - Zoom, panorering
 - **Review** - Auto-save, bekräftelser, antal alternativ
-- **Files** - Kö, namnbyte
+- **Files** - RAW-mapp och extern editor, kö, namnbyte
 - **Preprocessing** - Bakgrundsbearbetning, cache, rolling window
 - **Dashboard** - Statistiksektioner
 - **Advanced** - Loggning, debug-kategorier
+
+### Extern editor (Files)
+
+`L` i Gallra spelare letar upp den visade bildens original-NEF under **RAW-mapp
+(NEF)** och öppnar den i appen som står i **Extern editor** (standard *Adobe
+Lightroom Classic* — Classic, eftersom bara den stöder MIDI-styrning). Fältet tar
+ett appnamn eller en sökväg till en `.app`. Går appen inte att öppna visas felet
+med appnamnet i Gallra spelare. Endast macOS.
 
 ### Rolling Window (Preprocessing)
 

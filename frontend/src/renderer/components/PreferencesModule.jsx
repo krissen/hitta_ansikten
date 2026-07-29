@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useId, useRef } from 'react';
-import { preferences } from '../workspace/preferences.js';
+import { preferences, DEFAULT_EXTERNAL_EDITOR } from '../workspace/preferences.js';
 import { themeManager } from '../theme-manager.js';
 import { getCategories, setCategories, resetCategories, debug, debugError } from '../shared/debug.js';
 import { t } from '../../i18n/index.js';
@@ -571,6 +571,13 @@ export function PreferencesModule({ api }) {
         value={prefs.paths?.rawRoot || '~/Pictures/nerladdat'}
         onChange={(v) => updatePref('paths.rawRoot', v)}
         placeholder="~/Pictures/nerladdat"
+      />
+      <TextField
+        label={t('preferences.files.externalEditor.label')}
+        hint={t('preferences.files.externalEditor.hint')}
+        value={prefs.paths?.externalEditor ?? ''}
+        onChange={(v) => updatePref('paths.externalEditor', v)}
+        placeholder={DEFAULT_EXTERNAL_EDITOR}
       />
 
       <SectionHeader title={t('preferences.files.queueHeader')} />
