@@ -351,18 +351,29 @@
 
   function onMidiMessage(event) {
     const bytes = event.data;
-    const now = performance.now();
+
+    // Rate must be sampled from ARRIVAL, not from handler time. This callback
+    // also builds a DOM row and runs the filter, so a clock read taken here
+    // folds our own main-thread cost into the measurement — and E3 turns the
+    // peak into a design budget. MIDIMessageEvent.timeStamp is a
+    // DOMHighResTimeStamp on the same clock as performance.now() and reflects
+    // when the message arrived. Fall back only if it is missing or zero.
+    const arrival =
+      Number.isFinite(event.timeStamp) && event.timeStamp > 0
+        ? event.timeStamp
+        : performance.now();
 
     totalReceived += 1;
-    rateSamples.push(now);
+    rateSamples.push(arrival);
 
     const decoded = decode(bytes);
     trackControl(decoded, bytes);
 
     // Echo detection (E5): did we just send something that looks like this?
+    // Compares arrival against send time — both on the performance.now() clock.
     const echo = sentRecently.some(
       (s) =>
-        now - s.at < ECHO_WINDOW_MS &&
+        arrival - s.at < ECHO_WINDOW_MS &&
         s.statusByte === bytes[0] &&
         s.data1 === (bytes.length > 1 ? bytes[1] : null),
     );
@@ -579,7 +590,8 @@
     $('e3').addEventListener('click', () => {
       resetMeasurement(
         'E3: rensat. Vrid EN ratt långsamt hela vägen vänster, sedan hela vägen höger ' +
-          '(kolla min/max i tabellen). Vrid sedan så fort du kan och läs av topp-takten.',
+          '(kolla min/max i tabellen). Tryck sedan "Pausa logg" och vrid så fort du kan — ' +
+          'pausen stoppar bara loggraderna, min/max och takten fortsätter räknas.',
       );
     });
 

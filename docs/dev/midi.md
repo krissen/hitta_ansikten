@@ -313,10 +313,19 @@ budget for whatever handler sits behind the knob.
 3. Turn it slowly all the way clockwise, again continuing past the point where
    it stops changing. Read `Min` and `Max` from the device map table.
 4. Watch the log for whether values *wrap* (127 → 0) or *clip* (stay at 127).
-5. Press **Nollställ räknare + karta**, then spin the encoder as fast as you
-   can for ~5 seconds. Read **topp** (peak msg/s).
+5. Press **Nollställ räknare + karta**, then **Pausa logg**, then spin the
+   encoder as fast as you can for ~5 seconds. Read **topp** (peak msg/s).
+   Pausing matters: it stops the probe from building a DOM row per message,
+   which is the one part of the receive path likely to be slower than the
+   device. The rate counter and the min/max aggregate keep running while
+   paused, so nothing is lost.
 6. Repeat step 5 with all eight encoders moving (or as many as you can turn at
    once) for a worst-case rate.
+
+The rate is sampled from `MIDIMessageEvent.timeStamp` — message *arrival* —
+not from the moment the handler runs, so it measures the device rather than
+the page. Even so, treat a suspiciously low peak as a question about the probe
+before accepting it as a fact about the hardware.
 
 **Results.**
 
