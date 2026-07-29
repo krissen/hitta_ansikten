@@ -3,6 +3,8 @@ import {
   WORKSPACE_PERMISSIONS,
   createPermissionDecider,
   applyPermissionPolicy,
+  hasPermissionPolicy,
+  installSessionPermissionDefaults,
 } from '../src/main/permissions.js';
 
 /** Minimal stand-in for an Electron session. */
@@ -94,5 +96,65 @@ describe('applyPermissionPolicy — both session handlers', () => {
     expect(() => s.requestHandler({}, 'media', callback)).not.toThrow();
     expect(callback).toHaveBeenCalledWith(false);
     expect(s.checkHandler(null, 'media', null)).toBe(false);
+  });
+});
+
+/** Minimal stand-in for the Electron `app` object. */
+function fakeApp() {
+  const listeners = {};
+  return {
+    on(event, fn) {
+      listeners[event] = fn;
+    },
+    emitSessionCreated(session) {
+      listeners['session-created']?.(session);
+    },
+  };
+}
+
+describe('installSessionPermissionDefaults — sessions born closed', () => {
+  it('grants nothing to a session nobody configured', () => {
+    const app = fakeApp();
+    installSessionPermissionDefaults(app, () => {});
+
+    const s = fakeSession();
+    app.emitSessionCreated(s);
+
+    const callback = vi.fn();
+    s.requestHandler({}, 'midi', callback, {});
+    expect(callback).toHaveBeenCalledWith(false);
+    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(false);
+  });
+
+  it('leaves a deliberately configured session alone (event after policy)', () => {
+    const app = fakeApp();
+    installSessionPermissionDefaults(app, () => {});
+
+    const s = fakeSession();
+    applyPermissionPolicy(s, { label: 'workspace', allowed: ['clipboard-sanitized-write'], log: () => {} });
+    app.emitSessionCreated(s);
+
+    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(true);
+  });
+
+  it('lets a deliberate policy override the catch-all (event before policy)', () => {
+    const app = fakeApp();
+    installSessionPermissionDefaults(app, () => {});
+
+    // This is the real order: session.fromPartition() creates the session —
+    // firing the event — and only then does the caller install its allowlist.
+    const s = fakeSession();
+    app.emitSessionCreated(s);
+    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(false);
+
+    applyPermissionPolicy(s, { label: 'workspace', allowed: ['clipboard-sanitized-write'], log: () => {} });
+    expect(s.checkHandler({}, 'clipboard-sanitized-write', 'file://')).toBe(true);
+  });
+
+  it('tracks which sessions carry a policy', () => {
+    const s = fakeSession();
+    expect(hasPermissionPolicy(s)).toBe(false);
+    applyPermissionPolicy(s, { label: 'test', allowed: [], log: () => {} });
+    expect(hasPermissionPolicy(s)).toBe(true);
   });
 });

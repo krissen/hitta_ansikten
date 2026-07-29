@@ -68,6 +68,21 @@ function createPermissionDecider({ label, allowed = [], log = console.log }) {
   };
 }
 
+// Sessions that already carry a policy. Lets the catch-all listener leave a
+// deliberately-configured session alone regardless of which order the two run
+// in (see installSessionPermissionDefaults).
+const configured = new WeakSet();
+
+/**
+ * Does this session already have a policy installed?
+ *
+ * @param {Electron.Session} targetSession
+ * @returns {boolean}
+ */
+function hasPermissionPolicy(targetSession) {
+  return configured.has(targetSession);
+}
+
 /**
  * Install the deny-by-default handlers on a session.
  *
@@ -78,6 +93,7 @@ function createPermissionDecider({ label, allowed = [], log = console.log }) {
  */
 function applyPermissionPolicy(targetSession, options) {
   const decide = createPermissionDecider(options);
+  configured.add(targetSession);
 
   targetSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const origin = details?.requestingUrl || webContents?.getURL?.();
@@ -92,8 +108,35 @@ function applyPermissionPolicy(targetSession, options) {
   return decide;
 }
 
+/**
+ * Close every session the app creates from now on, including ones this file
+ * does not know about (a future BrowserView, <webview> or extra partition).
+ *
+ * Without this the policy would only cover the two sessions that happened to
+ * exist when it was written, and any later partition would be born on
+ * Electron's permissive default. New sessions get an empty allowlist: a
+ * session nobody has thought about is exactly the one that should grant
+ * nothing, and the denial log line says which one to add if that is wrong.
+ *
+ * Sessions with a deliberate policy are skipped, so this is order-independent
+ * — whether the event fires before or after installPermissionPolicies() runs,
+ * the deliberate allowlist wins and is never clobbered by the catch-all.
+ *
+ * @param {Electron.App} electronApp
+ * @param {(msg: string) => void} [log]
+ */
+function installSessionPermissionDefaults(electronApp, log = console.log) {
+  electronApp.on("session-created", (created) => {
+    if (hasPermissionPolicy(created)) return;
+    applyPermissionPolicy(created, { label: "unnamed", allowed: [], log });
+    log("[Main] Permission policy: new session created, granted nothing");
+  });
+}
+
 module.exports = {
   WORKSPACE_PERMISSIONS,
   createPermissionDecider,
   applyPermissionPolicy,
+  hasPermissionPolicy,
+  installSessionPermissionDefaults,
 };

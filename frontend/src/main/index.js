@@ -21,6 +21,7 @@ const { createRawIndexCache } = require("./raw-index");
 const {
   WORKSPACE_PERMISSIONS,
   applyPermissionPolicy,
+  installSessionPermissionDefaults,
 } = require("./permissions");
 
 // Lazily-built, TTL-cached filename index of the RAW root. Reused across the
@@ -270,13 +271,21 @@ function sendWorkspaceCommand(intent) {
  * Install deny-by-default permission policies on the app's sessions.
  *
  * Must run after app ready (sessions do not exist before that) and before any
- * window loads content. Two sessions are covered:
+ * window loads content. Two sessions get a deliberate policy:
  *  - persist:ansikten — the workspace window's partition.
  *  - the default session — the splash window sets no partition, so it lands
  *    here; it only shows a static status page and needs no permissions at all,
- *    which makes an empty allowlist the honest setting.
+ *    which makes an empty allowlist the honest setting. It exists before app
+ *    ready, so the session-created catch-all never sees it; it is named here.
+ *
+ * Anything else the app ever creates is covered by the catch-all, which grants
+ * nothing until someone deliberately lists it.
  */
 function installPermissionPolicies() {
+  // Catch-all first: any session created from here on is born closed, even one
+  // no code here names. Sessions given a deliberate policy below are skipped.
+  installSessionPermissionDefaults(app);
+
   applyPermissionPolicy(session.fromPartition("persist:ansikten"), {
     label: "workspace",
     allowed: WORKSPACE_PERMISSIONS,

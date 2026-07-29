@@ -228,6 +228,19 @@ needlessly wide surface for a local `file://` workspace.
 |---------|--------|---------|
 | `persist:ansikten` | Workspace | `clipboard-sanitized-write` (copy-logs button in the log viewer) |
 | default session | Splash (sets no partition) | nothing |
+| any later session | — | nothing, via the `session-created` catch-all |
+
+The catch-all matters because the table above would otherwise only cover the
+two sessions that existed when it was written: a future `BrowserView`,
+`<webview>` or extra partition would be born on Electron's permissive default.
+`installSessionPermissionDefaults()` hooks `app.on('session-created')` and gives
+anything unrecognised an empty allowlist. Sessions that already carry a
+deliberate policy are skipped, so the two orders are both safe — the event fires
+synchronously inside `session.fromPartition()`, before the caller installs its
+allowlist, and the deliberate policy then overrides the catch-all. The default
+session exists before app ready and never fires the event, which is why it is
+named explicitly. Measured on a normal run (startup, workspace load, DevTools
+open), Electron creates exactly these two sessions and no hidden internal one.
 
 Two handlers are installed per session, `setPermissionRequestHandler` and
 `setPermissionCheckHandler`: Chromium consults the synchronous *check* before the
