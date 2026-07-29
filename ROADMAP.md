@@ -16,6 +16,12 @@ deliverables, DoD) för en prestandarelease.
 
 ## Roadmap
 
+> **Sekvenserad plan för verktygskedjan, handlingskatalogen och testharnessen:**
+> [docs/dev/followup-plan-2026-07.md](docs/dev/followup-plan-2026-07.md). Den ordnar och
+> motiverar posterna om ruff-regeladoption, lint-täckning för `shared/`, ignore-markörerna,
+> appmenyn i katalogen, lyssnarmigreringen och testharness-skulden — som annars ligger
+> utspridda i listorna nedan. Posterna står kvar här; planen säger i vilken ordning och varför.
+
 ### Nu
 
 - **MIDI-styrenhet (Behringer X-TOUCH MINI)** — en fysisk kontrollyta för

@@ -290,7 +290,7 @@ The suite is small, so also test manually:
 - **One PR per thing** — one focused PR per discrete change; don't fold unrelated work together.
 - **Log TODOs immediately** — when the user adds work, or a gap is found, add it to [ROADMAP.md](ROADMAP.md) right away so it isn't lost with the session.
 - **Keep roadmap + changelog current** — every change updates [ROADMAP.md](ROADMAP.md) (the roadmap) and [CHANGELOG.md](CHANGELOG.md) `[Unreleased]` as part of the work, so any new session can resume from the docs alone.
-- **Two roadmap-like files, distinct roles** — [ROADMAP.md](ROADMAP.md) (repo root) is the living, forward-looking backlog / known-issues / tech-debt across all horizons; [docs/dev/performance-plan.md](docs/dev/performance-plan.md) is a narrower, release-scoped plan (sprints, deliverables, Definition of Done) for a performance release. General planning goes in ROADMAP.md; put sprint/DoD detail for a perf release in performance-plan.md.
+- **Two roadmap-like files, distinct roles** — [ROADMAP.md](ROADMAP.md) (repo root) is the living, forward-looking backlog / known-issues / tech-debt across all horizons; [docs/dev/performance-plan.md](docs/dev/performance-plan.md) is a narrower, release-scoped plan (sprints, deliverables, Definition of Done) for a performance release. General planning goes in ROADMAP.md; put sprint/DoD detail for a perf release in performance-plan.md. [docs/dev/followup-plan-2026-07.md](docs/dev/followup-plan-2026-07.md) is the same kind of narrower plan for the toolchain / action-catalog / test-harness block; like the perf plan it is meant to be finished and deleted, not maintained.
 
 ---
 
@@ -304,3 +304,4 @@ The suite is small, so also test manually:
 - [Accessibility](docs/dev/accessibility.md)
 - [Contributing](docs/dev/contributing.md)
 - [Performance Plan](docs/dev/performance-plan.md)
+- [Follow-up Plan 2026-07](docs/dev/followup-plan-2026-07.md)
