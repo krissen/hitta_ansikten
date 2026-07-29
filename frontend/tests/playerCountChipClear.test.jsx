@@ -49,6 +49,25 @@ import { clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 const countCalls = () =>
   postMock.mock.calls.filter(([url]) => url === '/api/v1/players/count');
 
+// Wait until a count has both fired AND had its response rendered.
+//
+// waitFor(countCalls().length === 1) only proves the POST was *issued* — the
+// response is still an unresolved promise at that point, and the module is
+// mid-count (isLoading true, hasRun false). Interacting with the chips in that
+// window races the response: on an idle machine the resolution lands between
+// the poll and the click, under load it does not, and the click then hits a
+// component in a different state than the test assumes. Settling on the
+// rendered outcome instead removes the window entirely.
+//
+// Not loading (the "Räknar…" indicator is gone) and hasRun (the "Räkna" prompt
+// that only renders while no count has completed is gone) together mean exactly
+// "the count landed".
+const settleCount = () =>
+  waitFor(() => {
+    expect(screen.queryByText('Räknar…')).toBeNull();
+    expect(screen.queryByText('Räkna', { selector: 'strong' })).toBeNull();
+  });
+
 describe('PlayerCountModule — chip removal publishes/clears scan scope', () => {
   beforeEach(() => {
     postMock.mockClear();
@@ -77,6 +96,7 @@ describe('PlayerCountModule — chip removal publishes/clears scan scope', () =>
   it('removing one chip recounts with the remaining root and reduces the shared scope', async () => {
     const { container } = render(<PlayerCountModule />);
     await waitFor(() => expect(countCalls().length).toBe(1));
+    await settleCount(); // …and let the adopt count's response render
     postMock.mockClear();
 
     const removes = container.querySelectorAll('.input-bar-chip-remove');
@@ -91,6 +111,7 @@ describe('PlayerCountModule — chip removal publishes/clears scan scope', () =>
   it('removing the last chip clears without a count and empties the shared scope', async () => {
     const { container } = render(<PlayerCountModule />);
     await waitFor(() => expect(countCalls().length).toBe(1));
+    await settleCount(); // …and let the adopt count's response render
 
     // Remove both chips one at a time.
     let removes = container.querySelectorAll('.input-bar-chip-remove');
@@ -98,6 +119,7 @@ describe('PlayerCountModule — chip removal publishes/clears scan scope', () =>
     await waitFor(() => {
       expect(container.querySelectorAll('.input-bar-chip-remove')).toHaveLength(1);
     });
+    await settleCount(); // the recount that removal triggered must land too
     postMock.mockClear();
 
     removes = container.querySelectorAll('.input-bar-chip-remove');
