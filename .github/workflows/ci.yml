@@ -74,9 +74,16 @@ jobs:
         working-directory: frontend
         run: npm run lint
 
+      # --reporter=verbose prints a duration per test. testTimeout is 20 s (see
+      # frontend/vitest.config.js) because jsdom component mounts measure 3-6 s
+      # on a contended runner while taking 10-100 ms idle. That headroom is
+      # necessary, but it is also room to drift into: without per-test times in
+      # the log, a test creeping from 100 ms toward 15 s is invisible until it
+      # crosses. Printing the times is the whole guard — read them when a run
+      # looks slow, rather than only when it goes red.
       - name: Run Vitest
         working-directory: frontend
-        run: npm test
+        run: npm test -- --reporter=verbose
 
       - name: Build workspace
         working-directory: frontend
