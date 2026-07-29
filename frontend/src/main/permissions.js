@@ -21,14 +21,16 @@
 /**
  * Permissions the workspace window is allowed to use.
  *
+ * Every entry must have a caller in the renderer today. A permission granted
+ * ahead of the code that needs it is an unguarded hole for as long as the
+ * caller is missing — add it in the same change as its consumer.
+ *
  * Audited against the renderer sources: nothing in the app calls
  * getUserMedia, the Geolocation API, the Notification API (toasts are
  * in-page React), the Fullscreen API or the File System Access API — those
  * are all denied, and denying them is not a regression.
  */
 const WORKSPACE_PERMISSIONS = Object.freeze([
-  // Web MIDI, for driving the workspace from a hardware control surface.
-  'midi',
   // navigator.clipboard.writeText() behind the "copy logs" button in
   // LogViewer; Chromium routes writeText through clipboard-sanitized-write.
   'clipboard-sanitized-write',

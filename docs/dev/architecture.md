@@ -226,7 +226,7 @@ needlessly wide surface for a local `file://` workspace.
 
 | Session | Window | Allowed |
 |---------|--------|---------|
-| `persist:ansikten` | Workspace | `midi` (Web MIDI control surface), `clipboard-sanitized-write` (copy-logs button in the log viewer) |
+| `persist:ansikten` | Workspace | `clipboard-sanitized-write` (copy-logs button in the log viewer) |
 | default session | Splash (sets no partition) | nothing |
 
 Two handlers are installed per session, `setPermissionRequestHandler` and
@@ -238,7 +238,9 @@ allowlist, so they cannot drift apart. Denials are logged with the `[Main]`
 prefix (request denials always, check denials once per permission since checks
 can be polled), so a missing allowlist entry surfaces as a log line rather than a
 silent no-op. Adding a permission means adding it to the allowlist in
-`permissions.js` — nowhere else.
+`permissions.js` — nowhere else, and in the same change as the code that calls
+it: a permission granted ahead of its consumer is an open hole for as long as
+the consumer is missing.
 
 ### Module Communication
 

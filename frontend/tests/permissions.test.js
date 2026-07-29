@@ -36,8 +36,10 @@ describe('permission policy — deny by default', () => {
     expect(decide('unknown')).toBe(false);
   });
 
-  it('allowlists midi and clipboard write for the workspace, nothing else', () => {
-    expect([...WORKSPACE_PERMISSIONS]).toEqual(['midi', 'clipboard-sanitized-write']);
+  it('allowlists clipboard write for the workspace, nothing else', () => {
+    // Every entry needs a caller in the renderer today; midi belongs in the
+    // change that actually calls requestMIDIAccess, not ahead of it.
+    expect([...WORKSPACE_PERMISSIONS]).toEqual(['clipboard-sanitized-write']);
   });
 
   it('logs each denied request and names the permission and origin', () => {
