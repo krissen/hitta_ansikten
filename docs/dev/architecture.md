@@ -214,6 +214,47 @@ state, and the face-box overlay (drawn via `drawOverlay`). The viewport math
 `shared/canvasViewport.js`; contain-fit geometry stays in `shared/fitTransform.js`.
 The same core is intended for reuse by the culling loupe.
 
+### Session Permission Model
+
+Browser permissions are **deny-by-default**. Without an explicit handler an
+Electron session falls back to the built-in default, which grants most requests
+(camera, microphone, geolocation, notifications) to whatever page it loads — a
+needlessly wide surface for a local `file://` workspace.
+
+`src/main/permissions.js` owns the policy; `installPermissionPolicies()` in
+`src/main/index.js` installs it on app ready, before any window loads content:
+
+| Session | Window | Allowed |
+|---------|--------|---------|
+| `persist:ansikten` | Workspace | `clipboard-sanitized-write` (copy-logs button in the log viewer) |
+| default session | Splash (sets no partition) | nothing |
+| any later session | — | nothing, via the `session-created` catch-all |
+
+The catch-all matters because the table above would otherwise only cover the
+two sessions that existed when it was written: a future `BrowserView`,
+`<webview>` or extra partition would be born on Electron's permissive default.
+`installSessionPermissionDefaults()` hooks `app.on('session-created')` and gives
+anything unrecognised an empty allowlist. Sessions that already carry a
+deliberate policy are skipped, so the two orders are both safe — the event fires
+synchronously inside `session.fromPartition()`, before the caller installs its
+allowlist, and the deliberate policy then overrides the catch-all. The default
+session exists before app ready and never fires the event, which is why it is
+named explicitly. Measured on a normal run (startup, workspace load, DevTools
+open), Electron creates exactly these two sessions and no hidden internal one.
+
+Two handlers are installed per session, `setPermissionRequestHandler` and
+`setPermissionCheckHandler`: Chromium consults the synchronous *check* before the
+asynchronous *request* on several paths, so installing only the request handler
+would leave the check on Electron's permissive default and make the outcome
+path-dependent. Both handlers share one decision function built from one
+allowlist, so they cannot drift apart. Denials are logged with the `[Main]`
+prefix (request denials always, check denials once per permission since checks
+can be polled), so a missing allowlist entry surfaces as a log line rather than a
+silent no-op. Adding a permission means adding it to the allowlist in
+`permissions.js` — nowhere else, and in the same change as the code that calls
+it: a permission granted ahead of its consumer is an open hole for as long as
+the consumer is missing.
+
 ### Module Communication
 
 Modules communicate via `ModuleAPI`:
@@ -275,6 +316,56 @@ flushes them in order. Placement of a freshly-opened tab is resolved from the
 module's `role` in `moduleRegistry.js` (`main`/`side`/`bottom`), never from the
 active tabset. The interaction and navigation rules are codified in
 [UX Principles](ux-principles.md).
+
+### Action catalog
+
+`workspace/actions/actionCatalog.js` declares user-triggerable actions as data.
+It exists because the semantics of "what a user can do" otherwise live inside
+four independent keyboard listeners (`useKeyboardShortcuts.js`,
+`review/useReviewKeyboard.js`, `CullingModule.jsx`, `FlexLayoutWorkspace.jsx`),
+with the shortcuts-help overlay keeping a hand-maintained copy of the same list —
+two sources that drift, and no place to ask "which actions exist?".
+
+**Coverage today is those four keyboard listeners.** The app menu
+(`src/main/menu.js` → `menu-command` IPC → `flexlayout/menuCommands.js`) is a
+third way to trigger an action, and its roughly two dozen menu-only actions
+(`Cmd+S` save-all, theme switching, layout templates, the `Cmd+Shift+<letter>`
+module accelerators) are **not** in the catalog yet — see
+[ROADMAP.md](../../ROADMAP.md).
+
+Each entry declares:
+
+| Field | Meaning |
+|-------|---------|
+| `id` | Stable `<area>.<action>` id; the key any binding refers to |
+| `owner` | Module id from `moduleRegistry.js` that performs it, or `null` |
+| `section` | Shortcuts-help section (`SECTIONS`) |
+| `titleKey` | i18n key — never a resolved string, so the catalog is import-safe |
+| `keys` | Keyboard bindings; a `×2` suffix means a double-tap |
+| `kind` | `trigger` (discrete), `range` (absolute value), `delta` (signed change) |
+| `scope` | `global` (window focus), `module` (owner mounted), `destructive` (mounted, left out of default mappings) |
+| `route` | `{ via: 'emit', event }` (moduleAPI) or `{ via: 'dispatch', intent }` (command router), or `null` |
+| `help` | `false` to omit from the overlay, or `{ keys, sep }` row overrides |
+
+The catalog is pure data — no React, no i18n resolution, no import side effects —
+so it is unit-testable (`tests/actionCatalog.test.js`) and readable by non-UI
+code. `SHORTCUT_SECTIONS` is derived from it, guarded by a characterization test
+(`tests/shortcutSections.test.js`) that locks the overlay's exact output.
+
+Route targets are validated, not just their shape: an `emit` event must have a
+subscriber **and** something in the app must still send it (a legacy event that
+is only still listened for is not a target), and a dispatch `intent.type` must be
+one of `ROUTER_INTENT_TYPES`, exported from `workspaceCommands.js`. An intent
+that leaves a field to the caller declares it with `fills: ['moduleId']`, so a
+template is distinguishable from an omission.
+
+A property with one bus event per state (face boxes on/off, single/all,
+auto-center, file info) is **two** actions, one per state — the bus has no toggle
+event — and the keyboard key that toggles is listed on both.
+
+`route: null` marks an action that no bus can reach yet because it is implemented
+inline in a keyboard listener. Migrating those listeners onto the catalog is
+separate work; the catalog does not touch them.
 
 ---
 

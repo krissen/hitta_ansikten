@@ -27,15 +27,22 @@ module.exports = {
       addColumn: "Lägg till kolumn",
       removeColumn: "Ta bort kolumn",
       addRow: "Lägg till rad",
-      removeRow: "Ta bort rad"
+      removeRow: "Ta bort rad",
+      groupAsTab: "Gruppera panel som flik i riktningen",
+      moveToNewTabset: "Flytta panel till ny kolumn/rad"
     },
     viewer: {
       zoom: "Zooma in/ut (håll för kontinuerlig)",
       reset: "Återställ till 1:1",
       autoFit: "Anpassa till fönster",
       toggleBoxes: "Visa/dölj markeringsramar",
+      boxesHide: "Dölj markeringsramar",
       toggleSingleAll: "Växla enstaka/alla ramar",
-      autoCenter: "Växla autocentrering på ansikte"
+      boxesSingle: "Visa bara den markerade ramen",
+      autoCenter: "Växla autocentrering på ansikte",
+      autoCenterOff: "Stäng av autocentrering på ansikte",
+      toggleFileInfo: "Visa/dölj filinformation",
+      fileInfoHide: "Dölj filinformation"
     },
     review: {
       acceptMatch: "Acceptera föreslagen matchning",
@@ -49,7 +56,8 @@ module.exports = {
       undo: "Ångra senaste ansiktsåtgärd",
       deleteToTrash: "Flytta aktuell fil till papperskorgen",
       undoDelete: "Ångra radering",
-      cancel: "Avbryt ansiktssökning / kasta ändringar"
+      cancel: "Avbryt ansiktssökning / kasta ändringar",
+      addManualFace: "Lägg till ansikte manuellt"
     },
     queue: {
       openFiles: "Öppna filer",
@@ -67,6 +75,10 @@ module.exports = {
       autoFit: "Anpassa till fönster (enkelbild)",
       cull: "Gallra till papperskorgen",
       rename: "Byt namn på fil (dubbelklick)",
+      openLoupe: "Öppna markerad bild i lupp",
+      closeMenu: "Stäng snabbmenyn",
+      discardPendingNames: "Kasta pågående namnborttagningar",
+      exitLoupe: "Lämna luppen och återgå till rutnätet",
       applyRemovals: "Tillämpa namnborttagningar från förhandsgranskningen",
       undo: "Ångra senaste gallring",
       openLightroom: "Öppna original-NEF i extern editor"
@@ -74,6 +86,7 @@ module.exports = {
     general: {
       showHelp: "Visa den här hjälpen",
       reload: "Ladda om fönstret",
+      hardReload: "Ladda om fönstret (tvingad omladdning)",
       preferences: "Inställningar"
     }
   }
