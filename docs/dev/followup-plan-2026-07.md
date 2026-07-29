@@ -116,12 +116,20 @@ only one is safe to delete:
 - **(b) `noqa` for a rule outside `select`.** Removing it is correct per the
   rule, but the *justification* dies with the comment — and it is needed again
   the day that rule is adopted, which is precisely what this plan does. Read the
-  code, then preserve the reason as a plain comment before deleting the
-  directive. Do not guess the reason from the rule name.
+  code and establish what the construct actually does, then either preserve the
+  reason as a plain comment or, if there turns out to be no reason, delete the
+  construct. Do not guess the reason from the rule name, and do not write a
+  justification the code does not support: a comment that preserves a
+  misconception is worse than no comment, because it is what gets cited to put
+  the directive back.
 
 1.1a hit exactly one class (b) case: `# noqa: B006` on `last_shown` in
-`core/image.py`, marking a deliberate mutable default used as call-to-call
-state. Never run `--fix` over a `noqa` sweep without reading each removed line.
+`core/image.py`. It looked like a deliberate mutable default; reading the code
+showed the one-slot list is written at both exits of `show_temp_image` and never
+read — write-only since the function was first written. The parameter was
+deleted rather than annotated, which removes the violation instead of explaining
+it. **Deletion is a legitimate outcome of class (b), often the better one.**
+Never run `--fix` over a `noqa` sweep without reading each removed line.
 
 **Verification for every one of these**, established in #254/#255 and not
 optional:
