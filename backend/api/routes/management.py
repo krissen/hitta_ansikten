@@ -5,7 +5,6 @@ Provides database management operations for the workspace.
 """
 
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -23,16 +22,16 @@ router = APIRouter()
 class PersonEntry(BaseModel):
     name: str
     encoding_count: int
-    encodings_by_backend: Optional[dict] = None
+    encodings_by_backend: dict | None = None
 
 
 class DatabaseState(BaseModel):
-    people: List[PersonEntry]
+    people: list[PersonEntry]
     ignored_count: int
-    ignored_by_backend: Optional[dict] = None
+    ignored_by_backend: dict | None = None
     hard_negatives_count: int
     processed_files_count: int
-    backends_in_use: Optional[List[str]] = None
+    backends_in_use: list[str] | None = None
 
 
 class RenamePersonRequest(BaseModel):
@@ -42,9 +41,9 @@ class RenamePersonRequest(BaseModel):
 
 
 class MergePeopleRequest(BaseModel):
-    source_names: List[str]
+    source_names: list[str]
     target_name: str
-    backend_filter: Optional[str] = None
+    backend_filter: str | None = None
 
 
 class DeletePersonRequest(BaseModel):
@@ -53,13 +52,13 @@ class DeletePersonRequest(BaseModel):
 
 class MoveToIgnoreRequest(BaseModel):
     name: str
-    backend_filter: Optional[str] = None
+    backend_filter: str | None = None
 
 
 class MoveFromIgnoreRequest(BaseModel):
     count: int
     target_name: str
-    backend_filter: Optional[str] = None
+    backend_filter: str | None = None
 
 
 class UndoFileRequest(BaseModel):
@@ -69,20 +68,20 @@ class UndoFileRequest(BaseModel):
 class PurgeEncodingsRequest(BaseModel):
     name: str
     count: int
-    backend_filter: Optional[str] = None
+    backend_filter: str | None = None
 
 
 class OperationResponse(BaseModel):
     status: str
     message: str
-    warning: Optional[str] = None
-    encodings_by_backend: Optional[dict] = None
-    moved_by_backend: Optional[dict] = None
-    purged_by_backend: Optional[dict] = None
-    new_state: Optional[DatabaseState] = None
-    files_undone: Optional[List[str]] = None
-    removed_per_person: Optional[dict] = None
-    total_removed: Optional[int] = None
+    warning: str | None = None
+    encodings_by_backend: dict | None = None
+    moved_by_backend: dict | None = None
+    purged_by_backend: dict | None = None
+    new_state: DatabaseState | None = None
+    files_undone: list[str] | None = None
+    removed_per_person: dict | None = None
+    total_removed: int | None = None
 
 
 class DuplicatePair(BaseModel):
@@ -91,13 +90,13 @@ class DuplicatePair(BaseModel):
     distance: float
     count_a: int
     count_b: int
-    separability: Optional[float] = None
-    margin: Optional[float] = None
+    separability: float | None = None
+    margin: float | None = None
     likely_distinct: bool = False
 
 
 class FindDuplicatesResponse(BaseModel):
-    pairs: List[DuplicatePair]
+    pairs: list[DuplicatePair]
     threshold: float
     people_compared: int
 
@@ -113,7 +112,7 @@ class DistinctPairEntry(BaseModel):
 
 
 class DistinctPairsResponse(BaseModel):
-    pairs: List[DistinctPairEntry]
+    pairs: list[DistinctPairEntry]
     count: int
 
 
@@ -125,13 +124,13 @@ class PersonRedundancy(BaseModel):
 
 
 class RedundantEncodingsResponse(BaseModel):
-    people: List[PersonRedundancy]
+    people: list[PersonRedundancy]
     threshold: float
     total_redundant: int
 
 
 class DedupPeopleRequest(BaseModel):
-    names: List[str]
+    names: list[str]
     threshold: float = 0.0
     dry_run: bool = False
 
@@ -144,7 +143,7 @@ class DistinctPairOperationResponse(BaseModel):
 class RecentFile(BaseModel):
     """Recently processed file"""
     name: str
-    hash: Optional[str] = None  # Some legacy entries may lack hash
+    hash: str | None = None  # Some legacy entries may lack hash
 
 
 class StatsResponse(BaseModel):
@@ -451,7 +450,7 @@ async def purge_encodings(request: PurgeEncodingsRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/management/recent-files", response_model=List[RecentFile])
+@router.get("/management/recent-files", response_model=list[RecentFile])
 async def get_recent_files(n: int = 10):
     """
     Get last N processed files

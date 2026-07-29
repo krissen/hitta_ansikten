@@ -5,7 +5,6 @@ Keep in sync with types.ts when making changes.
 """
 
 from dataclasses import dataclass
-from typing import Optional, List
 from enum import Enum
 
 
@@ -31,7 +30,7 @@ class FaceAnnotation:
     """Manual face annotation from user."""
     image_path: str
     bbox: BoundingBox
-    person_name: Optional[str] = None
+    person_name: str | None = None
     confidence: float = 1.0  # Manual annotations have 100% confidence
 
 
@@ -40,9 +39,9 @@ class DetectedFace:
     """Face detected by ML backend."""
     image_path: str
     bbox: BoundingBox
-    person_name: Optional[str]
+    person_name: str | None
     confidence: float
-    encoding: Optional[List[float]] = None
+    encoding: list[float] | None = None
 
 
 @dataclass
@@ -52,7 +51,7 @@ class ImageStatus:
     status: FaceDetectionStatus
     faces_detected: int
     timestamp: float
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 @dataclass
@@ -70,23 +69,23 @@ class DetectedFaceResult:
     face_id: str
     bounding_box: BoundingBox
     confidence: float
-    person_name: Optional[str] = None
+    person_name: str | None = None
     is_confirmed: bool = False
-    match_case: Optional[str] = None
-    ignore_distance: Optional[float] = None
-    ignore_confidence: Optional[int] = None
-    match_alternatives: Optional[List[MatchAlternative]] = None
-    encoding_hash: Optional[str] = None
+    match_case: str | None = None
+    ignore_distance: float | None = None
+    ignore_confidence: int | None = None
+    match_alternatives: list[MatchAlternative] | None = None
+    encoding_hash: str | None = None
 
 
 @dataclass
 class DetectionResult:
     """Detection response payload for an image."""
     image_path: str
-    faces: List[DetectedFaceResult]
+    faces: list[DetectedFaceResult]
     processing_time_ms: float
     cached: bool = False
-    file_hash: Optional[str] = None
+    file_hash: str | None = None
 
 
 @dataclass
@@ -94,8 +93,8 @@ class ReviewedFace:
     """Reviewed face payload for mark-review-complete."""
     face_index: int
     face_id: str
-    encoding_hash: Optional[str] = None
-    person_name: Optional[str] = None
+    encoding_hash: str | None = None
+    person_name: str | None = None
     is_ignored: bool = False
 
 
@@ -103,5 +102,5 @@ class ReviewedFace:
 class MarkReviewCompleteRequest:
     """Request payload for marking a review complete."""
     image_path: str
-    reviewed_faces: List[ReviewedFace]
-    file_hash: Optional[str] = None
+    reviewed_faces: list[ReviewedFace]
+    file_hash: str | None = None

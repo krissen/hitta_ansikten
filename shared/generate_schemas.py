@@ -41,40 +41,34 @@ def main():
     # Import models from routes
     from api.routes.detection import (
         BoundingBox,
-        MatchAlternative,
+        ConfirmIdentityRequest,
+        ConfirmIdentityResponse,
         DetectedFace,
         DetectionRequest,
         DetectionResult,
-        ConfirmIdentityRequest,
-        ConfirmIdentityResponse,
         IgnoreFaceRequest,
         IgnoreFaceResponse,
-        ReviewedFace,
         MarkReviewCompleteRequest,
         MarkReviewCompleteResponse,
-    )
-    from api.routes.management import (
-        PersonEntry,
-        DatabaseState,
-        RenamePersonRequest,
-        MergePeopleRequest,
-        DeletePersonRequest,
-        OperationResponse,
-        StatsResponse,
+        MatchAlternative,
+        ReviewedFace,
     )
     from api.routes.files import (
         RenameConfig,
-        RenamePreviewRequest,
-        RenamePreviewItem,
-        RenamePreviewResponse,
         RenameExecuteRequest,
         RenameExecuteResponse,
+        RenamePreviewItem,
+        RenamePreviewRequest,
+        RenamePreviewResponse,
     )
-    from api.routes.statistics import (
-        AttemptStat,
-        TopFace,
-        RecentImage,
-        StatisticsSummary,
+    from api.routes.management import (
+        DatabaseState,
+        DeletePersonRequest,
+        MergePeopleRequest,
+        OperationResponse,
+        PersonEntry,
+        RenamePersonRequest,
+        StatsResponse,
     )
     from api.routes.preprocessing import (
         CacheStatusResponse,
@@ -82,10 +76,16 @@ def main():
         PreprocessResponse,
     )
     from api.routes.refinement import (
-        PreviewEntry,
-        PreviewResponse,
         ApplyRequest,
         ApplyResponse,
+        PreviewEntry,
+        PreviewResponse,
+    )
+    from api.routes.statistics import (
+        AttemptStat,
+        RecentImage,
+        StatisticsSummary,
+        TopFace,
     )
 
     # Core types

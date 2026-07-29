@@ -15,7 +15,7 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # Add backend dir to path to import shared core modules
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -75,7 +75,7 @@ class DetectionService:
 
         # LRU caches using OrderedDict (move_to_end on access, popitem(last=False) to evict)
         # Detection results cache (keyed by file hash + registry version)
-        self.cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self.cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
         # Store version the detection (match-result) cache was populated at. The
         # cache holds match SUGGESTIONS that depend on DB contents; when the
@@ -87,7 +87,7 @@ class DetectionService:
         # (encoding, bbox, file_hash, quality) where quality is a dict of the
         # proxy quality signals captured at detection time (see core.quality).
         self.encoding_cache: OrderedDict[
-            str, Tuple[np.ndarray, Dict[str, int], Optional[str], Optional[Dict[str, Any]]]
+            str, tuple[np.ndarray, dict[str, int], str | None, dict[str, Any] | None]
         ] = OrderedDict()
 
         # Enrollment-quality gate settings, resolved once at startup from config
@@ -104,7 +104,7 @@ class DetectionService:
         )
 
         # Image cache (keyed by image path) — stores (rgb_array, timestamp)
-        self.image_cache: OrderedDict[str, Tuple[np.ndarray, float]] = OrderedDict()
+        self.image_cache: OrderedDict[str, tuple[np.ndarray, float]] = OrderedDict()
         self.image_cache_ttl = 1800  # 30 minutes
 
     @staticmethod
@@ -116,7 +116,7 @@ class DetectionService:
         while len(cache) > max_size:
             cache.popitem(last=False)
 
-    def reload_database(self) -> Dict[str, Any]:
+    def reload_database(self) -> dict[str, Any]:
         """
         Reload face database from disk (via the store) and clear local caches.
 
@@ -197,7 +197,7 @@ class DetectionService:
             img = ImageOps.exif_transpose(Image.open(image_path))
             return np.array(img.convert('RGB'))
 
-    def _load_image_for_detection(self, image_path: Path) -> Tuple[np.ndarray, float]:
+    def _load_image_for_detection(self, image_path: Path) -> tuple[np.ndarray, float]:
         """Load pixels for DETECTION, allowing a fast half-size RAW decode.
 
         Returns ``(rgb, coord_scale)`` where ``coord_scale`` maps ``rgb``'s
@@ -238,7 +238,7 @@ class DetectionService:
             return rgb, coord_scale
         return self._load_image(image_path), 1.0
 
-    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: Optional[str] = None, coord_scale: float = 1.0) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: str | None = None, coord_scale: float = 1.0) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """Detect faces and match against database. Returns (faces, detection_meta).
 
         ``coord_scale`` maps the supplied ``rgb``'s pixel space back to the
@@ -432,7 +432,7 @@ class DetectionService:
         neg_distances = self.backend.compute_distances(hardneg, encoding)
         return float(np.min(neg_distances)) < threshold
 
-    def _match_encoding(self, encoding: np.ndarray) -> Tuple[Optional[str], Optional[float]]:
+    def _match_encoding(self, encoding: np.ndarray) -> tuple[str | None, float | None]:
         """Match encoding against known faces database.
 
         Scans the STRICT candidate set (explicit backend key equal to the active
@@ -502,7 +502,7 @@ class DetectionService:
             f"#{self._detection_strategy_token()}"
         )
 
-    def _cached_detection_meta(self, file_hash: Optional[str]) -> Tuple[Dict[str, Any], float]:
+    def _cached_detection_meta(self, file_hash: str | None) -> tuple[dict[str, Any], float]:
         """(detection_meta, processing_time_ms) from the detection cache, or ({}, 0)."""
         if file_hash:
             cached = self.cache.get(self._detection_cache_key(file_hash))
@@ -510,17 +510,17 @@ class DetectionService:
                 return cached.get("detection_meta", {}), cached.get("processing_time_ms", 0)
         return {}, 0
 
-    def _person_match_encodings(self, name: str) -> List[np.ndarray]:
+    def _person_match_encodings(self, name: str) -> list[np.ndarray]:
         """Usable encodings for `name` for the active backend (mirrors _match_encoding)."""
         return self._get_matching_index().person_lenient_rows(name)
 
     def _maybe_disambiguate_twins(
         self,
         encoding: np.ndarray,
-        match_alternatives: List[Dict[str, Any]],
-        match_case: Optional[str],
+        match_alternatives: list[dict[str, Any]],
+        match_case: str | None,
         distinct_pairs: set,
-    ) -> Optional[Tuple[str, Optional[float], List[Dict[str, Any]], Dict[str, Any]]]:
+    ) -> tuple[str, float | None, list[dict[str, Any]], dict[str, Any]] | None:
         """Apply the twin tie-break to one face, if it qualifies.
 
         Returns ``(chosen, chosen_distance, reordered_alternatives, info)`` when
@@ -569,7 +569,7 @@ class DetectionService:
 
     def _disambiguate_distinct_pair(
         self, encoding: np.ndarray, name_a: str, name_b: str, k: int
-    ) -> Optional[str]:
+    ) -> str | None:
         """Pick between two confirmed-distinct look-alikes via a k-NN vote.
 
         The default matcher already assigns by the single nearest encoding, so a
@@ -593,7 +593,7 @@ class DetectionService:
             return None
         return name_a if a_votes > b_votes else name_b
 
-    def _match_ignored(self, encoding: np.ndarray) -> Tuple[Optional[int], Optional[float]]:
+    def _match_ignored(self, encoding: np.ndarray) -> tuple[int | None, float | None]:
         """Match encoding against ignored faces database"""
         # Precompiled stacked matrix from the index (preserves the original
         # filtered order, so the returned argmin index is unchanged).
@@ -607,8 +607,8 @@ class DetectionService:
 
     def _determine_match_case(
         self,
-        name_dist: Optional[float],
-        ignore_dist: Optional[float]
+        name_dist: float | None,
+        ignore_dist: float | None
     ) -> str:
         """
         Determine match case based on distances (like legacy script).
@@ -649,7 +649,7 @@ class DetectionService:
         self,
         encoding: np.ndarray,
         top_n: int = 5
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Return top-N match alternatives sorted by distance.
 
@@ -698,7 +698,7 @@ class DetectionService:
         all_matches.sort(key=lambda x: x["distance"])
         return all_matches[:top_n]
 
-    async def detect_faces(self, image_path: str, force_reprocess: bool = False) -> Dict[str, Any]:
+    async def detect_faces(self, image_path: str, force_reprocess: bool = False) -> dict[str, Any]:
         """
         Detect faces in an image
 
@@ -783,7 +783,7 @@ class DetectionService:
 
         return result
 
-    async def get_face_thumbnail(self, image_path: str, bounding_box: Dict[str, int], size: int = 150) -> bytes:
+    async def get_face_thumbnail(self, image_path: str, bounding_box: dict[str, int], size: int = 150) -> bytes:
         """
         Extract face thumbnail from image
 
@@ -865,10 +865,10 @@ class DetectionService:
     def _compute_quality_signals(
         self,
         rgb_resized: np.ndarray,
-        location: Tuple[int, int, int, int],
-        bbox: Dict[str, int],
-        det_score: Optional[float],
-    ) -> Dict[str, Any]:
+        location: tuple[int, int, int, int],
+        bbox: dict[str, int],
+        det_score: float | None,
+    ) -> dict[str, Any]:
         """Capture the proxy quality signals for one detected face.
 
         ``location`` is ``(top, right, bottom, left)`` in ``rgb_resized`` (the
@@ -895,7 +895,7 @@ class DetectionService:
             det_score=det_score, crop_px=crop_px, sharpness=sharpness
         ).to_dict()
 
-    def _enrollment_gate(self, quality: Optional[Dict[str, Any]]):
+    def _enrollment_gate(self, quality: dict[str, Any] | None):
         """Evaluate one face's cached quality against the enrollment gate."""
         cfg = getattr(self, "_gate_config", None)
         if cfg is None:
@@ -909,8 +909,8 @@ class DetectionService:
         face_id: str,
         person_name: str,
         image_path: str,
-        suggested_name: Optional[str] = None
-    ) -> Dict[str, Any]:
+        suggested_name: str | None = None
+    ) -> dict[str, Any]:
         """
         Confirm face identity and save to database
 
@@ -1056,7 +1056,7 @@ class DetectionService:
             result["quality_note"] = gate.note_sv()
         return result
 
-    async def ignore_face(self, face_id: str, image_path: str) -> Dict[str, Any]:
+    async def ignore_face(self, face_id: str, image_path: str) -> dict[str, Any]:
         """
         Mark face as ignored (add to ignored_faces database)
 
@@ -1132,8 +1132,8 @@ class DetectionService:
         face_id: str,
         person_name: str,
         image_path: str,
-        suggested_name: Optional[str] = None
-    ) -> Dict[str, Any]:
+        suggested_name: str | None = None
+    ) -> dict[str, Any]:
         """Confirm one face through the store (no explicit flush). Returns result dict.
 
         Mutations go through ``store.mutate`` (which schedules the debounced
@@ -1233,7 +1233,7 @@ class DetectionService:
             result["quality_note"] = gate.note_sv()
         return result
 
-    def _ignore_face_nosave(self, face_id: str, image_path: str) -> Dict[str, Any]:
+    def _ignore_face_nosave(self, face_id: str, image_path: str) -> dict[str, Any]:
         """In-memory ignore, scheduling the store's debounced save. Returns result dict."""
         if face_id.startswith("manual_"):
             ignored_count = self.store.read(
@@ -1270,9 +1270,9 @@ class DetectionService:
 
     async def batch_confirm(
         self,
-        confirmations: List[Dict[str, Any]],
-        ignores: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        confirmations: list[dict[str, Any]],
+        ignores: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         """
         Batch confirm/ignore faces with a single database save.
 
@@ -1320,9 +1320,9 @@ class DetectionService:
     async def mark_review_complete(
         self,
         image_path: str,
-        reviewed_faces: List[Dict[str, Any]],
-        file_hash: Optional[str] = None
-    ) -> Dict[str, Any]:
+        reviewed_faces: list[dict[str, Any]],
+        file_hash: str | None = None
+    ) -> dict[str, Any]:
         """
         Log completed review to attempt_stats.jsonl for rename functionality.
 
@@ -1468,7 +1468,7 @@ def get_detection_service() -> DetectionService:
 # Module-level helper functions for preprocessing
 # ============================================================================
 
-def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> Optional[str]:
+def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> str | None:
     """
     Convert NEF (or other RAW) file to JPG.
 
@@ -1508,7 +1508,7 @@ def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> Optional[str]:
         return None
 
 
-def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> Dict[str, Any]:
+def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> dict[str, Any]:
     """
     Detect faces in an image without database matching.
 
@@ -1581,7 +1581,7 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> D
     }
 
 
-def generate_face_thumbnails(image_path: str, faces: List[Dict], size: int = 150) -> List[bytes]:
+def generate_face_thumbnails(image_path: str, faces: list[dict], size: int = 150) -> list[bytes]:
     """
     Generate thumbnails for detected faces.
 

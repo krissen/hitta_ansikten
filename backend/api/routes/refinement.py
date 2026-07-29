@@ -8,7 +8,6 @@ Only InsightFace encodings are supported. dlib encodings are deprecated.
 """
 
 import logging
-from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -37,9 +36,9 @@ class PreviewEntry(BaseModel):
     total: int
     keep: int
     remove: int
-    remove_indices: List[int]
+    remove_indices: list[int]
     reason: str
-    stats: Optional[DistanceStats] = None
+    stats: DistanceStats | None = None
 
 
 class PreviewSummary(BaseModel):
@@ -51,14 +50,14 @@ class PreviewSummary(BaseModel):
 
 class PreviewResponse(BaseModel):
     """Response for preview endpoint."""
-    preview: List[PreviewEntry]
+    preview: list[PreviewEntry]
     summary: PreviewSummary
 
 
 class ApplyRequest(BaseModel):
     """Request to apply filtering."""
     mode: str = "std"
-    persons: Optional[List[str]] = None
+    persons: list[str] | None = None
     std_threshold: float = 2.0
     cluster_dist: float = 0.35
     cluster_min: int = 6
@@ -72,12 +71,12 @@ class ApplyResponse(BaseModel):
     status: str
     dry_run: bool
     removed: int
-    by_person: Dict[str, int]
+    by_person: dict[str, int]
 
 
 class RepairShapesRequest(BaseModel):
     """Request to repair shapes."""
-    persons: Optional[List[str]] = None
+    persons: list[str] | None = None
     dry_run: bool = False
 
 
@@ -86,8 +85,8 @@ class RepairedEntry(BaseModel):
     person: str
     removed: int
     total: int
-    kept_shape: List[int]
-    removed_shapes: List[List[int]]
+    kept_shape: list[int]
+    removed_shapes: list[list[int]]
 
 
 class RepairShapesResponse(BaseModel):
@@ -95,7 +94,7 @@ class RepairShapesResponse(BaseModel):
     status: str
     dry_run: bool
     total_removed: int
-    repaired: List[RepairedEntry]
+    repaired: list[RepairedEntry]
 
 
 class RemoveDlibRequest(BaseModel):
@@ -108,7 +107,7 @@ class RemoveDlibResponse(BaseModel):
     status: str
     dry_run: bool
     total_removed: int
-    by_person: Dict[str, int]
+    by_person: dict[str, int]
     people_affected: int
 
 
@@ -117,7 +116,7 @@ class RemoveDlibResponse(BaseModel):
 
 @router.get("/refinement/preview", response_model=PreviewResponse)
 async def preview_refinement(
-    person: Optional[str] = Query(None, description="Person name or * for all"),
+    person: str | None = Query(None, description="Person name or * for all"),
     mode: str = Query("std", description="Filter mode: std, cluster, mahalanobis, or shape"),
     std_threshold: float = Query(2.0, description="Standard deviations for outlier detection"),
     cluster_dist: float = Query(0.35, description="Max cosine distance from centroid"),

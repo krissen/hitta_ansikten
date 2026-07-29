@@ -30,9 +30,9 @@ import json
 import logging
 import os
 import uuid
+from collections.abc import Callable, Iterable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterable, Sequence
 
 logger = logging.getLogger(__name__)
 

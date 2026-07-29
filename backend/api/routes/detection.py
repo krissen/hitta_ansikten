@@ -6,7 +6,7 @@ ML libraries loaded lazily on first detection request.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
@@ -42,27 +42,27 @@ class DetectedFace(BaseModel):
     face_id: str
     bounding_box: BoundingBox
     confidence: float
-    person_name: Optional[str] = None
+    person_name: str | None = None
     is_confirmed: bool = False
-    match_case: Optional[str] = None
-    ignore_distance: Optional[float] = None
-    ignore_confidence: Optional[int] = None
-    match_alternatives: Optional[List[MatchAlternative]] = None
-    encoding_hash: Optional[str] = None
-    disambiguated: Optional[Dict[str, Any]] = None
+    match_case: str | None = None
+    ignore_distance: float | None = None
+    ignore_confidence: int | None = None
+    match_alternatives: list[MatchAlternative] | None = None
+    encoding_hash: str | None = None
+    disambiguated: dict[str, Any] | None = None
 
 class DetectionResult(BaseModel):
     image_path: str
-    faces: List[DetectedFace]
+    faces: list[DetectedFace]
     processing_time_ms: float
     cached: bool = False
-    file_hash: Optional[str] = None  # SHA1 hash of file (for reuse in mark-review-complete)
+    file_hash: str | None = None  # SHA1 hash of file (for reuse in mark-review-complete)
 
 class ConfirmIdentityRequest(BaseModel):
     face_id: str
     person_name: str
     image_path: str
-    suggested_name: Optional[str] = None
+    suggested_name: str | None = None
 
 class IgnoreFaceRequest(BaseModel):
     face_id: str
@@ -76,7 +76,7 @@ class ConfirmIdentityResponse(BaseModel):
     # encoding was withheld from the gallery due to low crop quality.
     enrolled: bool = True
     # Swedish note shown to the user when a face was confirmed-but-not-enrolled.
-    quality_note: Optional[str] = None
+    quality_note: str | None = None
 
 class IgnoreFaceResponse(BaseModel):
     status: str
@@ -93,35 +93,35 @@ class BatchConfirmItem(BaseModel):
     face_id: str
     person_name: str
     image_path: str
-    suggested_name: Optional[str] = None
+    suggested_name: str | None = None
 
 class BatchIgnoreItem(BaseModel):
     face_id: str
     image_path: str
 
 class BatchConfirmRequest(BaseModel):
-    confirmations: List[BatchConfirmItem] = []
-    ignores: List[BatchIgnoreItem] = []
+    confirmations: list[BatchConfirmItem] = []
+    ignores: list[BatchIgnoreItem] = []
 
 class BatchConfirmResponse(BaseModel):
     status: str
     confirmed_count: int
     ignored_count: int
-    errors: List[dict] = []
+    errors: list[dict] = []
 
 
 class ReviewedFace(BaseModel):
     face_index: int
     face_id: str
-    encoding_hash: Optional[str] = None
-    person_name: Optional[str] = None
+    encoding_hash: str | None = None
+    person_name: str | None = None
     is_ignored: bool = False
 
 
 class MarkReviewCompleteRequest(BaseModel):
     image_path: str
-    reviewed_faces: List[ReviewedFace]
-    file_hash: Optional[str] = None  # Optional: reuse hash from detection to avoid rehashing
+    reviewed_faces: list[ReviewedFace]
+    file_hash: str | None = None  # Optional: reuse hash from detection to avoid rehashing
 
 
 class MarkReviewCompleteResponse(BaseModel):

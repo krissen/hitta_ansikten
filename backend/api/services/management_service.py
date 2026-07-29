@@ -12,7 +12,7 @@ import logging
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -39,7 +39,7 @@ MAX_SEPARABILITY_SAMPLES = 200
 logger = logging.getLogger(__name__)
 
 
-def _count_encodings_by_backend(encodings: List) -> Dict[str, int]:
+def _count_encodings_by_backend(encodings: list) -> dict[str, int]:
     """
     Count encodings grouped by backend.
 
@@ -60,7 +60,7 @@ def _count_encodings_by_backend(encodings: List) -> Dict[str, int]:
     return counts
 
 
-def _filter_encodings_by_backend(encodings: List, backend: Optional[str]) -> List:
+def _filter_encodings_by_backend(encodings: list, backend: str | None) -> list:
     """
     Filter encodings to only include those from specified backend.
 
@@ -87,14 +87,14 @@ def _filter_encodings_by_backend(encodings: List, backend: Optional[str]) -> Lis
     return filtered
 
 
-def _usable_unit_vectors(encodings: List, backend_filter: Optional[str]) -> List[np.ndarray]:
+def _usable_unit_vectors(encodings: list, backend_filter: str | None) -> list[np.ndarray]:
     """L2-normalized encoding vectors of one backend, for cosine comparison.
 
     Skips manual faces (``encoding is None``), other-backend entries, non-1D and
     mismatched-shape (the first usable shape wins) and zero-norm vectors.
     """
-    vecs: List[np.ndarray] = []
-    dim: Optional[int] = None
+    vecs: list[np.ndarray] = []
+    dim: int | None = None
     for e in encodings:
         if not isinstance(e, dict):
             continue
@@ -117,7 +117,7 @@ def _usable_unit_vectors(encodings: List, backend_filter: Optional[str]) -> List
     return vecs
 
 
-def _centroid_from_vecs(vecs: List[np.ndarray]) -> Optional[np.ndarray]:
+def _centroid_from_vecs(vecs: list[np.ndarray]) -> np.ndarray | None:
     """Unit-sphere centroid of pre-normalized vectors, or None if empty/degenerate."""
     if not vecs:
         return None
@@ -129,8 +129,8 @@ def _centroid_from_vecs(vecs: List[np.ndarray]) -> Optional[np.ndarray]:
 
 
 def _person_centroid(
-    encodings: List, backend_filter: Optional[str]
-) -> Optional[tuple[np.ndarray, int]]:
+    encodings: list, backend_filter: str | None
+) -> tuple[np.ndarray, int] | None:
     """Unit-sphere centroid of a person's encodings + the count used, or None.
 
     Mirrors RefinementService's centroid. See `_usable_unit_vectors` for which
@@ -143,7 +143,7 @@ def _person_centroid(
     return centroid, len(vecs)
 
 
-def _strided_sample(vecs: List[np.ndarray], cap: int) -> List[np.ndarray]:
+def _strided_sample(vecs: list[np.ndarray], cap: int) -> list[np.ndarray]:
     """At most `cap` evenly-spaced items from `vecs` (all of them if already ≤ cap)."""
     if len(vecs) <= cap:
         return vecs
@@ -152,8 +152,8 @@ def _strided_sample(vecs: List[np.ndarray], cap: int) -> List[np.ndarray]:
 
 
 def _pair_separability(
-    vecs_a: List[np.ndarray], vecs_b: List[np.ndarray]
-) -> Optional[tuple[float, float]]:
+    vecs_a: list[np.ndarray], vecs_b: list[np.ndarray]
+) -> tuple[float, float] | None:
     """Head-to-head separability of two people's encodings (1-NN leave-one-out).
 
     Combines both label sets and, for each vector, checks whether its nearest
@@ -193,7 +193,7 @@ def _pair_separability(
     return round(accuracy, 4), round(margin, 4)
 
 
-def _encoding_hash(entry: dict) -> Optional[str]:
+def _encoding_hash(entry: dict) -> str | None:
     """The entry's encoding_hash, computed from the encoding if absent."""
     h = entry.get("encoding_hash")
     if h:
@@ -208,7 +208,7 @@ def _encoding_hash(entry: dict) -> Optional[str]:
     return None
 
 
-def _redundant_indices(encodings: List, threshold: float, backend_filter: Optional[str]) -> set:
+def _redundant_indices(encodings: list, threshold: float, backend_filter: str | None) -> set:
     """Indices of redundant encodings to remove, keeping one per group.
 
     An encoding is redundant if it is an exact duplicate (same `encoding_hash`)
@@ -218,7 +218,7 @@ def _redundant_indices(encodings: List, threshold: float, backend_filter: Option
     """
     remove: set = set()
     seen_hashes: set = set()
-    reps: List[np.ndarray] = []  # kept unit vectors, for near-dup comparison
+    reps: list[np.ndarray] = []  # kept unit vectors, for near-dup comparison
     for i, e in enumerate(encodings):
         if not isinstance(e, dict):
             continue
@@ -326,7 +326,7 @@ class ManagementService:
         # fingerprint, coalesced saves). No per-service copies, lock or TTL.
         self.store = get_db_store()
 
-    async def get_database_state(self) -> Dict[str, Any]:
+    async def get_database_state(self) -> dict[str, Any]:
         """
         Get current database state with per-backend encoding counts.
 
@@ -364,7 +364,7 @@ class ManagementService:
 
         return self.store.read(build)
 
-    async def rename_person(self, old_name: str, new_name: str) -> Dict[str, Any]:
+    async def rename_person(self, old_name: str, new_name: str) -> dict[str, Any]:
         """
         Rename person in database
 
@@ -397,10 +397,10 @@ class ManagementService:
 
     async def merge_people(
         self,
-        source_names: List[str],
+        source_names: list[str],
         target_name: str,
-        backend_filter: Optional[str] = None
-    ) -> Dict[str, Any]:
+        backend_filter: str | None = None
+    ) -> dict[str, Any]:
         """
         Merge multiple people into target name.
 
@@ -506,8 +506,8 @@ class ManagementService:
         }
 
     async def find_duplicate_people(
-        self, threshold: float, backend_filter: Optional[str] = "insightface"
-    ) -> Dict[str, Any]:
+        self, threshold: float, backend_filter: str | None = "insightface"
+    ) -> dict[str, Any]:
         """Find pairs of distinctly-named people whose faces look like the same person.
 
         Computes a unit-sphere centroid per person and returns the name-pairs
@@ -524,9 +524,9 @@ class ManagementService:
         def scan(known, ignored, hardneg, processed):
             # Self-heal stale exclusions (names removed by any path) before use.
             distinct = _reconcile_distinct_pairs(set(known.keys()))
-            vecs_by_name: Dict[str, List[np.ndarray]] = {}
-            centroids: Dict[str, np.ndarray] = {}
-            counts: Dict[str, int] = {}
+            vecs_by_name: dict[str, list[np.ndarray]] = {}
+            centroids: dict[str, np.ndarray] = {}
+            counts: dict[str, int] = {}
             for name, encodings in known.items():
                 vecs = _usable_unit_vectors(encodings, backend_filter)
                 centroid = _centroid_from_vecs(vecs)
@@ -537,7 +537,7 @@ class ManagementService:
                 counts[name] = len(vecs)
 
             names = sorted(centroids)
-            pairs: List[Dict[str, Any]] = []
+            pairs: list[dict[str, Any]] = []
             excluded = 0
             for i in range(len(names)):
                 a = names[i]
@@ -584,7 +584,7 @@ class ManagementService:
 
         return self.store.read(scan)
 
-    async def add_distinct_pair(self, name_a: str, name_b: str) -> Dict[str, Any]:
+    async def add_distinct_pair(self, name_a: str, name_b: str) -> dict[str, Any]:
         """Record a confirmed-distinct name-pair so the scanner stops suggesting it."""
         a, b = name_a.strip(), name_b.strip()
         if not a or not b or a == b:
@@ -603,7 +603,7 @@ class ManagementService:
         logger.info(f"[ManagementService] Marked '{a}' / '{b}' as distinct (not a duplicate)")
         return {"status": "success", "count": len(pairs)}
 
-    async def remove_distinct_pair(self, name_a: str, name_b: str) -> Dict[str, Any]:
+    async def remove_distinct_pair(self, name_a: str, name_b: str) -> dict[str, Any]:
         """Drop a confirmed-distinct pair (undo) so it can be suggested again."""
         pair = tuple(sorted((name_a.strip(), name_b.strip())))
         pairs = _load_distinct_pairs()
@@ -611,7 +611,7 @@ class ManagementService:
         _save_distinct_pairs(pairs)
         return {"status": "success", "count": len(pairs)}
 
-    async def list_distinct_pairs(self) -> Dict[str, Any]:
+    async def list_distinct_pairs(self) -> dict[str, Any]:
         """List the confirmed-distinct name-pairs, sorted (stale names pruned)."""
         # prune persists → reconcile against the store's live (ground-truth) names.
         valid_names = self.store.read(
@@ -624,8 +624,8 @@ class ManagementService:
         }
 
     async def find_redundant_encodings(
-        self, threshold: float = 0.0, backend_filter: Optional[str] = "insightface"
-    ) -> Dict[str, Any]:
+        self, threshold: float = 0.0, backend_filter: str | None = "insightface"
+    ) -> dict[str, Any]:
         """Per-person count of redundant encodings (exact, plus near at threshold>0).
 
         Lists only people that have redundancy. `threshold` is a cosine distance;
@@ -651,14 +651,14 @@ class ManagementService:
 
     async def dedup_people(
         self,
-        names: List[str],
+        names: list[str],
         threshold: float = 0.0,
-        backend_filter: Optional[str] = "insightface",
+        backend_filter: str | None = "insightface",
         dry_run: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Remove redundant encodings from the named people, keeping one per group."""
         def plan(known, apply_changes):
-            removed_per_person: Dict[str, int] = {}
+            removed_per_person: dict[str, int] = {}
             total = 0
             for name in names:
                 if name not in known:
@@ -698,7 +698,7 @@ class ManagementService:
             "new_state": await self.get_database_state(),
         }
 
-    async def delete_person(self, name: str) -> Dict[str, Any]:
+    async def delete_person(self, name: str) -> dict[str, Any]:
         """
         Delete person from database
 
@@ -730,8 +730,8 @@ class ManagementService:
     async def move_to_ignore(
         self,
         name: str,
-        backend_filter: Optional[str] = None
-    ) -> Dict[str, Any]:
+        backend_filter: str | None = None
+    ) -> dict[str, Any]:
         """
         Move person's encodings to ignored list.
 
@@ -788,8 +788,8 @@ class ManagementService:
         self,
         count: int,
         target_name: str,
-        backend_filter: Optional[str] = None
-    ) -> Dict[str, Any]:
+        backend_filter: str | None = None
+    ) -> dict[str, Any]:
         """
         Move encodings from ignored list to person.
 
@@ -834,7 +834,7 @@ class ManagementService:
             "new_state": await self.get_database_state(),
         }
 
-    async def undo_file(self, filename_pattern: str) -> Dict[str, Any]:
+    async def undo_file(self, filename_pattern: str) -> dict[str, Any]:
         """
         Undo processing for file(s) matching pattern
 
@@ -933,8 +933,8 @@ class ManagementService:
         self,
         name: str,
         count: int,
-        backend_filter: Optional[str] = None
-    ) -> Dict[str, Any]:
+        backend_filter: str | None = None
+    ) -> dict[str, Any]:
         """
         Remove last X encodings from person or ignore list.
 
@@ -1017,7 +1017,7 @@ class ManagementService:
             "new_state": await self.get_database_state(),
         }
 
-    async def get_recent_files(self, n: int = 10) -> List[Dict[str, str]]:
+    async def get_recent_files(self, n: int = 10) -> list[dict[str, str]]:
         """
         Get last N processed files
 

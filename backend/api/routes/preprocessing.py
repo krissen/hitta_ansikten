@@ -12,7 +12,6 @@ import asyncio
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
@@ -44,7 +43,7 @@ class CacheStatusResponse(BaseModel):
 
 
 class CacheSettingsRequest(BaseModel):
-    max_size_mb: Optional[int] = None
+    max_size_mb: int | None = None
 
 
 class FileHashRequest(BaseModel):
@@ -65,24 +64,24 @@ class CacheCheckResponse(BaseModel):
     has_nef_conversion: bool
     has_face_detection: bool
     has_thumbnails: bool
-    nef_jpg_path: Optional[str] = None
-    face_count: Optional[int] = None  # Number of faces detected (if cached)
+    nef_jpg_path: str | None = None
+    face_count: int | None = None  # Number of faces detected (if cached)
 
 
 class PreprocessRequest(BaseModel):
     file_path: str
-    file_hash: Optional[str] = None  # If not provided, will be computed
-    steps: Optional[List[str]] = None  # ['nef', 'faces', 'thumbs'] - None means all
+    file_hash: str | None = None  # If not provided, will be computed
+    steps: list[str] | None = None  # ['nef', 'faces', 'thumbs'] - None means all
 
 
 class PreprocessResponse(BaseModel):
     file_hash: str
     status: str  # 'cached', 'processing', 'completed', 'error'
-    nef_jpg_path: Optional[str] = None
+    nef_jpg_path: str | None = None
     faces_cached: bool = False
     thumbnails_cached: bool = False
-    face_count: Optional[int] = None  # Number of faces detected
-    error: Optional[str] = None
+    face_count: int | None = None  # Number of faces detected
+    error: str | None = None
 
 
 # ============================================================================
@@ -128,11 +127,11 @@ async def remove_cache_entry(file_hash: str):
 
 
 class BatchDeleteRequest(BaseModel):
-    file_hashes: List[str]
+    file_hashes: list[str]
 
 
 class PriorityHashesRequest(BaseModel):
-    file_hashes: List[str]
+    file_hashes: list[str]
 
 
 @router.post("/cache/priority")

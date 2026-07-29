@@ -5,7 +5,7 @@ Endpoints for checking image processing status.
 """
 
 import logging
-from typing import List, Literal, Optional
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -23,7 +23,7 @@ class LogLevelRequest(BaseModel):
 
 
 class LogCategoriesRequest(BaseModel):
-    categories: List[str]
+    categories: list[str]
 
 
 @router.post("/log-level")
@@ -45,7 +45,7 @@ class ImageStatus(BaseModel):
     is_processed: bool
     faces_count: int
     confirmed_count: int
-    last_processed: Optional[str] = None  # ISO timestamp
+    last_processed: str | None = None  # ISO timestamp
 
 @router.get("/status/{image_path:path}", response_model=ImageStatus)
 async def get_image_status(image_path: str):

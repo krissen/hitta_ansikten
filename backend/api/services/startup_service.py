@@ -6,10 +6,11 @@ Tracks initialization status of backend components for KASAM UX.
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,10 @@ class LoadingState(str, Enum):
 class ComponentStatus:
     state: LoadingState = LoadingState.PENDING
     message: str = ""
-    progress: Optional[float] = None
-    error: Optional[str] = None
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    progress: float | None = None
+    error: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 class StartupState:
@@ -46,17 +47,17 @@ class StartupState:
         self._initialized = True
         
         # Components shown in startup toast (order matters for display)
-        self.components: Dict[str, ComponentStatus] = {
+        self.components: dict[str, ComponentStatus] = {
             "backend": ComponentStatus(state=LoadingState.READY, message="Connected"),
             "database": ComponentStatus(message="Waiting..."),
             "mlModels": ComponentStatus(message="Waiting..."),
         }
-        self._listeners: List[Callable] = []
+        self._listeners: list[Callable] = []
         logger.info("[StartupState] Initialized")
 
     def set_state(self, component: str, state: LoadingState, 
-                  message: Optional[str] = None, progress: Optional[float] = None, 
-                  error: Optional[str] = None):
+                  message: str | None = None, progress: float | None = None, 
+                  error: str | None = None):
         if component not in self.components:
             self.components[component] = ComponentStatus()
         
@@ -78,7 +79,7 @@ class StartupState:
         logger.info(f"[StartupState] {component}: {state.value} - {status.message}")
         self._notify_listeners()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         items = {}
         for name, status in self.components.items():
             items[name] = {

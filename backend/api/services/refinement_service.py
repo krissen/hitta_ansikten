@@ -8,7 +8,7 @@ Only InsightFace encodings are supported - dlib encodings are deprecated and wil
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -47,7 +47,7 @@ def _is_insightface_entry(entry) -> bool:
     return False
 
 
-def _get_encoding(entry) -> Optional[np.ndarray]:
+def _get_encoding(entry) -> np.ndarray | None:
     """Extract numpy encoding from entry."""
     if isinstance(entry, dict) and "encoding" in entry:
         enc = entry["encoding"]
@@ -59,8 +59,8 @@ def _get_encoding(entry) -> Optional[np.ndarray]:
 
 
 def _compute_distances_to_centroid(
-    encodings: List[np.ndarray]
-) -> Tuple[np.ndarray, np.ndarray]:
+    encodings: list[np.ndarray]
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Compute cosine distances from each encoding to the centroid.
 
@@ -95,9 +95,9 @@ def _compute_distances_to_centroid(
 
 
 def _std_outlier_filter(
-    encodings: List[np.ndarray],
+    encodings: list[np.ndarray],
     std_threshold: float = DEFAULT_STD_THRESHOLD
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Filter encodings by standard deviation from centroid.
 
@@ -119,10 +119,10 @@ def _std_outlier_filter(
 
 
 def _cluster_filter(
-    encodings: List[np.ndarray],
+    encodings: list[np.ndarray],
     cluster_dist: float = DEFAULT_CLUSTER_DIST,
     cluster_min: int = DEFAULT_CLUSTER_MIN
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Keep only encodings within cluster_dist from centroid.
 
@@ -140,9 +140,9 @@ def _cluster_filter(
 
 
 def _mahalanobis_outlier_filter(
-    encodings: List[np.ndarray],
+    encodings: list[np.ndarray],
     threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD
-) -> Tuple[np.ndarray, np.ndarray, bool]:
+) -> tuple[np.ndarray, np.ndarray, bool]:
     """
     Filter encodings using Mahalanobis distance.
 
@@ -195,7 +195,7 @@ def _mahalanobis_outlier_filter(
     return mask, distances, False  # fell_back_to_std = False
 
 
-def _compute_stats(distances: np.ndarray) -> Dict[str, float]:
+def _compute_stats(distances: np.ndarray) -> dict[str, float]:
     """Compute statistics for distance array."""
     return {
         "min_dist": float(np.min(distances)),
@@ -215,7 +215,7 @@ class RefinementService:
         # data layer directly anymore. No per-service copies, lock or TTL.
         self.store = get_db_store()
 
-    def _get_insightface_encodings(self, entries: List) -> List[Tuple[int, np.ndarray]]:
+    def _get_insightface_encodings(self, entries: list) -> list[tuple[int, np.ndarray]]:
         """
         Extract InsightFace encodings with their original indices.
 
@@ -233,7 +233,7 @@ class RefinementService:
     async def remove_dlib_encodings(
         self,
         dry_run: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Remove ALL dlib encodings from the database.
 
@@ -282,14 +282,14 @@ class RefinementService:
 
     async def preview(
         self,
-        person: Optional[str] = None,
+        person: str | None = None,
         mode: str = "std",
         std_threshold: float = DEFAULT_STD_THRESHOLD,
         cluster_dist: float = DEFAULT_CLUSTER_DIST,
         cluster_min: int = DEFAULT_CLUSTER_MIN,
         mahalanobis_threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD,
         min_encodings: int = DEFAULT_MIN_ENCODINGS
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Preview what encodings would be removed.
 
@@ -403,14 +403,14 @@ class RefinementService:
     async def apply(
         self,
         mode: str = "std",
-        persons: Optional[List[str]] = None,
+        persons: list[str] | None = None,
         std_threshold: float = DEFAULT_STD_THRESHOLD,
         cluster_dist: float = DEFAULT_CLUSTER_DIST,
         cluster_min: int = DEFAULT_CLUSTER_MIN,
         mahalanobis_threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD,
         min_encodings: int = DEFAULT_MIN_ENCODINGS,
         dry_run: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Apply filtering to remove outlier encodings.
 
@@ -497,9 +497,9 @@ class RefinementService:
 
     async def repair_shapes(
         self,
-        persons: Optional[List[str]] = None,
+        persons: list[str] | None = None,
         dry_run: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Repair inconsistent encoding shapes.
 
