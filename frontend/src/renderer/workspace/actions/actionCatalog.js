@@ -2,13 +2,20 @@
  * Action catalog — the single source of truth for the app's user-triggerable
  * actions.
  *
- * The semantics of "what a user can do" used to live only inside four
- * independent keyboard listeners (useKeyboardShortcuts, useReviewKeyboard,
- * CullingModule, FlexLayoutWorkspace), with the shortcuts-help overlay carrying
- * a hand-maintained copy of the same list. This file is the declared list; the
+ * The semantics of "what a user can do" live inside four independent keyboard
+ * listeners (useKeyboardShortcuts, useReviewKeyboard, CullingModule,
+ * FlexLayoutWorkspace), with the shortcuts-help overlay carrying a
+ * hand-maintained copy of the same list. This file is the declared list; the
  * overlay derives its sections from it (see shortcutSections.js). Same rule the
  * pipeline steps already follow (WORKFLOW_STEPS in workflowSteps.js): one
  * source, everything else derived.
+ *
+ * Scope, stated plainly: the catalog currently covers the actions reachable from
+ * those four keyboard listeners. It does NOT yet cover the app menu
+ * (src/main/menu.js → `menu-command` IPC → flexlayout/menuCommands.js), which is
+ * a third way to trigger actions and carries roughly two dozen menu-only ones
+ * (Cmd+S save-all, theme switching, layout templates, the Cmd+Shift+<letter>
+ * module accelerators). Taking those in is separate work; see ROADMAP.md.
  *
  * Pure data: no i18n resolution (`titleKey`, not `t()`), no React, no imports
  * with side effects — so it can be unit-tested and read by non-UI code.
@@ -20,7 +27,8 @@
  *             for workspace-level actions with no owning module.
  *   section   Shortcuts-help section the action is listed under (SECTIONS below).
  *   titleKey  i18n key for the human-readable label. Not resolved here.
- *   keys      Keyboard bindings, as the help overlay spells them.
+ *   keys      Keyboard bindings, as the help overlay spells them. A '×2' suffix
+ *             means a double-tap of that key (e.g. '+×2').
  *   kind      'trigger' — discrete action.
  *             'range'   — absolute value picks among N targets (a fader).
  *             'delta'   — relative change, signed (a knob).
@@ -33,16 +41,26 @@
  *   route     How the action is performed, or null when it is not reachable from
  *             either bus today (see "Unrouted actions" below). Two buses, no new
  *             mechanism:
- *               { via: 'emit', event }            — moduleAPI.emit(event)
+ *               { via: 'emit', event }            — moduleAPI.emit(event). The
+ *                                                   event must have a live
+ *                                                   subscriber; a legacy event
+ *                                                   nothing emits is not a target.
  *               { via: 'emit', event, eventDown } — a 'delta' action whose bus
  *                                                   has one event per direction;
  *                                                   `event` increases,
  *                                                   `eventDown` decreases.
  *               { via: 'dispatch', intent }       — createWorkspaceRouter
- *                                                   (workspaceCommands.js). For a
- *                                                   'range' action the intent is
- *                                                   a template; the caller fills
- *                                                   in the value-dependent field.
+ *                                                   (workspaceCommands.js).
+ *                                                   `intent.type` must be one the
+ *                                                   router handles.
+ *               { …, fills: ['moduleId'] }        — the intent is a template: the
+ *                                                   listed fields are supplied by
+ *                                                   the caller (e.g. from a
+ *                                                   'range' action's value), so a
+ *                                                   deliberate gap is not a typo.
+ *             A property with one event per state (boxes on/off, auto-center,
+ *             file info) is two actions, one per state — the bus has no toggle
+ *             event, and the keyboard key that toggles is listed on both.
  *   help      false to keep the action out of the shortcuts-help overlay, or an
  *             override object for how its row renders: { keys, sep }. `keys`
  *             overrides the row's key list (used where one help row covers an
@@ -136,8 +154,9 @@ export const ACTIONS = [
     keys: ['Cmd', '1-5'],
     kind: 'range',
     // The range value selects a pipeline step; the caller resolves it to the
-    // step's moduleId (WORKFLOW_STEPS) and completes the intent.
-    route: { via: 'dispatch', intent: { type: 'open-workflow-step' } },
+    // step's moduleId (WORKFLOW_STEPS) and completes the intent — hence `fills`,
+    // which marks the intent as a template rather than a malformed one.
+    route: { via: 'dispatch', intent: { type: 'open-workflow-step' }, fills: ['moduleId'] },
     scope: 'global',
   },
   {
@@ -222,40 +241,74 @@ export const ACTIONS = [
     owner: 'image-viewer',
     section: 'image-viewer',
     titleKey: 'shortcuts.desc.viewer.reset',
-    keys: ['='],
+    // Double-tapping '+' is the same action (useKeyHold's onDoubleTap); the help
+    // row documents the plain key only.
+    keys: ['=', '+×2'],
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'reset-zoom' },
+    help: { keys: ['='] },
   },
   {
     id: 'viewer.autoFit',
     owner: 'image-viewer',
     section: 'image-viewer',
     titleKey: 'shortcuts.desc.viewer.autoFit',
-    keys: ['0'],
+    // Double-tapping '-' is the same action; the help row documents '0' only.
+    keys: ['0', '-×2'],
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'auto-fit' },
+    help: { keys: ['0'] },
   },
   {
-    id: 'viewer.toggleBoxes',
+    // 'B' toggles the boxes on/off, but the bus has one event per state (the
+    // View menu's checkbox emits them), so the two states are two actions. This
+    // one owns the help row and its label describes the pair. The older
+    // `toggle-boxes-on-off` event is legacy: still listened for, but nothing in
+    // the app emits it, so it is not a dispatch target.
+    id: 'viewer.boxesShow',
     owner: 'image-viewer',
     section: 'image-viewer',
     titleKey: 'shortcuts.desc.viewer.toggleBoxes',
     keys: ['B'],
     kind: 'trigger',
     scope: 'module',
-    route: { via: 'emit', event: 'toggle-boxes-on-off' },
+    route: { via: 'emit', event: 'boxes-show' },
   },
   {
-    id: 'viewer.toggleSingleAll',
+    id: 'viewer.boxesHide',
+    owner: 'image-viewer',
+    section: 'image-viewer',
+    titleKey: 'shortcuts.desc.viewer.boxesHide',
+    keys: ['B'],
+    kind: 'trigger',
+    scope: 'module',
+    route: { via: 'emit', event: 'boxes-hide' },
+    help: false,
+  },
+  {
+    // 'b' toggles between all boxes and only the active one — same two-state
+    // shape as the pair above (`toggle-single-all-boxes` is likewise legacy).
+    id: 'viewer.boxesAll',
     owner: 'image-viewer',
     section: 'image-viewer',
     titleKey: 'shortcuts.desc.viewer.toggleSingleAll',
     keys: ['b'],
     kind: 'trigger',
     scope: 'module',
-    route: { via: 'emit', event: 'toggle-single-all-boxes' },
+    route: { via: 'emit', event: 'boxes-all' },
+  },
+  {
+    id: 'viewer.boxesSingle',
+    owner: 'image-viewer',
+    section: 'image-viewer',
+    titleKey: 'shortcuts.desc.viewer.boxesSingle',
+    keys: ['b'],
+    kind: 'trigger',
+    scope: 'module',
+    route: { via: 'emit', event: 'boxes-single' },
+    help: false,
   },
   {
     // 'c' enables and 'C' disables — two actions, one help row. This one owns the
@@ -282,15 +335,27 @@ export const ACTIONS = [
     help: false,
   },
   {
-    // In a listener (ImageViewer), never listed in the overlay.
-    id: 'viewer.toggleFileInfo',
+    // In a listener (ImageViewer), never listed in the overlay. Two-state pair,
+    // like the boxes above: 'I' toggles, the View menu's checkbox sets a state.
+    id: 'viewer.fileInfoShow',
     owner: 'image-viewer',
     section: 'image-viewer',
     titleKey: 'shortcuts.desc.viewer.toggleFileInfo',
     keys: ['I'],
     kind: 'trigger',
     scope: 'module',
-    route: null,
+    route: { via: 'emit', event: 'file-info-show' },
+    help: false,
+  },
+  {
+    id: 'viewer.fileInfoHide',
+    owner: 'image-viewer',
+    section: 'image-viewer',
+    titleKey: 'shortcuts.desc.viewer.fileInfoHide',
+    keys: ['I'],
+    kind: 'trigger',
+    scope: 'module',
+    route: { via: 'emit', event: 'file-info-hide' },
     help: false,
   },
 
@@ -554,13 +619,16 @@ export const ACTIONS = [
     owner: 'culling',
     section: 'culling',
     titleKey: 'shortcuts.desc.culling.cull',
-    keys: ['X', 'Delete', 'Cmd+⌫'],
+    // Bare Backspace culls too; the help row lists the documented three.
+    keys: ['X', 'Delete', '⌫', 'Cmd+⌫'],
     kind: 'trigger',
     scope: 'destructive',
     route: null,
-    help: { sep: ' / ' },
+    help: { keys: ['X', 'Delete', 'Cmd+⌫'], sep: ' / ' },
   },
   {
+    // Enter means two different things by view mode: in the loupe it renames
+    // (this row), in the grid it opens the focused cell in the loupe (below).
     id: 'culling.rename',
     owner: 'culling',
     section: 'culling',
@@ -569,6 +637,53 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: null,
+  },
+  {
+    // In a listener (CullingModule capture-phase Enter/Esc), never in the overlay.
+    id: 'culling.openLoupe',
+    owner: 'culling',
+    section: 'culling',
+    titleKey: 'shortcuts.desc.culling.openLoupe',
+    keys: ['Enter'],
+    kind: 'trigger',
+    scope: 'module',
+    route: null,
+    help: false,
+  },
+  {
+    // Escape has three outcomes in culling, in this priority order. All three
+    // live in the capture-phase listener; none has ever been in the overlay.
+    id: 'culling.closeMenu',
+    owner: 'culling',
+    section: 'culling',
+    titleKey: 'shortcuts.desc.culling.closeMenu',
+    keys: ['Esc'],
+    kind: 'trigger',
+    scope: 'module',
+    route: null,
+    help: false,
+  },
+  {
+    id: 'culling.discardPendingNames',
+    owner: 'culling',
+    section: 'culling',
+    titleKey: 'shortcuts.desc.culling.discardPendingNames',
+    keys: ['Esc'],
+    kind: 'trigger',
+    scope: 'module',
+    route: null,
+    help: false,
+  },
+  {
+    id: 'culling.exitLoupe',
+    owner: 'culling',
+    section: 'culling',
+    titleKey: 'shortcuts.desc.culling.exitLoupe',
+    keys: ['Esc'],
+    kind: 'trigger',
+    scope: 'module',
+    route: null,
+    help: false,
   },
   {
     id: 'culling.applyRemovals',
