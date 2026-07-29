@@ -120,8 +120,17 @@ one source directory reviewed on one date).
 | Top-16 names, globally | 61 % |
 | Shoots with ≥ 50 namings | 42 of 55 |
 | Median unique names per shoot | 20.5 |
-| Top-8 names within a shoot (median) | **66 %** |
-| Top-16 names within a shoot (median) | **97 %** |
+| Mean unique names per shoot | 22.2 |
+| Max unique names in one shoot | 43 |
+| Top-8 names within a shoot (median / mean) | **66 %** / 66 % |
+| Top-16 names within a shoot (median / mean) | **97 %** / 93 % |
+
+Both the median and the mean are shown because the script prints both and the
+decision should not rest on the more flattering one. The gap matters most for
+top-16: median 97 %, mean 93 %, and one shoot needed 43 distinct names. The
+conclusion below survives either figure, but sixteen buttons is not a
+guarantee of full coverage in every shoot — the largest sessions will still
+spill to the keyboard.
 
 ### Three consequences, all of which revise the original plan
 
@@ -134,11 +143,13 @@ maintains. The same eight physical buttons carry different names in different
 shoots; that is the whole point.
 
 **2. All sixteen buttons should carry names, not eight.** Within a single
-shoot, sixteen names cover 97 % of namings (median unique names per shoot:
-20.5). Eight cover 66 % — a third of the work still falling through to the
-keyboard. Sixteen is where the curve flattens, so the full button grid goes to
-names and the **actions move to the encoder presses on note 0–7**, which are
-otherwise unused. This inverts the original allocation.
+shoot, sixteen names cover 97 % of namings by median and 93 % by mean (median
+unique names per shoot: 20.5). Eight cover 66 % — a third of the work still
+falling through to the keyboard. Sixteen is where the curve flattens, so the
+full button grid goes to names and the **actions move to the encoder presses
+on note 0–7**, which are otherwise unused. This inverts the original
+allocation. It does not eliminate the keyboard: the largest shoot in the
+corpus had 43 distinct names, so a fallback path has to remain.
 
 **3. `ignorerad` is the single most common action, at 42 % of all labels.** It
 is not one action among many; it is as frequent as the **23** most-used names
