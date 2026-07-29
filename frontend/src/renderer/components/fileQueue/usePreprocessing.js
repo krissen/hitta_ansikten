@@ -237,15 +237,24 @@ export function usePreprocessing(queue, {
         .map(item => preprocessingStatus[item.filePath]?.hash)
         .filter(Boolean);
 
-      // Always send, even empty list to clear old priorities. This is a
-      // fire-and-forget call from a timer callback, so anything it throws
-      // synchronously would escape as an uncaught exception rather than a
-      // rejected promise — wrap it so a failing (or absent) transport can never
-      // take down the surrounding context.
+      // Always send, even empty list to clear old priorities.
+      //
+      // Defensive, not a fix for a reachable bug: setPriorityCacheHashes is an
+      // `async` method, so in the app it always returns a promise and chaining
+      // .catch() onto it is always safe. The wrap exists because this runs from
+      // a timer, where a synchronous throw escapes as an uncaught exception
+      // rather than a rejected promise — which is what took down a test worker
+      // when a mock outlived its implementation.
+      //
+      // The cost is real and deliberate: if this method is ever renamed or
+      // removed, the resulting TypeError is swallowed here instead of
+      // surfacing. Cache priority is best-effort, so silence is the right
+      // trade — but it does mean this line will not tell you when it stops
+      // working.
       try {
         Promise.resolve(apiClient.setPriorityCacheHashes(queueHashes)).catch(() => {});
       } catch {
-        /* cache priority is best-effort */
+        /* best-effort; per the note above, this also hides a missing method */
       }
     }, 500);
 
