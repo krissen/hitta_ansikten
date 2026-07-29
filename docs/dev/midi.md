@@ -375,11 +375,23 @@ what this experiment finds out.
    If the ring does not move, the message is not being received: fix that
    first (wrong channel, wrong port, MC mode).
 4. Turn encoder 1 **exactly one detent clockwise**. Read the raw incoming value.
-5. Interpret:
-   - **65 or 63** → the write moved the internal counter. Relative encoders
+5. Interpret. Note that the ring value scale is **1–13** (LED positions) while
+   the counter is **0–127**, so the two scales do not line up and the firmware
+   has to map between them somehow. There are three outcomes, not two:
+   - **65 or 63** → the write moved the counter to the middle: the firmware
+     maps the ring position proportionally (7 of 13 → ~64). Relative encoders
      are achievable without the Windows editor.
-   - **`V ± 1`** → the write did not move the counter. The LED ring is
-     decorative only.
+   - **`V ± 1`** → the write did **not** move the counter. The LED ring is
+     decorative only. **This is the only negative outcome.**
+   - **Any other value** (e.g. 8 or 6, if the firmware snaps the counter to
+     the raw written value instead of scaling it) → the write **did** move the
+     counter, just to a position derived from the ring value by some other
+     rule. Record what it landed on. Recentering still works; only the
+     constant the host has to write differs.
+
+   Do not read "neither 65/63 nor `V ± 1`" as failure. Two of the three
+   branches mean the technique works — and this experiment is the gate on
+   whether phase 6 has to be redesigned, so a false negative here is expensive.
 6. Press **E4b Pan-läge + ringvärde 7**, which first sets the ring *mode*
    (`CC 1 = 1`, Pan) and then the value. Repeat steps 4–5. Some firmware only
    honours a value write in certain ring modes.
@@ -390,7 +402,10 @@ what this experiment finds out.
 
 **Results.**
 
-| Variant | Encoder | Channel used | Value written | Value `V` before | Raw value after one detent | Counter moved? |
+Record the raw value after one detent verbatim — not just "moved / didn't".
+Where it landed is what identifies the mapping rule.
+
+| Variant | Encoder | Channel used | Value written | Value `V` before | Raw value after one detent | Counter moved? (and to what) |
 | --- | --- | --- | --- | --- | --- | --- |
 | E4a plain ring value | 1 | | 7 | | | |
 | E4a plain ring value | 5 | | 7 | | | |
@@ -409,11 +424,14 @@ what this experiment finds out.
 
 **Consequence.**
 
-- **Counter moves** → phase 6 proceeds as designed: after each encoder message
-  the host writes the ring back to centre, and every knob becomes an endless
-  relative control. This is the good outcome.
-- **Counter does not move** → phase 6 must be redesigned before any of it is
-  built. The remaining options are all worse: absolute knobs with dead ends;
+- **Counter moves — to 65/63 or to anything else** → phase 6 proceeds as
+  designed: after each encoder message the host writes the ring back to a known
+  position, and every knob becomes an endless relative control. This is the
+  good outcome, and it does not require the counter to land on 64
+  specifically — only that the write moves it predictably. Record the observed
+  mapping so the host knows what to write.
+- **Counter does not move (`V ± 1`)** → phase 6 must be redesigned before any
+  of it is built. The remaining options are all worse: absolute knobs with dead ends;
   reconfiguring the device with the Windows-only X-TOUCH Editor in a VM (what
   every published guide resorts to); or dropping the knob layer. Which one is
   a decision for the owner, not something to pick silently.

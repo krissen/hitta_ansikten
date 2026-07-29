@@ -590,8 +590,12 @@
       const n = Number($('encoder').value);
       logNote(
         `E4a: skickar ringvärde 7 (mitten) till encoder ${n}. ` +
-          'Vrid sedan ratten ETT hack och läs råvärdet: 65/63 = räknaren flyttades, ' +
-          'föregående ±1 = den flyttades inte.',
+          'Vrid sedan ratten ETT hack och läs råvärdet. ' +
+          '65/63 = räknaren flyttades till mitten. ' +
+          'Föregående ±1 = den flyttades INTE. ' +
+          'Vilket annat värde som helst (t.ex. 8/6) = den flyttades ändå, ' +
+          'men till ett läge härlett ur kransvärdet — notera vad den landade på. ' +
+          'Bara den mittersta grenen är ett nej.',
       );
       sendChannelMessage(0xb0, txChannel(), 8 + n, 7);
     });
