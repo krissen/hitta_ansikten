@@ -7,10 +7,20 @@
 
 import { debug, debugError } from '../shared/debug.js';
 
+/**
+ * Default external editor for "open the original in an editor".
+ * Lightroom Classic (not the CC/cloud variant) is the only one that supports
+ * MIDI control surfaces.
+ */
+export const DEFAULT_EXTERNAL_EDITOR = 'Adobe Lightroom Classic';
+
+/** The app hardcoded before the editor became configurable (see migrate()). */
+const LEGACY_EXTERNAL_EDITOR = 'Adobe Lightroom';
+
 export class PreferencesManager {
   constructor() {
     this.storageKey = 'ansikten-preferences';
-    this.version = 1;
+    this.version = 2;
 
     // Default preferences structure
     this.defaults = {
@@ -74,8 +84,11 @@ export class PreferencesManager {
       },
       paths: {
         // Root searched recursively to resolve the original NEF for a developed
-        // JPEG in culling ("Öppna i Lightroom"). ~/ is expanded in the main process.
-        rawRoot: '~/Pictures/nerladdat'
+        // JPEG in culling ("Öppna i extern editor"). ~/ is expanded in the main process.
+        rawRoot: '~/Pictures/nerladdat',
+        // App the resolved NEF is handed to (macOS `open -a`). An application
+        // name or a path to an .app; ~/ is expanded in the main process.
+        externalEditor: DEFAULT_EXTERNAL_EDITOR
       },
       preprocessing: {
         enabled: true,              // Master switch for background preprocessing
@@ -327,11 +340,20 @@ export class PreferencesManager {
    * @returns {object} Migrated preferences
    */
   migrate(old) {
-    // Currently only v1 exists, but this is where migration logic would go
-    // Example: if (old.version === 0) { /* migrate v0 -> v1 */ }
+    const migrated = this.mergeWithDefaults(old);
 
-    debug('Preferences', 'No migration needed, merging with defaults');
-    return this.mergeWithDefaults(old);
+    // v1 -> v2: the external editor became configurable. v1 was pinned to the
+    // hardcoded "Adobe Lightroom"; move those users to Lightroom Classic (the
+    // variant that supports MIDI control). A value the user picked themselves
+    // is left untouched.
+    if (!(old.version >= 2)) {
+      const stored = old.paths?.externalEditor;
+      if (!stored || stored === LEGACY_EXTERNAL_EDITOR) {
+        migrated.paths.externalEditor = DEFAULT_EXTERNAL_EDITOR;
+      }
+    }
+
+    return migrated;
   }
 
   /**
