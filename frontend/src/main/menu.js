@@ -79,7 +79,11 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          // Cmd+, is the macOS convention for preferences. It lives here rather
+          // than on the Moduler entry so the platform shortcut sits where users
+          // expect it; Moduler keeps Cmd+Shift+P as a second route.
           label: t('menu.app.preferences'),
+          accelerator: 'CmdOrCtrl+,',
           click: () => {
             sendMenuCommand('open-preferences');
           }
@@ -208,8 +212,9 @@ function createApplicationMenu(mainWindow) {
       label: t('menu.view.title'),
       submenu: [
         {
+          // No accelerator: Cmd+, moved to Inställningar in the app menu, where
+          // the macOS convention puts it. The image viewer stays reachable here.
           label: t('modules.image-viewer'),
-          accelerator: 'CmdOrCtrl+,',
           click: () => {
             sendMenuCommand('open-image-viewer');
           }
@@ -481,7 +486,7 @@ function createApplicationMenu(mainWindow) {
           //
           // "Helbild" is intentionally NOT here: it never mapped to a full-image
           // layout (its old action loaded the review layout), and a full image is
-          // already reachable via Visa → Bildvisare (Cmd+,), so keeping a
+          // already reachable via Visa → Bildvisare, so keeping a
           // mislabeled duplicate only confused. Comparison and Stats both carry
           // accurate labels and real layouts.
           label: t('menu.window.layoutTemplates'),

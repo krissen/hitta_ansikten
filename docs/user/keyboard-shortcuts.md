@@ -133,7 +133,7 @@ Komplett referens för alla tangentbordsgenvägar i Ansikten.
 
 | Genväg | Funktion |
 |--------|----------|
-| `Cmd+,` | Bildvisare |
+| `Cmd+,` | Inställningar |
 | `Cmd+Shift+F` | Granska ansikten |
 | `Cmd+Shift+U` | Filkö |
 | `Cmd+Shift+O` | Originalvy |
@@ -143,6 +143,12 @@ Komplett referens för alla tangentbordsgenvägar i Ansikten.
 | `Cmd+Shift+E` | Förfina ansikten |
 | `Cmd+Shift+P` | Inställningar |
 | `Cmd+Shift+T` | Temaredigerare |
+
+**Bildvisaren** har ingen genväg — den öppnas via **Visa → Bildvisare**.
+
+**Inställningar** nås både via `Cmd+,` (macOS-konventionen, i Ansikten-menyn)
+och `Cmd+Shift+P` (Moduler-menyn). På Windows/Linux finns bara `Ctrl+Shift+P`,
+eftersom appmenyn med `Ctrl+,` är macOS-specifik.
 
 ---
 

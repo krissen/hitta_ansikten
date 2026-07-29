@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 This changelog is initialized from git commit history after `v1.0.0` and can be refined before upcoming releases.
 
+## [Unreleased]
+
+### Changed
+- **`Cmd+,` öppnar nu Inställningar i stället för Bildvisaren.** Genvägen satt tidigare på **Visa → Bildvisare**, medan hjälpöverlägget och användardokumentationen båda påstod att den öppnade Inställningar. Menyn var den som hade fel: `Cmd+,` är macOS-konventionen för inställningar, så acceleratorn är flyttad till **Ansikten → Inställningar** i appmenyn. **Vanebrott:** den som använt `Cmd+,` för att ta fram Bildvisaren måste nu öppna den via **Visa → Bildvisare** — Bildvisaren har medvetet ingen ersättningsgenväg. Inställningar behåller även `Cmd+Shift+P` under Moduler; två vägar till samma modul är avsiktligt. Genvägslistan i [docs/user/keyboard-shortcuts.md](docs/user/keyboard-shortcuts.md) rättad (den listade `Cmd+,` som Bildvisare); hjälpöverlägget och [docs/user/workspace-guide.md](docs/user/workspace-guide.md) sa redan rätt sak och är oförändrade.
+
 ## [1.8.0] - 2026-07-18
 
 ### Added
