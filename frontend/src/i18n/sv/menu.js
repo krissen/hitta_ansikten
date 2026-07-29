@@ -27,7 +27,7 @@ module.exports = {
     "reloadDatabase": "Ladda om databas",
     "saveAll": "Spara alla ändringar",
     "discard": "Kasta ändringar",
-    "openInLightroom": "Öppna i Lightroom",
+    "openInLightroom": "Öppna original i extern editor",
     "deleteToTrash": "Flytta till papperskorgen",
     "quit": "Avsluta"
   },

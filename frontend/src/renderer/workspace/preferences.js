@@ -7,10 +7,17 @@
 
 import { debug, debugError } from '../shared/debug.js';
 
+/**
+ * Default external editor for "open the original in an editor".
+ * Lightroom Classic (not the CC/cloud variant) is the only one that supports
+ * MIDI control surfaces.
+ */
+export const DEFAULT_EXTERNAL_EDITOR = 'Adobe Lightroom Classic';
+
 export class PreferencesManager {
   constructor() {
     this.storageKey = 'ansikten-preferences';
-    this.version = 1;
+    this.version = 2;
 
     // Default preferences structure
     this.defaults = {
@@ -74,8 +81,11 @@ export class PreferencesManager {
       },
       paths: {
         // Root searched recursively to resolve the original NEF for a developed
-        // JPEG in culling ("Öppna i Lightroom"). ~/ is expanded in the main process.
-        rawRoot: '~/Pictures/nerladdat'
+        // JPEG in culling ("Öppna i extern editor"). ~/ is expanded in the main process.
+        rawRoot: '~/Pictures/nerladdat',
+        // App the resolved NEF is handed to (macOS `open -a`). An application
+        // name or a path to an .app; ~/ is expanded in the main process.
+        externalEditor: DEFAULT_EXTERNAL_EDITOR
       },
       preprocessing: {
         enabled: true,              // Master switch for background preprocessing
@@ -327,10 +337,19 @@ export class PreferencesManager {
    * @returns {object} Migrated preferences
    */
   migrate(old) {
-    // Currently only v1 exists, but this is where migration logic would go
-    // Example: if (old.version === 0) { /* migrate v0 -> v1 */ }
-
-    debug('Preferences', 'No migration needed, merging with defaults');
+    // v1 -> v2 added `paths.externalEditor`. v1 had no such key and no UI that
+    // could set one, so there is no stored value to rewrite: merging with the
+    // defaults is what gives existing installs Lightroom Classic. No per-version
+    // step is needed yet; this is where one would go when a future version has
+    // to reshape or rename a stored value.
+    //
+    // Any step added here MUST be idempotent. load() does not persist the
+    // migrated result and mergeWithDefaults copies the stored version over the
+    // default, so a v1 install stays at version 1 — and re-enters this method on
+    // every launch — until some unrelated write happens to save. A step that is
+    // not safe to repeat would run again each start. See ROADMAP.md (Teknisk
+    // skuld > Frontend) for the real fix.
+    debug('Preferences', 'No per-version step needed, merging with defaults');
     return this.mergeWithDefaults(old);
   }
 

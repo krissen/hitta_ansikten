@@ -81,7 +81,7 @@ module.exports = {
       exitLoupe: "Lämna luppen och återgå till rutnätet",
       applyRemovals: "Tillämpa namnborttagningar från förhandsgranskningen",
       undo: "Ångra senaste gallring",
-      openLightroom: "Öppna original-NEF i Lightroom"
+      openLightroom: "Öppna original-NEF i extern editor"
     },
     general: {
       showHelp: "Visa den här hjälpen",

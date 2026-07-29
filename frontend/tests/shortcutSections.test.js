@@ -93,7 +93,7 @@ const EXPECTED = [
       { keys: ['Enter'], desc: 'Byt namn på fil (dubbelklick)' },
       { keys: ['Cmd', 'Enter'], desc: 'Tillämpa namnborttagningar från förhandsgranskningen' },
       { keys: ['Cmd', 'Z'], desc: 'Ångra senaste gallring' },
-      { keys: ['L'], desc: 'Öppna original-NEF i Lightroom' },
+      { keys: ['L'], desc: 'Öppna original-NEF i extern editor' },
     ],
   },
   {
