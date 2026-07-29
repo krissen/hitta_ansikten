@@ -42,7 +42,7 @@ import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from core import db
 
@@ -56,7 +56,7 @@ SAVE_DEBOUNCE_SECONDS = 0.5
 
 # Per-file external-change fingerprint: (st_mtime_ns, st_size), or None when
 # the file is absent. Size catches same-mtime rewrites of different length.
-Fingerprint = Optional[tuple[int, int]]
+Fingerprint = tuple[int, int] | None
 
 
 @dataclass(frozen=True)
