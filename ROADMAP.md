@@ -38,10 +38,13 @@ deliverables, DoD) för en prestandarelease.
     körs med `python -m benchmarks.label_usage`). Mätt på
     `attempt_stats.jsonl` (7 785 bilder, 2025-06-07 → 2026-07-17): `ignorerad`
     är 42 % av 25 009 etiketter, topp-8 globalt täcker bara 38 % av 203 namn,
-    men topp-16 **inom en shoot** täcker 97 %. Konsekvenserna — namnknappar
+    men topp-16 **inom en shoot** täcker 97 % (median; 93 % i snitt, största
+    shooten 43 namn). Konsekvenserna — namnknappar
     scopade till arbetsmängden, alla 16 knapparna till namn (åtgärder flyttar
     till rattryckens note 0–7), och `ignorera` som den mest lättträffade
-    kontrollen — står i [docs/dev/midi.md](docs/dev/midi.md).
+    kontrollen — står i [docs/dev/midi.md](docs/dev/midi.md). Sexton knappar
+    räcker inte i de största shootsen; tangentbordet måste finnas kvar som
+    utväg.
   - [ ] **Öppen fråga: instrumentering av åtgärdsfrekvens.**
     `attempt_stats.jsonl` loggar *utfall*, inte tangenttryck — schemat
     (`core/attempts.py`, `log_attempt_stats`) saknar navigation, vybyten,
