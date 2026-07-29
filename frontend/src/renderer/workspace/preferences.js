@@ -342,6 +342,13 @@ export class PreferencesManager {
     // defaults is what gives existing installs Lightroom Classic. No per-version
     // step is needed yet; this is where one would go when a future version has
     // to reshape or rename a stored value.
+    //
+    // Any step added here MUST be idempotent. load() does not persist the
+    // migrated result and mergeWithDefaults copies the stored version over the
+    // default, so a v1 install stays at version 1 — and re-enters this method on
+    // every launch — until some unrelated write happens to save. A step that is
+    // not safe to repeat would run again each start. See ROADMAP.md (Teknisk
+    // skuld > Frontend) for the real fix.
     debug('Preferences', 'No per-version step needed, merging with defaults');
     return this.mergeWithDefaults(old);
   }
