@@ -15,23 +15,22 @@ Usage (from anywhere)::
 
 .. warning::
 
-   **The input worklist is not currently reproducible.** This script reads
+   **The input worklist must be rebuilt before this script can run.** It reads
    ``_data/restore_worklist.json``, which was generated ad hoc during the B2
-   restore and never committed (``_data/`` is gitignored). No tooling in this
-   repository regenerates it, so the script cannot be run as-is; the restic
-   dump + SHA1-verification logic below is preserved for when a restore is
-   needed again, and the worklist would have to be rebuilt first.
+   restore and never committed (``_data/`` is gitignored).
 
-   Expected shape — a JSON list of objects with:
+   Most of it is already reproducible. ``python -m benchmarks.resolve --json``
+   emits one object per unresolved hash with ``sha1``, ``recorded_basenames``
+   and ``face_count`` — three of the four fields consumed here. Only
+   ``candidates`` is missing: a list of ``{"snapshot": ..., "path": ...}``
+   locating the file in the archive, which the original run built by querying
+   restic through ``kosha find``. Rebuilding the worklist therefore means
+   joining ``resolve --json`` output with an archive lookup per hash; there is
+   no committed tool for that join yet.
 
-   * ``sha1`` — the hash recorded in the face database, used both to skip
-     already-verified entries and to verify each restored file
-   * ``recorded_basenames`` — candidate filenames as recorded in the database
-   * ``candidates`` — archive paths to try with ``restic dump``
-   * ``face_count`` — faces recorded for the image, used for reporting
-
-   ``_data/restore_manifest.json`` from the original run *is* present locally
-   and is what makes the process resumable.
+   ``_data/restore_manifest.json`` from the original run *is* present locally,
+   so a rebuilt worklist resumes rather than restarting: entries already
+   verified there are skipped.
 """
 from __future__ import annotations
 
