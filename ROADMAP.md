@@ -57,6 +57,7 @@ deliverables, DoD) för en prestandarelease.
     Lightroom + MIDI2LR, E5 avgör om ingångsfiltrering av egengenererade
     meddelanden behövs (TX note 0–15 krockar numeriskt med RX note 0–15),
     E6 avgör att fokusgrinden måste vara mjukvara.
+- [ ] **Anta ruff 0.16:s nya regler (eget svep, egen PR)** — CI-stabiliseringen låste regeluppsättningen till `select = ["E4", "E7", "E9", "F", "I"]` i `backend/pyproject.toml` utan att röra kod (se [CHANGELOG.md](CHANGELOG.md)). Kvar står **947 fynd, varav 540 autofixbara** (`ruff check . --fix`; 45 ytterligare bakom `--unsafe-fixes`), fördelade: 287 UP006, 182 UP045, 120 LOG015, 112 E402, 65 BLE001, 41 UP035, 41 G201, 27 RUF100, 26 DTZ005, 17 SIM102. Svepet rör nästan varje backend-fil, så det ska ligga ensamt i sin PR och köras när övriga backend-PR:er landat. Regelgrupperna kräver olika behandling — UP006/UP035/UP045 (moderna typannoteringar) och SIM102 är rena autofixar; BLE001 (blint `except Exception`) och DTZ005 (naiv `datetime.now()`) är genomgångar med verkliga beslut per ställe; E402 kan behöva fler `per-file-ignores` av samma skäl som `api/server.py` redan har ett. Utöka `select` grupp för grupp i takt med att koden städas, inte i ett svep i konfigen.
 
 ### Kort sikt
 
