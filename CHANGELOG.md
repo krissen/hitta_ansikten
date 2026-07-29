@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 This changelog is initialized from git commit history after `v1.0.0` and can be refined before upcoming releases.
 
+## [Unreleased]
+
+### Changed
+- **Handlingskatalog: appens användarutlösbara handlingar deklareras nu på ett ställe.** Ny `frontend/src/renderer/workspace/actions/actionCatalog.js` listar varje handling som ren data — id, ägande modul, i18n-nyckel, tangenter, `kind` (`trigger`/`range`/`delta`), `scope` (`global`/`module`/`destructive`) och `route`. Rutter använder **bara** de två befintliga bussarna: `moduleAPI.emit` och arbetsytans kommandorouter (`workspaceCommands.js`); en handling som ännu inte kan nås från någon buss (den ligger inline i en tangentbordslyssnare) bär `route: null` i stället för ett påhittat event. Hjälpöverläggets `SHORTCUT_SECTIONS` (`shortcutSections.js`) **härleds** nu ur katalogen i stället för att bära en egen, handhållen kopia av samma lista — samma "en källa"-regel som pipeline-stegen redan lyder under ([docs/dev/ux-principles.md](docs/dev/ux-principles.md), N4). Katalogen är i18n-fri (nycklar, inte anropad `t()`), utan sidoeffekter vid import och enhetstestbar utan React. Överlägget ser exakt likadant ut som förut — låst av ett nytt karaktäriseringstest som skrevs före refaktorn och passerar oförändrat efter den. Katalogen tar dessutom upp sex handlingar som funnits i en lyssnare men aldrig i överlägget (lägg till ansikte manuellt, visa/dölj filinformation, gruppera panel som flik, flytta panel till ny kolumn/rad, tvingad omladdning, stäng av autocentrering); de är dokumenterade i katalogen men fortsatt dolda i hjälpen (`help: false`) och drivs av exakt samma lyssnare som förut. **Inga tangentbordslyssnare ändrade** — migreringen av dem är egen post i [ROADMAP.md](ROADMAP.md).
+
 ## [1.8.0] - 2026-07-18
 
 ### Added

@@ -276,6 +276,38 @@ module's `role` in `moduleRegistry.js` (`main`/`side`/`bottom`), never from the
 active tabset. The interaction and navigation rules are codified in
 [UX Principles](ux-principles.md).
 
+### Action catalog
+
+`workspace/actions/actionCatalog.js` declares every user-triggerable action as
+data. It exists because the semantics of "what a user can do" otherwise live only
+inside four independent keyboard listeners (`useKeyboardShortcuts.js`,
+`review/useReviewKeyboard.js`, `CullingModule.jsx`, `FlexLayoutWorkspace.jsx`),
+with the shortcuts-help overlay keeping a hand-maintained copy of the same list —
+two sources that drift, and no place to ask "which actions exist?".
+
+Each entry declares:
+
+| Field | Meaning |
+|-------|---------|
+| `id` | Stable `<area>.<action>` id; the key any binding refers to |
+| `owner` | Module id from `moduleRegistry.js` that performs it, or `null` |
+| `section` | Shortcuts-help section (`SECTIONS`) |
+| `titleKey` | i18n key — never a resolved string, so the catalog is import-safe |
+| `keys` | Keyboard bindings |
+| `kind` | `trigger` (discrete), `range` (absolute value), `delta` (signed change) |
+| `scope` | `global` (window focus), `module` (owner mounted), `destructive` (mounted, left out of default mappings) |
+| `route` | `{ via: 'emit', event }` (moduleAPI) or `{ via: 'dispatch', intent }` (command router), or `null` |
+| `help` | `false` to omit from the overlay, or `{ keys, sep }` row overrides |
+
+The catalog is pure data — no React, no i18n resolution, no import side effects —
+so it is unit-testable (`tests/actionCatalog.test.js`) and readable by non-UI
+code. `SHORTCUT_SECTIONS` is derived from it, guarded by a characterization test
+(`tests/shortcutSections.test.js`) that locks the overlay's exact output.
+
+`route: null` marks an action that no bus can reach yet because it is implemented
+inline in a keyboard listener. Migrating those listeners onto the catalog is
+separate work; the catalog does not touch them.
+
 ---
 
 ## Data Flow
