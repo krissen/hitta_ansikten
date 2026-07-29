@@ -14,9 +14,6 @@ import { debug, debugError } from '../shared/debug.js';
  */
 export const DEFAULT_EXTERNAL_EDITOR = 'Adobe Lightroom Classic';
 
-/** The app hardcoded before the editor became configurable (see migrate()). */
-const LEGACY_EXTERNAL_EDITOR = 'Adobe Lightroom';
-
 export class PreferencesManager {
   constructor() {
     this.storageKey = 'ansikten-preferences';
@@ -340,20 +337,13 @@ export class PreferencesManager {
    * @returns {object} Migrated preferences
    */
   migrate(old) {
-    const migrated = this.mergeWithDefaults(old);
-
-    // v1 -> v2: the external editor became configurable. v1 was pinned to the
-    // hardcoded "Adobe Lightroom"; move those users to Lightroom Classic (the
-    // variant that supports MIDI control). A value the user picked themselves
-    // is left untouched.
-    if (!(old.version >= 2)) {
-      const stored = old.paths?.externalEditor;
-      if (!stored || stored === LEGACY_EXTERNAL_EDITOR) {
-        migrated.paths.externalEditor = DEFAULT_EXTERNAL_EDITOR;
-      }
-    }
-
-    return migrated;
+    // v1 -> v2 added `paths.externalEditor`. v1 had no such key and no UI that
+    // could set one, so there is no stored value to rewrite: merging with the
+    // defaults is what gives existing installs Lightroom Classic. No per-version
+    // step is needed yet; this is where one would go when a future version has
+    // to reshape or rename a stored value.
+    debug('Preferences', 'No per-version step needed, merging with defaults');
+    return this.mergeWithDefaults(old);
   }
 
   /**

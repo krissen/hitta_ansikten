@@ -1,9 +1,10 @@
 /**
- * Preferences version migration (v1 -> v2: configurable external editor).
+ * Loading v1-shaped preferences after v2 added `paths.externalEditor`.
  *
- * v1 had no `paths.externalEditor` at all — the app was pinned to the
- * hardcoded "Adobe Lightroom". The migration must move those installs to
- * Lightroom Classic without touching a value the user chose themselves.
+ * v1 had no such key and no UI that could set one, so there is no stored value
+ * to rewrite — merging with the defaults is what gives an existing install
+ * Lightroom Classic. What has to hold: the new key appears, the rest of a v1
+ * payload survives, and a value the user has since chosen is never overwritten.
  */
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 
@@ -45,22 +46,21 @@ describe('preferences v1 -> v2 (external editor)', () => {
     expect(prefs.get('version')).toBe(2);
   });
 
-  it('moves a v1 install (no stored editor) to Lightroom Classic', () => {
+  it('gives a stored v1 payload the new key, at the Classic default', () => {
     const prefs = loadStored({ version: 1, paths: { rawRoot: '~/Pictures/nerladdat' } });
     expect(prefs.get('paths.externalEditor')).toBe('Adobe Lightroom Classic');
   });
 
-  it('rewrites the legacy hardcoded "Adobe Lightroom" value', () => {
-    const prefs = loadStored({ version: 1, paths: { externalEditor: 'Adobe Lightroom' } });
-    expect(prefs.get('paths.externalEditor')).toBe('Adobe Lightroom Classic');
+  it('stamps the current version on the next save, not on load', () => {
+    // Pre-existing behaviour: mergeWithDefaults copies the stored version over
+    // the default, so the bump lands when something is written back.
+    const prefs = loadStored({ version: 1, paths: { rawRoot: '~/Bilder/raw' } });
+    expect(prefs.get('version')).toBe(1);
+    prefs.save();
+    expect(prefs.get('version')).toBe(2);
   });
 
-  it('leaves an editor the user picked themselves untouched', () => {
-    const prefs = loadStored({ version: 1, paths: { externalEditor: 'Capture One' } });
-    expect(prefs.get('paths.externalEditor')).toBe('Capture One');
-  });
-
-  it('preserves other v1 settings across the migration', () => {
+  it('preserves the rest of a v1 payload', () => {
     const prefs = loadStored({
       version: 1,
       paths: { rawRoot: '~/Bilder/raw' },
@@ -70,8 +70,15 @@ describe('preferences v1 -> v2 (external editor)', () => {
     expect(prefs.get('ui.theme')).toBe('dark');
   });
 
-  it('does not re-run once the stored version is current', () => {
-    const prefs = loadStored({ version: 2, paths: { externalEditor: 'Adobe Lightroom' } });
-    expect(prefs.get('paths.externalEditor')).toBe('Adobe Lightroom');
+  it('never overwrites an editor the user has chosen', () => {
+    const prefs = loadStored({ version: 2, paths: { externalEditor: 'Capture One' } });
+    expect(prefs.get('paths.externalEditor')).toBe('Capture One');
+  });
+
+  it('keeps a cleared field empty rather than snapping it back to the default', () => {
+    // The settings field must be emptyable so it can be retyped; both consumers
+    // (CullingModule and the main-process handler) fall back to Classic.
+    const prefs = loadStored({ version: 2, paths: { externalEditor: '' } });
+    expect(prefs.get('paths.externalEditor')).toBe('');
   });
 });
