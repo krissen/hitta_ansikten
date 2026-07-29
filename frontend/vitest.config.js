@@ -23,6 +23,22 @@ export default defineConfig({
     // pays the transform cost for a whole component tree — the one-time cost the
     // contention multiplies hardest.
     hookTimeout: 20000,
+    // The guard on those budgets. A 20 s ceiling is necessary headroom, but it
+    // is also room to drift into: nothing reports a test creeping from 100 ms
+    // toward 15 s until it crosses, and by then the branch has quietly turned a
+    // race into a slow pass. The default reporter already prints a duration for
+    // every test over this threshold, so setting it deliberately is the whole
+    // mechanism — no extra tooling, and it fires on GREEN runs, which is the
+    // point.
+    //
+    // 10 s is half the budget, and it is chosen to be silent when nothing is
+    // wrong: the slowest test in the suite idles at ~125 ms, and legitimately
+    // contended component mounts measure 3-6 s. So a healthy run — contended or
+    // not — prints nothing at all, and anything that does print is genuinely
+    // halfway to timing out. Alarm rather than haystack; --reporter=verbose
+    // would annotate all ~930 tests every run, which nobody diffs. Take the
+    // full distribution as a manual run when it is actually wanted.
+    slowTestThreshold: 10000,
   },
   esbuild: {
     jsx: 'automatic',
