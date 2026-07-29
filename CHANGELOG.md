@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 This changelog is initialized from git commit history after `v1.0.0` and can be refined before upcoming releases.
 
+## [Unreleased]
+
+### Added
+- **MIDI-sond och mätprotokoll för hårdvarustyrenhet.** Förarbetet inför en fysisk kontrollyta (Behringer X-TOUCH MINI): ett fristående mätverktyg `frontend/scripts/midi-probe/` (`probe.html` + `probe.js`) som listar MIDI-portar med `name`/`id`/`manufacturer`/`state`, loggar varje inkommande meddelande med **råa bytes i hex** jämte avkodad tolkning (kanal både 0- och 1-indexerad — det är den skillnaden som avgör vad fabriksmanualens "kanal 11" faktiskt betyder på tråden), räknar meddelanden per sekund med toppvärde, aggregerar en mätt enhetskarta med min/max per kontroll, skickar godtyckliga meddelanden (formulär eller rå hex) och flaggar rader som **`EKO?`** (enheten skickade tillbaka något vi just skickade) respektive **`OFOKUSERAD`** (meddelandet kom medan sidan saknade fokus). Verktyget har inget byggsteg och inga beroenden, körs i Chrome direkt från disk, och ligger utanför `build.files` så det aldrig buntas i appen. Protokollet — experiment **E1–E6** med procedur, **tomma** resultattabeller och vad varje utfall får för konsekvens — ligger i [docs/dev/midi.md](docs/dev/midi.md) tillsammans med fabrikskartan, uttryckligen märkt **OVERIFIERAD**. Inga mätvärden är ifyllda: hårdvaran har inte anlänt, och **E4** (flyttar en skrivning till LED-kransen encoderns interna räknare?) grindar hela ratt-fasen.
+
 ## [1.8.0] - 2026-07-18
 
 ### Added

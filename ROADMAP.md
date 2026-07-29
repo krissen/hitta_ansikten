@@ -10,7 +10,7 @@ den här filen är den löpande backlogen/known-issues/teknisk skuld över alla
 horisonter; `performance-plan.md` är en smalare, release-scopad plan (sprintar,
 deliverables, DoD) för en prestandarelease.
 
-**Senast uppdaterad:** 2026-07-18
+**Senast uppdaterad:** 2026-07-29
 
 ---
 
@@ -18,7 +18,26 @@ deliverables, DoD) för en prestandarelease.
 
 ### Nu
 
-(Inget just nu.)
+- **MIDI-styrenhet (Behringer X-TOUCH MINI)** — en fysisk kontrollyta för
+  pipelinen. Mät- och beslutsunderlaget ligger i
+  [docs/dev/midi.md](docs/dev/midi.md); allt som rör hårdvarans faktiska
+  beteende ska mätas där innan det byggs, inte antas från fabriksmanualen.
+  - [x] **PR 0 — hårdvarusond + dokumentmall.** `frontend/scripts/midi-probe/`
+    (fristående Chrome-sida, inget byggsteg, buntas aldrig) plus
+    [docs/dev/midi.md](docs/dev/midi.md) med experiment E1–E6, tomma
+    resultattabeller och en fabrikskarta märkt **OVERIFIERAD**.
+  - [ ] **Kör E1–E6 när enheten anlänt.** Inga mätvärden är ifyllda ännu.
+    Fabrikskartan i doc:en är ett påstående att verifiera, inte facit.
+  - [ ] **Fas 6 (rattar) är grindad på E4.** E4 avgör om en skrivning till
+    encoderns LED-krans också flyttar dess interna räknare, dvs. om absoluta
+    rattar kan fås att bete sig relativt utan Windows-editorn. Faller E4 ut
+    negativt måste ratt-fasen ritas om (absoluta rattar med ändlägen,
+    X-TOUCH Editor i VM, eller ingen ratt-fas) — ett ägarbeslut, inte ett
+    tyst val. **Kör E4 först av alla.**
+  - [ ] Övriga fynd med konsekvens: E1 avgör om Ansikten kan dela enheten med
+    Lightroom + MIDI2LR, E5 avgör om ingångsfiltrering av egengenererade
+    meddelanden behövs (TX note 0–15 krockar numeriskt med RX note 0–15),
+    E6 avgör att fokusgrinden måste vara mjukvara.
 
 ### Kort sikt
 
