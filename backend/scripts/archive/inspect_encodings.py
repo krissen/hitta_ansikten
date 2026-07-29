@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 # Import utilities from faceid_db
-from faceid_db import get_file_hash, safe_pickle_load  # noqa: E402
+from faceid_db import get_file_hash, safe_pickle_load
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--mode", choices=["filnamn", "hash", "både"], default="både",

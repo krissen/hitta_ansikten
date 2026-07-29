@@ -8,8 +8,8 @@ import numpy as np
 # Archived tool: add backend/ (three levels up) to sys.path so imports resolve.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from cli_config import init_logging  # noqa: E402
-from faceid_db import load_database, save_database  # noqa: E402
+from cli_config import init_logging
+from faceid_db import load_database, save_database
 
 # ======== JUSTERBARA KONSTANTER OCH STANDARDVÄRDEN =========
 STD_THRESHOLD = 2.0  # Stdavvikelse-gräns för outlier-filtrering

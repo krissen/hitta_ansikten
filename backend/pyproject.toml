@@ -75,6 +75,7 @@ select = [
     "E9",
     "F",
     "I",
+    "RUF100",  # unused `# noqa` directive
     "UP006",  # List[x] -> list[x]
     "UP035",  # deprecated typing imports
     "UP045",  # Optional[x] -> x | None

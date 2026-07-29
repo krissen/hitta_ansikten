@@ -270,7 +270,6 @@ def show_temp_image(
     preview_path: str | Path,
     config: dict[str, Any],
     image_path: str | Path | None = None,
-    last_shown: list[str | None] = [None],  # noqa: B006
 ) -> None:
     """
     Display a preview image in the configured viewer app.
@@ -339,7 +338,5 @@ def show_temp_image(
         except Exception as e:
             logging.error(f"[ANSIKTEN] Fel vid start av extern bildvisare: {e}")
             print(f"⚠️  Kunde inte öppna extern bildvisare: {e}", file=sys.stderr)
-        last_shown[0] = expected_path
     else:
         logging.debug("[ANSIKTEN] Hoppar över open")
-        last_shown[0] = str(preview_path)

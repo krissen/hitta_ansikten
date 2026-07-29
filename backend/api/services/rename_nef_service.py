@@ -18,13 +18,13 @@ from pathlib import Path
 # Backend root on sys.path to import the CLI core.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from core import fs_ops  # noqa: E402
-from core.naming import record_previous_name  # noqa: E402
-from rename_nef import compute_renames, get_exif_data, is_already_named  # noqa: E402
+from core import fs_ops
+from core.naming import record_previous_name
+from rename_nef import compute_renames, get_exif_data, is_already_named
 
-from ..websocket.progress import broadcast_event  # noqa: E402
-from .file_resolver import preset_extensions, resolve_files  # noqa: E402
-from .rename_service import find_sidecar_files  # noqa: E402
+from ..websocket.progress import broadcast_event
+from .file_resolver import preset_extensions, resolve_files
+from .rename_service import find_sidecar_files
 
 logger = logging.getLogger(__name__)
 

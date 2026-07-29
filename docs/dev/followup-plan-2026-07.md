@@ -70,19 +70,66 @@ still unlinted.
 ### 1.1 Remaining ruff families, one PR each
 
 `select` in `backend/pyproject.toml` grows one family per PR. Remaining, with
-counts measured at 947 total on 2026-07-29:
+counts **re-measured against ruff 0.16.0 on 2026-07-29 under the current
+config**. The 947 figure quoted above and in ROADMAP was taken under the *old*
+configuration, before the modern-typing family was adopted; it does not describe
+what is left. The measured total was 292.
+
+**How to measure a family — applies to every phase below.** Always measure with
+`--extend-select <RULE>` on top of the locked set, never with `--select`:
+
+```bash
+ruff check . --extend-select RUF100 --statistics   # correct
+ruff check . --select RUF100                       # wrong — replaces the set
+```
+
+`--select` *replaces* the rule set instead of extending it, so the rules that are
+normally on get switched off. Any `# noqa` naming one of them then looks unused
+and the count comes out too high. Measuring `RUF100` that way gave 30 and 24
+findings; the actual number under the project's configuration is 22.
 
 | PR | rules | count | character |
 |---|---|---|---|
-| 1.1a | `RUF100`, `SIM102` | 27 + 17 | pure autofix |
+| 1.1a | `RUF100` | 22 | autofix, but **not** mechanical — see the noqa warning below. **Done** |
 | 1.1b | `LOG015`, `G201` | 120 + 41 | mechanical, but read the diff — `G201` rewrites `logger.error(..., exc_info=True)` into `logger.exception` and changes what gets logged |
-| 1.1c | `E402` | 112 | **not** an autofix. `api/server.py` already carries a `per-file-ignores` entry because it imports routers after the app is constructed to avoid circular imports. Expect more of the same. Judge per file; do not hoist imports to satisfy a linter |
-| 1.1d | `BLE001` | 65 | blind `except Exception`. Every site is a decision: narrow the exception, or keep it and say why. A mechanical pass here **will** change behaviour |
+| 1.1c | `SIM102` | 17 | **not** an autofix, contrary to the first draft of this plan. ruff offers no safe fix (3 of the 17 have an *unsafe* one). Twelve sit in `core/matching.py` as triple-nested guard chains that collapse into long compound conditions, so each is a readability judgement. Its own PR, not a passenger on an autofix |
+| 1.1d | `BLE001` | 66 | blind `except Exception`. Every site is a decision: narrow the exception, or keep it and say why. A mechanical pass here **will** change behaviour |
 | 1.1e | `DTZ005` | 26 | naive `datetime.now()`. Same character. Note that `attempt_stats.jsonl` timestamps are naive today and the analysis in `benchmarks/label_usage.py` parses them — changing them is a data-format change, not a lint fix |
+
+**`E402` has no phase.** An earlier draft listed it as 1.1c with 112 findings.
+That count came from the old configuration; the rule is already part of `E4` in
+the locked set and measures **zero** today (`api/server.py` carries its
+`per-file-ignores` entry, `preprocessed_cache/` is excluded). There is nothing to
+adopt — do not reintroduce the phase.
 
 Order matters: 1.1a and 1.1b are cheap and build confidence in the process;
 1.1c–e need judgement and should not be attempted while the mechanical ones are
 still outstanding, because a reviewer cannot tell them apart in one diff.
+
+**Warning for every future `noqa` sweep — this recurs each time `select`
+grows.** `RUF100` flags any `# noqa` that suppresses nothing, and a directive
+naming a rule that is **not yet selected** counts as unused. Two classes, and
+only one is safe to delete:
+
+- **(a) `noqa` for a selected rule that genuinely does not fire.** Safe to
+  remove; the autofix is right.
+- **(b) `noqa` for a rule outside `select`.** Removing it is correct per the
+  rule, but the *justification* dies with the comment — and it is needed again
+  the day that rule is adopted, which is precisely what this plan does. Read the
+  code and establish what the construct actually does, then either preserve the
+  reason as a plain comment or, if there turns out to be no reason, delete the
+  construct. Do not guess the reason from the rule name, and do not write a
+  justification the code does not support: a comment that preserves a
+  misconception is worse than no comment, because it is what gets cited to put
+  the directive back.
+
+1.1a hit exactly one class (b) case: `# noqa: B006` on `last_shown` in
+`core/image.py`. It looked like a deliberate mutable default; reading the code
+showed the one-slot list is written at both exits of `show_temp_image` and never
+read — write-only since the function was first written. The parameter was
+deleted rather than annotated, which removes the violation instead of explaining
+it. **Deletion is a legitimate outcome of class (b), often the better one.**
+Never run `--fix` over a `noqa` sweep without reading each removed line.
 
 **Verification for every one of these**, established in #254/#255 and not
 optional:
