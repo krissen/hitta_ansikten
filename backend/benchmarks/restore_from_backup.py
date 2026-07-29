@@ -249,19 +249,26 @@ def main(argv=None) -> int:
     counters = {"total": len(todo), "done": 0, "verified": 0, "failed": 0, "bytes": 0}
     clock = {"start": time.time()}
 
+    crashed = 0
     with cf.ThreadPoolExecutor(max_workers=args.workers) as ex:
         futs = [ex.submit(process_entry, e, manifest, counters, clock) for e in todo]
         for f in cf.as_completed(futs):
             exc = f.exception()
             if exc:
+                # A crashed entry leaves no manifest record, so it is neither
+                # verified nor counted as failed — it would silently vanish from
+                # the tally. Count it separately and fail the run.
+                crashed += 1
                 print("worker error:", exc, flush=True)
     manifest.flush()
 
     elapsed = time.time() - clock["start"]
     print(f"DONE in {elapsed/60:.1f}min verified={counters['verified']} "
-          f"failed={counters['failed']} bytes={counters['bytes']} "
+          f"failed={counters['failed']} crashed={crashed} bytes={counters['bytes']} "
           f"({counters['bytes']/1e9:.1f}GB)", flush=True)
-    return 0
+    # Non-zero when anything did not land verified, so a caller (or a shell
+    # loop resuming the restore) can tell a clean run from a partial one.
+    return 0 if crashed == 0 and counters["failed"] == 0 else 1
 
 
 if __name__ == "__main__":
