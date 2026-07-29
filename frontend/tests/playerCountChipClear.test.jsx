@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 
 // REFRESH_DEBOUNCE_MS in PlayerCountModule (not exported); waits use a margin.
 const REFRESH_MS = 400;
@@ -175,103 +175,119 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
   // Fynd 2: removing the only chip while a folder-watch refresh is in flight must
   // fence that request (seq bump) so its late response can't repopulate the
   // just-cleared result.
+  //
+  // Driven off a fake clock. Sleeping REFRESH_DEBOUNCE_MS + margin on the real
+  // clock and asserting immediately after assumes the debounce callback AND the
+  // re-render it triggers both complete within that margin — on a loaded machine
+  // they do not, and the assertions then read a DOM that has not caught up yet.
   it('removing the only chip fences an in-flight folder-watch refresh', async () => {
-    setScanScope({
-      roots: ['/solo'],
-      globs: [],
-      recursive: true,
-      date_from: null,
-      date_to: null,
-      extension_preset: 'jpg',
-    });
-    let folderCb = null;
-    globalThis.window.ansiktenAPI = {
-      watchFolder: vi.fn(),
-      unwatchFolder: vi.fn(),
-      onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
-      invoke: vi.fn().mockResolvedValue([]),
-    };
-    const populated = {
-      total_images: 3,
-      files_resolved: 3,
-      players: [{ name: 'A', count: 3, pct: 100, delta_pct: 0, delta_n: 0, level: 'ok', timestamps: [] }],
-      excluded: null,
-      baseline: 3,
-      baseline_method: 'median',
-      time_range: null,
-    };
-    postMock.mockResolvedValue(populated);
+    vi.useFakeTimers();
+    try {
+      setScanScope({
+        roots: ['/solo'],
+        globs: [],
+        recursive: true,
+        date_from: null,
+        date_to: null,
+        extension_preset: 'jpg',
+      });
+      let folderCb = null;
+      globalThis.window.ansiktenAPI = {
+        watchFolder: vi.fn(),
+        unwatchFolder: vi.fn(),
+        onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
+        invoke: vi.fn().mockResolvedValue([]),
+      };
+      const populated = {
+        total_images: 3,
+        files_resolved: 3,
+        players: [{ name: 'A', count: 3, pct: 100, delta_pct: 0, delta_n: 0, level: 'ok', timestamps: [] }],
+        excluded: null,
+        baseline: 3,
+        baseline_method: 'median',
+        time_range: null,
+      };
+      postMock.mockResolvedValue(populated);
 
-    const { container } = render(<PlayerCountModule />);
-    await waitFor(() => expect(countCalls().length).toBe(1)); // adopt count
+      let container;
+      await act(async () => {
+        ({ container } = render(<PlayerCountModule />));
+      });
+      expect(countCalls().length).toBe(1); // adopt count
 
-    // The next count (the folder-watch refresh) hangs → stays in flight.
-    let resolveRefresh;
-    postMock.mockImplementationOnce(() => new Promise((res) => { resolveRefresh = res; }));
-    folderCb(); // schedule the debounced refresh
-    await new Promise((r) => setTimeout(r, REFRESH_MS + 50)); // let it fire
-    expect(countCalls().length).toBe(2); // refresh is in flight
-    // The silent refresh turned the "refreshing" indicator on.
-    expect(container.querySelector('.player-count-refreshing')).not.toBeNull();
+      // The next count (the folder-watch refresh) hangs → stays in flight.
+      let resolveRefresh;
+      postMock.mockImplementationOnce(() => new Promise((res) => { resolveRefresh = res; }));
+      folderCb(); // schedule the debounced refresh
+      await act(async () => { await vi.advanceTimersByTimeAsync(REFRESH_MS); });
+      expect(countCalls().length).toBe(2); // refresh is in flight
+      // The silent refresh turned the "refreshing" indicator on.
+      expect(container.querySelector('.player-count-refreshing')).not.toBeNull();
 
-    // Remove the only chip → empty clear branch must fence the in-flight refresh.
-    const remove = container.querySelector('.input-bar-chip-remove');
-    fireEvent.click(remove);
-    await waitFor(() =>
-      expect(container.querySelector('.input-bar-chip-remove')).toBeNull()
-    );
+      // Remove the only chip → empty clear branch must fence the in-flight refresh.
+      const remove = container.querySelector('.input-bar-chip-remove');
+      await act(async () => { fireEvent.click(remove); });
+      expect(container.querySelector('.input-bar-chip-remove')).toBeNull();
 
-    // Fynd 4: the clear releases the refresh spinner even though the fenced
-    // request's finally never runs (it can't repopulate, but it also can't clean
-    // up its own flag).
-    expect(container.querySelector('.player-count-refreshing')).toBeNull();
+      // Fynd 4: the clear releases the refresh spinner even though the fenced
+      // request's finally never runs (it can't repopulate, but it also can't clean
+      // up its own flag).
+      expect(container.querySelector('.player-count-refreshing')).toBeNull();
 
-    // The stale refresh resolves AFTER the clear: it must NOT repopulate.
-    resolveRefresh(populated);
-    await new Promise((r) => setTimeout(r, 0));
+      // The stale refresh resolves AFTER the clear: it must NOT repopulate.
+      await act(async () => { resolveRefresh(populated); });
 
-    expect(getScanScope()).toBeNull();
-    // Empty-state prompt is (still) shown — the late response did not repopulate.
-    expect(screen.getByText('Räkna', { selector: 'strong' })).toBeTruthy();
-    // And the spinner stayed off after the late resolve.
-    expect(container.querySelector('.player-count-refreshing')).toBeNull();
+      expect(getScanScope()).toBeNull();
+      // Empty-state prompt is (still) shown — the late response did not repopulate.
+      expect(screen.getByText('Räkna', { selector: 'strong' })).toBeTruthy();
+      // And the spinner stayed off after the late resolve.
+      expect(container.querySelector('.player-count-refreshing')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Fynd 2 (scheduled variant): removing the only chip while a refresh is merely
   // debounce-scheduled must cancel the timer so it can't POST null params.
   it('removing the only chip cancels a scheduled folder-watch refresh', async () => {
-    setScanScope({
-      roots: ['/solo'],
-      globs: [],
-      recursive: true,
-      date_from: null,
-      date_to: null,
-      extension_preset: 'jpg',
-    });
-    let folderCb = null;
-    globalThis.window.ansiktenAPI = {
-      watchFolder: vi.fn(),
-      unwatchFolder: vi.fn(),
-      onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
-      invoke: vi.fn().mockResolvedValue([]),
-    };
+    vi.useFakeTimers();
+    try {
+      setScanScope({
+        roots: ['/solo'],
+        globs: [],
+        recursive: true,
+        date_from: null,
+        date_to: null,
+        extension_preset: 'jpg',
+      });
+      let folderCb = null;
+      globalThis.window.ansiktenAPI = {
+        watchFolder: vi.fn(),
+        unwatchFolder: vi.fn(),
+        onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
+        invoke: vi.fn().mockResolvedValue([]),
+      };
 
-    const { container } = render(<PlayerCountModule />);
-    await waitFor(() => expect(countCalls().length).toBe(1)); // adopt count
+      let container;
+      await act(async () => {
+        ({ container } = render(<PlayerCountModule />));
+      });
+      expect(countCalls().length).toBe(1); // adopt count
 
-    folderCb(); // schedule (but do not yet fire) a debounced refresh
-    postMock.mockClear();
+      folderCb(); // schedule (but do not yet fire) a debounced refresh
+      postMock.mockClear();
 
-    // Remove the only chip → empty clear branch must clearTimeout the refresh.
-    const remove = container.querySelector('.input-bar-chip-remove');
-    fireEvent.click(remove);
-    await waitFor(() =>
-      expect(container.querySelector('.input-bar-chip-remove')).toBeNull()
-    );
+      // Remove the only chip → empty clear branch must clearTimeout the refresh.
+      const remove = container.querySelector('.input-bar-chip-remove');
+      await act(async () => { fireEvent.click(remove); });
+      expect(container.querySelector('.input-bar-chip-remove')).toBeNull();
 
-    // Wait past the debounce window: the cancelled refresh must never POST.
-    await new Promise((r) => setTimeout(r, REFRESH_MS + 100));
-    expect(countCalls().length).toBe(0);
-    expect(getScanScope()).toBeNull();
+      // Advance past the debounce window: the cancelled refresh must never POST.
+      await act(async () => { await vi.advanceTimersByTimeAsync(REFRESH_MS * 2); });
+      expect(countCalls().length).toBe(0);
+      expect(getScanScope()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
