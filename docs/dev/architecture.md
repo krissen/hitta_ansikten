@@ -214,6 +214,32 @@ state, and the face-box overlay (drawn via `drawOverlay`). The viewport math
 `shared/canvasViewport.js`; contain-fit geometry stays in `shared/fitTransform.js`.
 The same core is intended for reuse by the culling loupe.
 
+### Session Permission Model
+
+Browser permissions are **deny-by-default**. Without an explicit handler an
+Electron session falls back to the built-in default, which grants most requests
+(camera, microphone, geolocation, notifications) to whatever page it loads — a
+needlessly wide surface for a local `file://` workspace.
+
+`src/main/permissions.js` owns the policy; `installPermissionPolicies()` in
+`src/main/index.js` installs it on app ready, before any window loads content:
+
+| Session | Window | Allowed |
+|---------|--------|---------|
+| `persist:ansikten` | Workspace | `midi` (Web MIDI control surface), `clipboard-sanitized-write` (copy-logs button in the log viewer) |
+| default session | Splash (sets no partition) | nothing |
+
+Two handlers are installed per session, `setPermissionRequestHandler` and
+`setPermissionCheckHandler`: Chromium consults the synchronous *check* before the
+asynchronous *request* on several paths, so installing only the request handler
+would leave the check on Electron's permissive default and make the outcome
+path-dependent. Both handlers share one decision function built from one
+allowlist, so they cannot drift apart. Denials are logged with the `[Main]`
+prefix (request denials always, check denials once per permission since checks
+can be polled), so a missing allowlist entry surfaces as a log line rather than a
+silent no-op. Adding a permission means adding it to the allowlist in
+`permissions.js` — nowhere else.
+
 ### Module Communication
 
 Modules communicate via `ModuleAPI`:
