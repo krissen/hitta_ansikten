@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 This changelog is initialized from git commit history after `v1.0.0` and can be refined before upcoming releases.
 
+## [Unreleased]
+
+### Changed
+- **Den externa editorn är valbar — och standard är nu Adobe Lightroom Classic.** `L` i Gallra spelare (samt högerklick-menyn och **Arkiv → Öppna original i extern editor**, `Cmd+Shift+L`) lämnade tidigare över original-NEF:en till en hårdkodad "Adobe Lightroom". Appen anges nu under **Inställningar → Filer → *Extern editor*** (nya preferensen `paths.externalEditor`, bredvid *RAW-mapp (NEF)* som redan betjänar samma funktion). Standard är **Adobe Lightroom Classic** — den enda varianten som stöder MIDI-styrning. Fältet tar ett appnamn eller en sökväg till en `.app` (`~/` expanderas i huvudprocessen, precis som för RAW-mappen); värdet följer med i det befintliga IPC-anropet, ingen ny mekanism. Preferensversionen går till **2** med en migrering som tyst flyttar befintliga installationer till Classic men lämnar ett värde du själv satt orört. Ett misslyckat öppnande — realistiskt nu när appnamnet kan stavas fel — loggades förr bara till konsolen; det ytar nu på Gallra spelares vanliga felrad **med det konfigurerade appnamnet i meddelandet**, så felet förklarar sig självt. Användarnära text som namngav Lightroom (menypost, `L`-genvägens beskrivning, kontextmenyn, felmeddelanden, inställningsrubriken) är omskriven till editor-neutral formulering; IPC-kanalens namn `open-raw-in-lightroom` är oförändrat (kanalomdöpning är en egen refaktor).
+
 ## [1.8.0] - 2026-07-18
 
 ### Added
