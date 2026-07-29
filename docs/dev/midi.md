@@ -80,6 +80,89 @@ is right.
 
 ---
 
+## What the logs say about the mapping
+
+Everything above measures the *hardware*. This section measures the *work* —
+what the owner actually spends review time on — so the button mapping is sized
+from the corpus rather than from intuition. Same method as the Lightroom
+XMP-sidecar analysis in `chitrashala/analys/resultat-2026-07.md`, applied to
+Ansikten's own review log.
+
+Reproduce with:
+
+```
+cd backend && python -m benchmarks.label_usage
+```
+
+The script reads `~/.local/share/faceid/attempt_stats.jsonl` read-only and
+prints the table below. Re-run it as the corpus grows; these numbers are a
+snapshot, not a constant.
+
+### Measured
+
+Corpus: 7 785 reviewed images, 2025-06-07 → 2026-07-17, 55 shoots (a shoot =
+one source directory reviewed on one date).
+
+| Measure | Value |
+| --- | --- |
+| Labels total | 25 009 |
+| — of which `ignorerad` | **10 492 (42 %)** |
+| Reviews not `ok` (retry, skipped, no_faces, all_ignored) | 358 |
+| Unique names, whole corpus | 203 |
+| Top-8 names, globally | **38 %** |
+| Top-16 names, globally | 61 % |
+| Shoots with ≥ 50 namings | 42 of 55 |
+| Median unique names per shoot | 20.5 |
+| Top-8 names within a shoot (median) | **66 %** |
+| Top-16 names within a shoot (median) | **97 %** |
+
+### Three consequences, all of which revise the original plan
+
+**1. A static top-8 name row is not viable.** Globally the eight most frequent
+names cover only 38 % of 25 009 labels, and even sixteen cover just 61 % —
+across 203 distinct people. A fixed row of favourites would miss roughly
+two-thirds of the naming work. The name buttons must be **scoped to the
+current working set**, using the working-folder anchor the app already
+maintains. The same eight physical buttons carry different names in different
+shoots; that is the whole point.
+
+**2. All sixteen buttons should carry names, not eight.** Within a single
+shoot, sixteen names cover 97 % of namings (median unique names per shoot:
+20.5). Eight cover 66 % — a third of the work still falling through to the
+keyboard. Sixteen is where the curve flattens, so the full button grid goes to
+names and the **actions move to the encoder presses on note 0–7**, which are
+otherwise unused. This inverts the original allocation.
+
+**3. `ignorerad` is the single most common action, at 42 % of all labels.** It
+is not one action among many; it is as frequent as the **23** most-used names
+put together. It deserves the most reachable control on the device — a
+dedicated, unambiguous, hard-to-miss target — rather than a seat in a row of
+equals.
+
+### What the log cannot answer
+
+`attempt_stats.jsonl` records **outcomes, not keystrokes.** The schema
+(`backend/core/attempts.py`, `log_attempt_stats`) is `timestamp`, `filename`,
+`file_hash`, `attempts`, `used_attempt`, `review_results` and
+`labels_per_attempt`. There is no record of navigation, view switches, culling
+actions, or which key was pressed to produce any of it.
+
+So: **name frequency is measured; action frequency is not.** The table above
+ranks *names*, and the 42 % figure for `ignorerad` is a share of labels, not a
+position in a ranking of actions — no other action appears in the log at all,
+so none could have outranked it. Do not read this section as an ordering of
+commands. Establishing which *actions* dominate would need new
+instrumentation, which is an open question in [ROADMAP.md](../../ROADMAP.md)
+and deliberately not built yet.
+
+Two smaller caveats. The 358 non-`ok` reviews are counted per attempt across
+the whole corpus (4.6 % of reviewed images) and say only that a review did not
+land cleanly on the first pass — not why. And two malformed labels carrying an
+index prefix with an empty name are dropped by the script; 25 009 is the count
+after that.
+
+---
+
 ## E1 — Port enumeration
 
 **What is measured.** The exact port names and ids the device presents on
