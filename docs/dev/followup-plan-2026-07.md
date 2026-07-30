@@ -273,7 +273,7 @@ here. Phase 2 is next.
 `workspace/actions/actionCatalog.js` (#249) is the single source for *which
 actions exist*, but it is not yet the source for *what they do*.
 
-### 2.1 Take the app menu into the catalog
+### 2.1 Take the app menu into the catalog — **Done**
 
 The menu — `src/main/menu.js` → `menu-command` IPC → `flexlayout/menuCommands.js`
 — is a third dispatch path the catalog does not model. Roughly 25 menu-only
@@ -285,6 +285,60 @@ Add a third `route.via` (or a `menuCommand` field) and take the missing actions
 in. The route-target validation added in #249 should be extended to cover it, so
 a menu command with no listener fails the test rather than the user.
 
+**Done** — both mechanisms, because the plan's "or" turned out to be two
+different questions. `route: { via: 'menu', command }` is the third bus: the
+menu-command table performs the action *itself*, with a direct call on its
+workspace ctx and nothing underneath (theme switching, the layout-geometry
+helpers, the file dialog, the welcome card). A separate `menuCommand` field is
+the *binding* — which menu item triggers an action some other bus performs, and
+that is genuinely extra information only for `dispatch` actions, where the
+command name is nothing the intent mentions (`open-review-module` →
+`open-module review-module`).
+
+The first draft went further and said an `emit` action needs *no* `menuCommand`,
+because menu.js sends the event name verbatim so `route.event` already is the
+command. **Review caught that as wrong**, and the reasoning is worth keeping:
+it held for all 17 emit actions by coincidence, not by rule — an emit action
+reachable only from a keyboard listener has no menu item at all — and, worse, it
+made the third-direction check *unable to fail*, because the binding being checked
+was derived from the very file it was checked against. Bindings are now declared
+on every action and inferred on none, at a cost of one line each.
+
+**Measured, not eyeballed:** 28 actions added (58 → 86), and the catalog declares
+all **64** distinct commands menu.js sends, asserted in three directions — every
+command sent is declared, every command declared has a handler, every command
+declared is still sent. The first write-up said 26, 60 → 86 and 63; all three
+numbers were estimated rather than counted, and all three were wrong.
+
+Three things worth carrying forward. **The dead-command count was 8, not 1.** The
+validation caught `reload-database` as the plan predicted, and seven more nobody
+had logged: the five `grid-preset-*` items (Cmd+Shift+1..5) and
+`export-layout` / `import-layout`. They sit in `KNOWN_DEAD_MENU_COMMANDS` with a
+TODO pointing here, and 2.2 is now a bigger item than its heading suggests — see
+the note there. **`Cmd+R` is doubly wrong:** the dead `reload-database` is a menu
+*accelerator*, and a menu accelerator wins over any renderer keydown, so it also
+makes the catalog's `general.reload` ("Ladda om fönstret", same key) unreachable.
+Both halves are one decision. **And the mirror exists:** six handlers in
+menuCommands.js that no menu item sends (`KNOWN_UNREACHABLE_HANDLERS`), all
+layout-template aliases stranded when the Window menu was rewritten. 2.2 empties
+both lists.
+
+**The Escape question, which gates 2.3.** `Escape` is a global menu accelerator
+(Arkiv ▸ Kasta ändringar). If the rule that makes `general.reload` unreachable
+holds generally, it should also make four catalogued Esc actions unreachable —
+`review.cancel` and the three culling ones. It is not established that it does:
+CullingModule's capture-phase listeners may win, or Electron may treat `Escape`
+unlike letter accelerators. **This needs a GUI run to settle and cannot be
+answered by reading the code.** Settle it before migrating any Escape listener —
+migrating a listener whose key may never reach it would cement a bug in catalog
+form. Logged in ROADMAP as a must-verify.
+
+Nothing about the running app changed: every new action carries `help: false`, so
+the derived shortcuts overlay is byte-identical (verified by diffing
+`SHORTCUT_SECTIONS` across the change, not by eye). Surfacing the menu
+accelerators in the overlay is a real question — a dozen of them are undocumented
+keyboard shortcuts — but it is a UI decision, not this PR's.
+
 ### 2.2 `reload-database` is dead
 
 `menu.js:157` sends `reload-database`; no renderer listener exists, so it falls
@@ -293,6 +347,28 @@ through to the default broadcast and does nothing. `Cmd+R` looks like it works.
 Either wire it to a real reload of the database views or remove the menu entry.
 Do not leave it. If 2.1 lands first, its validation test catches this
 automatically — which is a good reason to do them in that order.
+
+**Scope revised after 2.1 landed.** The validation found eight dead commands, not
+one, and this item now owns all of them — they are listed in
+`KNOWN_DEAD_MENU_COMMANDS` in `actionCatalog.js`, and the phase is finished when
+that list is empty and the constant is deleted (the test asserts a listed command
+is still both dead and still sent, so a stale exception cannot survive either):
+
+| Menu item | Command(s) | Accelerator |
+|---|---|---|
+| Arkiv ▸ Ladda om databas | `reload-database` | `Cmd+R` |
+| Fönster ▸ Rutnätsförval | `grid-preset-{50-50,60-40,70-30,30-70,40-60}` | `Cmd+Shift+1..5` |
+| Fönster ▸ Exportera layout… | `export-layout` | — |
+| Fönster ▸ Importera layout… | `import-layout` | — |
+
+Three are worse than merely inert. `Cmd+R` and `Cmd+Shift+1..5` are menu
+accelerators, and a menu accelerator wins over any renderer keydown, so those keys
+are *consumed* — `Cmd+R` in particular shadows the catalog's `general.reload`, and
+removing the menu entry is what would make that key work at all. The two layout
+items end in an ellipsis, which promises a file dialog that never opens. Deciding
+per item (wire up or remove) is the work; deleting is a legitimate outcome for any
+of them, and probably the right one for the grid presets, whose ratios the
+draggable splitters already give.
 
 ### 2.3 Migrate the four keyboard listeners
 

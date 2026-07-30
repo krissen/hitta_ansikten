@@ -14,11 +14,16 @@ import {
   SECTIONS,
   ACTION_KINDS,
   ACTION_SCOPES,
+  ACTION_ROUTE_BUSES,
+  KNOWN_DEAD_MENU_COMMANDS,
+  KNOWN_UNREACHABLE_HANDLERS,
   actionsForSection,
   getAction,
+  menuCommandsOf,
 } from '../src/renderer/workspace/actions/actionCatalog.js';
 import { MODULE_CATALOG } from '../src/renderer/workspace/flexlayout/moduleRegistry.js';
 import { ROUTER_INTENT_TYPES } from '../src/renderer/workspace/flexlayout/workspaceCommands.js';
+import { buildMenuCommandTable } from '../src/renderer/workspace/flexlayout/menuCommands.js';
 import { t } from '../src/i18n/index.js';
 
 /**
@@ -68,6 +73,45 @@ function collectEmittedEvents() {
   return events;
 }
 
+/** Every `menu-command` string src/main/menu.js can send. */
+function collectSentMenuCommands() {
+  const menu = fs.readFileSync(path.resolve(__dirname, '../src/main/menu.js'), 'utf8');
+  const commands = new Set();
+  // A menu item sends either a literal or a checked-state ternary of two
+  // literals, so take every string literal in the call's arguments.
+  for (const call of menu.matchAll(/sendMenuCommand\(([^)]*)\)/g)) {
+    for (const lit of call[1].matchAll(/'([^']+)'/g)) commands.add(lit[1]);
+  }
+  return commands;
+}
+
+/**
+ * Keys of the menu-command dispatch table. Built for real rather than grepped, so
+ * a handler added as a computed key (the generated `workflow-step-*` entries)
+ * counts like any other.
+ */
+function collectTableHandlers() {
+  const noop = () => {};
+  const ctx = {
+    dispatch: noop,
+    addTabset: noop,
+    removeEmptyTabset: noop,
+    moveToNewTabset: noop,
+    moduleAPI: { emit: noop, on: noop, waitForListeners: noop },
+    showWelcome: noop,
+    toggleShortcutsHelp: noop,
+  };
+  return new Set(Object.keys(buildMenuCommandTable(ctx)));
+}
+
+/**
+ * Commands the renderer handles: a key in the dispatch table, or — via that
+ * table's broadcast fallback — an event some module subscribes to.
+ */
+function collectHandledMenuCommands() {
+  return new Set([...collectTableHandlers(), ...collectSubscribedEvents()]);
+}
+
 describe('action catalog integrity', () => {
   it('has unique action ids', () => {
     const ids = ACTIONS.map((a) => a.id);
@@ -95,14 +139,18 @@ describe('action catalog integrity', () => {
     }
   });
 
-  it('routes only via the two existing buses', () => {
+  it('routes only via the three existing buses', () => {
     for (const action of ACTIONS) {
       if (action.route === null) continue;
-      expect(['emit', 'dispatch'], action.id).toContain(action.route.via);
+      expect(ACTION_ROUTE_BUSES, action.id).toContain(action.route.via);
       if (action.route.via === 'emit') {
         expect(typeof action.route.event, action.id).toBe('string');
         // A directional pair is only meaningful for a signed (delta) action.
         if (action.route.eventDown) expect(action.kind).toBe('delta');
+      } else if (action.route.via === 'menu') {
+        const commands = [action.route.command].flat();
+        expect(commands.length, action.id).toBeGreaterThan(0);
+        for (const command of commands) expect(typeof command, action.id).toBe('string');
       } else {
         expect(typeof action.route.intent?.type, action.id).toBe('string');
       }
@@ -122,6 +170,77 @@ describe('action catalog integrity', () => {
     for (const [id, event] of events) {
       expect(subscribed, `${id} → ${event} (no subscriber)`).toContain(event);
       expect(emitted, `${id} → ${event} (nothing emits it)`).toContain(event);
+    }
+  });
+
+  it('declares every menu command the app menu can send', () => {
+    // The catalog now claims to cover the menu bus too. A menu item added without
+    // a catalog entry is the drift this catches — the same failure the keyboard
+    // half already fails on.
+    const declared = new Set(ACTIONS.flatMap(menuCommandsOf));
+    for (const command of collectSentMenuCommands()) {
+      expect(declared, `menu.js sends '${command}', no action declares it`).toContain(command);
+    }
+  });
+
+  it('names a menu command something in the renderer handles', () => {
+    // The menu's counterpart to the emit/dispatch target checks: a command with
+    // neither a dispatch-table entry nor a subscriber falls through the broadcast
+    // fallback and silently does nothing. This is what makes a dead menu item
+    // fail the suite instead of the user.
+    const handled = collectHandledMenuCommands();
+    const dead = new Set(KNOWN_DEAD_MENU_COMMANDS);
+    for (const action of ACTIONS) {
+      for (const command of menuCommandsOf(action)) {
+        if (dead.has(command)) continue;
+        expect(handled, `${action.id} → '${command}' (nothing handles it)`).toContain(command);
+      }
+    }
+  });
+
+  it('declares only menu commands the app menu still sends', () => {
+    // The third direction, and the one the catalog was missing. Directions one and
+    // two pin the menu to the catalog and the catalog to the renderer; without
+    // this one, a menu item deleted from menu.js leaves its action behind,
+    // claiming a binding the user no longer has. It can only be checked because
+    // menuCommandsOf reads declared bindings — while the binding was inferred from
+    // route.event, this assertion was comparing menu.js against itself.
+    const sent = collectSentMenuCommands();
+    for (const action of ACTIONS) {
+      for (const command of menuCommandsOf(action)) {
+        expect(sent, `${action.id} → '${command}' (menu.js no longer sends it)`).toContain(command);
+      }
+    }
+  });
+
+  it('has a menu item for every dispatch-table handler', () => {
+    // The mirror of the reachability check: a handler nothing can reach is as dead
+    // as a command nothing handles, and the menu is the table's only caller.
+    const sent = collectSentMenuCommands();
+    const known = new Set(KNOWN_UNREACHABLE_HANDLERS);
+    for (const handler of collectTableHandlers()) {
+      if (known.has(handler)) continue;
+      expect(sent, `menuCommands handles '${handler}', no menu item sends it`).toContain(handler);
+    }
+  });
+
+  it('keeps the unreachable-handler list honest in both directions', () => {
+    const sent = collectSentMenuCommands();
+    const handlers = collectTableHandlers();
+    for (const handler of KNOWN_UNREACHABLE_HANDLERS) {
+      expect(handlers, `'${handler}' is no longer a handler — drop it`).toContain(handler);
+      expect(sent, `'${handler}' has a menu item now — drop it from the list`).not.toContain(handler);
+    }
+  });
+
+  it('keeps the dead-command list honest in both directions', () => {
+    // A listed command must still be dead (otherwise the exception outlived the
+    // defect) and must still be a command the menu sends (otherwise it is stale).
+    const handled = collectHandledMenuCommands();
+    const sent = collectSentMenuCommands();
+    for (const command of KNOWN_DEAD_MENU_COMMANDS) {
+      expect(handled, `'${command}' is handled now — drop it from the list`).not.toContain(command);
+      expect(sent, `'${command}' is no longer a menu command — drop it`).toContain(command);
     }
   });
 
@@ -154,10 +273,14 @@ describe('action catalog integrity', () => {
     }
   });
 
-  it('lists at least one key per action', () => {
+  it('gives every action at least one binding', () => {
+    // A key or a menu command. Menu-only actions with no accelerator (Papperskorg,
+    // the theme entries) have an empty `keys` and are still bound; an action with
+    // neither is one nothing can trigger.
     for (const action of ACTIONS) {
       expect(Array.isArray(action.keys), action.id).toBe(true);
-      expect(action.keys.length, action.id).toBeGreaterThan(0);
+      const bindings = action.keys.length + menuCommandsOf(action).length;
+      expect(bindings, `${action.id} has no key and no menu command`).toBeGreaterThan(0);
     }
   });
 
@@ -190,7 +313,14 @@ describe('catalog lookups', () => {
     expect(ids).toEqual([
       'general.showHelp',
       'general.reload',
+      'general.reloadDatabase',
       'general.preferences',
+      'general.saveAll',
+      'general.discardChanges',
+      'general.showWelcome',
+      'general.themeLight',
+      'general.themeDark',
+      'general.themeSystem',
       'general.hardReload',
     ]);
   });
