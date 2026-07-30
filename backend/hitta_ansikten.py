@@ -213,9 +213,8 @@ def validate_action(action: str, ans: str, relevant_actions: set, best_name: str
         return False, f"Kommandot {cmd_name} kan inte användas - det finns inget förslag."
 
     # Check if command is relevant for this case
-    if ans and ans.lower() in RESERVED_COMMANDS:
-        if ans.lower() not in relevant_actions:
-            return False, f"Kommandot '{ans.lower()}' är inte tillgängligt i detta läge."
+    if ans and ans.lower() in RESERVED_COMMANDS and ans.lower() not in relevant_actions:
+        return False, f"Kommandot '{ans.lower()}' är inte tillgängligt i detta läge."
 
     return True, None
 
