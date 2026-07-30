@@ -157,14 +157,6 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: t('menu.file.reloadDatabase'),
-          accelerator: 'CmdOrCtrl+R',
-          click: () => {
-            sendMenuCommand( 'reload-database');
-          }
-        },
-        { type: 'separator' },
-        {
           label: t('menu.file.saveAll'),
           accelerator: 'CmdOrCtrl+S',
           click: () => {
@@ -521,47 +513,6 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
-          label: t('menu.window.gridPresets'),
-          submenu: [
-            {
-              label: '50% / 50%',
-              accelerator: 'CmdOrCtrl+Shift+1',
-              click: () => {
-                sendMenuCommand( 'grid-preset-50-50');
-              }
-            },
-            {
-              label: '60% / 40%',
-              accelerator: 'CmdOrCtrl+Shift+2',
-              click: () => {
-                sendMenuCommand( 'grid-preset-60-40');
-              }
-            },
-            {
-              label: '70% / 30%',
-              accelerator: 'CmdOrCtrl+Shift+3',
-              click: () => {
-                sendMenuCommand( 'grid-preset-70-30');
-              }
-            },
-            {
-              label: '30% / 70%',
-              accelerator: 'CmdOrCtrl+Shift+4',
-              click: () => {
-                sendMenuCommand( 'grid-preset-30-70');
-              }
-            },
-            {
-              label: '40% / 60%',
-              accelerator: 'CmdOrCtrl+Shift+5',
-              click: () => {
-                sendMenuCommand( 'grid-preset-40-60');
-              }
-            }
-          ]
-        },
-        { type: 'separator' },
-        {
           label: t('menu.window.layout'),
           submenu: [
             {
@@ -636,18 +587,6 @@ function createApplicationMenu(mainWindow) {
           label: t('menu.window.resetAllLayouts'),
           click: () => {
             sendMenuCommand( 'reset-all-layouts');
-          }
-        },
-        {
-          label: t('menu.window.exportLayout'),
-          click: () => {
-            sendMenuCommand( 'export-layout');
-          }
-        },
-        {
-          label: t('menu.window.importLayout'),
-          click: () => {
-            sendMenuCommand( 'import-layout');
           }
         },
         { type: 'separator' },

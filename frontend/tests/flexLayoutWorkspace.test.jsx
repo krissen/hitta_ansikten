@@ -224,16 +224,16 @@ describe('FlexLayoutWorkspace — menu-command dispatch (characterization)', () 
     expect(tabComponents(window.workspace.model)).toContain('trash');
   });
 
-  it('layout-comparison replaces the layout with the comparison preset', async () => {
-    await dispatch('layout-comparison');
+  it('layout-template-comparison replaces the layout with the comparison preset', async () => {
+    await dispatch('layout-template-comparison');
     expect(tabComponents(window.workspace.model).sort()).toEqual([
       'image-viewer',
       'original-view',
     ]);
   });
 
-  it('layout-database replaces the layout with the database preset', async () => {
-    await dispatch('layout-database');
+  it('layout-template-stats replaces the layout with the database preset', async () => {
+    await dispatch('layout-template-stats');
     expect(tabComponents(window.workspace.model).sort()).toEqual([
       'database-management',
       'statistics-dashboard',
@@ -241,7 +241,7 @@ describe('FlexLayoutWorkspace — menu-command dispatch (characterization)', () 
   });
 
   it('reset-layout restores the review preset', async () => {
-    await dispatch('layout-comparison');
+    await dispatch('layout-template-comparison');
     await dispatch('reset-layout');
     expect(tabComponents(window.workspace.model).sort()).toEqual([
       'image-viewer',
@@ -481,7 +481,7 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
   it('enterStep(review) builds the review trio beside an existing queue WITHOUT remounting it', async () => {
     // Build a queue-only layout: the database preset has no Review/Viewer; add a
     // File Queue tab so neither review surface exists but the queue does.
-    await dispatch('layout-database');
+    await dispatch('layout-template-stats');
     await act(async () => { window.workspace.openModule('file-queue'); });
     const queueIdBefore = tabId(window.workspace.model, 'file-queue');
     expect(queueIdBefore).toBeTruthy();
@@ -500,7 +500,7 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
   it('enterStep(review) morphs in the MISSING Review beside an existing Viewer (queue kept)', async () => {
     // A partial surface: queue + viewer, Review closed. The comparison preset has
     // image-viewer (+ original-view) but no review/queue; add a queue.
-    await dispatch('layout-comparison');
+    await dispatch('layout-template-comparison');
     await act(async () => { window.workspace.openModule('file-queue'); });
     const queueIdBefore = tabId(window.workspace.model, 'file-queue');
     expect(queueIdBefore).toBeTruthy();
@@ -517,7 +517,7 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
   it('enterStep(review) morphs in the MISSING Viewer beside an existing Review (queue kept)', async () => {
     // A partial surface: queue + review, Viewer closed. Build it from the
     // database preset (no review/viewer/queue), adding queue then review.
-    await dispatch('layout-database');
+    await dispatch('layout-template-stats');
     await act(async () => { window.workspace.openModule('file-queue'); });
     await act(async () => { window.workspace.openModule('review-module'); });
     const queueIdBefore = tabId(window.workspace.model, 'file-queue');
@@ -554,7 +554,7 @@ describe('FlexLayoutWorkspace — pipeline hand-offs (Rename → Review, queue-f
 
   it('enterStep(review) builds the full trio from a queue-less start (blank start)', async () => {
     // Database preset: no queue, no review surface. Morph builds the trio.
-    await dispatch('layout-database');
+    await dispatch('layout-template-stats');
     expect(tabComponents(window.workspace.model)).not.toContain('file-queue');
     await act(async () => { window.workspace.enterStep('review'); });
     expect(tabComponents(window.workspace.model).sort()).toEqual([
