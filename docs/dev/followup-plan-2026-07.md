@@ -339,7 +339,7 @@ the derived shortcuts overlay is byte-identical (verified by diffing
 accelerators in the overlay is a real question — a dozen of them are undocumented
 keyboard shortcuts — but it is a UI decision, not this PR's.
 
-### 2.2 `reload-database` is dead
+### 2.2 `reload-database` is dead — **Done**
 
 `menu.js:157` sends `reload-database`; no renderer listener exists, so it falls
 through to the default broadcast and does nothing. `Cmd+R` looks like it works.
@@ -369,6 +369,43 @@ items end in an ellipsis, which promises a file dialog that never opens. Decidin
 per item (wire up or remove) is the work; deleting is a legitimate outcome for any
 of them, and probably the right one for the grid presets, whose ratios the
 draggable splitters already give.
+
+**Done — all fourteen removed, and the history is what decided it.** `git log -S`
+on each command converged on one commit: **5686ff9 (2025-12-31), "Remove dockview
+mode"**, which deleted `workspace.js` and with it the switch cases that
+implemented every one of them. The menu items and the handler aliases stayed
+behind. So this was not a set of never-implemented stubs — it was a working
+feature set orphaned by a layout-engine migration, and *nothing has worked for
+seven months without a single bug report*. That is the strongest evidence
+available that the features are not wanted, and it turned every per-item decision
+towards removal rather than reimplementation:
+
+| Item | Decision | Why |
+|---|---|---|
+| Arkiv ▸ Ladda om databas (`Cmd+R`) | Remove menu item | The backend endpoint lives and is tested, so wiring was possible — but the accelerator shadows the window reload FlexLayoutWorkspace really implements, and the old code reported via `alert()`. A DB reload belongs as a button in Databashantering, not on a global key. Endpoint untouched. |
+| Fönster ▸ Rutnätsförval (`Cmd+Shift+1..5`) | Remove submenu | Emulated dragging a splitter to a fixed ratio; FlexLayout splitters are draggable, so the feature *is* the interaction it stood in for. Never documented. Frees five keys that read as siblings of the `Cmd+1..5` steps. |
+| Fönster ▸ Exportera/Importera layout | Remove items | Per-step layout memory plus reset-layout / reset-all-layouts cover the need; layout JSON on disk is a debugging aid. Never documented, and the ellipsis promised a dialog that never opened. |
+| Six `layout-*` handler aliases | Remove | The menu is the dispatch table's only caller, so an alias without a menu item is unreachable by construction. The two with menu items stay; `load-layout` still accepts every name in `layouts.js`. |
+
+Both exception lists are now empty and **kept, not deleted**. An empty list plus
+its honesty test is cheap regression protection: a future entry must be a command
+the menu really sends and really fails to handle, so the list cannot be used to
+silence an unrelated failure. Adding to it should feel like filing a defect.
+
+Test count is unchanged at 938 — no test was added or removed. Two
+characterization tests drove the layout presets through now-deleted aliases and
+were retargeted to the surviving command names with identical assertions. The
+derived shortcuts overlay is also unchanged, which is the expected result rather
+than a lucky one: every removed action was `help: false`, so the overlay never
+advertised any of it.
+
+**The Cmd+Shift+L collision is resolved in the same PR** (ROADMAP had tracked it
+since v1.8.0): Återställ layout keeps the key, the external-editor item gets no
+accelerator. The argument is scope, not mnemonics — `open-raw-in-lightroom` is
+module-scoped, so a *global* accelerator did nothing outside Gallra spelare while
+consuming the key everywhere, and inside it the bare `L` already works. ROADMAP's
+own suggestion (move the editor to `Cmd+Alt+L`) was deliberately not taken: it
+recreates the same problem in milder form.
 
 ### 2.3 Migrate the four keyboard listeners
 
