@@ -287,7 +287,7 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
                     if isinstance(entry, dict) and "hash" in entry and "name" in entry:
                         processed_files.append(entry)
                         continue
-                except Exception as e:
+                except json.JSONDecodeError as e:
                     logger.debug(f"Failed to parse processed file entry: {e}")
                     pass
                 # fallback legacy
@@ -355,7 +355,7 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
                 only.add("hardneg")
             try:
                 save_database(known_faces, ignored_faces, hard_negatives, processed_files, only=only)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # Migration save failed — leave the on-disk data as-is and do
                 # NOT mark; the next load retries the migration.
                 logger.warning(f"[DATABASE] Migration save failed, will retry next load: {e}")
@@ -483,7 +483,7 @@ def load_attempt_log(all_files: bool = False) -> list[dict[str, Any]]:
                 try:
                     entry = json.loads(line)
                     log.append(entry)
-                except Exception as e:
+                except json.JSONDecodeError as e:
                     logger.debug(f"Failed to parse attempt log entry: {e}")
                     pass
     return log
@@ -530,7 +530,7 @@ def get_file_hash(path: Path | str) -> str | None:
                     break
                 h.update(chunk)
         return h.hexdigest()
-    except Exception as e:
+    except OSError as e:
         logger.warning(f"Failed to compute file hash for {path}: {e}")
         return None
 
@@ -561,7 +561,7 @@ def rotate_logs() -> None:
                     for entry in entries:
                         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
                 logger.info(f"[LogRotation] Trimmed processed_files.jsonl to {len(entries)} entries")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - rotation runs at startup; failing to trim a log must never prevent the app from starting
             logger.warning(f"[LogRotation] Failed to rotate processed_files.jsonl: {e}")
 
     # Rotate attempt_stats.jsonl
@@ -594,7 +594,7 @@ def rotate_logs() -> None:
                         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
                 logger.info(f"[LogRotation] Archived {len(old_entries)} attempt entries to {archive_name}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - rotation runs at startup; failing to archive attempts must never prevent the app from starting
             logger.warning(f"[LogRotation] Failed to rotate attempt_stats.jsonl: {e}")
 
     # Rotate ansikten.log
@@ -617,5 +617,5 @@ def rotate_logs() -> None:
                     for old_log in archived_logs[:-5]:
                         old_log.unlink()
                         logger.debug(f"[LogRotation] Deleted old archived log: {old_log.name}")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - rotation runs at startup; failing to rotate the log must never prevent the app from starting
             logger.warning(f"[LogRotation] Failed to rotate ansikten.log: {e}")

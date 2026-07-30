@@ -54,7 +54,9 @@ class WebSocketLogHandler(logging.Handler):
                 _log_queue.put_nowait(entry)
             except queue.Full:
                 pass
-        except Exception:
+        # A logging handler that raises would break the call site that logged —
+        # including error paths. Broadcasting a log line is never worth that.
+        except Exception:  # noqa: BLE001
             pass
     
     def _extract_category(self, record: logging.LogRecord) -> str:
@@ -72,7 +74,7 @@ async def process_log_queue():
             await broadcast_event("log-entry", entry)
         except queue.Empty:
             await asyncio.sleep(0.1)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - endless background loop: it must survive one bad entry, or log broadcasting stops for the rest of the session
             logger.error(f"[WebSocket] Error processing log queue: {e}")
 
 
@@ -140,7 +142,7 @@ async def broadcast_event(event_name: str, data: dict):
     for connection in active_connections:
         try:
             await connection.send_text(message)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one dead client must not stop the broadcast to the others; it is dropped from the set below
             logger.error(f"[WebSocket] Error sending to client: {e}")
             disconnected.add(connection)
 

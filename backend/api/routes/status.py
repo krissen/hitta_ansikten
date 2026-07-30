@@ -65,6 +65,6 @@ async def get_image_status(image_path: str):
             confirmed_count=0,
             last_processed=None
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - request boundary: any failure becomes a 500 JSON body, never a bare traceback
         logger.error(f"[Status] Error checking status: {e}")
         raise HTTPException(status_code=500, detail=str(e))

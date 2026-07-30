@@ -81,7 +81,7 @@ def main() -> int:
             continue
         try:
             rgb = load_rgb(path)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - a benchmark run over many images skips the ones it cannot load rather than aborting mid-table
             print(f"skip (load error {e}): {path}", file=sys.stderr)
             continue
 

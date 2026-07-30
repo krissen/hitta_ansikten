@@ -43,7 +43,7 @@ async def get_people():
     try:
         # TODO: Implement real people listing (currently returns a placeholder)
         return []
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - request boundary: any failure becomes a 500 JSON body, never a bare traceback
         logger.error(f"[Database] Error fetching people: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -65,6 +65,6 @@ async def get_people_names():
         )
         logger.info(f"[Database] Found {len(names)} people in database")
         return names
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - request boundary: a corrupt/unreadable DB must answer 500 with the reason, not crash the autocomplete call
         logger.error(f"[Database] Error fetching people names: {e}")
         raise HTTPException(status_code=500, detail=str(e))

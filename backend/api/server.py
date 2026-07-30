@@ -48,8 +48,16 @@ async def lifespan(app: FastAPI):
         try:
             from .services.culling_service import get_culling_service
             get_culling_service().purge_expired()
+        # Deliberately broad: this runs before the database load below, so any
+        # escape here would leave the app with no faces loaded (LoadingState
+        # .ERROR) because a trash file could not be deleted. The manifest is
+        # not schema-checked on read — _load_manifest appends whatever
+        # json.loads returns — so a hand-edited or truncated line reaches
+        # purge_expired as a non-dict and raises AttributeError from .get(), or
+        # TypeError from empty()'s e["id"]/sc["stored_name"] indexing. Narrowing
+        # to the filesystem/parse errors would let exactly those through.
         except Exception:
-            logger.warning("Trash retention purge on startup failed", exc_info=True)
+            logger.exception("Trash retention purge on startup failed")
 
         from .services.db_store import get_db_store
 
@@ -91,7 +99,7 @@ async def lifespan(app: FastAPI):
             try:
                 from .services.detection_service import get_detection_service
                 _ = get_detection_service().backend.backend_name
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - handed to the awaiting coroutine to re-raise; swallowing nothing, but a thread must not die silently
                 load_error = e
             finally:
                 loop.call_soon_threadsafe(load_complete.set)
