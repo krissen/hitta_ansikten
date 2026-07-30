@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act, cleanup, fireEvent } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import { clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
 // Tests for RenameNefModule's "Ångra senaste namnbyte…" flow: the button fetches
@@ -89,8 +90,8 @@ async function mountRename() {
   let utils;
   await act(async () => {
     utils = render(<RenameNefModule />);
-    await Promise.resolve();
   });
+  await settle();
   return utils;
 }
 
@@ -99,9 +100,8 @@ async function clickButton(container, label) {
   if (!btn) throw new Error(`button not found: ${label}`);
   await act(async () => {
     fireEvent.click(btn);
-    await Promise.resolve();
-    await Promise.resolve();
   });
+  await settle();
 }
 
 describe('RenameNefModule — undo flow', () => {

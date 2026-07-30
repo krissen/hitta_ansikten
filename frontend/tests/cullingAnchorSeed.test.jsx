@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act, cleanup } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 
 // Etapp-3 part B: when Gallra spelare (culling) opens with no shared scan scope
 // to adopt, it seeds the roots field from the pipeline working-folder anchor as a
@@ -35,9 +36,11 @@ async function mountCulling() {
   let utils;
   await act(async () => {
     utils = render(<CullingModule node={null} />);
-    await Promise.resolve();
-    await Promise.resolve();
   });
+  // Two of the three tests here assert that the mount did NOT scan, and a
+  // counted flush cannot establish that: "prefill only" and "the scan chain
+  // never got that far" look identical. A full drain can tell them apart.
+  await settle();
   return utils;
 }
 

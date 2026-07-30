@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act, cleanup, fireEvent } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import { clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
 // Focused tests for RenameNefModule's Review hand-off (etapp 2, part E): after a
@@ -76,8 +77,8 @@ async function mountRename() {
   let utils;
   await act(async () => {
     utils = render(<RenameNefModule />);
-    await Promise.resolve();
   });
+  await settle();
   return utils;
 }
 
@@ -87,9 +88,8 @@ async function clickButton(container, label) {
   if (!btn) throw new Error(`button not found: ${label}`);
   await act(async () => {
     fireEvent.click(btn);
-    await Promise.resolve();
-    await Promise.resolve();
   });
+  await settle();
 }
 
 async function previewThenExecute(container) {
@@ -121,8 +121,8 @@ describe('RenameNefModule — Review hand-off', () => {
     expect(removeChip).toBeTruthy();
     await act(async () => {
       fireEvent.click(removeChip);
-      await Promise.resolve();
     });
+    await settle();
 
     await clickButton(container, t('renameNef.reviewFaces'));
     // Still the folder the rename actually ran on, not the now-empty selection.
@@ -169,7 +169,8 @@ describe('RenameNefModule — protect named files', () => {
       return Promise.resolve({});
     });
     const { container } = await mountRename();
-    await act(async () => { toggleCheckbox(container, t('renameNef.includeNamedLabel')); await Promise.resolve(); });
+    toggleCheckbox(container, t('renameNef.includeNamedLabel'));
+    await settle();
     await clickButton(container, t('renameNef.preview'));
     expect(lastPost('/rename-nef/preview')).toMatchObject({ include_named: true });
     // The stripping warning surfaces with the affected count.
@@ -178,7 +179,8 @@ describe('RenameNefModule — protect named files', () => {
 
   it('persists the recursive toggle and forwards it', async () => {
     const { container } = await mountRename();
-    await act(async () => { toggleCheckbox(container, t('renameNef.recursiveLabel')); await Promise.resolve(); });
+    toggleCheckbox(container, t('renameNef.recursiveLabel'));
+    await settle();
     expect(h.recursive).toBe(true); // written through preferences.set
     await clickButton(container, t('renameNef.preview'));
     expect(lastPost('/rename-nef/preview')).toMatchObject({ recursive: true });

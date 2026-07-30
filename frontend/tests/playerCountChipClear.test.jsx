@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 
 // REFRESH_DEBOUNCE_MS in PlayerCountModule (not exported); waits use a margin.
 const REFRESH_MS = 400;
@@ -189,7 +190,11 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
     // Toggle the file-type control on the still-blank tab → an empty auto-apply.
     const preset = screen.getByTitle('Filtyper (skiftlägesokänsligt)');
     fireEvent.change(preset, { target: { value: 'nef' } });
-    await Promise.resolve();
+    // Both assertions below are negative — the scope was not clobbered, no count
+    // fired — so drain the whole auto-apply chain rather than one microtask: a
+    // counted flush would let "the blank-tab guard held" and "the chain stopped
+    // one await short" look the same.
+    await settle();
 
     // The scope Gallra published survives untouched; still no count fired.
     expect(getScanScope()).toEqual(expect.objectContaining({ roots: ['/gallra'] }));

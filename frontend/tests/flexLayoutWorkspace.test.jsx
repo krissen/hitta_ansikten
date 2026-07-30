@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, act, cleanup } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 
 // Characterization + smoke tests for FlexLayoutWorkspace.
 //
@@ -141,9 +142,10 @@ async function mountWorkspace() {
   let utils;
   await act(async () => {
     utils = render(<FlexLayoutWorkspace />);
-    // Let the model-init and IPC-setup effects run.
-    await Promise.resolve();
   });
+  // Let the model-init and IPC-setup effects run — a full drain, so the wait
+  // does not depend on how many awaits that chain currently has.
+  await settle();
   return utils;
 }
 
