@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
 import { render, act, cleanup, fireEvent } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 
 // jsdom lacks scrollIntoView; the active-face auto-scroll effect calls it.
 beforeAll(() => {
@@ -120,8 +121,8 @@ async function mountReview(node = visibleNode) {
   let utils;
   await act(async () => {
     utils = render(<ReviewModule node={node} />);
-    await Promise.resolve();
   });
+  await settle();
   return utils;
 }
 
@@ -132,9 +133,8 @@ async function loadImage(faces, imagePath = '/photos/a.jpg') {
   const handler = h.registry.get('image-loaded');
   await act(async () => {
     await handler({ imagePath });
-    await Promise.resolve();
-    await Promise.resolve();
   });
+  await settle();
 }
 
 function lastEmit(eventName) {
@@ -215,8 +215,8 @@ describe('ReviewModule — smoke', () => {
     const handler = h.registry.get('image-loaded');
     await act(async () => {
       await handler({ imagePath: '/photos/err.jpg' });
-      await Promise.resolve();
     });
+    await settle();
     expect(container.querySelector('.no-faces-detected')).toBeNull();
     expect(container.querySelector('.add-manual-name-btn')).toBeNull();
   });

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import React, { useEffect, useState } from 'react';
 import { Layout, Model, Actions } from 'flexlayout-react';
 
@@ -107,8 +108,8 @@ describe('File Queue as a hidden companion tab stays mounted (review group)', ()
 
     await act(async () => {
       render(<Layout model={model} factory={factory} />);
-      await Promise.resolve();
     });
+    await settle();
 
     const q = queueNode(model);
     // Hidden behind the Image Viewer (viewer is the group's active tab)…
@@ -125,8 +126,8 @@ describe('File Queue as a hidden companion tab stays mounted (review group)', ()
     // remount, state intact.
     await act(async () => {
       applyWorkspace(model, getWorkspaceSpec('review'));
-      await Promise.resolve();
     });
+    await settle();
     expect(spy.mounts).toBe(1);
     expect(spy.counter).toBe(42);
 
@@ -134,8 +135,8 @@ describe('File Queue as a hidden companion tab stays mounted (review group)', ()
     // mount, still holding its state.
     await act(async () => {
       model.doAction(Actions.selectTab(q.getId()));
-      await Promise.resolve();
     });
+    await settle();
     expect(queueNode(model).isVisible()).toBe(true);
     expect(spy.mounts).toBe(1);
     expect(spy.counter).toBe(42);
@@ -151,8 +152,8 @@ describe('parking preserves the component instance at the React mount level', ()
     const model = reviewTrioModel();
     await act(async () => {
       render(<Layout model={model} factory={factory} />);
-      await Promise.resolve();
     });
+    await settle();
     // File Queue probe mounted once.
     expect(spy.mounts).toBe(1);
 
@@ -164,8 +165,8 @@ describe('parking preserves the component instance at the React mount level', ()
     // background border, not deleted.
     await act(async () => {
       applyWorkspace(model, getWorkspaceSpec('count'));
-      await Promise.resolve();
     });
+    await settle();
     const parked = model.getNodeById('q');
     expect(parked.getParent().getType()).toBe('border');
     // Still one mount, state intact — the parked probe was not remounted.
@@ -175,8 +176,8 @@ describe('parking preserves the component instance at the React mount level', ()
     // Morph back to review: the File Queue is un-parked into the trio.
     await act(async () => {
       applyWorkspace(model, getWorkspaceSpec('review'));
-      await Promise.resolve();
     });
+    await settle();
     expect(model.getNodeById('q').getParent().getType()).toBe('tabset');
     // The whole round-trip cost zero remounts and lost no state.
     expect(spy.mounts).toBe(1);
@@ -208,21 +209,21 @@ describe('revealHiddenModuleTab — surface the Image Viewer when it is hidden b
     const model = reviewGroupModel();
     await act(async () => {
       render(<Layout model={model} factory={factory} />);
-      await Promise.resolve();
     });
+    await settle();
     // The user opened the File Queue companion tab → the viewer is now hidden.
     await act(async () => {
       model.doAction(Actions.selectTab('q'));
-      await Promise.resolve();
     });
+    await settle();
     expect(model.getNodeById('v').isVisible()).toBe(false);
 
     // An image loads → surface the viewer.
     let acted;
     await act(async () => {
       acted = revealHiddenModuleTab(model, 'image-viewer');
-      await Promise.resolve();
     });
+    await settle();
     expect(acted).toBe(true);
     expect(model.getNodeById('v').isVisible()).toBe(true);
     expect(model.getNodeById('q').isVisible()).toBe(false);
@@ -232,16 +233,16 @@ describe('revealHiddenModuleTab — surface the Image Viewer when it is hidden b
     const model = reviewGroupModel(); // viewer is the selected (active) tab
     await act(async () => {
       render(<Layout model={model} factory={factory} />);
-      await Promise.resolve();
     });
+    await settle();
     expect(model.getNodeById('v').isVisible()).toBe(true);
     const selectedBefore = model.getNodeById('ts-g').getSelectedNode().getId();
 
     let acted;
     await act(async () => {
       acted = revealHiddenModuleTab(model, 'image-viewer');
-      await Promise.resolve();
     });
+    await settle();
     // No selection change, no action taken.
     expect(acted).toBe(false);
     expect(model.getNodeById('ts-g').getSelectedNode().getId()).toBe(selectedBefore);

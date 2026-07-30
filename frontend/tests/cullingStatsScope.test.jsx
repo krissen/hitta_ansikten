@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
-import { render, act, cleanup, fireEvent } from '@testing-library/react';
+import { render, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 
 // Scope-clearing tests for CullingModule's live stats panel.
 //
@@ -130,8 +131,10 @@ async function mountCulling(node = null) {
   let utils;
   await act(async () => {
     utils = render(<CullingModule node={node} />);
-    await Promise.resolve();
   });
+  // A bare mount adopts nothing here, so there is no rendered outcome to wait
+  // for — drain the effect chain rather than counting its awaits.
+  await settle();
   return utils;
 }
 
@@ -142,9 +145,10 @@ async function loadFilesA() {
   const handler = h.registry.get('culling-load');
   await act(async () => {
     await handler({ roots: ['/a'], clear: true, recursive: false });
-    await Promise.resolve();
-    await Promise.resolve();
   });
+  // Scope A is loaded when its counts are on screen — the panel this file is
+  // about. Waiting for the rendered rows also covers the file list behind them.
+  await waitFor(() => expect(document.querySelectorAll('.culling-stat-row')).toHaveLength(2));
 }
 
 function statRows(container) {
@@ -170,22 +174,22 @@ describe('CullingModule — stats panel clears on scan-scope change', () => {
     const cullPlayer = h.registry.get('cull-player');
     await act(async () => {
       await cullPlayer({ roots: ['/b'], name: 'Carol' });
-      await Promise.resolve();
     });
 
-    // The file list has repainted to B, and the stale scope-A players are GONE —
-    // the panel is empty rather than showing Alice/Bob beside B's files.
-    expect(container.querySelectorAll('.culling-files li')).toHaveLength(1);
+    // Positive anchors first — B's list is painted and the empty-panel placeholder
+    // is up — so the "no stale rows" assertion below cannot pass merely because
+    // the repaint had not happened yet.
+    await waitFor(() => {
+      expect(container.querySelectorAll('.culling-files li')).toHaveLength(1);
+      expect(container.querySelector('.culling-stats-empty')).toBeTruthy();
+    });
+    // The stale scope-A players are GONE rather than sitting beside B's files.
     expect(statRows(container)).toHaveLength(0);
-    expect(container.querySelector('.culling-stats-empty')).toBeTruthy();
 
     // B's count arrives → B's rows fill in.
-    await act(async () => {
-      resolveStats(STATS_B);
-      await Promise.resolve();
-    });
+    resolveStats(STATS_B);
+    await waitFor(() => expect(statRows(container)).toHaveLength(1));
     const rows = statRows(container);
-    expect(rows).toHaveLength(1);
     expect(rows[0].querySelector('.culling-stat-name').textContent).toBe('Carol');
   });
 
@@ -197,18 +201,22 @@ describe('CullingModule — stats panel clears on scan-scope change', () => {
     // Click a stats row (loupe): filters the list to that player. The scan scope
     // is unchanged (same roots), so the refetch must keep the numbers visible.
     hangStats = true;
+    const before = countPost('/players/count');
     const aliceRow = [...statRows(container)].find((r) => r.textContent.includes('Alice'));
-    await act(async () => {
-      fireEvent.click(aliceRow);
-      await Promise.resolve();
-    });
+    fireEvent.click(aliceRow);
 
-    // A refetch was issued, but the panel still shows the players (spinner only) —
-    // no blank.
+    // Anchor on the refetch actually being issued. The assertions below are that
+    // nothing blanked, and "did not blank" is indistinguishable from "the click
+    // did nothing" without this — the test claimed a refetch fired but never
+    // checked it.
+    await waitFor(() => expect(countPost('/players/count')).toBe(before + 1));
+
+    // The panel still shows the players (spinner only) — no blank.
     expect(statRows(container)).toHaveLength(2);
     expect(container.querySelector('.culling-stats-empty')).toBeNull();
     // Resolve the pending refetch so no state update escapes act().
-    await act(async () => { resolveStats(STATS_A); await Promise.resolve(); });
+    resolveStats(STATS_A);
+    await settle();
   });
 
   it('does NOT blank the panel on a baseline change (same scan scope)', async () => {
@@ -223,14 +231,12 @@ describe('CullingModule — stats panel clears on scan-scope change', () => {
     const before = countPost('/players/count');
     const select = container.querySelector('select.culling-stats-baseline-select');
     const other = select.value === 'mean' ? 'median' : 'mean';
-    await act(async () => {
-      fireEvent.change(select, { target: { value: other } });
-      await Promise.resolve();
-    });
+    fireEvent.change(select, { target: { value: other } });
 
-    expect(countPost('/players/count')).toBe(before + 1); // a refetch did fire
+    await waitFor(() => expect(countPost('/players/count')).toBe(before + 1)); // a refetch did fire
     expect(statRows(container)).toHaveLength(2);          // …but nothing blanked
     expect(container.querySelector('.culling-stats-empty')).toBeNull();
-    await act(async () => { resolveStats(STATS_A); await Promise.resolve(); });
+    resolveStats(STATS_A);
+    await settle();
   });
 });

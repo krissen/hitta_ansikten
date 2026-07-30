@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { render, act } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
 
@@ -102,8 +103,8 @@ describe('SPIKE: Actions.moveNode preserves component state (flexlayout-react 0.
     const model = twoTabsetModel();
     await act(async () => {
       render(<Layout model={model} factory={factory} />);
-      await Promise.resolve();
     });
+    await settle();
 
     // Probe mounted exactly once.
     expect(spy.mounts).toBe(1);
@@ -116,8 +117,8 @@ describe('SPIKE: Actions.moveNode preserves component state (flexlayout-react 0.
     // Morph: move the probe tab into the right tabset (same node id retained).
     await act(async () => {
       model.doAction(Actions.moveNode('probe-tab', 'ts-right', DockLocation.CENTER, -1));
-      await Promise.resolve();
     });
+    await settle();
 
     // The tab node id must have survived the move.
     expect(model.getNodeById('probe-tab')).toBeTruthy();
@@ -136,8 +137,8 @@ describe('SPIKE: Actions.moveNode preserves component state (flexlayout-react 0.
     const model = twoTabsetModel();
     await act(async () => {
       render(<Layout model={model} factory={factory} />);
-      await Promise.resolve();
     });
+    await settle();
     expect(spy.mounts).toBe(1);
     await act(async () => { spy.setCounter(7); });
 
@@ -145,8 +146,8 @@ describe('SPIKE: Actions.moveNode preserves component state (flexlayout-react 0.
     // new tabset). This is the "addNode/moveNode into a new pane" morph shape.
     await act(async () => {
       model.doAction(Actions.moveNode('probe-tab', 'ts-right', DockLocation.RIGHT, -1));
-      await Promise.resolve();
     });
+    await settle();
 
     expect(model.getNodeById('probe-tab')).toBeTruthy();
     expect(spy.mounts).toBe(1);

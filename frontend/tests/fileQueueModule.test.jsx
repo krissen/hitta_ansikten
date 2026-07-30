@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
-import { render, act, cleanup, fireEvent } from '@testing-library/react';
+import { render, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import { PreprocessingStatus } from '../src/renderer/services/preprocessing/index.js';
 import { setWorkingFolder, clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 import { t } from '../src/i18n/index.js';
@@ -307,13 +308,10 @@ async function mountQueue(node = null) {
   let utils;
   await act(async () => {
     utils = render(<FileQueueModule node={node} />);
-    await Promise.resolve();
   });
-  // Flush the on-mount loadProcessedFiles round-trip so processedFilesLoaded is set.
-  await act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
-  });
+  // Drains the on-mount loadProcessedFiles round-trip (so processedFilesLoaded
+  // is set) without being tied to how many awaits that chain has.
+  await settle();
   return utils;
 }
 
@@ -324,17 +322,16 @@ async function addViaIpc(files, opts = {}) {
   const handler = h.registry.get('file-queue-load');
   await act(async () => {
     handler({ files, position: opts.position, clear: opts.clear, startQueue: opts.startQueue });
-    await Promise.resolve();
-    await Promise.resolve();
   });
+  await settle();
 }
 
 async function fireManager(evt, data) {
   const set = h.managerHandlers.get(evt);
   await act(async () => {
     set?.forEach((cb) => cb(data));
-    await Promise.resolve();
   });
+  await settle();
 }
 
 function lastEmit(eventName) {
@@ -422,11 +419,11 @@ describe('FileQueueModule — n/p navigation gate (companion-tab visibility)', (
   }
 
   async function pressKey(key) {
-    await act(async () => {
-      fireEvent.keyDown(document, { key });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    fireEvent.keyDown(document, { key });
+    // Two of the three tests using this assert that navigation did NOT happen,
+    // which a counted flush cannot distinguish from a chain that stopped one
+    // await short of emitting. Drain it instead.
+    await settle();
   }
 
   it('advances on "n" while the queue is the hidden companion tab (mounted, not parked)', async () => {
@@ -453,10 +450,8 @@ describe('FileQueueModule — n/p navigation gate (companion-tab visibility)', (
     const input = document.createElement('input');
     document.body.appendChild(input);
     input.focus();
-    await act(async () => {
-      fireEvent.keyDown(input, { key: 'n' });
-      await Promise.resolve();
-    });
+    fireEvent.keyDown(input, { key: 'n' });
+    await settle(); // negative assertion — see pressKey
     expect(lastEmit('load-image')).toBeUndefined();
     input.remove();
   });
@@ -538,12 +533,12 @@ describe('FileQueueModule — rename flow (characterization)', () => {
   it('confirmation gate on (default): declining aborts without a rename request', async () => {
     h.confirm.mockResolvedValue(false);
     const { container } = await mountWithProcessed();
-    await act(async () => {
-      fireEvent.click(renameButton(container));
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(h.confirm).toHaveBeenCalled();
+    fireEvent.click(renameButton(container));
+    // Positive anchor: the gate was reached and answered. The "no rename was
+    // posted" assertion then means the decline aborted it, not that the click's
+    // continuation had not run yet.
+    await waitFor(() => expect(h.confirm).toHaveBeenCalled());
+    await settle();
     expect(renamePosts()).toHaveLength(0);
   });
 
@@ -556,28 +551,22 @@ describe('FileQueueModule — rename flow (characterization)', () => {
       skipped: [], errors: [],
     };
     const { container } = await mountWithProcessed();
-    await act(async () => {
-      fireEvent.click(renameButton(container));
-      // Extra flushes: the confirm() await now precedes the rename post.
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    fireEvent.click(renameButton(container));
+    // Was three counted flushes because the confirm() await sits in front of the
+    // rename post; the renamed row is the outcome to settle on instead.
+    await waitFor(() => expect(itemNames(container)).toEqual(['Alice_A.NEF']));
     expect(renamePosts()).toHaveLength(1);
     expect(renamePosts()[0][1]).toMatchObject({ file_paths: ['/p/250601_120000_Alice.NEF'] });
-    expect(itemNames(container)).toEqual(['Alice_A.NEF']);
   });
 
   it('confirmation gate off (preference): renames with no confirm dialog', async () => {
     setPrefs({ rename: { requireConfirmation: false } });
     const { container } = await mountWithProcessed();
-    await act(async () => {
-      fireEvent.click(renameButton(container));
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    fireEvent.click(renameButton(container));
+    // The rename landing is the positive anchor; only then does "no confirm was
+    // shown" mean the gate was skipped rather than not yet reached.
+    await waitFor(() => expect(renamePosts()).toHaveLength(1));
     expect(h.confirm).not.toHaveBeenCalled();
-    expect(renamePosts()).toHaveLength(1);
   });
 });
 
@@ -646,11 +635,9 @@ describe('FileQueueModule — folder hand-off + working-folder offer', () => {
     const { container } = await mountQueue();
     await act(async () => {
       h.registry.get('file-queue-load')({ roots: ['/dir'] });
-      await Promise.resolve();
-      await Promise.resolve();
     });
+    await waitFor(() => expect(itemNames(container)).toEqual(['a.jpg', 'b.jpg']));
     expect(window.ansiktenAPI.invoke).toHaveBeenCalledWith('expand-folders', ['/dir']);
-    expect(itemNames(container)).toEqual(['a.jpg', 'b.jpg']);
   });
 
   it('file-queue-load with roots that expand to nothing warns instead of silently doing nothing', async () => {
@@ -658,16 +645,16 @@ describe('FileQueueModule — folder hand-off + working-folder offer', () => {
     const { container } = await mountQueue();
     await act(async () => {
       h.registry.get('file-queue-load')({ roots: ['/empty'] });
-      await Promise.resolve();
-      await Promise.resolve();
     });
-    expect(container.querySelectorAll('.file-item')).toHaveLength(0);
+    // The warning toast is the positive anchor — reaching it proves the expand
+    // ran and returned nothing, which is what makes the empty queue meaningful.
     // showToast is wrapped with a duration multiplier, so match on message+type.
-    expect(
+    await waitFor(() => expect(
       h.showToast.mock.calls.some(
         (c) => c[0] === t('fileQueue.toasts.noSupportedFound') && c[1] === 'warning',
       ),
-    ).toBe(true);
+    ).toBe(true));
+    expect(container.querySelectorAll('.file-item')).toHaveLength(0);
   });
 
   it('offers to load the working-folder anchor when the queue is empty', async () => {
@@ -677,13 +664,9 @@ describe('FileQueueModule — folder hand-off + working-folder offer', () => {
     expect(btn).toBeTruthy();
 
     window.ansiktenAPI.invoke = vi.fn().mockResolvedValue(['/events/cupen/x.jpg']);
-    await act(async () => {
-      fireEvent.click(btn);
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    fireEvent.click(btn);
+    await waitFor(() => expect(itemNames(container)).toEqual(['x.jpg']));
     expect(window.ansiktenAPI.invoke).toHaveBeenCalledWith('expand-folders', ['/events/cupen']);
-    expect(itemNames(container)).toEqual(['x.jpg']);
   });
 
   it('shows no folder offer when the anchor is unset', async () => {

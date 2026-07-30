@@ -402,12 +402,12 @@ mechanism.
 
 Both items are consequences of #256 rather than regressions from it.
 
-### 3.1 Microtask counting
+### 3.1 Microtask counting — **Done**
 
-Culling and PlayerCount tests settle effects with a hand-counted number of
+Culling and PlayerCount tests settled effects with a hand-counted number of
 `await Promise.resolve()` inside `act()`, sometimes two in a row. Microtask
-ordering is deterministic, so this is **not** load-dependent and was not the
-cause of the flakiness — but it couples each test to how many awaits the
+ordering is deterministic, so this was **not** load-dependent and was not the
+cause of the flakiness — but it coupled each test to how many awaits the
 component happens to have before its next observable change.
 
 The failure mode is invisible: if a component grows an await, a *negative*
@@ -418,6 +418,43 @@ records the idiom as a forward rule.
 
 Sweep the rest. Prefer settling on rendered outcome (`waitFor` on what the user
 would see) over counting internal steps.
+
+**Done** — 96 flushes gone from 15 files. The sweep was wider than the two module
+families named above: FileQueue, Review, RenameNef, ImageViewer and the
+FlexLayout morph/move tests carried the same pattern. Rendered outcome where a
+test has one (`waitFor`/`findBy*`); where it does not — mount helpers whose
+outcome differs per test, and the step before a purely negative assertion — a
+full macrotask through a new shared helper, `frontend/tests/helpers/settle.js`.
+Four things worth carrying forward:
+
+1. **`waitFor` cannot be used under a fake clock.** Testing Library's fake-timer
+   detection is gated on a `jest` global that Vitest does not define, so a
+   `waitFor` under `vi.useFakeTimers()` polls a clock that never advances and
+   burns its whole `asyncUtilTimeout` in real time. `settle()` detects the clock
+   itself and advances timers instead; any wait added under a fake clock must do
+   the same.
+2. **Settling on the request is not settling on the render it causes.** A
+   `waitFor` on a POST can return before the response has been applied, leaving a
+   render pending when the test ends; it commits during teardown — after
+   `vi.restoreAllMocks()` — and throws there instead. The culling Cmd+Z test hit
+   exactly this and now ends with a drain.
+3. **A mount helper rarely has one rendered outcome.** `loadFiles` in
+   `cullingModuleFence` cannot wait for file rows: two of its callers load in
+   grid mode, where the list does not render at all. Helpers drain; individual
+   tests wait for outcomes.
+4. **One weak test surfaced.** `cullingStatsScope`'s "does NOT blank the panel on
+   a player-only filter" claimed in its comment that a refetch had been issued
+   but never asserted it — it would have passed had the click done nothing at
+   all, because "the rows are still there" is true both when the panel did not
+   blank and when nothing happened. It now waits for the `/players/count` call as
+   a positive anchor first. **No test failed once its counted flush became a full
+   drain**: the guards genuinely hold. What changed is that they are now tested.
+
+Suite unchanged at **938 passed / 96 files** — identical to the base and
+identical between runs. (It was 927 on both branch and base when the sweep was
+written, three consecutive runs; rebasing onto dev picked up the tests merged
+while the branch was open, and both sides moved together to 938.) `npx eslint
+tests/` clean.
 
 ### 3.2 Contention cost profile
 

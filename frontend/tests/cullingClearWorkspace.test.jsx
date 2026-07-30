@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
-import { render, act, cleanup, fireEvent } from '@testing-library/react';
+import { render, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { gridThumbnailCache } from '../src/renderer/shared/grid-thumbnail-cache.js';
+import { settle } from './helpers/settle.js';
 
 // PR "tömbart urval" — Gallra spelare (culling):
 //  - a "Rensa" button empties the workspace (same semantics as CLI --clear),
@@ -99,8 +100,11 @@ async function mountCulling(node = null) {
   let utils;
   await act(async () => {
     utils = render(<CullingModule node={node} />);
-    await Promise.resolve();
   });
+  // What a mount settles into differs per test (some adopt a scope and scan,
+  // one deliberately hangs mid-scan), so there is no single rendered outcome to
+  // wait for here — settle the effect chain instead of counting its awaits.
+  await settle();
   return utils;
 }
 
@@ -108,9 +112,11 @@ async function loadFiles(roots = ['/p']) {
   const handler = h.registry.get('culling-load');
   await act(async () => {
     await handler({ roots, clear: true, recursive: false });
-    await Promise.resolve();
-    await Promise.resolve();
   });
+  await settle();
+  // The load's own outcome, asserted rather than assumed: every test below
+  // starts from a list that is actually on screen.
+  expect(document.querySelectorAll('.culling-files li')).toHaveLength(FILES.length);
 }
 
 function lastPost(fragment) {
@@ -134,16 +140,16 @@ describe('CullingModule — Rensa button', () => {
     const clearSpy = vi.spyOn(gridThumbnailCache, 'clear');
     const rensa = findButton(container, 'Rensa');
     expect(rensa).toBeTruthy();
-    await act(async () => {
-      fireEvent.click(rensa);
-      await Promise.resolve();
-    });
+    fireEvent.click(rensa);
 
-    // List + stats emptied, "välj mapp"-hint back, scope cleared, cache freed.
+    // Wait on the positive half of the outcome (the cache was freed) so the
+    // emptiness assertions below mean "cleared" and not "not started yet".
+    await waitFor(() => expect(clearSpy).toHaveBeenCalled());
+
+    // List + stats emptied, "välj mapp"-hint back, scope cleared.
     expect(container.querySelector('.culling-files li')).toBeNull();
     expect(container.querySelector('.culling-stat-row')).toBeNull();
     expect(getScanScope()).toBeNull();
-    expect(clearSpy).toHaveBeenCalled();
   });
 
   it('is disabled when there is nothing to clear', async () => {
@@ -162,13 +168,12 @@ describe('CullingModule — root chip removal', () => {
 
     const removes = container.querySelectorAll('.culling-chip-x');
     expect(removes).toHaveLength(2);
-    await act(async () => {
-      fireEvent.click(removes[0].closest('button')); // remove '/a'
-      await Promise.resolve();
-    });
+    fireEvent.click(removes[0].closest('button')); // remove '/a'
 
-    const after = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
-    expect(after).toBe(before + 1);
+    // Settle on the re-scan itself rather than on a counted flush.
+    await waitFor(() => expect(
+      h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length
+    ).toBe(before + 1));
     expect(lastPost('/culling/files')).toMatchObject({ roots: ['/b'] });
   });
 
@@ -179,10 +184,10 @@ describe('CullingModule — root chip removal', () => {
 
     const removes = container.querySelectorAll('.culling-chip-x');
     expect(removes).toHaveLength(1);
-    await act(async () => {
-      fireEvent.click(removes[0].closest('button'));
-      await Promise.resolve();
-    });
+    fireEvent.click(removes[0].closest('button'));
+    // Everything asserted below is an absence, so the wait cannot settle on a
+    // rendered anchor — drain the whole effect chain instead.
+    await settle();
 
     expect(container.querySelector('.culling-files li')).toBeNull();
     expect(container.querySelector('.culling-chip')).toBeNull();
@@ -256,14 +261,14 @@ describe('CullingModule — clear/chip state consistency (Codex round 3)', () =>
     expect([...selectBefore.options].map((o) => o.value)).toContain('Alice');
 
     const rensa = findButton(container, 'Rensa');
-    await act(async () => {
-      fireEvent.click(rensa);
-      await Promise.resolve();
-    });
+    fireEvent.click(rensa);
 
-    // Only the "Alla spelare" placeholder (value '') remains.
-    const selectAfter = container.querySelectorAll('.culling-filterbar select.form-select')[1];
-    expect([...selectAfter.options].map((o) => o.value)).toEqual(['']);
+    // Only the "Alla spelare" placeholder (value '') remains — settled on the
+    // rendered option list, which is the outcome the user would see.
+    await waitFor(() => {
+      const selectAfter = container.querySelectorAll('.culling-filterbar select.form-select')[1];
+      expect([...selectAfter.options].map((o) => o.value)).toEqual(['']);
+    });
   });
 
   // Fynd 6: removing the last root chip while a carried path-glob (adopted from a
@@ -275,23 +280,19 @@ describe('CullingModule — clear/chip state consistency (Codex round 3)', () =>
     const cullPlayer = h.registry.get('cull-player');
     await act(async () => {
       await cullPlayer({ roots: ['/a'], globs: ['*.jpg'], recursive: true, name: '' });
-      await Promise.resolve();
-      await Promise.resolve();
     });
-    expect(container.querySelectorAll('.culling-chip-x')).toHaveLength(1);
+    await waitFor(() => expect(container.querySelectorAll('.culling-chip-x')).toHaveLength(1));
     expect(getScanScope()).not.toBeNull();
     const before = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
 
     // Remove the only root chip.
     const remove = container.querySelector('.culling-chip-x');
-    await act(async () => {
-      fireEvent.click(remove.closest('button'));
-      await Promise.resolve();
-    });
+    fireEvent.click(remove.closest('button'));
 
     // Re-scanned as a glob-only scope (roots empty, glob kept) — NOT cleared.
-    const after = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
-    expect(after).toBe(before + 1);
+    await waitFor(() => expect(
+      h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length
+    ).toBe(before + 1));
     expect(lastPost('/culling/files')).toMatchObject({ roots: [], globs: ['*.jpg'] });
     expect(getScanScope()).not.toBeNull();
     expect(container.querySelectorAll('.culling-files li').length).toBeGreaterThan(0);
@@ -328,16 +329,14 @@ describe('CullingModule — clear enabled during in-flight adopt (Codex round 4)
     const rensa = findButton(container, 'Rensa');
     expect(rensa.disabled).toBe(false);
 
-    // Clearing fences the in-flight scan (per the earlier sweep).
-    await act(async () => {
-      fireEvent.click(rensa);
-      await Promise.resolve();
-    });
+    // Clearing fences the in-flight scan (per the earlier sweep). Both waits are
+    // full drains: the assertions are absences, and an absence cannot tell "the
+    // fence held" from "the continuation never ran".
+    fireEvent.click(rensa);
+    await settle();
     // The hung scan resolves AFTER the clear: it must not repopulate.
-    await act(async () => {
-      resolveFiles(h.nextFiles);
-      await Promise.resolve();
-    });
+    resolveFiles(h.nextFiles);
+    await settle();
 
     expect(container.querySelector('.culling-files li')).toBeNull();
     expect(getScanScope()).toBeNull();

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
 import { render, act, cleanup, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { settle } from './helpers/settle.js';
 import { ZOOM_STEP } from '../src/renderer/shared/canvasViewport.js';
 
 // Loupe zoom shortcuts (+ / - / = / 0) in CullingModule.
@@ -135,8 +136,8 @@ async function mountCulling(node = null) {
   let utils;
   await act(async () => {
     utils = render(<CullingModule node={node} />);
-    await Promise.resolve();
   });
+  await settle();
   return utils;
 }
 
@@ -145,9 +146,10 @@ async function loadFiles({ files = FILES, players = ['Alice', 'Bob'] } = {}) {
   const handler = h.registry.get('culling-load');
   await act(async () => {
     await handler({ roots: ['/p'], clear: true, recursive: false });
-    await Promise.resolve();
-    await Promise.resolve();
   });
+  // Drain the load (list, stats and the auto-fit effect it triggers) instead of
+  // counting the awaits in that chain; the clear below depends on it having run.
+  await settle();
   // The new-file auto-fit effect fires on load; the tests below only care
   // about key-driven calls.
   h.viewApi.autoFit.mockClear();

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, act, cleanup } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import React, { useEffect } from 'react';
 
 // Late-mount recovery integration test (Nagelfar issue-001).
@@ -71,14 +72,10 @@ function Probe() {
   return null;
 }
 
-async function flush() {
-  // Let queued microtasks (Image.onload) and the load promise settle.
-  await act(async () => {
-    await Promise.resolve();
-    await new Promise((r) => setTimeout(r, 0));
-    await Promise.resolve();
-  });
-}
+// Let the queued Image.onload and the load promise settle. The macrotask this
+// awaits already drained every microtask the chain queues, so the two
+// hand-counted flushes that used to bracket it added nothing.
+const flush = settle;
 
 async function mountViewer() {
   await act(async () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
 import { render, act, cleanup } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import React, { useEffect } from 'react';
 
 // Faces/active-index sync between ReviewModule and ImageViewer (PR3 races B + C).
@@ -115,13 +116,9 @@ function Probe() {
   return null;
 }
 
-async function flush() {
-  await act(async () => {
-    await Promise.resolve();
-    await new Promise((r) => setTimeout(r, 0));
-    await Promise.resolve();
-  });
-}
+// The macrotask this awaits already drains every microtask the load chain
+// queues, so the two hand-counted flushes that used to bracket it added nothing.
+const flush = settle;
 
 async function mountViewer() {
   await act(async () => {
