@@ -179,7 +179,7 @@ async def get_stats():
         )
 
     except Exception as e:
-        logger.error(f"[Management] Error getting stats: {e}", exc_info=True)
+        logger.exception(f"[Management] Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -200,7 +200,7 @@ async def get_database_state():
         return DatabaseState(**state)
 
     except Exception as e:
-        logger.error(f"[Management] Error getting database state: {e}", exc_info=True)
+        logger.exception(f"[Management] Error getting database state: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -218,7 +218,7 @@ async def find_duplicates(threshold: float = Query(0.35, ge=0, le=2)):
         return FindDuplicatesResponse(**result)
 
     except Exception as e:
-        logger.error(f"[Management] Error finding duplicates: {e}", exc_info=True)
+        logger.exception(f"[Management] Error finding duplicates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -229,7 +229,7 @@ async def list_distinct_pairs():
         result = await management_service.list_distinct_pairs()
         return DistinctPairsResponse(**result)
     except Exception as e:
-        logger.error(f"[Management] Error listing distinct pairs: {e}", exc_info=True)
+        logger.exception(f"[Management] Error listing distinct pairs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -242,7 +242,7 @@ async def add_distinct_pair(request: DistinctPairRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Management] Error adding distinct pair: {e}", exc_info=True)
+        logger.exception(f"[Management] Error adding distinct pair: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -253,7 +253,7 @@ async def redundant_encodings(threshold: float = Query(0.0, ge=0, le=2)):
         result = await management_service.find_redundant_encodings(threshold)
         return RedundantEncodingsResponse(**result)
     except Exception as e:
-        logger.error(f"[Management] Error scanning redundant encodings: {e}", exc_info=True)
+        logger.exception(f"[Management] Error scanning redundant encodings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -266,7 +266,7 @@ async def dedup_people(request: DedupPeopleRequest):
         )
         return OperationResponse(**result)
     except Exception as e:
-        logger.error(f"[Management] Error deduping people: {e}", exc_info=True)
+        logger.exception(f"[Management] Error deduping people: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -277,7 +277,7 @@ async def remove_distinct_pair(request: DistinctPairRequest):
         result = await management_service.remove_distinct_pair(request.name_a, request.name_b)
         return DistinctPairOperationResponse(**result)
     except Exception as e:
-        logger.error(f"[Management] Error removing distinct pair: {e}", exc_info=True)
+        logger.exception(f"[Management] Error removing distinct pair: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -298,7 +298,7 @@ async def rename_person(request: RenamePersonRequest):
         logger.error(f"[Management] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Management] Error renaming person: {e}", exc_info=True)
+        logger.exception(f"[Management] Error renaming person: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -325,7 +325,7 @@ async def merge_people(request: MergePeopleRequest):
         logger.error(f"[Management] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Management] Error merging people: {e}", exc_info=True)
+        logger.exception(f"[Management] Error merging people: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -346,7 +346,7 @@ async def delete_person(request: DeletePersonRequest):
         logger.error(f"[Management] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Management] Error deleting person: {e}", exc_info=True)
+        logger.exception(f"[Management] Error deleting person: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -370,7 +370,7 @@ async def move_to_ignore(request: MoveToIgnoreRequest):
         logger.error(f"[Management] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Management] Error moving to ignore: {e}", exc_info=True)
+        logger.exception(f"[Management] Error moving to ignore: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -397,7 +397,7 @@ async def move_from_ignore(request: MoveFromIgnoreRequest):
         logger.error(f"[Management] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Management] Error moving from ignore: {e}", exc_info=True)
+        logger.exception(f"[Management] Error moving from ignore: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -419,7 +419,7 @@ async def undo_file(request: UndoFileRequest):
         logger.error(f"[Management] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Management] Error undoing file: {e}", exc_info=True)
+        logger.exception(f"[Management] Error undoing file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -446,7 +446,7 @@ async def purge_encodings(request: PurgeEncodingsRequest):
         logger.error(f"[Management] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Management] Error purging encodings: {e}", exc_info=True)
+        logger.exception(f"[Management] Error purging encodings: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -466,5 +466,5 @@ async def get_recent_files(n: int = 10):
         return [RecentFile(**f) for f in files]
 
     except Exception as e:
-        logger.error(f"[Management] Error getting recent files: {e}", exc_info=True)
+        logger.exception(f"[Management] Error getting recent files: {e}")
         raise HTTPException(status_code=500, detail=str(e))

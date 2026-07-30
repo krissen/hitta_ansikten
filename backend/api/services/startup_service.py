@@ -117,7 +117,7 @@ class StartupState:
                     listener(status)
                     logger.debug("[StartupState] Called sync listener")
             except Exception as e:
-                logger.error(f"[StartupState] Listener error: {e}", exc_info=True)
+                logger.exception(f"[StartupState] Listener error: {e}")
 
 
 def get_startup_state() -> StartupState:

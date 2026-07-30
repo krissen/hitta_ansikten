@@ -13,6 +13,8 @@ from typing import Any
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
 
+logger = logging.getLogger(__name__)
+
 
 # === Security: Restricted Unpickler ===
 class RestrictedUnpickler(pickle.Unpickler):
@@ -53,7 +55,7 @@ class RestrictedUnpickler(pickle.Unpickler):
         if (module, name) in self.ALLOWED_CLASSES:
             return super().find_class(module, name)
         # Log attempted unpickling of forbidden class
-        logging.error(f"[SECURITY] Attempted to unpickle forbidden class: {module}.{name}")
+        logger.error(f"[SECURITY] Attempted to unpickle forbidden class: {module}.{name}")
         raise pickle.UnpicklingError(f"Forbidden class: {module}.{name}")
 
 
@@ -115,7 +117,7 @@ def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend
         try:
             encoding_hash = hashlib.sha1(entry.tobytes()).hexdigest()
         except (AttributeError, ValueError) as e:
-            logging.warning(f"Failed to hash encoding: {e}")
+            logger.warning(f"Failed to hash encoding: {e}")
             encoding_hash = None
 
         return {
@@ -143,12 +145,12 @@ def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend
                 else:
                     entry["encoding_hash"] = None
             except (AttributeError, ValueError) as e:
-                logging.warning(f"Failed to hash encoding: {e}")
+                logger.warning(f"Failed to hash encoding: {e}")
                 entry["encoding_hash"] = None
         return entry
     else:
         # Log warning and return None for invalid types (graceful degradation)
-        logging.warning(f"Invalid encoding entry type: {type(entry)}, skipping")
+        logger.warning(f"Invalid encoding entry type: {type(entry)}, skipping")
         return None
 
 
@@ -231,7 +233,7 @@ def _write_schema_marker() -> None:
             json.dump({"schema": DB_SCHEMA_VERSION}, f)
         temp_path.replace(DB_META_PATH)
     except OSError as e:
-        logging.warning(f"[DATABASE] Failed to write schema marker: {e}")
+        logger.warning(f"[DATABASE] Failed to write schema marker: {e}")
         if temp_path.exists():
             try:
                 temp_path.unlink()
@@ -286,7 +288,7 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
                         processed_files.append(entry)
                         continue
                 except Exception as e:
-                    logging.debug(f"Failed to parse processed file entry: {e}")
+                    logger.debug(f"Failed to parse processed file entry: {e}")
                     pass
                 # fallback legacy
                 processed_files.append({"name": line, "hash": None})
@@ -322,10 +324,10 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
     total_corrupt = kf_corrupt + if_corrupt + hn_corrupt
 
     if total_migrated > 0:
-        logging.info(f"[DATABASE] Migrated {total_migrated} encodings to new format:")
-        logging.info(f"  Known faces: {kf_migrated}")
-        logging.info(f"  Ignored faces: {if_migrated}")
-        logging.info(f"  Hard negatives: {hn_migrated}")
+        logger.info(f"[DATABASE] Migrated {total_migrated} encodings to new format:")
+        logger.info(f"  Known faces: {kf_migrated}")
+        logger.info(f"  Ignored faces: {if_migrated}")
+        logger.info(f"  Hard negatives: {hn_migrated}")
 
     # Persist the migration and record the schema marker so future loads skip
     # the pass. Two safety rules:
@@ -356,7 +358,7 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
             except Exception as e:
                 # Migration save failed — leave the on-disk data as-is and do
                 # NOT mark; the next load retries the migration.
-                logging.warning(f"[DATABASE] Migration save failed, will retry next load: {e}")
+                logger.warning(f"[DATABASE] Migration save failed, will retry next load: {e}")
             else:
                 _write_schema_marker()
         else:
@@ -482,7 +484,7 @@ def load_attempt_log(all_files: bool = False) -> list[dict[str, Any]]:
                     entry = json.loads(line)
                     log.append(entry)
                 except Exception as e:
-                    logging.debug(f"Failed to parse attempt log entry: {e}")
+                    logger.debug(f"Failed to parse attempt log entry: {e}")
                     pass
     return log
 
@@ -529,7 +531,7 @@ def get_file_hash(path: Path | str) -> str | None:
                 h.update(chunk)
         return h.hexdigest()
     except Exception as e:
-        logging.warning(f"Failed to compute file hash for {path}: {e}")
+        logger.warning(f"Failed to compute file hash for {path}: {e}")
         return None
 
 
@@ -558,9 +560,9 @@ def rotate_logs() -> None:
                 with open(PROCESSED_PATH, "w", encoding="utf-8") as f:
                     for entry in entries:
                         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-                logging.info(f"[LogRotation] Trimmed processed_files.jsonl to {len(entries)} entries")
+                logger.info(f"[LogRotation] Trimmed processed_files.jsonl to {len(entries)} entries")
         except Exception as e:
-            logging.warning(f"[LogRotation] Failed to rotate processed_files.jsonl: {e}")
+            logger.warning(f"[LogRotation] Failed to rotate processed_files.jsonl: {e}")
 
     # Rotate attempt_stats.jsonl
     if ATTEMPT_LOG_PATH.exists():
@@ -591,9 +593,9 @@ def rotate_logs() -> None:
                     for entry in recent_entries:
                         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-                logging.info(f"[LogRotation] Archived {len(old_entries)} attempt entries to {archive_name}")
+                logger.info(f"[LogRotation] Archived {len(old_entries)} attempt entries to {archive_name}")
         except Exception as e:
-            logging.warning(f"[LogRotation] Failed to rotate attempt_stats.jsonl: {e}")
+            logger.warning(f"[LogRotation] Failed to rotate attempt_stats.jsonl: {e}")
 
     # Rotate ansikten.log
     if LOGGING_PATH.exists():
@@ -607,13 +609,13 @@ def rotate_logs() -> None:
 
                 # Move current log to archive
                 LOGGING_PATH.rename(archive_path)
-                logging.info(f"[LogRotation] Rotated log file to {archive_name}")
+                logger.info(f"[LogRotation] Rotated log file to {archive_name}")
 
                 # Clean up old archived logs (keep last 5)
                 archived_logs = sorted(ARCHIVE_DIR.glob("ansikten_*.log"))
                 if len(archived_logs) > 5:
                     for old_log in archived_logs[:-5]:
                         old_log.unlink()
-                        logging.debug(f"[LogRotation] Deleted old archived log: {old_log.name}")
+                        logger.debug(f"[LogRotation] Deleted old archived log: {old_log.name}")
         except Exception as e:
-            logging.warning(f"[LogRotation] Failed to rotate ansikten.log: {e}")
+            logger.warning(f"[LogRotation] Failed to rotate ansikten.log: {e}")

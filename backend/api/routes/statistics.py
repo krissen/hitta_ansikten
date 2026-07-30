@@ -92,7 +92,7 @@ async def get_statistics_summary():
         logger.error(f"[Statistics] File not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"[Statistics] Error getting summary: {e}", exc_info=True)
+        logger.exception(f"[Statistics] Error getting summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -113,7 +113,7 @@ async def get_attempt_stats():
         return [AttemptStat(**stat) for stat in stats]
 
     except Exception as e:
-        logger.error(f"[Statistics] Error getting attempt stats: {e}", exc_info=True)
+        logger.exception(f"[Statistics] Error getting attempt stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -132,7 +132,7 @@ async def get_top_faces():
         return result
 
     except Exception as e:
-        logger.error(f"[Statistics] Error getting top faces: {e}", exc_info=True)
+        logger.exception(f"[Statistics] Error getting top faces: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -152,7 +152,7 @@ async def get_recent_images(n: int = 3):
         return [RecentImage(**img) for img in images]
 
     except Exception as e:
-        logger.error(f"[Statistics] Error getting recent images: {e}", exc_info=True)
+        logger.exception(f"[Statistics] Error getting recent images: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -172,7 +172,7 @@ async def get_recent_logs(n: int = 3):
         return [LogLine(**log) for log in logs]
 
     except Exception as e:
-        logger.error(f"[Statistics] Error getting recent logs: {e}", exc_info=True)
+        logger.exception(f"[Statistics] Error getting recent logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -202,7 +202,7 @@ async def get_processed_files(n: int = 200, source: str | None = None):
         }
 
     except Exception as e:
-        logger.error(f"[Statistics] Error getting processed files: {e}", exc_info=True)
+        logger.exception(f"[Statistics] Error getting processed files: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -235,5 +235,5 @@ async def get_file_stats(request: FileStatsRequest):
         return result
 
     except Exception as e:
-        logger.error(f"[Statistics] Error getting file stats: {e}", exc_info=True)
+        logger.exception(f"[Statistics] Error getting file stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))

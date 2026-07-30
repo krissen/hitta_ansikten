@@ -75,6 +75,8 @@ from faceid_db import (
     save_database,
 )
 
+logger = logging.getLogger(__name__)
+
 # Initialize logging at module load
 init_logging(replace_handlers=False)
 
@@ -518,12 +520,12 @@ def user_review_encodings(
             labels.append({"label": f"#{i+1}\n{name}", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
 
     if retry_requested:
-        logging.debug("[REVIEW] Retry ombett, återgår till anropare")
+        logger.debug("[REVIEW] Retry ombett, återgår till anropare")
         return "retry", []
     if all_ignored:
-        logging.debug("[REVIEW] Alla ansikten ignorerade; returnerar 'all_ignored'.")
+        logger.debug("[REVIEW] Alla ansikten ignorerade; returnerar 'all_ignored'.")
         return "all_ignored", []
-    logging.debug("[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
+    logger.debug("[REVIEW] Alla ansikten granskade, returnerar 'ok'.")
     return "ok", labels
 
 
@@ -546,12 +548,12 @@ def face_detection_attempt(
         (face_locations, face_encodings)
     """
     t0 = time.time()
-    logging.debug(f"[FACEDETECT] begins: backend={backend.backend_name}, model={model}, upsample={upsample}")
+    logger.debug(f"[FACEDETECT] begins: backend={backend.backend_name}, model={model}, upsample={upsample}")
 
     face_locations, face_encodings = backend.detect_faces(rgb, model, upsample)
 
     t1 = time.time()
-    logging.debug(f"[FACEDETECT] Complete: {len(face_locations)} faces found in {t1-t0:.2f}s")
+    logger.debug(f"[FACEDETECT] Complete: {len(face_locations)} faces found in {t1-t0:.2f}s")
 
     return face_locations, face_encodings
 
@@ -654,11 +656,11 @@ def preprocess_image(
         backend: FaceBackend instance for face detection and encoding
     """
     fname = str(image_path)
-    logging.debug(f"[PREPROCESS image][{fname}] start")
+    logger.debug(f"[PREPROCESS image][{fname}] start")
 
     # Check if file exists before preprocessing
     if not Path(image_path).exists():
-        logging.warning(f"[PREPROCESS image][SKIP][{fname}] File does not exist, skipping")
+        logger.warning(f"[PREPROCESS image][SKIP][{fname}] File does not exist, skipping")
         return []
 
     try:
@@ -671,7 +673,7 @@ def preprocess_image(
 
         attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend)
     except Exception as e:
-        logging.warning(f"[RAWREAD][SKIP][{fname}] Kunde inte öppna {fname}: {e}")
+        logger.warning(f"[RAWREAD][SKIP][{fname}] Kunde inte öppna {fname}: {e}")
         return []
 
     if attempts_so_far is None:
@@ -685,21 +687,21 @@ def preprocess_image(
         setting = attempt_settings[attempt_idx]
         rgb = setting["rgb_img"]
         t0 = time.time()
-        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: start")
-        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: face_detection_attempt")
+        logger.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: start")
+        logger.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: face_detection_attempt")
         face_locations, face_encodings = face_detection_attempt(
             rgb, setting["model"], setting["upsample"], backend
         )
-        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: label_preview_for_encodings")
+        logger.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: label_preview_for_encodings")
         preview_labels = label_preview_for_encodings(
             face_encodings, known_faces, ignored_faces, hard_negatives, config, backend
         )
-        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: create_labeled_image")
+        logger.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: create_labeled_image")
         preview_path = create_labeled_image(
             rgb, face_locations, preview_labels, config, suffix=f"_preview_{attempt_idx}"
         )
         elapsed = time.time() - t0
-        logging.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: done ({elapsed:.2f}s)")
+        logger.debug(f"[PREPROCESS image][{fname}] Attempt {attempt_idx}: done ({elapsed:.2f}s)")
 
         attempt_results.append({
             "attempt_index": attempt_idx,
@@ -720,7 +722,7 @@ def preprocess_image(
         if attempt_idx + 1 >= max_attempts:
             break
 
-    logging.debug(f"[PREPROCESS image][{fname}]: end")
+    logger.debug(f"[PREPROCESS image][{fname}]: end")
     return attempt_results
 
 
@@ -741,7 +743,7 @@ def main_process_image_loop(
     """
     # Check if file exists before review
     if not Path(image_path).exists():
-        logging.warning(f"[REVIEW][SKIP][{image_path}] File does not exist, skipping review")
+        logger.warning(f"[REVIEW][SKIP][{image_path}] File does not exist, skipping review")
         return "skipped"
     
     attempt_idx = len(attempt_results) - 1
@@ -762,7 +764,7 @@ def main_process_image_loop(
     preview_path = res["preview_path"]
     elapsed = res["time_seconds"]
 
-    logging.debug(
+    logger.debug(
         f"[ATTEMPT] Försök {attempt_idx + 1}: {res['model']}, upsample={res['upsample']}, "
         f"scale={res['scale_label']}, tid: {elapsed:.2f} s, antal ansikten: {len(face_locations)}"
     )
@@ -783,7 +785,7 @@ def main_process_image_loop(
     try:
         shutil.copy(preview_path, ordinary_preview_path)
     except Exception as e:
-        logging.warning(f"[PREVIEW] Kunde inte kopiera preview till {ordinary_preview_path}: {e}")
+        logger.warning(f"[PREVIEW] Kunde inte kopiera preview till {ordinary_preview_path}: {e}")
     show_temp_image(ordinary_preview_path, config, image_path)
 
     if face_encodings:
@@ -936,7 +938,7 @@ def rename_files(
             continue
         dest = str(Path(orig).parent / nytt)
         if Path(dest).exists() and Path(dest) != Path(orig):
-            logging.warning(f"[RENAME] Destination already exists: {dest}")
+            logger.warning(f"[RENAME] Destination already exists: {dest}")
             print(f"⚠️  {dest} finns redan, hoppar över!")
             continue
         if simulate:
@@ -953,7 +955,7 @@ def cleanup_tmp_previews() -> None:
         try:
             path.unlink()
         except Exception as e:
-            logging.debug(f"Failed to remove temp file {path}: {e}")
+            logger.debug(f"Failed to remove temp file {path}: {e}")
             pass  # Ignorera ev. misslyckanden
 
 
@@ -1054,7 +1056,7 @@ def save_preprocessed_cache(path: Path | str, attempt_results: list[dict]) -> li
         with open(cache_path, "wb") as f:
             pickle.dump((str(path), cached), f)
     except Exception as e:
-        logging.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
+        logger.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
     return cached
 
 
@@ -1068,7 +1070,7 @@ def load_preprocessed_cache(queue: multiprocessing.Queue) -> None:
                 path, attempt_results = safe_pickle_load(f)
             # Check if the original image file still exists before loading into queue
             if not Path(path).exists():
-                logging.warning(f"[CACHE] File {path} no longer exists, removing cache")
+                logger.warning(f"[CACHE] File {path} no longer exists, removing cache")
                 # Remove the cache file and associated preview images
                 file.unlink()
                 h = hashlib.sha1(str(path).encode()).hexdigest()
@@ -1081,7 +1083,7 @@ def load_preprocessed_cache(queue: multiprocessing.Queue) -> None:
                 continue
             queue.put((path, attempt_results))
         except (FileNotFoundError, pickle.UnpicklingError, OSError) as e:
-            logging.warning(f"[CACHE] Failed to load {file}: {e}")
+            logger.warning(f"[CACHE] Failed to load {file}: {e}")
 
 
 def remove_preprocessed_cache(path: Path | str) -> None:
@@ -1113,13 +1115,13 @@ def preprocess_worker(
     Initializes its own backend instance from config.
     """
     import os
-    logging.debug(f"[WORKER] Process started, PID={os.getpid()}, processing {len(images_to_process)} images")
+    logger.debug(f"[WORKER] Process started, PID={os.getpid()}, processing {len(images_to_process)} images")
     try:
         # Initialize backend in worker process
         from face_backends import create_backend
-        logging.debug("[WORKER] About to create backend from config")
+        logger.debug("[WORKER] About to create backend from config")
         backend = create_backend(config)
-        logging.debug(f"[WORKER] Initialized backend: {backend.backend_name}")
+        logger.debug(f"[WORKER] Initialized backend: {backend.backend_name}")
 
         faces_copy = copy.deepcopy(known_faces)
         ignored_copy = copy.deepcopy(ignored_faces)
@@ -1136,13 +1138,13 @@ def preprocess_worker(
             for path in active_paths[:]:
                 # Check if file still exists before processing
                 if not Path(path).exists():
-                    logging.warning(f"[PREPROCESS worker][SKIP][{path.name}] File no longer exists, removing from queue")
+                    logger.warning(f"[PREPROCESS worker][SKIP][{path.name}] File no longer exists, removing from queue")
                     active_paths.remove(path)
                     if path in attempt_map:
                         del attempt_map[path]
                     continue
                 
-                logging.debug(f"[PREPROCESS worker] Attempt {attempt_idx} for {path.name}")
+                logger.debug(f"[PREPROCESS worker] Attempt {attempt_idx} for {path.name}")
                 current_attempts = attempt_map[path]
                 partial_results = preprocess_image(
                     path,
@@ -1157,7 +1159,7 @@ def preprocess_worker(
                 if len(partial_results) > len(current_attempts):
                     cached = save_preprocessed_cache(path, partial_results)
                     attempt_map[path] = cached
-                    logging.debug(
+                    logger.debug(
                         f"[PREPROCESS worker][QUEUE PUT] {path.name}: attempts {len(cached)}"
                     )
                     preprocessed_queue.put((path, cached[:]))
@@ -1165,7 +1167,7 @@ def preprocess_worker(
                     if cached[-1]["face_count"] > 0:
                         active_paths.remove(path)
     except Exception as e:
-        logging.error(f"[PREPROCESS worker][ERROR] {e}")
+        logger.error(f"[PREPROCESS worker][ERROR] {e}")
         import traceback
         # Print error to stderr so it's visible to user
         print("\n⚠️  KRITISKT FEL: Worker-processen kraschade!", file=sys.stderr)
@@ -1176,7 +1178,7 @@ def preprocess_worker(
     finally:
         # Always signal completion, even on error, to unblock main loop
         preprocess_done.set()
-        logging.debug("[PREPROCESS worker] Done")
+        logger.debug("[PREPROCESS worker] Done")
 
 # === Entry point ===
 def main() -> None:
@@ -1228,11 +1230,11 @@ def main() -> None:
     # Initialize face recognition backend
     try:
         backend = create_backend(config)
-        logging.info(f"[BACKEND] Initialized: {backend.backend_name}")
+        logger.info(f"[BACKEND] Initialized: {backend.backend_name}")
         model_info = backend.get_model_info()
-        logging.info(f"[BACKEND] Model info: {model_info}")
+        logger.info(f"[BACKEND] Model info: {model_info}")
     except Exception as e:
-        logging.error(f"[BACKEND] Failed to initialize backend: {e}")
+        logger.error(f"[BACKEND] Failed to initialize backend: {e}")
         print(f"Error: Could not initialize face recognition backend: {e}")
 
         # Provide backend-specific installation hints
@@ -1310,7 +1312,7 @@ def main() -> None:
         images_to_process = []
         for path in input_paths:
             if not path.exists():
-                logging.warning(f"[FIX][SKIP][{path}] File does not exist")
+                logger.warning(f"[FIX][SKIP][{path}] File does not exist")
                 print(f"⏭ Hoppar över {path.name} (filen finns inte längre)")
                 continue
 
@@ -1333,7 +1335,7 @@ def main() -> None:
         images_to_process = []
         for path in input_paths:
             if not path.exists():
-                logging.warning(f"[MAIN][SKIP][{path}] File does not exist")
+                logger.warning(f"[MAIN][SKIP][{path}] File does not exist")
                 continue
             n_found += 1
             if is_file_processed(path, processed_files):
@@ -1350,10 +1352,10 @@ def main() -> None:
 
     workers = []
     chunk_size = max(1, math.ceil(len(images_to_process) / num_workers))
-    logging.debug(f"[MAIN] Starting {num_workers} workers, chunk_size={chunk_size}, {len(images_to_process)} images")
+    logger.debug(f"[MAIN] Starting {num_workers} workers, chunk_size={chunk_size}, {len(images_to_process)} images")
     for i in range(num_workers):
         chunk = images_to_process[i * chunk_size:(i + 1) * chunk_size]
-        logging.debug(f"[MAIN] Worker {i}: chunk size = {len(chunk)}")
+        logger.debug(f"[MAIN] Worker {i}: chunk size = {len(chunk)}")
         if not chunk:
             continue
         p = multiprocessing.Process(
@@ -1372,13 +1374,13 @@ def main() -> None:
         p.daemon = True
         p.start()
         workers.append(p)
-        logging.debug(f"[MAIN] Started worker {i} (PID will be {p.pid})")
+        logger.debug(f"[MAIN] Started worker {i} (PID will be {p.pid})")
 
     # Check if workers crashed immediately
     import time
     time.sleep(0.1)  # Give workers a moment to start
     if preprocess_done.is_set() and preprocessed_queue.empty():
-        logging.warning("[PREPROCESS] Worker exited immediately - will fall back to main process")
+        logger.warning("[PREPROCESS] Worker exited immediately - will fall back to main process")
         print("\n⚠️  VARNING: Worker-processen avslutades omedelbart!", file=sys.stderr)
         print("⚠️  Detta tyder på ett fel i worker-processen.", file=sys.stderr)
         print("⚠️  Preprocessing kommer att göras i main-processen istället (långsammare).\n", file=sys.stderr)
@@ -1388,19 +1390,19 @@ def main() -> None:
     for path in images_to_process:
         # Check if file still exists before processing
         if not path.exists():
-            logging.warning(f"[MAIN][SKIP][{path.name}] File no longer exists, skipping")
+            logger.warning(f"[MAIN][SKIP][{path.name}] File no longer exists, skipping")
             done_images.add(path)
             remove_preprocessed_cache(path)
             continue
         
-        logging.debug(f"[MAIN][STEG2] Bearbetar {path.name}...")
+        logger.debug(f"[MAIN][STEG2] Bearbetar {path.name}...")
         path_key = str(path)
         attempt_idx = 0
         attempts_so_far = []
         worker_wait_msg_printed = False
 
         while attempt_idx < max_possible_attempts:
-            logging.debug(f"[MAIN] {path.name}: försök {attempt_idx + 1}...")
+            logger.debug(f"[MAIN] {path.name}: försök {attempt_idx + 1}...")
             print(f"\n=== Bearbetar: {path.name} (försök {attempt_idx+1}) ===")
             # === Hämta attempts från kön om möjligt ===
             if len(attempts_so_far) < attempt_idx + 1:
@@ -1421,12 +1423,12 @@ def main() -> None:
                     except queue.Empty:
                         # Check if worker is done - if so, we won't get any more results
                         if preprocess_done.is_set():
-                            logging.debug(f"[MAIN] Worker finished but no attempt {attempt_idx+1} for {path.name}")
+                            logger.debug(f"[MAIN] Worker finished but no attempt {attempt_idx+1} for {path.name}")
                             # No more preprocessing will happen, break out
                             fetched = True
                             # We need to generate this attempt ourselves
                             if len(attempts_so_far) < attempt_idx + 1:
-                                logging.debug(f"[MAIN] Generating attempt {attempt_idx+1} manually for {path.name}")
+                                logger.debug(f"[MAIN] Generating attempt {attempt_idx+1} manually for {path.name}")
                                 attempts_so_far = preprocess_image(
                                     path, known_faces, ignored_faces, hard_negatives, config, backend,
                                     max_attempts=attempt_idx + 1,
@@ -1434,18 +1436,18 @@ def main() -> None:
                                 )
                         # Otherwise, keep waiting
 
-                logging.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
+                logger.debug(f"[MAIN] {path.name}: mottagit {len(attempts_so_far)} attempts")
                 if attempt_idx > 0:
                     print(f"(✔️  Nivå {attempt_idx+1} klar för {path.name})", flush=True)
                 worker_wait_msg_printed = False
 
-            logging.debug(f"[MAIN][QUEUE GET] {path.name}: hämtar attempt {attempt_idx+1}")
+            logger.debug(f"[MAIN][QUEUE GET] {path.name}: hämtar attempt {attempt_idx+1}")
 
             result = main_process_image_loop(
                 path, known_faces, ignored_faces, hard_negatives, config, backend, attempts_so_far
             )
 
-            logging.debug(f"[MAIN] {path.name}: resultat från review-loop: {result}")
+            logger.debug(f"[MAIN] {path.name}: resultat från review-loop: {result}")
 
             if result == "retry":
                 attempt_idx += 1
@@ -1477,12 +1479,12 @@ def main() -> None:
                         except queue.Empty:
                             # Check if worker is done
                             if preprocess_done.is_set():
-                                logging.debug(f"[MAIN] Worker finished, no more attempts coming for {path.name}")
+                                logger.debug(f"[MAIN] Worker finished, no more attempts coming for {path.name}")
                                 break
                         waited += 1
                     # Om worker ändå inte levererat: skapa nytt attempt manuellt
                     if not got_new_attempt:
-                        logging.debug(f"[MAIN] {path.name}: skapar manuellt nytt attempt {attempt_idx+1}")
+                        logger.debug(f"[MAIN] {path.name}: skapar manuellt nytt attempt {attempt_idx+1}")
                         extra_attempts = preprocess_image(
                             path, known_faces, ignored_faces, hard_negatives, config, backend,
                             max_attempts=attempt_idx + 1,
@@ -1506,29 +1508,29 @@ def main() -> None:
 
             # Bilden är klar
             if result in (True, "ok", "manual", "skipped", "no_faces", "all_ignored"):
-                logging.debug(f"[MAIN] SLUTresultat för {path.name}: {result}")
+                logger.debug(f"[MAIN] SLUTresultat för {path.name}: {result}")
                 add_to_processed_files(path, processed_files)
                 save_database(known_faces, ignored_faces, hard_negatives, processed_files)
                 done_images.add(path)
                 break
             else:
-                logging.debug(f"[MAIN] {path.name}: DELresultat: {result} (försök {attempt_idx+1})")
+                logger.debug(f"[MAIN] {path.name}: DELresultat: {result} (försök {attempt_idx+1})")
 
             # Annars: next attempt (failsafe, ska ej nås)
             attempt_idx += 1
 
-        logging.debug(f"[MAIN] {path.name}: FÄRDIG, {len(attempts_so_far)} försök totalt")
+        logger.debug(f"[MAIN] {path.name}: FÄRDIG, {len(attempts_so_far)} försök totalt")
 
     # Clean up workers with timeout to prevent deadlock
     for p in workers:
         p.join(timeout=WORKER_JOIN_TIMEOUT)
         if p.is_alive():
-            logging.error(f"Worker {p.pid} did not finish within timeout, terminating")
+            logger.error(f"Worker {p.pid} did not finish within timeout, terminating")
             print(f"⚠️  Worker {p.pid} hängde, tvångsavslutar...", file=sys.stderr)
             p.terminate()
             p.join(timeout=WORKER_TERMINATE_TIMEOUT)
             if p.is_alive():
-                logging.error(f"Worker {p.pid} did not terminate, killing")
+                logger.error(f"Worker {p.pid} did not terminate, killing")
                 p.kill()
                 p.join()
 

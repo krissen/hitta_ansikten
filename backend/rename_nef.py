@@ -18,6 +18,8 @@ from pathlib import Path
 
 from core.exiftool import find_exiftool
 
+logger = logging.getLogger(__name__)
+
 # A file is "already named" when its stem already carries its EXIF timestamp,
 # optionally followed by a burst marker (-N), a 1-3 letter photographer suffix
 # (the config-driven rename_service can emit `ts<xx>` / `ts-N<xx>`), a name
@@ -51,7 +53,7 @@ def get_exif_data(files: list[Path]) -> list[tuple[str, int, Path]]:
     
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0 and result.stderr:
-        logging.warning(f"exiftool warning: {result.stderr.strip()}")
+        logger.warning(f"exiftool warning: {result.stderr.strip()}")
         print(f"exiftool warning: {result.stderr}", file=sys.stderr)
     
     entries = []

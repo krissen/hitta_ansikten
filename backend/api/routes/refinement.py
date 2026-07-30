@@ -168,7 +168,7 @@ async def preview_refinement(
         )
 
     except Exception as e:
-        logger.error(f"[Refinement] Error in preview: {e}", exc_info=True)
+        logger.exception(f"[Refinement] Error in preview: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -203,7 +203,7 @@ async def apply_refinement(request: ApplyRequest):
         logger.error(f"[Refinement] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Refinement] Error applying refinement: {e}", exc_info=True)
+        logger.exception(f"[Refinement] Error applying refinement: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -232,7 +232,7 @@ async def repair_shapes(request: RepairShapesRequest):
         logger.error(f"[Refinement] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Refinement] Error repairing shapes: {e}", exc_info=True)
+        logger.exception(f"[Refinement] Error repairing shapes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -254,5 +254,5 @@ async def remove_dlib_encodings(request: RemoveDlibRequest):
         return RemoveDlibResponse(**result)
 
     except Exception as e:
-        logger.error(f"[Refinement] Error removing dlib encodings: {e}", exc_info=True)
+        logger.exception(f"[Refinement] Error removing dlib encodings: {e}")
         raise HTTPException(status_code=500, detail=str(e))

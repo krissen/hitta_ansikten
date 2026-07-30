@@ -143,7 +143,7 @@ async def reload_database():
         result = get_detection_service().reload_database()
         return ReloadDatabaseResponse(**result)
     except Exception as e:
-        logger.error(f"[Detection] Error reloading database: {e}", exc_info=True)
+        logger.exception(f"[Detection] Error reloading database: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/detect-faces", response_model=DetectionResult)
@@ -194,7 +194,7 @@ async def detect_faces(request: DetectionRequest):
         logger.error(f"[Detection] File not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"[Detection] Error processing image: {e}", exc_info=True)
+        logger.exception(f"[Detection] Error processing image: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -274,7 +274,7 @@ async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height
         logger.error(f"[Detection] File not found: {e}")
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"[Detection] Error generating thumbnail: {e}", exc_info=True)
+        logger.exception(f"[Detection] Error generating thumbnail: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -300,7 +300,7 @@ async def confirm_identity(request: ConfirmIdentityRequest):
         logger.error(f"[Detection] Invalid request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Detection] Error confirming identity: {e}", exc_info=True)
+        logger.exception(f"[Detection] Error confirming identity: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -324,7 +324,7 @@ async def ignore_face(request: IgnoreFaceRequest):
         logger.error(f"[Detection] Invalid request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"[Detection] Error ignoring face: {e}", exc_info=True)
+        logger.exception(f"[Detection] Error ignoring face: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -345,7 +345,7 @@ async def batch_confirm(request: BatchConfirmRequest):
         )
         return BatchConfirmResponse(**result)
     except Exception as e:
-        logger.error(f"[Detection] Error in batch confirm: {e}", exc_info=True)
+        logger.exception(f"[Detection] Error in batch confirm: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -368,5 +368,5 @@ async def mark_review_complete(request: MarkReviewCompleteRequest):
 
         return MarkReviewCompleteResponse(**result)
     except Exception as e:
-        logger.error(f"[Detection] Error marking review complete: {e}", exc_info=True)
+        logger.exception(f"[Detection] Error marking review complete: {e}")
         raise HTTPException(status_code=500, detail=str(e))

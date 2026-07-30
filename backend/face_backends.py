@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 # Constants
 EPSILON_NORM = 1e-6  # Small value to avoid division by zero in normalization
 
@@ -129,9 +131,9 @@ class DlibBackend(FaceBackend):
         try:
             import face_recognition
             self._fr = face_recognition
-            logging.info("[DlibBackend] Initialized successfully")
+            logger.info("[DlibBackend] Initialized successfully")
         except ImportError as e:
-            logging.error(f"[DlibBackend] Failed to import face_recognition: {e}")
+            logger.error(f"[DlibBackend] Failed to import face_recognition: {e}")
             raise
 
     @property
@@ -239,7 +241,7 @@ class InsightFaceBackend(FaceBackend):
             # Suppress CUDA provider warning on systems without GPU
             warnings.filterwarnings('ignore', message='.*CUDAExecutionProvider.*')
 
-            logging.info(f"[InsightFaceBackend] Initializing with model={model_name}, ctx_id={ctx_id}, det_size={det_size}")
+            logger.info(f"[InsightFaceBackend] Initializing with model={model_name}, ctx_id={ctx_id}, det_size={det_size}")
 
             # Determine optimal providers for this platform
             # On macOS: CoreML > CPU, on others: CPU only (CUDA handled by ctx_id)
@@ -265,7 +267,7 @@ class InsightFaceBackend(FaceBackend):
             self.ctx_id = ctx_id
             self.det_size = det_size
 
-            logging.info(f"[InsightFaceBackend] Initialized successfully with requested providers: {providers}")
+            logger.info(f"[InsightFaceBackend] Initialized successfully with requested providers: {providers}")
 
             # Log the providers ACTUALLY bound to each ONNX session. This can
             # differ from the requested list: insightface's own prepare(ctx_id<0)
@@ -278,19 +280,19 @@ class InsightFaceBackend(FaceBackend):
         except ImportError as e:
             # Dump captured output to help diagnose import failures
             if stderr_buffer.getvalue():
-                logging.error(f"[InsightFaceBackend] Captured stderr:\n{stderr_buffer.getvalue()}")
+                logger.error(f"[InsightFaceBackend] Captured stderr:\n{stderr_buffer.getvalue()}")
             if stdout_buffer.getvalue():
-                logging.error(f"[InsightFaceBackend] Captured stdout:\n{stdout_buffer.getvalue()}")
-            logging.error(f"[InsightFaceBackend] Failed to import insightface: {e}", exc_info=True)
-            logging.error("Install with: pip install insightface onnxruntime")
+                logger.error(f"[InsightFaceBackend] Captured stdout:\n{stdout_buffer.getvalue()}")
+            logger.exception(f"[InsightFaceBackend] Failed to import insightface: {e}")
+            logger.error("Install with: pip install insightface onnxruntime")
             raise
         except Exception as e:
             # Dump captured output to help diagnose initialization failures
             if stderr_buffer.getvalue():
-                logging.error(f"[InsightFaceBackend] Captured stderr:\n{stderr_buffer.getvalue()}")
+                logger.error(f"[InsightFaceBackend] Captured stderr:\n{stderr_buffer.getvalue()}")
             if stdout_buffer.getvalue():
-                logging.error(f"[InsightFaceBackend] Captured stdout:\n{stdout_buffer.getvalue()}")
-            logging.error(f"[InsightFaceBackend] Failed to initialize: {e}", exc_info=True)
+                logger.error(f"[InsightFaceBackend] Captured stdout:\n{stdout_buffer.getvalue()}")
+            logger.exception(f"[InsightFaceBackend] Failed to initialize: {e}")
             raise
 
     @property
@@ -341,7 +343,7 @@ class InsightFaceBackend(FaceBackend):
             if isinstance(e, (MemoryError, KeyboardInterrupt, SystemExit)):
                 raise
             # Return empty results for recoverable errors
-            logging.error(f"[InsightFaceBackend] Face detection failed: {e}")
+            logger.error(f"[InsightFaceBackend] Face detection failed: {e}")
             return [], [], []
 
         # Convert to dlib-compatible format
@@ -413,7 +415,7 @@ class InsightFaceBackend(FaceBackend):
         if norm > EPSILON_NORM:  # Avoid division by very small numbers
             return encoding / norm
         # Return zero vector as-is (edge case: all-zero encoding)
-        logging.warning("[InsightFaceBackend] Encoding has zero norm, returning as-is")
+        logger.warning("[InsightFaceBackend] Encoding has zero norm, returning as-is")
         return encoding
 
     def _actual_providers(self) -> dict[str, list[str]]:
@@ -445,7 +447,7 @@ class InsightFaceBackend(FaceBackend):
         ``prepare(ctx_id<0)``, so the requested list alone is misleading.
         """
         for task_name, actual in self._actual_providers().items():
-            logging.info(f"[InsightFaceBackend] Actual bound providers [{task_name}]: {actual}")
+            logger.info(f"[InsightFaceBackend] Actual bound providers [{task_name}]: {actual}")
 
     def get_model_info(self) -> dict:
         """Return InsightFace model metadata."""
@@ -485,7 +487,7 @@ def create_backend(config: dict) -> FaceBackend:
 
     # dlib is deprecated - force insightface
     if backend_type == 'dlib':
-        logging.warning(
+        logger.warning(
             "[DEPRECATED] dlib backend is no longer supported. "
             "Using insightface instead. Please update your config.json."
         )
@@ -518,15 +520,15 @@ def create_backend(config: dict) -> FaceBackend:
         return backend_class()
 
     except ImportError as e:
-        logging.error(f"Failed to create {backend_type} backend: {e}")
-        logging.error("Make sure required dependencies are installed:")
+        logger.error(f"Failed to create {backend_type} backend: {e}")
+        logger.error("Make sure required dependencies are installed:")
         if backend_type == 'dlib':
-            logging.error("  pip install face_recognition")
+            logger.error("  pip install face_recognition")
         elif backend_type == 'insightface':
-            logging.error("  pip install insightface onnxruntime")
+            logger.error("  pip install insightface onnxruntime")
         raise
     except Exception as e:
-        logging.error(f"Failed to initialize {backend_type} backend: {e}")
+        logger.error(f"Failed to initialize {backend_type} backend: {e}")
         raise
 
 
