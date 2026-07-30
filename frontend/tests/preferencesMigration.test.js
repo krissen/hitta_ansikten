@@ -8,17 +8,54 @@
  */
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
 
-// The module creates a singleton manager on import, so localStorage has to
-// exist before it is loaded — hence the shim + dynamic import here.
-if (!globalThis.localStorage) {
+/**
+ * An in-memory storage this file owns outright, with the two things the tests
+ * need to drive built in rather than monkeypatched on: a write counter and a
+ * switch that makes writes fail.
+ *
+ * It is installed **unconditionally**, replacing whatever the environment
+ * provides. Doing it conditionally is what made this file environment-dependent
+ * and turned CI red once: under Node 26 the bare `localStorage` global is Node's
+ * own (unavailable) built-in, so the shim installed and a `localStorage.setItem
+ * = …` swap took effect — while CI's Node has no such built-in, so Vitest's
+ * jsdom left a **real** `Storage` there, the shim was skipped, and assigning to
+ * `setItem` on a jsdom Storage does not replace the method at all: the proxy
+ * stores an *item* named "setItem" and the real method keeps running. The
+ * refuse-writes test then never refused anything, and the write-counter test
+ * counted nothing while still passing.
+ */
+function createMemoryStorage() {
   const store = new Map();
-  globalThis.localStorage = {
+  return {
+    /** setItem calls seen, including refused ones. */
+    writes: 0,
+    /** When true, setItem throws the way a full or read-only backend does. */
+    refuseWrites: false,
     getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, v) => store.set(k, String(v)),
+    setItem(k, v) {
+      this.writes += 1;
+      if (this.refuseWrites) throw new Error('QuotaExceededError');
+      store.set(k, String(v));
+    },
     removeItem: (k) => store.delete(k),
-    clear: () => store.clear(),
+    clear() {
+      store.clear();
+      this.writes = 0;
+      this.refuseWrites = false;
+    },
   };
 }
+
+// The module creates a singleton manager on import, so the storage has to be in
+// place before it is loaded — hence the install here plus the dynamic import
+// below. defineProperty rather than assignment: on Node 26 the global is a
+// getter-only property, which a plain assignment cannot replace.
+const storage = createMemoryStorage();
+Object.defineProperty(globalThis, 'localStorage', {
+  value: storage,
+  configurable: true,
+  writable: true,
+});
 
 let PreferencesManager;
 let DEFAULT_EXTERNAL_EDITOR;
@@ -65,39 +102,36 @@ describe('preferences v1 -> v2 (external editor)', () => {
   it('leaves an already-current payload untouched on disk', () => {
     const stored = { version: 2, paths: { rawRoot: '~/Bilder/raw' } };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    // The counter counts (this seeding write proves it) — so the zero below is
+    // a measurement, not an instrument that was never connected.
+    expect(storage.writes).toBe(1);
+    storage.writes = 0;
 
-    let writes = 0;
-    const setItem = localStorage.setItem.bind(localStorage);
-    localStorage.setItem = (k, v) => {
-      writes += 1;
-      setItem(k, v);
-    };
-    try {
-      new PreferencesManager();
-    } finally {
-      localStorage.setItem = setItem;
-    }
+    new PreferencesManager();
 
-    expect(writes).toBe(0);
+    expect(storage.writes).toBe(0);
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY))).toEqual(stored);
   });
 
   it('survives a storage backend that refuses writes', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1 }));
+    storage.writes = 0;
+    storage.refuseWrites = true;
 
-    const setItem = localStorage.setItem.bind(localStorage);
-    localStorage.setItem = () => {
-      throw new Error('QuotaExceededError');
-    };
     let prefs;
     try {
       prefs = new PreferencesManager();
     } finally {
-      localStorage.setItem = setItem;
+      storage.refuseWrites = false;
     }
 
+    // The write was attempted and refused. Without this the rest of the test
+    // could pass on a storage that quietly accepted the write — which is
+    // exactly how it passed locally and failed in CI.
+    expect(storage.writes).toBeGreaterThanOrEqual(1);
     // The migration still applies in memory; only the write back is lost.
     expect(prefs.get('paths.externalEditor')).toBe(DEFAULT_EXTERNAL_EDITOR);
+    // Disk keeps the old version, so the step runs again on the next start.
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).version).toBe(1);
   });
 
