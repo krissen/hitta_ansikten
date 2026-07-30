@@ -632,10 +632,9 @@ class DetectionService:
         if not has_name and not has_ignore:
             return "unknown"
 
-        if has_name and has_ignore:
-            # Both match - check if close enough to be uncertain
-            if abs(name_dist - ignore_dist) < margin:
-                return "uncertain_name" if name_dist < ignore_dist else "uncertain_ign"
+        # Both match and close enough to be uncertain
+        if has_name and has_ignore and abs(name_dist - ignore_dist) < margin:
+            return "uncertain_name" if name_dist < ignore_dist else "uncertain_ign"
 
         if has_name and (not has_ignore or name_dist < ignore_dist - margin):
             return "name"

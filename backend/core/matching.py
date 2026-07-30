@@ -161,10 +161,13 @@ def filter_database_by_backend(
                 entry_enc = entry
                 entry_backend = "dlib"
 
-            if entry_enc is not None and entry_backend == backend.backend_name:
-                if isinstance(entry_enc, np.ndarray):
-                    if validate_encoding_dimension(entry_enc, backend, f"known_faces:{name}"):
-                        encs.append(entry_enc)
+            if (
+                entry_enc is not None
+                and entry_backend == backend.backend_name
+                and isinstance(entry_enc, np.ndarray)
+                and validate_encoding_dimension(entry_enc, backend, f"known_faces:{name}")
+            ):
+                encs.append(entry_enc)
 
         if encs:
             filtered_known[name] = np.array(encs)
@@ -179,10 +182,13 @@ def filter_database_by_backend(
             entry_enc = entry
             entry_backend = "dlib"
 
-        if entry_enc is not None and entry_backend == backend.backend_name:
-            if isinstance(entry_enc, np.ndarray):
-                if validate_encoding_dimension(entry_enc, backend, "ignored_faces"):
-                    filtered_ignored.append(entry_enc)
+        if (
+            entry_enc is not None
+            and entry_backend == backend.backend_name
+            and isinstance(entry_enc, np.ndarray)
+            and validate_encoding_dimension(entry_enc, backend, "ignored_faces")
+        ):
+            filtered_ignored.append(entry_enc)
 
     filtered_ignored = np.array(filtered_ignored) if filtered_ignored else None
 
@@ -198,10 +204,13 @@ def filter_database_by_backend(
                 entry_enc = entry
                 entry_backend = "dlib"
 
-            if entry_enc is not None and entry_backend == backend.backend_name:
-                if isinstance(entry_enc, np.ndarray):
-                    if validate_encoding_dimension(entry_enc, backend, f"hard_negatives:{name}"):
-                        negs.append(entry_enc)
+            if (
+                entry_enc is not None
+                and entry_backend == backend.backend_name
+                and isinstance(entry_enc, np.ndarray)
+                and validate_encoding_dimension(entry_enc, backend, f"hard_negatives:{name}")
+            ):
+                negs.append(entry_enc)
 
         if negs:
             filtered_hard_negs[name] = np.array(negs)
@@ -323,10 +332,13 @@ def best_matches(
                 entry_backend = "dlib"
 
             # Only match against same backend with correct dimensions
-            if entry_enc is not None and entry_backend == backend.backend_name:
-                if isinstance(entry_enc, np.ndarray):
-                    if validate_encoding_dimension(entry_enc, backend, f"known_faces:{name}"):
-                        encs.append(entry_enc)
+            if (
+                entry_enc is not None
+                and entry_backend == backend.backend_name
+                and isinstance(entry_enc, np.ndarray)
+                and validate_encoding_dimension(entry_enc, backend, f"known_faces:{name}")
+            ):
+                encs.append(entry_enc)
 
         if not encs:
             continue  # No encodings for this backend
@@ -342,10 +354,13 @@ def best_matches(
                     neg_enc = neg
                     neg_backend = "dlib"
 
-                if neg_enc is not None and neg_backend == backend.backend_name:
-                    if isinstance(neg_enc, np.ndarray):
-                        if validate_encoding_dimension(neg_enc, backend, f"hard_negatives:{name}"):
-                            hard_negs.append(neg_enc)
+                if (
+                    neg_enc is not None
+                    and neg_backend == backend.backend_name
+                    and isinstance(neg_enc, np.ndarray)
+                    and validate_encoding_dimension(neg_enc, backend, f"hard_negatives:{name}")
+                ):
+                    hard_negs.append(neg_enc)
 
         # Check if encoding matches hard negatives
         is_hard_negative = False
@@ -375,10 +390,13 @@ def best_matches(
             entry_enc = entry
             entry_backend = "dlib"
 
-        if entry_enc is not None and entry_backend == backend.backend_name:
-            if isinstance(entry_enc, np.ndarray):
-                if validate_encoding_dimension(entry_enc, backend, "ignored_faces"):
-                    ignored_encs.append(entry_enc)
+        if (
+            entry_enc is not None
+            and entry_backend == backend.backend_name
+            and isinstance(entry_enc, np.ndarray)
+            and validate_encoding_dimension(entry_enc, backend, "ignored_faces")
+        ):
+            ignored_encs.append(entry_enc)
 
     if ignored_encs:
         dists = backend.compute_distances(np.array(ignored_encs), encoding)

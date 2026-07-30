@@ -68,7 +68,9 @@ extend-exclude = [
 # adopting new rules is a deliberate edit to this list.
 #
 # The remaining rules ruff 0.16 would add by default (LOG015, G201, BLE001,
-# DTZ005, SIM102, RUF100, E402) are adopted family by family, not at once.
+# DTZ005) are adopted family by family, not at once. `E402` is deliberately
+# absent from that list: it is already part of `E4` above and measures zero
+# findings here, so there is nothing to adopt — do not add it back.
 select = [
     "E4",
     "E7",
@@ -76,6 +78,7 @@ select = [
     "F",
     "I",
     "RUF100",  # unused `# noqa` directive
+    "SIM102",  # collapsible nested `if`
     "UP006",  # List[x] -> list[x]
     "UP035",  # deprecated typing imports
     "UP045",  # Optional[x] -> x | None

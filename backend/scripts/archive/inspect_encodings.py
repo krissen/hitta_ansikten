@@ -57,12 +57,10 @@ for name, entries in known_faces.items():
         # Jämför enligt valt läge:
         for tf in target_files:
             match = False
-            if args.mode in ("både", "filnamn"):
-                if file_field == tf:
-                    match = True
-            if args.mode in ("både", "hash"):
-                if hashes[tf] and hashes[tf] == hash_field:
-                    match = True
+            if args.mode in ("både", "filnamn") and file_field == tf:
+                match = True
+            if args.mode in ("både", "hash") and hashes[tf] and hashes[tf] == hash_field:
+                match = True
             if match:
                 found[tf].append((name, hash_field, file_field))
 

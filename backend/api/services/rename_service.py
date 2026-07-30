@@ -572,9 +572,8 @@ def collect_persons_for_files(
                     f = Path(f).name  # basename only
                     if name not in file_to_persons.setdefault(f, []):
                         file_to_persons[f].append(name)
-                if h:
-                    if name not in hash_to_persons.setdefault(h, []):
-                        hash_to_persons[h].append(name)
+                if h and name not in hash_to_persons.setdefault(h, []):
+                    hash_to_persons[h].append(name)
 
     # Build hash map for current files - keyed by FULL PATH to avoid basename collisions
     filehash_map: dict[str, str | None] = {}
