@@ -34,14 +34,13 @@
 import { act } from '@testing-library/react';
 import { vi } from 'vitest';
 
-/** True when vi.useFakeTimers() has replaced the global timers (sinon marker). */
-function fakeTimersInstalled() {
-  return Object.prototype.hasOwnProperty.call(globalThis.setTimeout, 'clock');
-}
-
 export async function settle() {
   await act(async () => {
-    if (fakeTimersInstalled()) {
+    // Vitest's own predicate rather than sniffing the sinon `clock` marker on
+    // globalThis.setTimeout: that marker is an implementation detail, and if it
+    // ever moves this would silently take the real-timer branch and hang on a
+    // clock that never advances until the test times out.
+    if (vi.isFakeTimers()) {
       await vi.advanceTimersByTimeAsync(0);
     } else {
       await new Promise((resolve) => { setTimeout(resolve, 0); });
