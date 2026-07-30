@@ -450,8 +450,10 @@ Four things worth carrying forward:
    a positive anchor first. **No test failed once its counted flush became a full
    drain**: the guards genuinely hold. What changed is that they are now tested.
 
-Suite unchanged at **927 passed / 96 files**, identical across three consecutive
-runs and identical to the base. `npx eslint tests/` clean.
+Suite unchanged at **938 passed / 96 files** — identical to the base and
+identical between runs. (It was 927 on both branch and base when the sweep was
+written, three consecutive runs; rebasing onto dev picked up the tests #265 and
+#266 added, and both sides moved together to 938.) `npx eslint tests/` clean.
 
 ### 3.2 Contention cost profile
 
