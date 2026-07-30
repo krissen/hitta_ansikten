@@ -48,6 +48,11 @@ jobs:
         working-directory: backend
         run: ruff check .
 
+      # Python outside backend/. Runs from the repo root so the root ruff.toml
+      # is discovered; it inherits the same rule set from backend/pyproject.toml.
+      - name: Run ruff (shared/)
+        run: ruff check shared/
+
       - name: Run pytest
         working-directory: backend
         run: pytest

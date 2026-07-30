@@ -168,6 +168,41 @@ exact bug that took CI down on 2026-07-18.
 Two shapes work: a root config that points at the same rule set, or a second CI
 step for `shared/`. Either is fine; the mirroring is what matters.
 
+**Done** — root shape, with the rule set *inherited* rather than mirrored by
+hand: `ruff.toml` in the repo root is one line, `extend =
+"backend/pyproject.toml"`, and CI gains a `ruff check shared/` step run from the
+root in the backend job. Inheriting satisfies the "never fall back to the
+default" requirement without creating a second `select` list to keep in sync —
+the next rule adoption in `backend/pyproject.toml` covers `shared/` in the same
+edit. That the inherited set really applies is verified by a negative test rather
+than assumed: an injected `List[int]` annotation reports `UP006`/`UP035`, which
+are **not** in ruff's default set, plus `F401`/`E402` — 5 findings, exit 1, on
+both 0.15.20 and 0.16.0. The inheritance was then checked against a *later*
+adoption rather than only the set that existed when it was written: with 1.1e
+merged, `DTZ005` appears in the root config's enabled rules without `ruff.toml`
+being touched, and an injected `datetime.now()` in `shared/` is reported from the
+root on both versions. The `--config backend/pyproject.toml` shape was measured
+too and also works, but leaves the trap open for anyone running ruff locally or
+through an editor from the root, where no flag is passed. Two things worth
+knowing for later:
+
+- **`backend/` is unaffected, and that is measured, not argued.** Ruff resolves
+  each file against the nearest configuration, so `backend/pyproject.toml` still
+  wins there: `ruff check . --show-settings` in `backend/` is byte-identical
+  before and after the root config exists (436 lines, `project_root` unchanged).
+- **Relative paths in the inherited config resolve against the *invocation* root,
+  not the config file's directory.** With the root config in play,
+  `per-file-ignores` for `"api/server.py"` resolves to `<root>/api/server.py`,
+  which does not exist. It is harmless — nothing under `shared/` matches, and
+  backend files get the backend config — but do not add a root-relative
+  `per-file-ignores` entry to the backend config expecting it to work from both
+  roots.
+
+The shebang and the 100644 mode on `generate_schemas.py` are left alone
+deliberately: the documented invocation is `python shared/generate_schemas.py`,
+never `./generate_schemas.py`, and `EXE001` is outside the locked set. The bug
+was the fallback, not the file.
+
 ### 1.3 Ignore-marker consolidation
 
 Four mechanisms filter the same concept — labels meaning "this is not a person":
