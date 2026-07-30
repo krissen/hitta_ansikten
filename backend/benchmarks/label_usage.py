@@ -42,7 +42,7 @@ DEFAULT_LOG = Path("~/.local/share/faceid/attempt_stats.jsonl").expanduser()
 try:
     # Reuse the backend's canonical ignore-marker set when available.
     from core.naming import IGNORE_MARKERS
-except Exception:  # pragma: no cover - fallback if run outside the backend tree
+except ImportError:  # pragma: no cover - fallback if run outside the backend tree
     IGNORE_MARKERS = frozenset({"ignorerad", "ign", "okänt", "okant"})
 
 # The label the reviewer picks when a detected face should not be enrolled.

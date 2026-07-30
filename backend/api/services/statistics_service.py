@@ -337,7 +337,7 @@ class StatisticsService:
 
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - the log viewer renders the failure as its single entry; it must never itself raise while showing errors
             logger.error(f"[StatisticsService] Failed to read log file: {e}")
             return [{"level": "error", "message": f"Could not read log file: {e}", "timestamp": ""}]
 

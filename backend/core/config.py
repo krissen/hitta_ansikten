@@ -216,10 +216,9 @@ def init_logging(
                          If False, add file handler without clearing (API mode).
     """
     root_logger = logging.getLogger()
-    try:
-        logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
-    except Exception:
-        pass  # matplotlib may not be available; ignore silently
+    # Silence matplotlib's chatty font cache. Naming the logger works whether or
+    # not matplotlib is installed — getLogger creates a placeholder on demand.
+    logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
     root_logger.setLevel(level)
 
     if replace_handlers:
@@ -331,7 +330,7 @@ def load_config() -> dict[str, Any]:
         try:
             with open(CONFIG_PATH, "r") as f:
                 raw = json.load(f)
-        except Exception:
+        except (OSError, ValueError):
             raw = None  # Invalid JSON or read error; fall through to create default
         if raw is not None:
             migrated, changed = _migrate_config(raw)
@@ -339,7 +338,7 @@ def load_config() -> dict[str, Any]:
                 try:
                     with open(CONFIG_PATH, "w") as f:
                         json.dump(migrated, f, indent=2)
-                except Exception:
+                except OSError:
                     logger.warning("Failed to persist migrated config; continuing in memory")
             return {**DEFAULT_CONFIG, **migrated}
     with open(CONFIG_PATH, "w") as f:

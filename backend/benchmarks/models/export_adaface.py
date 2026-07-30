@@ -204,7 +204,10 @@ def _sample_real_crop() -> np.ndarray | None:
                     kps = np.asarray(row["kps"], dtype=np.float32)
                     return align_112(load_bgr(row["path"]), kps)
         return None
-    except Exception:
+    # The real-crop sample is optional: a missing benchmark dataset, an
+    # unreadable manifest line or an alignment failure all mean "no sample",
+    # and the caller falls back to synthetic input.
+    except Exception:  # noqa: BLE001
         return None
 
 

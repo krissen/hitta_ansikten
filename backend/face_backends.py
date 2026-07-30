@@ -435,7 +435,7 @@ class InsightFaceBackend(FaceBackend):
             session = getattr(model, "session", None)
             try:
                 actual[task_name] = list(session.get_providers()) if session is not None else ["unknown"]
-            except Exception:  # pragma: no cover - defensive, never fail init on this
+            except Exception:  # noqa: BLE001  # pragma: no cover - defensive, never fail init on this
                 actual[task_name] = ["unknown"]
         return actual
 

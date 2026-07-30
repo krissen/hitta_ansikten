@@ -86,19 +86,14 @@ def extract_exif_datetime(file_path: Path) -> datetime | None:
                         if tag == 'DateTimeOriginal':
                             # Format: "2025:06:12 15:30:40"
                             return datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
-    except Exception as e:
+    # PIL raises OSError for unreadable/unrecognized images; strptime raises
+    # ValueError on a malformed timestamp and TypeError if the EXIF value is
+    # not a string (corrupt tags sometimes decode to bytes).
+    except (OSError, ValueError, TypeError) as e:
         logger.debug(f"[EXIF] PIL extraction failed for {file_path.name}: {e}")
 
     # Try rawpy for RAW formats (NEF, CR2, ARW)
     if ext in ['.nef', '.cr2', '.arw', '.dng', '.raw']:
-        try:
-            import rawpy
-            with rawpy.imread(str(file_path)):
-                # rawpy doesn't expose EXIF directly, try exifread as fallback
-                pass
-        except Exception as e:
-            logger.debug(f"[EXIF] rawpy failed for {file_path.name}: {e}")
-
         # Try exifread if available (better for RAW files)
         try:
             import exifread
@@ -109,12 +104,12 @@ def extract_exif_datetime(file_path: Path) -> datetime | None:
                     return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
         except ImportError:
             logger.debug("[EXIF] exifread not installed, trying alternative")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - exifread's failure modes on malformed EXIF are undocumented; any of them means "fall through to exiftool"
             logger.debug(f"[EXIF] exifread failed for {file_path.name}: {e}")
 
         # Fallback: try to extract from NEF using subprocess (exiftool)
+        import subprocess
         try:
-            import subprocess
             result = subprocess.run(
                 [find_exiftool(), '-DateTimeOriginal', '-s', '-s', '-s', str(file_path)],
                 capture_output=True, text=True, timeout=5
@@ -122,7 +117,9 @@ def extract_exif_datetime(file_path: Path) -> datetime | None:
             if result.returncode == 0 and result.stdout.strip():
                 dt_str = result.stdout.strip()
                 return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
-        except Exception as e:
+        # find_exiftool raises FileNotFoundError when no binary exists, the run
+        # itself OSError/TimeoutExpired, and strptime ValueError on odd output.
+        except (OSError, subprocess.SubprocessError, ValueError) as e:
             logger.debug(f"[EXIF] exiftool failed for {file_path.name}: {e}")
 
     return None
@@ -141,7 +138,9 @@ def get_file_datetime(file_path: Path) -> datetime | None:
     try:
         mtime = file_path.stat().st_mtime
         return datetime.fromtimestamp(mtime)
-    except Exception as e:
+    # stat() raises OSError; fromtimestamp raises ValueError/OverflowError for
+    # an mtime outside the platform's representable range.
+    except (OSError, ValueError, OverflowError) as e:
         logger.debug(f"[FileDate] Failed to get mtime for {file_path.name}: {e}")
         return None
 
@@ -262,7 +261,7 @@ def find_sidecar_files(file_path: Path, extensions: list[str]) -> list[Path]:
                     sidecars.append(candidate)
     except PermissionError:
         logger.warning(f"[Sidecar] Permission denied reading directory: {parent}")
-    except Exception as e:
+    except OSError as e:
         logger.warning(f"[Sidecar] Error scanning for sidecars: {e}")
 
     return sidecars
@@ -983,7 +982,7 @@ class RenameService:
                     ],
                 })
                 logger.info(f"[RenameService] Renamed: {old_path.name} -> {new_path.name}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-file isolation: fs_ops has already rolled this rename back, so the remaining files in the batch still get renamed
                 errors.append({
                     "path": str(old_path),
                     "error": str(e)

@@ -247,7 +247,7 @@ def _convert_nef_sync(file_path: str, file_hash: str, cache) -> dict:
                 return {'status': 'completed', 'nef_jpg_path': cached_path}
             else:
                 return {'status': 'error', 'error': 'NEF conversion failed'}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one file's failure is reported as status='error' for that file; libraw/PIL/cache failures must not abort the batch
             logger.error(f"[Preprocessing] NEF conversion error: {e}")
             return {'status': 'error', 'error': str(e)}
         finally:
@@ -340,7 +340,9 @@ def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
                 else:  # BITMAP
                     img = Image.fromarray(thumb.data)
                 img.load()  # force decode while the raw buffer is alive
-        except Exception as e:
+        # The fast path must fall back to a full decode no matter which library
+        # complains — libraw (LibRawError), PIL (OSError) or numpy.
+        except Exception as e:  # noqa: BLE001
             logger.debug(f"[Preprocessing] extract_thumb failed for {file_path} ({e}); full decode")
             with rawpy.imread(file_path) as raw:
                 img = Image.fromarray(raw.postprocess())
@@ -371,7 +373,7 @@ def _generate_grid_thumb(file_path: str, grid_key: str, size: int, cache) -> dic
         # so we never rely on re-reading it from disk.
         cache.store_grid_thumb(grid_key, file_path, jpg_data)
         return {'status': 'completed', 'data': jpg_data}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - one thumbnail's failure is reported as status='error' for that file; the grid keeps rendering the rest
         logger.error(f"[Preprocessing] Grid thumbnail error for {file_path}: {e}")
         return {'status': 'error', 'error': str(e)}
 
@@ -486,7 +488,7 @@ def _detect_faces_sync(file_path: str, file_hash: str, cache) -> dict:
 
             cache.store_face_detection(file_hash, file_path, cacheable_data)
             return {'status': 'completed', 'face_count': len(cacheable_data['faces'])}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - detection runs third-party models; any failure is reported as status='error' for that file rather than aborting the queue
             logger.error(f"[Preprocessing] Face detection error: {e}")
             return {'status': 'error', 'error': str(e)}
 
@@ -578,7 +580,7 @@ def _generate_thumbnails_sync(file_path: str, file_hash: str, faces_data: dict, 
                 cache.store_thumbnails(file_hash, file_path, thumbnails)
 
             return {'status': 'completed'}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - one file's thumbnails failing is reported as status='error' for that file; the queue continues
             logger.error(f"[Preprocessing] Thumbnail generation error: {e}")
             return {'status': 'error', 'error': str(e)}
 
@@ -711,7 +713,7 @@ async def preprocess_all(request: PreprocessRequest):
 
         return result
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - request boundary for the whole pipeline: the caller gets status='error' with the reason instead of an unhandled 500
         logger.error(f"[Preprocessing] Error: {e}")
         return PreprocessResponse(
             file_hash=file_hash,

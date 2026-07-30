@@ -179,7 +179,7 @@ class DetectionService:
                     logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
                     img = ImageOps.exif_transpose(Image.open(cached_jpg))
                     return np.array(img.convert('RGB'))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - the rawpy path below is a complete substitute, so any cache/decode problem should degrade to it rather than fail the load
                 logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
 
             # No cache hit - process RAW directly
@@ -221,7 +221,7 @@ class DetectionService:
                     logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
                     img = ImageOps.exif_transpose(Image.open(cached_jpg))
                     return np.array(img.convert('RGB')), 1.0
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - the rawpy path below is a complete substitute, so any cache/decode problem should degrade to it rather than fail the load
                 logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
 
             logger.debug(f"[DetectionService] Loading RAW at half size for detection: {image_path}")
@@ -887,7 +887,7 @@ class DetectionService:
             x1, x2 = max(0, int(left)), min(w, int(right))
             if y2 > y1 and x2 > x1:
                 sharpness = crop_sharpness(rgb_resized[y1:y2, x1:x2])
-        except Exception as e:  # never let quality measurement break detection
+        except Exception as e:  # noqa: BLE001 - never let quality measurement break detection
             logger.debug("[DetectionService] Sharpness computation failed: %s", e)
 
         return QualitySignals(
@@ -1293,14 +1293,14 @@ class DetectionService:
                     c.get("suggested_name")
                 )
                 confirmed += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-item isolation: one bad confirmation is collected in `errors`, the rest of the batch still gets saved
                 errors.append({"face_id": c["face_id"], "error": str(e)})
 
         for ig in ignores:
             try:
                 self._ignore_face_nosave(ig["face_id"], ig["image_path"])
                 ignored += 1
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - per-item isolation: one bad ignore is collected in `errors`, the rest of the batch still gets saved
                 errors.append({"face_id": ig["face_id"], "error": str(e)})
 
         # Single durable save for the entire batch (equivalent to the old
@@ -1433,8 +1433,8 @@ class DetectionService:
         try:
             from .statistics_service import get_statistics_service
             get_statistics_service().invalidate_cache()
-        except Exception:
-            pass  # Non-critical
+        except Exception:  # noqa: BLE001 - the review is already saved; a stale statistics cache must not turn a successful review into an error
+            pass
 
         return {
             "status": "success",
@@ -1502,7 +1502,7 @@ def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> str | None:
         logger.info(f"[convert_nef_to_jpg] Converted {path.name} -> {output_path}")
 
         return output_path
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - documented contract is None on failure; callers branch on that, and libraw/PIL failure types vary by file
         logger.error(f"[convert_nef_to_jpg] Failed to convert {nef_path}: {e}")
         return None
 

@@ -74,7 +74,7 @@ class ImportService:
         except FileNotFoundError:
             logger.warning("[Import] diskutil not available (non-macOS?)")
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - volume probing is advisory; an unparseable plist or odd diskutil failure means "unknown volume", not a broken import
             logger.debug("[Import] diskutil info failed for %s: %s", mount, e)
             return None
 
@@ -235,7 +235,7 @@ class ImportService:
                 logger.warning("[Import] eject failed for %s: %s", mount, reason)
                 return False, reason or "diskutil eject misslyckades"
             return True, None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - the files are already copied; an eject failure is reported to the UI as a reason string, never as a failed import
             logger.warning("[Import] eject error for %s: %s", mount, e)
             return False, str(e)
 

@@ -263,7 +263,10 @@ def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> 
     except FileNotFoundError:
         logger.error(f"[EXPORT] File not found: {image_path}")
         print(f"⚠️  Kunde inte hitta filen: {image_path}")
-    except Exception as e:
+    # libraw reports an undecodable RAW as LibRawError (not an OSError); PIL
+    # reports an unwritable JPEG as OSError, and a buffer it cannot interpret
+    # as an array as ValueError/TypeError.
+    except (rawpy.LibRawError, OSError, ValueError, TypeError) as e:
         logger.error(f"[EXPORT] Failed to export {image_path}: {e}")
         print(f"⚠️  Kunde inte exportera bild: {e}")
 
@@ -319,7 +322,9 @@ def show_temp_image(
             else:
                 logger.debug(f"[ANSIKTEN] App-status: {app_status} inte behandlad, kommer öppna bild")
                 should_open = True
-        except Exception as e:
+        # OSError: unreadable file. ValueError: not JSON. AttributeError: JSON
+        # that parses to something other than an object, so .get() is missing.
+        except (OSError, ValueError, AttributeError) as e:
             logger.debug(f"[ANSIKTEN] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
             should_open = True
 
@@ -337,7 +342,7 @@ def show_temp_image(
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             logger.debug(f"[ANSIKTEN] Subprocess startad, PID: {proc.pid}")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.error(f"[ANSIKTEN] Fel vid start av extern bildvisare: {e}")
             print(f"⚠️  Kunde inte öppna extern bildvisare: {e}", file=sys.stderr)
     else:

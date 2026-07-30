@@ -672,7 +672,7 @@ def preprocess_image(
         rgb_full = load_and_resize_raw(image_path, max_full)
 
         attempt_settings = get_attempt_settings(config, rgb_down, rgb_mid, rgb_full, backend)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - per-file skip in a batch run: libraw/PIL/numpy all fail differently on a damaged RAW, and none of them should end the batch
         logger.warning(f"[RAWREAD][SKIP][{fname}] Kunde inte öppna {fname}: {e}")
         return []
 
@@ -784,7 +784,7 @@ def main_process_image_loop(
     ordinary_preview_path = config.get("ordinary_preview_path") or ORDINARY_PREVIEW_PATH
     try:
         shutil.copy(preview_path, ordinary_preview_path)
-    except Exception as e:
+    except OSError as e:
         logger.warning(f"[PREVIEW] Kunde inte kopiera preview till {ordinary_preview_path}: {e}")
     show_temp_image(ordinary_preview_path, config, image_path)
 
@@ -890,7 +890,7 @@ def is_file_processed(path: Path | str, processed_files: list[dict]) -> bool:
             for chunk in iter(lambda: f.read(65536), b''):
                 sha1.update(chunk)
         path_hash = sha1.hexdigest()
-    except Exception:
+    except OSError:
         pass
     if path_hash:
         for entry in processed_files:
@@ -954,7 +954,7 @@ def cleanup_tmp_previews() -> None:
     for path in TEMP_DIR.glob("ansikten_*"):
         try:
             path.unlink()
-        except Exception as e:
+        except OSError as e:
             logger.debug(f"Failed to remove temp file {path}: {e}")
             pass  # Ignorera ev. misslyckanden
 
@@ -1019,7 +1019,7 @@ def add_to_processed_files(path: Path, processed_files: list[dict]) -> None:
             for chunk in iter(lambda: f.read(65536), b''):
                 sha1.update(chunk)
         h = sha1.hexdigest()
-    except Exception:
+    except OSError:
         h = None
     processed_files.append({"name": path.name, "hash": h})
 
@@ -1055,7 +1055,7 @@ def save_preprocessed_cache(path: Path | str, attempt_results: list[dict]) -> li
     try:
         with open(cache_path, "wb") as f:
             pickle.dump((str(path), cached), f)
-    except Exception as e:
+    except (OSError, pickle.PicklingError) as e:
         logger.error(f"[CACHE] Failed to save cache to {cache_path}: {e}")
     return cached
 
@@ -1077,7 +1077,7 @@ def load_preprocessed_cache(queue: multiprocessing.Queue) -> None:
                 for img in CACHE_DIR.glob(f"{h}_a*.jpg"):
                     try:
                         img.unlink()
-                    except Exception:
+                    except OSError:
                         # Ignore errors (file already deleted, permission issues, etc.)
                         pass
                 continue
@@ -1095,7 +1095,7 @@ def remove_preprocessed_cache(path: Path | str) -> None:
     for img in CACHE_DIR.glob(f"{h}_a*.jpg"):
         try:
             img.unlink()
-        except Exception:
+        except OSError:
             # Ignore errors (file already deleted, permission issues, etc.)
             pass
 
@@ -1166,7 +1166,7 @@ def preprocess_worker(
                     # Stop processing this image if faces were found
                     if cached[-1]["face_count"] > 0:
                         active_paths.remove(path)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - top of a worker process: it reports the crash and lets `finally` unblock the main loop instead of hanging it
         logger.error(f"[PREPROCESS worker][ERROR] {e}")
         import traceback
         # Print error to stderr so it's visible to user
@@ -1233,7 +1233,7 @@ def main() -> None:
         logger.info(f"[BACKEND] Initialized: {backend.backend_name}")
         model_info = backend.get_model_info()
         logger.info(f"[BACKEND] Model info: {model_info}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - startup diagnostics: the point is to turn any backend/model/ONNX import failure into an install hint instead of a traceback
         logger.error(f"[BACKEND] Failed to initialize backend: {e}")
         print(f"Error: Could not initialize face recognition backend: {e}")
 

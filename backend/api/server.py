@@ -48,7 +48,11 @@ async def lifespan(app: FastAPI):
         try:
             from .services.culling_service import get_culling_service
             get_culling_service().purge_expired()
-        except Exception:
+        # Best-effort housekeeping: an unreadable/malformed trash manifest
+        # (OSError, ValueError, KeyError) or a failed delete must not stop
+        # startup. A broken import would be a packaging bug, so it propagates
+        # to preload_database and surfaces as an ERROR state in the UI.
+        except (OSError, ValueError, KeyError):
             logger.warning("Trash retention purge on startup failed", exc_info=True)
 
         from .services.db_store import get_db_store
@@ -91,7 +95,7 @@ async def lifespan(app: FastAPI):
             try:
                 from .services.detection_service import get_detection_service
                 _ = get_detection_service().backend.backend_name
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - handed to the awaiting coroutine to re-raise; swallowing nothing, but a thread must not die silently
                 load_error = e
             finally:
                 loop.call_soon_threadsafe(load_complete.set)

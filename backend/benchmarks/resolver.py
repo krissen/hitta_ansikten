@@ -23,7 +23,7 @@ from pathlib import Path
 try:
     # Reuse the backend's canonical extension set when available.
     from core.files import SUPPORTED_EXTENSIONS as _CORE_EXTENSIONS
-except Exception:  # pragma: no cover - fallback if run outside the backend tree
+except ImportError:  # pragma: no cover - fallback if run outside the backend tree
     _CORE_EXTENSIONS = (
         ".nef", ".cr2", ".cr3", ".arw", ".dng", ".raw", ".raf", ".orf", ".rw2",
         ".jpg", ".jpeg", ".tiff", ".tif", ".png",
