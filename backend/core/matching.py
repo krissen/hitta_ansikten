@@ -20,6 +20,8 @@ from numpy.typing import NDArray
 if TYPE_CHECKING:
     from face_backends import FaceBackend
 
+logger = logging.getLogger(__name__)
+
 # Type aliases
 EncodingEntry = dict[str, Any] | NDArray[np.float64]
 KnownFacesDB = dict[str, list[EncodingEntry]]
@@ -84,7 +86,7 @@ def _get_backend_thresholds(config: ConfigDict, backend: FaceBackend) -> Thresho
     is_cosine = isinstance(distance_metric, str) and 'cos' in distance_metric.lower()
 
     if config.get('threshold_mode') == 'manual':
-        logging.warning(
+        logger.warning(
             f"Manual threshold mode: no thresholds configured for backend "
             f"'{backend.backend_name}'; falling back to canonical "
             f"{'cosine' if is_cosine else 'euclidean'} defaults."
@@ -111,14 +113,14 @@ def validate_encoding_dimension(
         return False
 
     if not hasattr(encoding, '__len__'):
-        logging.warning(f"[VALIDATION] Invalid encoding type {type(encoding).__name__} {context}")
+        logger.warning(f"[VALIDATION] Invalid encoding type {type(encoding).__name__} {context}")
         return False
 
     expected_dim = backend.encoding_dim
     actual_dim = len(encoding)
 
     if actual_dim != expected_dim:
-        logging.warning(
+        logger.warning(
             f"[VALIDATION] Encoding dimension mismatch for {backend.backend_name} backend: "
             f"expected {expected_dim}, got {actual_dim} {context}"
         )

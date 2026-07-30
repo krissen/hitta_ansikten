@@ -11,6 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from cli_config import init_logging
 from faceid_db import load_database, save_database
 
+logger = logging.getLogger(__name__)
+
 # ======== JUSTERBARA KONSTANTER OCH STANDARDVÄRDEN =========
 STD_THRESHOLD = 2.0  # Stdavvikelse-gräns för outlier-filtrering
 MIN_ENCODINGS = 8  # Ingen filtrering om färre än så
@@ -145,7 +147,7 @@ def main() -> None:
         did_repair = shape_repair(known_faces, simulate=args.simulate)
         if did_repair and not args.simulate:
             save_database(known_faces, ignored_faces, hard_negatives, processed_files)
-            logging.info("[REPAIR] Databas uppdaterad efter shape-repair")
+            logger.info("[REPAIR] Databas uppdaterad efter shape-repair")
             print("Databas uppdaterad (shape-repair).")
         elif not did_repair:
             print("Inga inkonsekventa encodings hittades.")
@@ -181,7 +183,7 @@ def main() -> None:
                 n_in = np.count_nonzero(mask)
                 label = "STDAVVIKELSE"
         except Exception as ex:
-            logging.warning(f"[FILTER] {name}: kunde inte filtrera: {ex}")
+            logger.warning(f"[FILTER] {name}: kunde inte filtrera: {ex}")
             print(f"{name}: kunde inte filtrera (troligen inkonsekventa shapes): {ex}")
             continue
 
@@ -195,7 +197,7 @@ def main() -> None:
 
     if changed and not args.simulate:
         save_database(known_faces, ignored_faces, hard_negatives, processed_files)
-        logging.info("[FILTER] Databas uppdaterad efter filtrering")
+        logger.info("[FILTER] Databas uppdaterad efter filtrering")
         print("Databas uppdaterad.")
     elif not changed:
         print("Ingen filtrering utförd – inget förändrat.")

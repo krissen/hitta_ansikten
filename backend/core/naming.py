@@ -15,6 +15,8 @@ from pathlib import Path
 
 from core.db import get_file_hash, load_attempt_log
 
+logger = logging.getLogger(__name__)
+
 # Label markers that mean "this face is not a person" — the reviewer skipped it,
 # or the identity is unknown. Compare case-folded. ``okant`` is the ASCII
 # spelling of ``okänt``; both occur in the log.
@@ -239,7 +241,7 @@ def build_new_filename(fname: str, personer: list[str], namnmap: dict[str, str])
 
     # Security: Validate no path traversal attempts
     if '..' in new_name or '/' in new_name or '\\' in new_name or '\0' in new_name:
-        logging.error(f"[SECURITY] Rejected unsafe filename: {new_name}")
+        logger.error(f"[SECURITY] Rejected unsafe filename: {new_name}")
         return None
 
     return new_name

@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
     from face_backends import FaceBackend
 
+logger = logging.getLogger(__name__)
+
 
 # === CONSTANTS === #
 # On macOS use /private/tmp: the packaged app whitelists /tmp and /private/tmp
@@ -213,19 +215,19 @@ def init_logging(
         replace_handlers: If True, clear existing handlers (CLI mode).
                          If False, add file handler without clearing (API mode).
     """
-    logger = logging.getLogger()
+    root_logger = logging.getLogger()
     try:
         logging.getLogger("matplotlib.font_manager").setLevel(logging.WARNING)
     except Exception:
         pass  # matplotlib may not be available; ignore silently
-    logger.setLevel(level)
+    root_logger.setLevel(level)
 
     if replace_handlers:
-        logger.handlers.clear()
+        root_logger.handlers.clear()
 
     file_handler_exists = any(
         isinstance(h, logging.FileHandler) and h.baseFilename == str(logfile)
-        for h in logger.handlers
+        for h in root_logger.handlers
     )
     if not file_handler_exists:
         # Ensure the data dir exists — init_logging can run at import time,
@@ -237,7 +239,7 @@ def init_logging(
             "%(asctime)s %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
         handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        root_logger.addHandler(handler)
 
 
 def _migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -280,7 +282,7 @@ def _migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
             raw.pop(key, None)
         raw["config_version"] = CONFIG_VERSION
         changed = True
-        logging.info(
+        logger.info(
             "Config migration: pinned canonical InsightFace cosine thresholds "
             "(match=%.2f ignore=%.2f hard_negative=%.2f) and removed legacy flat "
             "threshold keys.",
@@ -307,7 +309,7 @@ def _migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
             insightface["match_threshold"] = new_threshold
             raw["config_version"] = CONFIG_VERSION
             changed = True
-            logging.info(
+            logger.info(
                 "Config migration v3: raised InsightFace match_threshold %.2f -> "
                 "%.2f (face-recognition audit 2026-07); a user-customized value "
                 "would have been left untouched.",
@@ -338,7 +340,7 @@ def load_config() -> dict[str, Any]:
                     with open(CONFIG_PATH, "w") as f:
                         json.dump(migrated, f, indent=2)
                 except Exception:
-                    logging.warning("Failed to persist migrated config; continuing in memory")
+                    logger.warning("Failed to persist migrated config; continuing in memory")
             return {**DEFAULT_CONFIG, **migrated}
     with open(CONFIG_PATH, "w") as f:
         json.dump(DEFAULT_CONFIG, f, indent=2)
@@ -482,5 +484,5 @@ def hash_encoding(enc: dict[str, Any] | np.ndarray | None) -> str | None:
     try:
         return hashlib.sha1(enc.tobytes()).hexdigest()
     except (AttributeError, ValueError, TypeError) as e:
-        logging.error(f"Failed to hash encoding: {type(enc).__name__}: {e}")
+        logger.error(f"Failed to hash encoding: {type(enc).__name__}: {e}")
         return None

@@ -26,6 +26,8 @@ from PIL.ImageFont import FreeTypeFont
 
 from core.config import TEMP_DIR
 
+logger = logging.getLogger(__name__)
+
 
 def load_and_resize_raw(image_path: str | Path, max_dim: int | None = None) -> NDArray[np.uint8]:
     """
@@ -259,10 +261,10 @@ def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> 
         with open(status_path, "w", encoding="utf-8") as f:
             json.dump(status, f, indent=2)
     except FileNotFoundError:
-        logging.error(f"[EXPORT] File not found: {image_path}")
+        logger.error(f"[EXPORT] File not found: {image_path}")
         print(f"⚠️  Kunde inte hitta filen: {image_path}")
     except Exception as e:
-        logging.error(f"[EXPORT] Failed to export {image_path}: {e}")
+        logger.error(f"[EXPORT] Failed to export {image_path}: {e}")
         print(f"⚠️  Kunde inte exportera bild: {e}")
 
 
@@ -303,40 +305,40 @@ def show_temp_image(
                 try:
                     if current_file and os.path.samefile(current_file, expected_path):
                         should_open = False
-                        logging.debug(f"[ANSIKTEN] Appen visar redan rätt fil: {expected_path}")
+                        logger.debug(f"[ANSIKTEN] Appen visar redan rätt fil: {expected_path}")
                     else:
                         should_open = True
-                        logging.debug(f"[ANSIKTEN] Appen kör men visar annan fil ({current_file}), öppnar {expected_path}")
+                        logger.debug(f"[ANSIKTEN] Appen kör men visar annan fil ({current_file}), öppnar {expected_path}")
                 except (OSError, ValueError):
                     should_open = True
-                    logging.debug(f"[ANSIKTEN] Kan inte jämföra filer, öppnar {expected_path}")
+                    logger.debug(f"[ANSIKTEN] Kan inte jämföra filer, öppnar {expected_path}")
 
             elif app_status == "exited":
-                logging.debug("[ANSIKTEN] Appen har avslutats, kommer öppna bild")
+                logger.debug("[ANSIKTEN] Appen har avslutats, kommer öppna bild")
                 should_open = True
             else:
-                logging.debug(f"[ANSIKTEN] App-status: {app_status} inte behandlad, kommer öppna bild")
+                logger.debug(f"[ANSIKTEN] App-status: {app_status} inte behandlad, kommer öppna bild")
                 should_open = True
         except Exception as e:
-            logging.debug(f"[ANSIKTEN] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
+            logger.debug(f"[ANSIKTEN] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
             should_open = True
 
     if should_open:
         # Validate viewer_app to prevent command injection
         safe_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.")
         if not viewer_app or not all(c in safe_chars for c in viewer_app):
-            logging.error(f"[SECURITY] Invalid viewer app name: {viewer_app}")
+            logger.error(f"[SECURITY] Invalid viewer app name: {viewer_app}")
             print(f"⚠️  Säkerhetsvarning: Ogiltig bildvisarapp '{viewer_app}', hoppar över", file=sys.stderr)
             return
 
-        logging.debug(f"[ANSIKTEN] Öppnar bild i visare: {expected_path}")
+        logger.debug(f"[ANSIKTEN] Öppnar bild i visare: {expected_path}")
         cmd = ["open", "-a", viewer_app, expected_path]
-        logging.debug(f"[ANSIKTEN] Kör kommando: {' '.join(cmd)}")
+        logger.debug(f"[ANSIKTEN] Kör kommando: {' '.join(cmd)}")
         try:
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            logging.debug(f"[ANSIKTEN] Subprocess startad, PID: {proc.pid}")
+            logger.debug(f"[ANSIKTEN] Subprocess startad, PID: {proc.pid}")
         except Exception as e:
-            logging.error(f"[ANSIKTEN] Fel vid start av extern bildvisare: {e}")
+            logger.error(f"[ANSIKTEN] Fel vid start av extern bildvisare: {e}")
             print(f"⚠️  Kunde inte öppna extern bildvisare: {e}", file=sys.stderr)
     else:
-        logging.debug("[ANSIKTEN] Hoppar över open")
+        logger.debug("[ANSIKTEN] Hoppar över open")
