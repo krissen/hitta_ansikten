@@ -48,12 +48,16 @@ async def lifespan(app: FastAPI):
         try:
             from .services.culling_service import get_culling_service
             get_culling_service().purge_expired()
-        # Best-effort housekeeping: an unreadable/malformed trash manifest
-        # (OSError, ValueError, KeyError) or a failed delete must not stop
-        # startup. A broken import would be a packaging bug, so it propagates
-        # to preload_database and surfaces as an ERROR state in the UI.
-        except (OSError, ValueError, KeyError):
-            logger.warning("Trash retention purge on startup failed", exc_info=True)
+        # Deliberately broad: this runs before the database load below, so any
+        # escape here would leave the app with no faces loaded (LoadingState
+        # .ERROR) because a trash file could not be deleted. The manifest is
+        # not schema-checked on read — _load_manifest appends whatever
+        # json.loads returns — so a hand-edited or truncated line reaches
+        # purge_expired as a non-dict and raises AttributeError from .get(), or
+        # TypeError from empty()'s e["id"]/sc["stored_name"] indexing. Narrowing
+        # to the filesystem/parse errors would let exactly those through.
+        except Exception:
+            logger.exception("Trash retention purge on startup failed")
 
         from .services.db_store import get_db_store
 
