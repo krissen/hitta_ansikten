@@ -159,7 +159,7 @@ def handle_manual_add(
         "hash": file_hash,
         "backend": backend.backend_name,
         "backend_version": backend.get_model_info().get('model', 'unknown'),
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now().astimezone().isoformat(),
         "encoding_hash": None  # No encoding for manual add
     })
     label_obj = {"label": f"#manuell\n{namn}", "hash": None}
@@ -186,7 +186,7 @@ def add_hard_negative(
         "hash": file_hash,
         "backend": backend.backend_name,
         "backend_version": backend.get_model_info().get('model', 'unknown'),
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now().astimezone().isoformat(),
         "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
     })
 
@@ -486,7 +486,7 @@ def user_review_encodings(
                     "hash": file_hash,
                     "backend": backend.backend_name,
                     "backend_version": backend.get_model_info().get('model', 'unknown'),
-                    "created_at": datetime.now().isoformat(),
+                    "created_at": datetime.now().astimezone().isoformat(),
                     "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
                 })
                 labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
@@ -514,7 +514,7 @@ def user_review_encodings(
                 "hash": file_hash,
                 "backend": backend.backend_name,
                 "backend_version": backend.get_model_info().get('model', 'unknown'),
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().astimezone().isoformat(),
                 "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
             })
             labels.append({"label": f"#{i+1}\n{name}", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})

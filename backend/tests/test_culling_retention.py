@@ -28,7 +28,9 @@ def _backdate(service, tid, days):
     entries = service._load_manifest()
     for e in entries:
         if e["id"] == tid:
-            e["trashed_at"] = (datetime.now() - timedelta(days=days)).isoformat()
+            # Naive, matching the on-disk manifest format the service writes
+            # and the naive cutoff purge_expired compares against.
+            e["trashed_at"] = (datetime.now() - timedelta(days=days)).isoformat()  # noqa: DTZ005
     service._rewrite_manifest(entries)
 
 

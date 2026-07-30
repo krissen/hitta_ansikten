@@ -109,6 +109,11 @@ def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend
     Returns:
         Dict with keys: encoding, file, hash, backend, backend_version,
                        created_at, encoding_hash
+
+    ``created_at`` is an ISO-8601 string in local time. Writers emit it with a
+    UTC offset; entries written before that carry the same wall clock without
+    one. Nothing parses the field — it is provenance only — so the two forms
+    coexist, and the shared wall clock keeps them comparable as strings.
     """
     import numpy as np
 
@@ -578,7 +583,7 @@ def rotate_logs() -> None:
             if len(entries) > MAX_ATTEMPT_ENTRIES:
                 # Archive old entries
                 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-                archive_name = f"attempt_stats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl"
+                archive_name = f"attempt_stats_{datetime.now().astimezone().strftime('%Y%m%d_%H%M%S')}.jsonl"
                 archive_path = ARCHIVE_DIR / archive_name
 
                 # Write old entries to archive
@@ -604,7 +609,7 @@ def rotate_logs() -> None:
             if size_mb > MAX_LOG_SIZE_MB:
                 # Rotate to archive
                 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-                archive_name = f"ansikten_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                archive_name = f"ansikten_{datetime.now().astimezone().strftime('%Y%m%d_%H%M%S')}.log"
                 archive_path = ARCHIVE_DIR / archive_name
 
                 # Move current log to archive

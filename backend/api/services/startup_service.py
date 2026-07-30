@@ -8,7 +8,7 @@ import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
@@ -72,9 +72,9 @@ class StartupState:
             status.error = error
             
         if state == LoadingState.LOADING and not status.started_at:
-            status.started_at = datetime.now()
+            status.started_at = datetime.now(timezone.utc)
         elif state in (LoadingState.READY, LoadingState.ERROR):
-            status.completed_at = datetime.now()
+            status.completed_at = datetime.now(timezone.utc)
             
         logger.info(f"[StartupState] {component}: {state.value} - {status.message}")
         self._notify_listeners()

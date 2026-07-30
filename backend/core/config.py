@@ -454,7 +454,7 @@ def archive_stats_if_needed(current_sig: str, force: bool = False) -> None:
     old_sig = sig_path.read_text().strip() if sig_path.exists() else None
     if force or (old_sig != current_sig):
         ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-        dt_str = datetime.now().strftime("%Y%m%d-%H%M%S")
+        dt_str = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
         archive_name = f"attempt_stats_{dt_str}_{old_sig or 'unknown'}.jsonl"
         archive_path = ARCHIVE_DIR / archive_name
         log_path.rename(archive_path)

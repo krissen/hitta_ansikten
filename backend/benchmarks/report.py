@@ -454,4 +454,4 @@ def write_plots(results: list[ModelResult], plots_dir: Path) -> list[Path]:
 
 
 def now_iso() -> str:
-    return _dt.datetime.now().isoformat(timespec="seconds")
+    return _dt.datetime.now().astimezone().isoformat(timespec="seconds")
