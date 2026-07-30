@@ -16,6 +16,7 @@ from api.services.db_store import get_db_store
 from core import fs_ops
 from core.exiftool import find_exiftool
 from core.files import SUPPORTED_EXTENSIONS
+from core.labels import is_ignore_name
 from core.naming import normalize_name, record_previous_name
 from faceid_db import (
     get_file_hash,
@@ -614,7 +615,7 @@ def collect_persons_for_files(
                         label = lbl["label"] if isinstance(lbl, dict) else lbl
                         if "\n" in label:
                             prefix, namn = label.split("\n", 1)
-                            if namn.lower() not in ("ignorerad", "ign", "okänt", "okant"):
+                            if not is_ignore_name(namn):
                                 try:
                                     idx = int(prefix.lstrip("#"))
                                 except ValueError:

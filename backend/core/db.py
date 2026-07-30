@@ -13,6 +13,8 @@ from typing import Any
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
 
+from core.labels import is_ignore_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -503,7 +505,21 @@ def load_processed_files() -> list[dict[str, Any]]:
 
 
 def extract_face_labels(labels: list[str | dict[str, Any]]) -> list[str]:
-    """Tar ut alla personnamn från en labels_per_attempt-lista."""
+    """Tar ut alla personnamn från en labels_per_attempt-lista.
+
+    Ignore markers are filtered via :func:`core.labels.is_ignore_name`, the
+    shared vocabulary.
+
+    Only labels matching ``#\\d+\\n`` are read, which **drops manually added
+    faces**: those carry the other live prefix form, ``#manuell\\n`` (written by
+    ``add_manual_face`` in ``hitta_ansikten.py``) — 256 names across 222
+    reviewed attempts in the current log. Their names are therefore missing
+    from everything built on this function, including the statistics module's
+    recent-images list, while ``core.naming`` and ``rename_service`` split on
+    the newline and do keep them. The loss is **pre-existing and out of scope
+    for the ignore-marker consolidation**, not a decision taken here; unifying
+    the two prefix forms is a behaviour change tracked in ROADMAP.md.
+    """
     persons = []
     for label in labels:
         if isinstance(label, dict):
@@ -511,7 +527,7 @@ def extract_face_labels(labels: list[str | dict[str, Any]]) -> list[str]:
         match = re.match(r"#\d+\n(.+)", label)
         if match:
             name = match.group(1).strip()
-            if name.lower() not in {"ignorerad", "okänt", "ign"}:
+            if not is_ignore_name(name):
                 persons.append(name)
     return persons
 

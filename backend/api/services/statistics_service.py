@@ -18,6 +18,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from api.services.db_store import get_db_store
+from core.labels import is_ignore_label
 from faceid_db import (
     LOGGING_PATH,
     extract_face_labels,
@@ -99,7 +100,13 @@ class StatisticsService:
         return {name: len(entries) for name, entries in known_faces.items()}
 
     def calc_ignored_fraction(self, stats: list[dict]) -> tuple[int, int, float]:
-        """Calculate fraction of faces that were ignored"""
+        """Calculate fraction of faces that were ignored.
+
+        Labels arrive raw, i.e. with the ``#N\\n`` display prefix, so the count
+        goes through :func:`core.labels.is_ignore_label`, which strips the
+        prefix before matching the shared marker set. Matching is exact: a name
+        that merely ends with a marker (``"X ignorerad"``) is a person.
+        """
         total = 0
         ignored = 0
 
@@ -112,7 +119,7 @@ class StatisticsService:
                     if isinstance(label, dict):
                         label = label.get("label", "")
                     total += 1
-                    if label.strip().lower().endswith("ignorerad") or label.strip().lower() == "ign":
+                    if is_ignore_label(label):
                         ignored += 1
 
         frac = (ignored / total) if total else 0

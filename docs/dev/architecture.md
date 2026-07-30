@@ -47,6 +47,7 @@ matching `core.*` module — `faceid_db` even aliases itself to `core.db` in
 | `core/db.py` | Database layer — pickle/JSONL I/O, locking, migration (shim: `faceid_db`) |
 | `core/attempts.py` | Attempt-statistics JSONL logger |
 | `core/naming.py` | Filename ↔ person-name helpers |
+| `core/labels.py` | Review-label vocabulary — ignore markers, `#N\n` prefix (leaf: imports nothing from `core`) |
 | `core/playerstats.py` | Player-count statistics + exclusion config |
 | `core/files.py` | Canonical supported image-extension sets |
 | `hitta_ansikten.py` | Main CLI entry point (legacy name) |
