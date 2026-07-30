@@ -38,7 +38,11 @@ def log_attempt_stats(
     if base_dir is None:
         base_dir = Path(".")
     log_entry = {
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        # Naive on-disk format: attempt_stats.jsonl timestamps are stored as
+        # local wall clock without offset, and benchmarks/label_usage.py reads
+        # them naively (string slicing and lexicographic min/max). Making these
+        # tz-aware is a data-format migration, not a lint fix.
+        "timestamp": datetime.now().isoformat(timespec="seconds"),  # noqa: DTZ005
         "filename": str(image_path),
         "file_hash": file_hash,
         "attempts": attempts,

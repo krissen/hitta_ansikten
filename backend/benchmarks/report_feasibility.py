@@ -67,7 +67,7 @@ def build_report(records, index, distinct_pairs) -> tuple[str, list[dict]]:
     viability = gallery_probe_viability(records, resolved)
     strata = stratify(records, resolved, distinct_pairs)
 
-    now = _dt.datetime.now().isoformat(timespec="seconds")
+    now = _dt.datetime.now().astimezone().isoformat(timespec="seconds")
     L: list[str] = []
     L.append("# Face-recognition benchmark — feasibility report")
     L.append("")

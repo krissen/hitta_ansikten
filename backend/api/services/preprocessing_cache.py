@@ -282,7 +282,7 @@ class PreprocessingCache:
         """Get cache entry by file hash, updating last_accessed."""
         entry = self.index.get(file_hash)
         if entry:
-            entry.last_accessed = datetime.now().isoformat()
+            entry.last_accessed = datetime.now().astimezone().isoformat()
             self._save_index()  # Buffered - won't write every time
         return entry
 
@@ -377,7 +377,11 @@ class PreprocessingCache:
 
     def _update_entry(self, file_hash: str, original_path: str, **kwargs):
         """Update or create cache entry."""
-        now = datetime.now().isoformat()
+        # Local wall clock with offset: _enforce_size_limit sorts entries by
+        # last_accessed as a *string*, and index.json on existing installs holds
+        # naive local timestamps. Keeping the wall-clock digits (rather than
+        # switching to UTC) keeps old and new entries ordered against each other.
+        now = datetime.now().astimezone().isoformat()
 
         if file_hash in self.index:
             entry = self.index[file_hash]

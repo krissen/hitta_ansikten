@@ -939,7 +939,7 @@ class DetectionService:
                 "hash": file_hash,
                 "backend": self.backend.backend_name,
                 "backend_version": backend_info.get("version", "unknown"),
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().astimezone().isoformat(),
                 "encoding_hash": None,
                 "bounding_box": None,
                 "is_manual": True
@@ -990,7 +990,7 @@ class DetectionService:
             "hash": file_hash,
             "backend": self.backend.backend_name,
             "backend_version": backend_info.get("version", "unknown"),
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now().astimezone().isoformat(),
             "encoding_hash": encoding_hash,
             "bounding_box": bbox
         }
@@ -1003,7 +1003,7 @@ class DetectionService:
                 "hash": file_hash,
                 "backend": self.backend.backend_name,
                 "backend_version": backend_info.get("version", "unknown"),
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().astimezone().isoformat(),
                 "encoding_hash": encoding_hash
             }
 
@@ -1107,7 +1107,7 @@ class DetectionService:
             "hash": file_hash,
             "backend": self.backend.backend_name,
             "backend_version": backend_info.get("version", "unknown"),
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now().astimezone().isoformat(),
             "encoding_hash": encoding_hash,
             "bounding_box": bbox
         }
@@ -1152,7 +1152,7 @@ class DetectionService:
                 "hash": file_hash,
                 "backend": self.backend.backend_name,
                 "backend_version": backend_info.get("version", "unknown"),
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().astimezone().isoformat(),
                 "encoding_hash": None,
                 "bounding_box": None,
                 "is_manual": True
@@ -1182,7 +1182,7 @@ class DetectionService:
             "hash": file_hash,
             "backend": self.backend.backend_name,
             "backend_version": backend_info.get("version", "unknown"),
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now().astimezone().isoformat(),
             "encoding_hash": encoding_hash,
             "bounding_box": bbox
         }
@@ -1195,7 +1195,7 @@ class DetectionService:
                 "hash": file_hash,
                 "backend": self.backend.backend_name,
                 "backend_version": backend_info.get("version", "unknown"),
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().astimezone().isoformat(),
                 "encoding_hash": encoding_hash
             }
 
@@ -1255,7 +1255,7 @@ class DetectionService:
             "hash": file_hash,
             "backend": self.backend.backend_name,
             "backend_version": backend_info.get("version", "unknown"),
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now().astimezone().isoformat(),
             "encoding_hash": encoding_hash,
             "bounding_box": bbox
         }

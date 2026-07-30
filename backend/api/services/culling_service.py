@@ -232,7 +232,11 @@ class CullingService:
                 "stored_name": stored_name,
                 "basename": src.name,
                 "sidecars": stored_sidecars,
-                "trashed_at": datetime.now().isoformat(),
+                # Naive on-disk format, see purge_expired: existing manifests
+                # hold naive local timestamps and are compared against a naive
+                # cutoff. Writing aware values here would break that comparison
+                # and silently stop retention working.
+                "trashed_at": datetime.now().isoformat(),  # noqa: DTZ005
             }
             self._append_manifest(entry)
             trashed.append({"id": tid, "original_path": str(src), "basename": src.name})
@@ -378,7 +382,9 @@ class CullingService:
                     "stored_name": head["stored_name"],
                     "basename": Path(head["original_path"]).name,
                     "sidecars": rest,
-                    "trashed_at": entry.get("trashed_at", datetime.now().isoformat()),
+                    # Naive on-disk format, as in trash() — the fallback has to
+                    # match the format of the value it stands in for.
+                    "trashed_at": entry.get("trashed_at", datetime.now().isoformat()),  # noqa: DTZ005
                 }
                 keep.append(sidecar_only)
                 partial.append(sidecar_only)
@@ -455,7 +461,13 @@ class CullingService:
         if max_age_days <= 0:
             return {"purged": 0}
 
-        cutoff = datetime.now() - timedelta(days=max_age_days)
+        # Naive cutoff to match the naive ``trashed_at`` on disk. An aware
+        # cutoff raises TypeError on the comparison below against any
+        # pre-existing naive entry — the except guards the parse, not the
+        # comparison — and both callers wrap this in a broad handler, so the
+        # purge would fail silently: retention stops working, and the naive
+        # entries that trip it are never removed. Both sides move together.
+        cutoff = datetime.now() - timedelta(days=max_age_days)  # noqa: DTZ005
         expired: list[str] = []
         for e in self._load_manifest():
             ts = e.get("trashed_at")
