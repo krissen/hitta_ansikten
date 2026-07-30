@@ -376,20 +376,57 @@ non-idempotent one would have run repeatedly. The fix (`save()` after migrating)
 changes when preferences first touch disk, which is why it was its own PR and not
 a line in someone else's.
 
-**Done** — `load()` calls `this.save()` immediately after `migrate()`. Two
-decisions worth carrying forward. **Only the migration branch writes:** a payload
-already at the current version is merged in memory and left alone on disk, so an
-ordinary launch costs no write; writing unconditionally after `load()` would have
-been simpler but turned every start into a storage write with nothing changed.
-The fresh-install branch (no stored payload) is untouched and still writes
-nothing until the user saves. **Error handling is inherited from `save()`**,
-which catches, logs and returns `false` — `load()` runs from the constructor, so
-a throw there would take the singleton with it; a read-only or full backend now
-degrades to the old behaviour (migration applies in memory, the version stays put
-on disk, the step repeats next start) instead of breaking startup. The idempotence
-requirement on a future per-version step therefore remains, for the weaker reason.
-Frontend suite **927 → 929 passed** across 96 files, `npm run build:workspace`
+**Done** — `load()` migrates and writes the result back. Four decisions worth
+carrying forward, two of them from the review round.
+
+**Only the migration branch writes:** a payload already at the current version is
+merged in memory and left alone on disk, so an ordinary launch costs no write;
+writing unconditionally after `load()` would have been simpler but turned every
+start into a storage write with nothing changed. The fresh-install branch (no
+stored payload) is untouched and still writes nothing until the user saves.
+
+**The migration only runs forwards** — `(parsed.version ?? 0) < this.version`,
+not `!==`. A payload from a *newer* build (the user ran a later version and rolled
+back) is left alone: stamping it down to this version's number while the newer
+keys stay on disk would make the next newer launch re-run its own per-version step
+on already-migrated data, which is the double application this write exists to
+prevent. A payload with no version field counts as older than everything rather
+than falling through the comparison as `NaN`. The same gap remains open on the
+*user-write* path: `save()` still stamps unconditionally. Logged in ROADMAP.md —
+closing it means teaching `save()` the difference between "this build owns the
+payload" and "a newer one does", which is bigger than this seam.
+
+**Only the stored payload is persisted, not the merged tree.** `migrate()` takes
+and returns storage shape; writing the merge would freeze today's defaults into
+the install, so a later change to a default would never reach it. Checked before
+choosing the split rather than after: the eight readers in `fileQueuePrefs.js`
+parse the stored blob directly, bypassing this module — and every one already
+falls back with `?? default` for missing keys, which they must, since a fresh
+install has never written anything at all. The split therefore makes the stored
+blob look *more* like the shape they were written for, not less.
+
+**Error handling lives in one write path**, `persistStored()`, which catches, logs
+and returns `false`; `save()` now goes through it too. `load()` runs from the
+constructor, so a throw there would take the singleton with it; a read-only or
+full backend degrades to the old behaviour (migration applies in memory, the
+version stays put on disk, the step repeats next start) instead of breaking
+startup. The idempotence requirement on a future per-version step therefore
+remains, for the weaker reason.
+
+Frontend suite **927 → 932 passed** across 96 files, `npm run build:workspace`
 clean.
+
+One test-harness lesson from the CI round, kept because it generalises: the test
+file installs its own storage **unconditionally** now. Doing it conditionally made
+the file environment-dependent and turned CI red — under Node 26 the bare
+`localStorage` global is Node's own (unavailable) built-in, so the shim installed
+and `localStorage.setItem = …` took effect, while CI's Node has no such built-in,
+Vitest's jsdom left a **real** `Storage` there, and assigning to `setItem` on a
+jsdom Storage does not replace the method at all: the proxy stores an *item* named
+"setItem" and the real method keeps running. The refuse-writes test then refused
+nothing while still passing. Both instrumented tests now also assert that the
+instrument is connected — the same "prove the negative had its chance" rule as
+3.1.
 
 ---
 

@@ -197,19 +197,31 @@ export class PreferencesManager {
       }
 
       const parsed = JSON.parse(stored);
+      // A payload with no version at all predates versioning: treat it as older
+      // than anything, so it migrates rather than counting as "newer".
+      const storedVersion = Number.isFinite(parsed.version) ? parsed.version : 0;
 
-      // Version migration
-      if (parsed.version !== this.version) {
+      // Version migration — only FORWARDS. A payload from a newer build (the
+      // user ran a later version and rolled back) must be left alone: stamping
+      // it down to this version while its newer keys stay put would make the
+      // next newer build re-run its own migration step on already-migrated
+      // data, which is the double-application this write exists to prevent.
+      if (storedVersion < this.version) {
         debug('Preferences', `Migrating from v${parsed.version} to v${this.version}`);
-        this.preferences = this.migrate(parsed);
-        // Persist the migrated result (save() stamps the current version), so a
-        // migration runs once per install rather than on every launch. Only this
-        // branch writes: an already-current payload is merged in memory and left
-        // alone on disk. save() swallows its own errors, so a read-only or full
-        // storage backend degrades to the old behaviour instead of failing load.
-        this.save();
+        const migrated = this.migrate(parsed);
+        this.preferences = this.mergeWithDefaults(migrated);
+        // Persist the migrated STORED payload — not the merged tree. Writing
+        // the merge would freeze today's defaults into this install's storage,
+        // and a later change to a default would then never reach it. The
+        // defaults keep being supplied in memory by mergeWithDefaults, exactly
+        // as before. Persisting at all is what makes the migration run once per
+        // install rather than on every launch; the write swallows its own
+        // errors, so a read-only or full backend degrades to the old behaviour
+        // (migrated in memory, retried next start) instead of failing load.
+        this.persistStored(migrated);
       } else {
-        // Merge with defaults to handle new keys
+        // Current, or newer than this build understands. Merge with defaults to
+        // handle new keys; nothing is written.
         this.preferences = this.mergeWithDefaults(parsed);
       }
 
@@ -221,18 +233,40 @@ export class PreferencesManager {
   }
 
   /**
-   * Save preferences to localStorage
+   * Write a payload to localStorage as-is.
+   *
+   * The single write path: it never adds or removes keys, so the caller decides
+   * what lands on disk. Errors are logged and swallowed — load() calls this from
+   * the constructor, where a throw would take the singleton with it.
+   * @param {object} payload - Exactly what should be stored
+   * @returns {boolean} Success status
    */
-  save() {
+  persistStored(payload) {
     try {
-      this.preferences.version = this.version;
-      localStorage.setItem(this.storageKey, JSON.stringify(this.preferences));
-      debug('Preferences', 'Saved preferences to localStorage');
+      localStorage.setItem(this.storageKey, JSON.stringify(payload));
+      debug('Preferences', 'Wrote preferences to localStorage');
       return true;
     } catch (err) {
       debugError('Preferences', 'Failed to save preferences:', err);
       return false;
     }
+  }
+
+  /**
+   * Save preferences to localStorage
+   *
+   * Writes the full in-memory tree, defaults included — the shape every
+   * user-initiated write has always had. Note that it stamps `this.version`
+   * unconditionally: on an install whose stored payload came from a NEWER build,
+   * the first user-initiated save still writes this version's number over it.
+   * load() no longer does that on its own (see the migration branch there), but
+   * closing the gap for the user-write path means teaching save() the difference
+   * between "this build owns the payload" and "a newer build does", which is a
+   * larger change than this seam. Logged in ROADMAP.md.
+   */
+  save() {
+    this.preferences.version = this.version;
+    return this.persistStored(this.preferences);
   }
 
   /**
@@ -338,23 +372,28 @@ export class PreferencesManager {
   }
 
   /**
-   * Migrate preferences from old version to new version
-   * @param {object} old - Old preferences
-   * @returns {object} Migrated preferences
+   * Migrate a STORED payload from an older version to the current one.
+   *
+   * In and out is storage shape, not the merged tree: the result is what load()
+   * writes back, and writing the merge would freeze today's defaults into this
+   * install. A value this method does not touch keeps coming from the defaults
+   * in memory, where a later change to a default still reaches it.
+   * @param {object} old - The stored payload, at some older version
+   * @returns {object} The stored payload, at the current version
    */
   migrate(old) {
     // v1 -> v2 added `paths.externalEditor`. v1 had no such key and no UI that
-    // could set one, so there is no stored value to rewrite: merging with the
-    // defaults is what gives existing installs Lightroom Classic. No per-version
-    // step is needed yet; this is where one would go when a future version has
-    // to reshape or rename a stored value.
+    // could set one, so there is no stored value to rewrite — existing installs
+    // get Lightroom Classic from the defaults in memory. No per-version step is
+    // needed yet; this is where one goes when a future version has to reshape or
+    // rename a value that is actually on disk.
     //
-    // load() persists the result of this method, so a step added here runs once
-    // per install rather than on every launch. It should still be idempotent:
-    // if the write fails (read-only or full storage) the install stays at its
-    // old version and the step is repeated on the next start.
-    debug('Preferences', 'No per-version step needed, merging with defaults');
-    return this.mergeWithDefaults(old);
+    // load() persists the result, so a step added here runs once per install
+    // rather than on every launch. It should still be idempotent: if the write
+    // fails (read-only or full storage) the install stays at its old version and
+    // the step is repeated on the next start.
+    debug('Preferences', 'No per-version step needed, stamping the new version');
+    return { ...old, version: this.version };
   }
 
   /**

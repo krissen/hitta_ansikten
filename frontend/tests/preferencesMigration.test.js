@@ -96,7 +96,47 @@ describe('preferences v1 -> v2 (external editor)', () => {
     const onDisk = JSON.parse(localStorage.getItem(STORAGE_KEY));
     expect(onDisk.version).toBe(2);
     expect(onDisk.paths.rawRoot).toBe('~/Bilder/raw');
-    expect(onDisk.paths.externalEditor).toBe(DEFAULT_EXTERNAL_EDITOR);
+  });
+
+  it('persists only the stored payload, keeping the defaults in memory', () => {
+    // The write must not freeze today's defaults into this install: a value the
+    // user never set stays absent from storage and keeps coming from the
+    // defaults, so a later change to a default still reaches a migrated install.
+    const prefs = loadStored({ version: 1, paths: { rawRoot: '~/Bilder/raw' } });
+
+    const onDisk = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    expect(onDisk.paths.externalEditor).toBeUndefined();
+    expect(onDisk.ui).toBeUndefined();
+    // …while in memory the defaults apply exactly as before.
+    expect(prefs.get('paths.externalEditor')).toBe(DEFAULT_EXTERNAL_EDITOR);
+    expect(prefs.get('ui.theme')).toBe('system');
+  });
+
+  it('leaves a payload from a NEWER build alone (rollback path)', () => {
+    // The user ran a later build, then rolled back to this one. Stamping the
+    // stored version down to 2 while the newer keys stay put would make the next
+    // newer launch re-run its own 2 -> 3 step on already-migrated data — the
+    // double application this write exists to prevent.
+    const newer = { version: 3, paths: { rawRoot: '~/Bilder/raw' }, futureSection: { keep: 'me' } };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newer));
+    storage.writes = 0;
+
+    const prefs = new PreferencesManager();
+
+    expect(storage.writes).toBe(0);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY))).toEqual(newer);
+    // Usable meanwhile: known keys read through, unknown ones are carried.
+    expect(prefs.get('paths.rawRoot')).toBe('~/Bilder/raw');
+    expect(prefs.get('futureSection.keep')).toBe('me');
+    expect(prefs.get('version')).toBe(3);
+  });
+
+  it('migrates a payload that predates versioning', () => {
+    // No version field at all must count as older than anything, rather than
+    // falling through the comparison as NaN and being treated as newer.
+    const prefs = loadStored({ paths: { rawRoot: '~/Bilder/raw' } });
+    expect(prefs.get('paths.externalEditor')).toBe(DEFAULT_EXTERNAL_EDITOR);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).version).toBe(2);
   });
 
   it('leaves an already-current payload untouched on disk', () => {
