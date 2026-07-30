@@ -78,18 +78,17 @@
  *             file info) is two actions, one per state — the bus has no toggle
  *             event, and the keyboard key that toggles is listed on both.
  *   menuCommand
- *             The `menu-command` string(s) the app menu sends for this action,
- *             where that is not already implied by `route`. Two cases need it, and
- *             only those two:
- *               - a 'dispatch' action (the menu item builds an intent through
- *                 menuCommands.js, so the command name is nothing the intent
- *                 mentions: 'open-review-module' → open-module review-module);
- *               - a menu command with no handler at all, which reaches modules via
- *                 the broadcast fallback but that nothing listens for.
- *             An 'emit' action needs no `menuCommand`: the menu sends the event
- *             name verbatim and menuCommands' fallback broadcasts it, so
- *             `route.event` already IS the command. A 'menu' action carries it in
- *             `route.command`. String or array, same as `route.command`.
+ *             The `menu-command` string(s) the app menu sends to trigger this
+ *             action. Declared, never inferred — including on an 'emit' action
+ *             whose command happens to equal `route.event`. The duplication is
+ *             deliberate: `route` says how the action is *performed*, `menuCommand`
+ *             says the menu can *trigger* it, and those are independent facts. An
+ *             emit action reachable only from a keyboard listener has no menu item
+ *             at all, and deriving one from its event name would invent a binding
+ *             that does not exist. String or array; an array is one action with one
+ *             command per target (the zoom pair, the four move-to-new-tabset
+ *             directions). A 'menu' action carries its command in `route.command`
+ *             instead, since there the command IS the route.
  *   help      false to keep the action out of the shortcuts-help overlay, or an
  *             override object for how its row renders: { keys, sep }. `keys`
  *             overrides the row's key list (used where one help row covers an
@@ -154,6 +153,34 @@ export const KNOWN_DEAD_MENU_COMMANDS = Object.freeze([
   // Fönster ▸ Exportera/Importera layout… — the ellipsis promises a dialog.
   'export-layout',
   'import-layout',
+]);
+
+/**
+ * The mirror image of the list above: handlers in menuCommands.js that no menu
+ * item sends. Not dead in the same way — each one works if something dispatches
+ * it — but unreachable from the menu, which is the table's only caller.
+ *
+ * All six are layout-template aliases from before the pipeline steps took over
+ * Cmd+1..5. Two of that family (`layout-template-comparison`,
+ * `layout-template-stats`) kept their menu items and are catalogued as actions;
+ * these six are the aliases that did not, left behind when the Window menu was
+ * rewritten.
+ *
+ * Same standing as the dead commands: a defect record, not a design. Without it
+ * the reachability test is one-directional — it can prove a catalogued command has
+ * a handler, but not that a handler has a caller.
+ *
+ * TODO(2.2): decide per alias (delete, or give it a menu item) and empty this list
+ * too. Deleting is the likely answer for all six.
+ * @type {readonly string[]}
+ */
+export const KNOWN_UNREACHABLE_HANDLERS = Object.freeze([
+  'layout-template-review',
+  'layout-review',
+  'layout-comparison',
+  'layout-database',
+  'layout-review-with-logs',
+  'layout-queue-review',
 ]);
 
 /**
@@ -514,6 +541,8 @@ export const ACTIONS = [
     help: false,
   },
   {
+    // Shares Cmd+Shift+L with culling.openLightroom; see the comment there. The
+    // key is listed on both because which one fires is undefined.
     id: 'layout.reset',
     owner: null,
     section: 'layout',
@@ -593,6 +622,7 @@ export const ACTIONS = [
     kind: 'delta',
     scope: 'module',
     route: { via: 'emit', event: 'zoom-in', eventDown: 'zoom-out' },
+    menuCommand: ['zoom-in', 'zoom-out'],
     help: { sep: ' / ' },
   },
   {
@@ -606,6 +636,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'reset-zoom' },
+    menuCommand: 'reset-zoom',
     help: { keys: ['='] },
   },
   {
@@ -618,6 +649,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'auto-fit' },
+    menuCommand: 'auto-fit',
     help: { keys: ['0'] },
   },
   {
@@ -634,6 +666,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'boxes-show' },
+    menuCommand: 'boxes-show',
   },
   {
     id: 'viewer.boxesHide',
@@ -644,6 +677,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'boxes-hide' },
+    menuCommand: 'boxes-hide',
     help: false,
   },
   {
@@ -657,6 +691,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'boxes-all' },
+    menuCommand: 'boxes-all',
   },
   {
     id: 'viewer.boxesSingle',
@@ -667,6 +702,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'boxes-single' },
+    menuCommand: 'boxes-single',
     help: false,
   },
   {
@@ -680,6 +716,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'auto-center-enable' },
+    menuCommand: 'auto-center-enable',
     help: { keys: ['c', 'C'], sep: ' / ' },
   },
   {
@@ -691,6 +728,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'auto-center-disable' },
+    menuCommand: 'auto-center-disable',
     help: false,
   },
   {
@@ -704,6 +742,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'file-info-show' },
+    menuCommand: 'file-info-show',
     help: false,
   },
   {
@@ -715,6 +754,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'file-info-hide' },
+    menuCommand: 'file-info-hide',
     help: false,
   },
 
@@ -810,6 +850,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'undo-face-action' },
+    menuCommand: 'undo-face-action',
   },
   {
     id: 'review.deleteToTrash',
@@ -820,6 +861,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'destructive',
     route: { via: 'emit', event: 'delete-current-file' },
+    menuCommand: 'delete-current-file',
   },
   {
     id: 'review.undoDelete',
@@ -830,6 +872,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'undo-delete-file' },
+    menuCommand: 'undo-delete-file',
   },
   {
     id: 'review.cancel',
@@ -1067,14 +1110,24 @@ export const ACTIONS = [
     route: null,
   },
   {
+    // Cmd+Shift+L is DOUBLE-BOUND in menu.js — the only duplicated accelerator in
+    // the file. It sits on Arkiv ▸ Öppna original i extern editor (this action)
+    // and on Fönster ▸ Återställ layout (layout.reset). Which of the two fires is
+    // undefined; ROADMAP already tracks the collision and the fix (give one of
+    // them its own key). Both actions therefore list the key: recording it on only
+    // one would be a claim about the resolution order that nobody has verified,
+    // and dropping it from both would hide a binding the user really can press.
+    // The help row keeps listing 'L' only, as it always has.
     id: 'culling.openLightroom',
     owner: 'culling',
     section: 'culling',
     titleKey: 'shortcuts.desc.culling.openLightroom',
-    keys: ['L'],
+    keys: ['L', 'Cmd+Shift+L'],
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'open-raw-in-lightroom' },
+    menuCommand: 'open-raw-in-lightroom',
+    help: { keys: ['L'] },
   },
 
   // --- General --------------------------------------------------------------
@@ -1139,6 +1192,7 @@ export const ACTIONS = [
     // No table entry: menuCommands' fallback broadcasts the command name, and
     // ReviewModule subscribes to it. The menu is the only trigger there is.
     route: { via: 'emit', event: 'save-all-changes' },
+    menuCommand: 'save-all-changes',
     help: false,
   },
   {
@@ -1153,6 +1207,7 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'discard-changes' },
+    menuCommand: 'discard-changes',
     help: false,
   },
   {
@@ -1234,12 +1289,18 @@ export function getAction(id) {
 }
 
 /**
- * Every `menu-command` string that triggers an action, from all three places one
- * can appear: `route.command` (the menu table performs it), `menuCommand` (the
- * menu is a trigger for an action some other bus performs), and an 'emit' route's
- * event names — where the menu carries such an action it sends the event name
- * verbatim, and menuCommands' fallback broadcasts it, so there the event name IS
- * the command.
+ * Every `menu-command` string that triggers an action, read from the two places a
+ * binding is *declared*: `route.command` (the menu table performs the action) and
+ * `menuCommand` (the menu triggers an action some other bus performs).
+ *
+ * Nothing is inferred. An earlier version derived the binding for 'emit' actions
+ * from their event name, on the reasoning that the menu sends the event verbatim.
+ * That was true of all 17 emit actions — but by coincidence, not by rule: an emit
+ * action reachable only from a keyboard listener has no menu item, and the
+ * inference would have invented a menu command for it. Worse, it made the "is this
+ * command still sent by the menu?" check unable to fail, because the thing being
+ * checked was derived from the thing it was checked against. Declaring the binding
+ * costs one line per action and makes all three directions independently testable.
  * @param {typeof ACTIONS[number]} action
  * @returns {string[]}
  */
@@ -1250,10 +1311,6 @@ export function menuCommandsOf(action) {
     else if (typeof v === 'string') out.push(v);
   };
   if (action.route?.via === 'menu') push(action.route.command);
-  if (action.route?.via === 'emit') {
-    push(action.route.event);
-    push(action.route.eventDown);
-  }
   push(action.menuCommand);
   return out;
 }
