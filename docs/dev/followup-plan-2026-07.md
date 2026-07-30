@@ -293,13 +293,24 @@ helpers, the file dialog, the welcome card). A separate `menuCommand` field is
 the *binding* — which menu item triggers an action some other bus performs, and
 that is genuinely extra information only for `dispatch` actions, where the
 command name is nothing the intent mentions (`open-review-module` →
-`open-module review-module`). An `emit` action needs neither: menu.js sends the
-event name verbatim and the fallback broadcasts it, so `route.event` already *is*
-the command, and adding a `menuCommand` beside it would be a second copy to drift.
-26 actions added (60 → 86); catalog now declares all 63 commands menu.js sends,
-asserted in both directions.
+`open-module review-module`).
 
-Two things worth carrying forward. **The dead-command count was 8, not 1.** The
+The first draft went further and said an `emit` action needs *no* `menuCommand`,
+because menu.js sends the event name verbatim so `route.event` already is the
+command. **Review caught that as wrong**, and the reasoning is worth keeping:
+it held for all 17 emit actions by coincidence, not by rule — an emit action
+reachable only from a keyboard listener has no menu item at all — and, worse, it
+made the third-direction check *unable to fail*, because the binding being checked
+was derived from the very file it was checked against. Bindings are now declared
+on every action and inferred on none, at a cost of one line each.
+
+**Measured, not eyeballed:** 28 actions added (58 → 86), and the catalog declares
+all **64** distinct commands menu.js sends, asserted in three directions — every
+command sent is declared, every command declared has a handler, every command
+declared is still sent. The first write-up said 26, 60 → 86 and 63; all three
+numbers were estimated rather than counted, and all three were wrong.
+
+Three things worth carrying forward. **The dead-command count was 8, not 1.** The
 validation caught `reload-database` as the plan predicted, and seven more nobody
 had logged: the five `grid-preset-*` items (Cmd+Shift+1..5) and
 `export-layout` / `import-layout`. They sit in `KNOWN_DEAD_MENU_COMMANDS` with a
@@ -307,7 +318,20 @@ TODO pointing here, and 2.2 is now a bigger item than its heading suggests — s
 the note there. **`Cmd+R` is doubly wrong:** the dead `reload-database` is a menu
 *accelerator*, and a menu accelerator wins over any renderer keydown, so it also
 makes the catalog's `general.reload` ("Ladda om fönstret", same key) unreachable.
-Both halves are one decision.
+Both halves are one decision. **And the mirror exists:** six handlers in
+menuCommands.js that no menu item sends (`KNOWN_UNREACHABLE_HANDLERS`), all
+layout-template aliases stranded when the Window menu was rewritten. 2.2 empties
+both lists.
+
+**The Escape question, which gates 2.3.** `Escape` is a global menu accelerator
+(Arkiv ▸ Kasta ändringar). If the rule that makes `general.reload` unreachable
+holds generally, it should also make four catalogued Esc actions unreachable —
+`review.cancel` and the three culling ones. It is not established that it does:
+CullingModule's capture-phase listeners may win, or Electron may treat `Escape`
+unlike letter accelerators. **This needs a GUI run to settle and cannot be
+answered by reading the code.** Settle it before migrating any Escape listener —
+migrating a listener whose key may never reach it would cement a bug in catalog
+form. Logged in ROADMAP as a must-verify.
 
 Nothing about the running app changed: every new action carries `help: false`, so
 the derived shortcuts overlay is byte-identical (verified by diffing
