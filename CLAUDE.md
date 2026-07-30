@@ -142,6 +142,7 @@ Core package `backend/core/` (shared by the legacy CLI and the API):
 - `core/db.py` - Database layer (encodings.pkl, processed_files.jsonl, db_meta.json). `faceid_db` is a shim aliased to it.
 - `core/config.py`, `core/matching.py`, `core/image.py` - config / matching / image utils (shims: `cli_config`, `cli_matching`, `cli_image`).
 - `core/attempts.py`, `core/naming.py`, `core/playerstats.py`, `core/files.py` - attempt log, naming, player stats, extension sets.
+- `core/labels.py` - review-label vocabulary: `IGNORE_MARKERS`, `CANONICAL_IGNORE_MARKER`, `is_ignore_name` / `is_ignore_label`. Every "is this label a person?" check goes through it — never re-inline the marker set or the `#N\n` prefix handling.
 - `face_backends.py` - InsightFace abstraction
 
 ### Frontend (Electron + React)

@@ -61,11 +61,13 @@ single subject.
 
 ---
 
-## Phase 1 — Finish the toolchain
+## Phase 1 — Finish the toolchain — **Done**
 
-Do this first. It is the only phase where an unfinished state is actively
-harmful: `select` currently describes a rule set nobody chose, and `shared/` is
-still unlinted.
+All three sections are closed (1.1 #254–#262, 1.2 #263, 1.3). The unfinished
+state this phase existed to end is gone: `select` in `backend/pyproject.toml`
+describes the rule set the project actually chose, `shared/` is linted from a
+root config that inherits that set, and the ignore-marker vocabulary has one
+definition.
 
 ### 1.1 Remaining ruff families, one PR each — **Done**
 
@@ -226,27 +228,35 @@ deliberately: the documented invocation is `python shared/generate_schemas.py`,
 never `./generate_schemas.py`, and `EXE001` is outside the locked set. The bug
 was the fallback, not the file.
 
-### 1.3 Ignore-marker consolidation
+### 1.3 Ignore-marker consolidation — **Done**
 
-Four mechanisms filter the same concept — labels meaning "this is not a person":
+The four mechanisms are one. New leaf module `backend/core/labels.py` owns the
+vocabulary — `IGNORE_MARKERS`, the written marker `CANONICAL_IGNORE_MARKER`, and
+the readers `strip_label_index` / `is_ignore_name` / `is_ignore_label` — and
+imports nothing from `core`, so `core.db` and `core.naming` can both use it
+without the import cycle that a home in `core/naming.py` would have created.
+Prefix stripping now exists in exactly one function.
 
-| site | set |
-|---|---|
-| `core/naming.py` | `IGNORE_MARKERS` = `{ignorerad, ign, okänt, okant}` — the canonical one, added in #251 |
-| `core/db.py:507` | `{ignorerad, okänt, ign}` — missing `okant` |
-| `api/services/rename_service.py` | near-copy |
-| `api/services/statistics_service.py:115` | **partly dead**: matches on the whole label including the `#N\n` prefix, so `label.strip().lower() == "ign"` can never be true for a prefixed label, and `okänt`/`okant` are absent entirely |
+Two readers rather than one, because the call sites genuinely differ: `core.db`,
+`core.naming` and `rename_service` de-prefix the label themselves and hold a
+bare name (`is_ignore_name`), while `statistics_service` holds the raw display
+label (`is_ignore_label`, which strips `#N\n` first).
 
-`statistics_service` therefore **undercounts ignores** relative to the other
-three. The defect is *latent today* — those markers occur zero times in the
-current corpus, verified via `benchmarks/label_usage.py`, so published statistics
-are unaffected.
+`statistics_service`'s prefix matching is fixed, not just its marker set, so
+`#3\nign` now counts as an ignore. Matching is exact instead of
+`endswith("ignorerad")`: a person name ending in a marker (`X ignorerad`) counts
+as a person. Measured on the corpus (25 306 labels): 10 508 exact `ignorerad`,
+zero `ign`/`okänt`/`okant`, and zero labels that the old `endswith()` branch
+caught but exact matching does not — so today's published figures are unchanged
+in both directions. `extract_face_labels` gained the `okant` it lacked.
 
-Consolidate onto `core.naming.IGNORE_MARKERS`. **Fix `statistics_service`'s
-prefix matching, not merely its marker set** — swapping the set alone leaves the
-dead branch dead. Because the sets genuinely differ, this changes behaviour on
-any corpus containing `okant`; say so in the changelog rather than presenting it
-as a refactor.
+`tests/test_ignore_markers.py` is the invariant matrix that keeps the class from
+returning: every marker in case and whitespace variants × prefixed and bare ×
+every consolidated path, plus a cross-path agreement test asserting one verdict
+per label. 131 new tests.
+
+This closes **all of Phase 1** — 1.1 landed as #254–#262, 1.2 as #263, and 1.3
+here. Phase 2 is next.
 
 ---
 
