@@ -364,17 +364,76 @@ prints on a healthy run, and anything that does print is genuinely halfway to
 timing out. If work here makes tests faster, that threshold should come down with
 them.
 
-### 3.3 `PreferencesManager.load()` does not persist migration
+### 3.3 `PreferencesManager.load()` does not persist migration — **Done**
 
-`load()` never writes back the migrated result and `mergeWithDefaults` copies the
-stored version over the default, so an install stays at its old version and
-re-enters `migrate()` on every launch until an unrelated write happens to save.
+`load()` never wrote back the migrated result and `mergeWithDefaults` copies the
+stored version over the default, so an install stayed at its old version and
+re-entered `migrate()` on every launch until an unrelated write happened to save.
 
 Harmless while `migrate()` is a pure merge — which it is — but the method is
 documented as the seam for future per-version steps, and the first
-non-idempotent one will run repeatedly. The fix (`save()` after migrating)
-changes when preferences first touch disk, which is why it is its own PR and not
+non-idempotent one would have run repeatedly. The fix (`save()` after migrating)
+changes when preferences first touch disk, which is why it was its own PR and not
 a line in someone else's.
+
+**Done** — `load()` migrates and writes the result back. Four decisions worth
+carrying forward, two of them from the review round.
+
+**Only the migration branch writes:** a payload already at the current version is
+merged in memory and left alone on disk, so an ordinary launch costs no write;
+writing unconditionally after `load()` would have been simpler but turned every
+start into a storage write with nothing changed. The fresh-install branch (no
+stored payload) is untouched and still writes nothing until the user saves.
+
+**The migration only runs forwards.** The stored version is read as
+`Number.isFinite(parsed.version) ? parsed.version : 0` and compared with `<`,
+not `!==`. `Number.isFinite` rather than a `??` default on purpose: `??`
+substitutes only for `null`/`undefined`, so a hand-edited `"version": "1"` would
+survive as a string — and `"1" < 2` coerces to true while `"3" < 2` is false, so
+a string version would decide the direction by accident, in the one case (someone
+editing the file by hand) where the payload is least trustworthy. Anything that is
+not a finite number counts as version 0, older than everything, and migrates.
+A payload from a *newer* build (the user ran a later version and rolled
+back) is left alone: stamping it down to this version's number while the newer
+keys stay on disk would make the next newer launch re-run its own per-version step
+on already-migrated data, which is the double application this write exists to
+prevent. The same gap remains open on the *user-write* path: `save()` still stamps
+unconditionally. Logged in ROADMAP.md — closing it starts with a question about
+data, not about numbering: a payload after rollback-plus-save is *mixed*, the
+newer build's keys sitting beside the older build's writes, and no single version
+number describes it honestly.
+
+**Only the stored payload is persisted, not the merged tree.** `migrate()` takes
+and returns storage shape; writing the merge would freeze today's defaults into
+the install, so a later change to a default would never reach it. Checked before
+choosing the split rather than after: the eight readers in `fileQueuePrefs.js`
+parse the stored blob directly, bypassing this module — and every one already
+falls back with `?? default` for missing keys, which they must, since a fresh
+install has never written anything at all. The split therefore makes the stored
+blob look *more* like the shape they were written for, not less.
+
+**Error handling lives in one write path**, `persistStored()`, which catches, logs
+and returns `false`; `save()` now goes through it too. `load()` runs from the
+constructor, so a throw there would take the singleton with it; a read-only or
+full backend degrades to the old behaviour (migration applies in memory, the
+version stays put on disk, the step repeats next start) instead of breaking
+startup. The idempotence requirement on a future per-version step therefore
+remains, for the weaker reason.
+
+Frontend suite **927 → 932 passed** across 96 files, `npm run build:workspace`
+clean.
+
+One test-harness lesson from the CI round, kept because it generalises: the test
+file installs its own storage **unconditionally** now. Doing it conditionally made
+the file environment-dependent and turned CI red — under Node 26 the bare
+`localStorage` global is Node's own (unavailable) built-in, so the shim installed
+and `localStorage.setItem = …` took effect, while CI's Node has no such built-in,
+Vitest's jsdom left a **real** `Storage` there, and assigning to `setItem` on a
+jsdom Storage does not replace the method at all: the proxy stores an *item* named
+"setItem" and the real method keeps running. The refuse-writes test then refused
+nothing while still passing. Both instrumented tests now also assert that the
+instrument is connected — the same "prove the negative had its chance" rule as
+3.1.
 
 ---
 
