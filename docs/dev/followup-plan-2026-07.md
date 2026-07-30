@@ -488,6 +488,28 @@ Four things worth carrying forward:
    render pending when the test ends; it commits during teardown — after
    `vi.restoreAllMocks()` — and throws there instead. The culling Cmd+Z test hit
    exactly this and now ends with a drain.
+
+   **The same trap has a second mouth, and it bit after the sweep merged.**
+   Settling on the *rendered output* is not enough either: React commits the DOM
+   before it runs passive effects, so a `waitFor` on what the user sees can
+   return in the window between the two. The rename test in
+   `fileQueueModule.test.jsx` did exactly that — the renamed row was on screen,
+   and the file-stats effect it triggered had not run yet. Teardown then ran the
+   effect against a stripped `api.post`, and `undefined.then` took dev red
+   intermittently while every PR check stayed green. Two properties made it
+   nasty: it is load-dependent (it did not reproduce in ~64 local runs on a
+   quiet machine, but hit 3 of 30 full-suite runs under the ten-parallel recipe),
+   and it fails *outside* any test, so no assertion points at it.
+
+   The fix is an ordering one, and it belongs in the hook rather than in each
+   test: `afterEach` drains before it restores the mocks. Note **why** it has to
+   be in that hook and not after it — Testing Library registers its cleanup at
+   import time, and Vitest runs `afterEach` hooks in reverse registration order,
+   so the file's own hook runs *first*, while the tree is still mounted
+   (verified, not assumed). That is the only point where the effects can still
+   reach a live transport. Every test file that mounts a component and calls
+   `vi.restoreAllMocks()` wants this hook; a `waitFor` on rendered output is not
+   protection against it.
 3. **A mount helper rarely has one rendered outcome.** `loadFiles` in
    `cullingModuleFence` cannot wait for file rows: two of its callers load in
    grid mode, where the list does not render at all. Helpers drain; individual
