@@ -14,13 +14,24 @@ export default defineConfig({
     // than a forked process.
     //
     // Serial wall clock went 13-14 s -> ~10 s, measured as three alternating
-    // pairs so both arms met the same background load. The result that decided
-    // it is the contention one: with ten full suites running against each other
-    // on an 8-core M2, the fork pool went red 5 of 10 runs — every failure a
-    // `Test timed out in 20000ms`, none an assertion — while the thread pool
-    // went 0 of 10 twice, the second time under a HIGHER background load than
-    // the fork arm ever saw. Threads degrade more gently, which is exactly the
-    // property this suite needs.
+    // pairs so both arms met the same background load. **That speed-up is
+    // machine-specific**: on CI (4 vCPU ubuntu-latest) the suite measures ~36-37 s
+    // either way — no regression, no gain. Do not read "no difference on CI" as a
+    // reason to revert; what CI gains is the stability below, not wall clock.
+    //
+    // The result that decided it is the contention one: with ten full suites
+    // running against each other on an 8-core M2, the fork pool produced
+    // `Test timed out in 20000ms` in 5 of 20 runs — every failure a timeout, none
+    // an assertion — while the thread pool produced none in 30 runs, one arm of
+    // which ran under a HIGHER background load than the fork arm ever saw.
+    // Threads degrade more gently, which is exactly the property this suite needs.
+    //
+    // The fork arm's redness is itself load-dependent and varies between batches
+    // (5 of 10 in one, 0 timeouts in the next ten): that variance IS the
+    // instability, not a measurement fault, and it is why the denominators here
+    // are per arm rather than per batch. Reproduced independently in review at a
+    // load average up to 353 — 30 contention runs, 0 red, 0 timeouts, and not one
+    // test over the 7.5 s threshold.
     //
     // `isolate: false` was measured too and rejected: 51 tests fail, because the
     // suite's files install their own globals (localStorage shims,
