@@ -18,6 +18,13 @@
  * request, a debounce timer): those stay in flight, which is what the fenced /
  * cancelled-request tests need.
  *
+ * That limit matters in the other place this is used — the teardown drain in
+ * the nine suites that mount a component and then restore their mocks. The
+ * drain is sufficient there only because every mock in those files resolves
+ * immediately. A mock that resolved on a timer would still be in flight when
+ * the drain returns, and its continuation would land after the mocks are gone:
+ * the same failure the drain exists to prevent. Such a mock needs its own wait.
+ *
  * Prefer settling on a rendered outcome (`waitFor`, `findBy*`) when the test has
  * one — that asserts what the user would see. Use `settle()` where there is no
  * positive anchor to wait for: mounts whose outcome differs per test, and the

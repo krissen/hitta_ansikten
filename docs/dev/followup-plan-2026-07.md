@@ -488,6 +488,40 @@ Four things worth carrying forward:
    render pending when the test ends; it commits during teardown — after
    `vi.restoreAllMocks()` — and throws there instead. The culling Cmd+Z test hit
    exactly this and now ends with a drain.
+
+   **The same trap has a second mouth, and it bit after the sweep merged.**
+   Settling on the *rendered output* is not enough either. The mechanism is not
+   the obvious one — the first theory was that `waitFor` returns in the window
+   between React's commit and its passive-effect flush, and instrumenting that
+   during review disproved it: Testing Library's `asyncAct` flushes the effect
+   before `waitFor` returns, every time. What actually happens is that work a
+   test leaves behind can land **outside any `act()` scope**, scheduled on
+   React's own Scheduler macrotask, and whether it lands before or after the test
+   body ends is exactly what CPU contention shifts. In `fileQueueModule.test.jsx`
+   it landed after: teardown ran the file-stats effect against a stripped
+   `api.post`, and `undefined.then` took dev red intermittently while every PR
+   check stayed green. Two properties made it
+   nasty: it is load-dependent (it did not reproduce in ~64 local runs on a
+   quiet machine, but hit 3 of 30 full-suite runs under the ten-parallel recipe),
+   and it fails *outside* any test, so no assertion points at it.
+
+   The fix is an ordering one, and it belongs in the hook rather than in each
+   test: `afterEach` drains before it restores the mocks. Note **why** it has to
+   be in that hook and not after it — Testing Library registers its cleanup at
+   import time, and Vitest runs `afterEach` hooks in reverse registration order,
+   so the file's own hook runs *first*, while the tree is still mounted
+   (verified, not assumed). That is the only point where the effects can still
+   reach a live transport. Every test file that mounts a component and calls
+   `vi.restoreAllMocks()` wants this hook; a `waitFor` on rendered output is not
+   protection against it. The class is exactly nine files, enumerated across all
+   87 — the eight component suites plus `useDecodedImage.test.js`, where the
+   transport is the image decoder rather than `api.post`.
+
+   Know one limit before leaning on it: `settle()` is a single macrotask. It
+   drains queued work but deliberately does not wait for a promise that is
+   genuinely still pending. Every mock in those nine files resolves immediately,
+   so it suffices today — a mock resolving on a timer reopens the class and would
+   need its own wait rather than this drain.
 3. **A mount helper rarely has one rendered outcome.** `loadFiles` in
    `cullingModuleFence` cannot wait for file rows: two of its callers load in
    grid mode, where the list does not render at all. Helpers drain; individual
