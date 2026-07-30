@@ -385,16 +385,23 @@ writing unconditionally after `load()` would have been simpler but turned every
 start into a storage write with nothing changed. The fresh-install branch (no
 stored payload) is untouched and still writes nothing until the user saves.
 
-**The migration only runs forwards** — `(parsed.version ?? 0) < this.version`,
-not `!==`. A payload from a *newer* build (the user ran a later version and rolled
+**The migration only runs forwards.** The stored version is read as
+`Number.isFinite(parsed.version) ? parsed.version : 0` and compared with `<`,
+not `!==`. `Number.isFinite` rather than a `??` default on purpose: `??`
+substitutes only for `null`/`undefined`, so a hand-edited `"version": "1"` would
+survive as a string — and `"1" < 2` coerces to true while `"3" < 2` is false, so
+a string version would decide the direction by accident, in the one case (someone
+editing the file by hand) where the payload is least trustworthy. Anything that is
+not a finite number counts as version 0, older than everything, and migrates.
+A payload from a *newer* build (the user ran a later version and rolled
 back) is left alone: stamping it down to this version's number while the newer
 keys stay on disk would make the next newer launch re-run its own per-version step
 on already-migrated data, which is the double application this write exists to
-prevent. A payload with no version field counts as older than everything rather
-than falling through the comparison as `NaN`. The same gap remains open on the
-*user-write* path: `save()` still stamps unconditionally. Logged in ROADMAP.md —
-closing it means teaching `save()` the difference between "this build owns the
-payload" and "a newer one does", which is bigger than this seam.
+prevent. The same gap remains open on the *user-write* path: `save()` still stamps
+unconditionally. Logged in ROADMAP.md — closing it starts with a question about
+data, not about numbering: a payload after rollback-plus-save is *mixed*, the
+newer build's keys sitting beside the older build's writes, and no single version
+number describes it honestly.
 
 **Only the stored payload is persisted, not the merged tree.** `migrate()` takes
 and returns storage shape; writing the merge would freeze today's defaults into
