@@ -313,7 +313,6 @@ describe('catalog lookups', () => {
     expect(ids).toEqual([
       'general.showHelp',
       'general.reload',
-      'general.reloadDatabase',
       'general.preferences',
       'general.saveAll',
       'general.discardChanges',

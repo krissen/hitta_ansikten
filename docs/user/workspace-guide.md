@@ -213,7 +213,7 @@ I **rutnätet** är klick på ett spelarnamn i statistik-kolumnen lägesberoende
 | `Cmd+Shift+B` | Byt namn (NEF) |
 | `Cmd+Shift+K` | Räkna spelare |
 | `Cmd+Shift+G` | Gallra spelare |
-| `Cmd+Shift+L` | Öppna i extern editor (original-NEF för aktuell bild i Gallra spelare) |
+| `L` | Öppna i extern editor (original-NEF för aktuell bild) — endast i Gallra spelare; menyposten **Arkiv → Öppna original i extern editor** gör samma sak. Bar `L`, inte `Cmd+Shift+L`: den senare är Återställ layout |
 | `Cmd+,` | Inställningar |
 | `Cmd+S` | Spara ändringar |
 

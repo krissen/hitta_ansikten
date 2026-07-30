@@ -130,58 +130,38 @@ export const ACTION_ROUTE_BUSES = ['emit', 'dispatch', 'menu'];
 /**
  * Menu commands the app menu sends that nothing handles: no entry in
  * menuCommands.js and no module subscribed to the broadcast fallback, so the item
- * is visible, sometimes carries an accelerator, and does nothing when picked.
+ * would be visible, possibly carry an accelerator, and do nothing when picked.
  *
- * They are catalogued as ordinary actions — they are menu items the user can see —
- * and listed here so the reachability test stays green while they exist. The list
- * is a defect record, not a design: every entry is a menu item to wire up or
- * remove. See phase 2.2 in docs/dev/followup-plan-2026-07.md.
+ * **Empty, and meant to stay that way.** It held eight entries when the menu was
+ * taken into the catalog — all eight orphaned by one commit, 5686ff9 (2025-12-31),
+ * which deleted the dockview `workspace.js` that implemented them and left the
+ * menu items behind. They were removed in phase 2.2 rather than reimplemented; see
+ * CHANGELOG for the per-item reasoning.
  *
- * TODO(2.2): empty this list and delete it. `reload-database` was the known one;
- * the other seven surfaced when this test was written.
+ * The constant stays as the obvious home for a future exception, and so the
+ * honesty test below keeps guarding: an entry added here must be a command the
+ * menu really sends AND really has no handler, so it cannot be used to silence an
+ * unrelated failure. Adding to it should feel like filing a defect, because it is.
  * @type {readonly string[]}
  */
-export const KNOWN_DEAD_MENU_COMMANDS = Object.freeze([
-  // Arkiv ▸ Ladda om databas (Cmd+R) — the accelerator makes it look wired up.
-  'reload-database',
-  // Fönster ▸ Rutnätsförval (Cmd+Shift+1..5) — five items, one dead mechanism.
-  'grid-preset-50-50',
-  'grid-preset-60-40',
-  'grid-preset-70-30',
-  'grid-preset-30-70',
-  'grid-preset-40-60',
-  // Fönster ▸ Exportera/Importera layout… — the ellipsis promises a dialog.
-  'export-layout',
-  'import-layout',
-]);
+export const KNOWN_DEAD_MENU_COMMANDS = Object.freeze([]);
 
 /**
  * The mirror image of the list above: handlers in menuCommands.js that no menu
- * item sends. Not dead in the same way — each one works if something dispatches
- * it — but unreachable from the menu, which is the table's only caller.
+ * item sends. Not dead in the same way — each works if something dispatches it —
+ * but unreachable from the menu, which is the table's only caller.
  *
- * All six are layout-template aliases from before the pipeline steps took over
- * Cmd+1..5. Two of that family (`layout-template-comparison`,
- * `layout-template-stats`) kept their menu items and are catalogued as actions;
- * these six are the aliases that did not, left behind when the Window menu was
- * rewritten.
+ * **Also empty, also meant to stay that way.** It held six layout-template
+ * aliases, stranded when the Window menu was rewritten around the pipeline steps;
+ * phase 2.2 deleted them. Two of that family (`layout-template-comparison`,
+ * `layout-template-stats`) kept their menu items and remain.
  *
- * Same standing as the dead commands: a defect record, not a design. Without it
- * the reachability test is one-directional — it can prove a catalogued command has
- * a handler, but not that a handler has a caller.
- *
- * TODO(2.2): decide per alias (delete, or give it a menu item) and empty this list
- * too. Deleting is the likely answer for all six.
+ * Kept for the same reason as the list above: without it the reachability check is
+ * one-directional — it can prove a catalogued command has a handler, but never
+ * that a handler has a caller.
  * @type {readonly string[]}
  */
-export const KNOWN_UNREACHABLE_HANDLERS = Object.freeze([
-  'layout-template-review',
-  'layout-review',
-  'layout-comparison',
-  'layout-database',
-  'layout-review-with-logs',
-  'layout-queue-review',
-]);
+export const KNOWN_UNREACHABLE_HANDLERS = Object.freeze([]);
 
 /**
  * Every user-triggerable action, grouped by section in display order.
@@ -541,8 +521,8 @@ export const ACTIONS = [
     help: false,
   },
   {
-    // Shares Cmd+Shift+L with culling.openLightroom; see the comment there. The
-    // key is listed on both because which one fires is undefined.
+    // Sole owner of Cmd+Shift+L since the collision with the external-editor
+    // item was resolved: this action is global, that one was module-scoped.
     id: 'layout.reset',
     owner: null,
     section: 'layout',
@@ -564,51 +544,6 @@ export const ACTIONS = [
     scope: 'global',
     route: { via: 'dispatch', intent: { type: 'reset-all-layouts' } },
     menuCommand: 'reset-all-layouts',
-    help: false,
-  },
-  {
-    // Dead: five menu items, one per split ratio, none of them handled.
-    id: 'layout.gridPreset',
-    owner: null,
-    section: 'layout',
-    titleKey: 'menu.window.gridPresets',
-    keys: ['Cmd', 'Shift', '1-5'],
-    kind: 'range',
-    scope: 'global',
-    route: null,
-    menuCommand: [
-      'grid-preset-50-50',
-      'grid-preset-60-40',
-      'grid-preset-70-30',
-      'grid-preset-30-70',
-      'grid-preset-40-60',
-    ],
-    help: false,
-  },
-  {
-    // Dead.
-    id: 'layout.export',
-    owner: null,
-    section: 'layout',
-    titleKey: 'menu.window.exportLayout',
-    keys: [],
-    kind: 'trigger',
-    scope: 'global',
-    route: null,
-    menuCommand: 'export-layout',
-    help: false,
-  },
-  {
-    // Dead.
-    id: 'layout.import',
-    owner: null,
-    section: 'layout',
-    titleKey: 'menu.window.importLayout',
-    keys: [],
-    kind: 'trigger',
-    scope: 'global',
-    route: null,
-    menuCommand: 'import-layout',
     help: false,
   },
 
@@ -1110,24 +1045,21 @@ export const ACTIONS = [
     route: null,
   },
   {
-    // Cmd+Shift+L is DOUBLE-BOUND in menu.js — the only duplicated accelerator in
-    // the file. It sits on Arkiv ▸ Öppna original i extern editor (this action)
-    // and on Fönster ▸ Återställ layout (layout.reset). Which of the two fires is
-    // undefined; ROADMAP already tracks the collision and the fix (give one of
-    // them its own key). Both actions therefore list the key: recording it on only
-    // one would be a claim about the resolution order that nobody has verified,
-    // and dropping it from both would hide a binding the user really can press.
-    // The help row keeps listing 'L' only, as it always has.
+    // The Cmd+Shift+L collision is resolved: Arkiv ▸ Öppna original i extern
+    // editor lost that accelerator, layout.reset kept it. This action is
+    // module-scoped (CullingModule is the only subscriber), so a global
+    // accelerator did nothing outside Gallra spelare while consuming the key
+    // everywhere — and inside it, bare 'L' already triggers this. The menu item
+    // remains, without an accelerator, for discoverability.
     id: 'culling.openLightroom',
     owner: 'culling',
     section: 'culling',
     titleKey: 'shortcuts.desc.culling.openLightroom',
-    keys: ['L', 'Cmd+Shift+L'],
+    keys: ['L'],
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'open-raw-in-lightroom' },
     menuCommand: 'open-raw-in-lightroom',
-    help: { keys: ['L'] },
   },
 
   // --- General --------------------------------------------------------------
@@ -1152,21 +1084,6 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'global',
     route: null,
-  },
-  {
-    // Arkiv ▸ Ladda om databas. Dead, and its Cmd+R menu accelerator wins over
-    // any renderer keydown, so it is also what makes general.reload above ("Ladda
-    // om fönstret", same key) unreachable. Both halves are 2.2's to settle.
-    id: 'general.reloadDatabase',
-    owner: null,
-    section: 'general',
-    titleKey: 'menu.file.reloadDatabase',
-    keys: ['Cmd', 'R'],
-    kind: 'trigger',
-    scope: 'global',
-    route: null,
-    menuCommand: 'reload-database',
-    help: false,
   },
   {
     id: 'general.preferences',

@@ -64,17 +64,20 @@ export function buildMenuCommandTable(ctx) {
       }
     },
 
-    // Layout template commands (secondary, non-pipeline layouts moved to the
-    // Window ▸ Layout templates submenu, no accelerators). These still replace
-    // the layout via the load-layout intent — they are not pipeline steps.
-    'layout-template-review': () => dispatch({ type: 'load-layout', name: 'review' }),
-    'layout-review': () => dispatch({ type: 'load-layout', name: 'review' }),
+    // Layout template commands (secondary, non-pipeline layouts in the
+    // Window ▸ Layout templates submenu, no accelerators). These replace the
+    // layout via the load-layout intent — they are not pipeline steps.
+    //
+    // Only the two the menu actually sends live here. Six sibling aliases
+    // (`layout-review`, `layout-comparison`, `layout-database`,
+    // `layout-template-review`, `layout-review-with-logs`, `layout-queue-review`)
+    // were removed: they lost their menu items when the Window menu was rewritten
+    // around the pipeline steps, and the menu is this table's only caller, so an
+    // alias without a menu item is unreachable by construction. The layouts
+    // themselves are untouched — `load-layout` still accepts every name in
+    // layouts.js, so a programmatic dispatch reaches them.
     'layout-template-comparison': () => dispatch({ type: 'load-layout', name: 'comparison' }),
-    'layout-comparison': () => dispatch({ type: 'load-layout', name: 'comparison' }),
     'layout-template-stats': () => dispatch({ type: 'load-layout', name: 'database' }),
-    'layout-database': () => dispatch({ type: 'load-layout', name: 'database' }),
-    'layout-review-with-logs': () => dispatch({ type: 'load-layout', name: 'review-with-logs' }),
-    'layout-queue-review': () => dispatch({ type: 'load-layout', name: 'queue-review' }),
 
     // "Reset layout" (Cmd+Shift+L): forget the current step's remembered tweaks
     // and rebuild it to factory. "Reset all layouts": forget every step's memory.

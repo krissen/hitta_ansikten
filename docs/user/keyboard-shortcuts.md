@@ -11,7 +11,7 @@ Komplett referens för alla tangentbordsgenvägar i Ansikten.
 | Genväg | Funktion |
 |--------|----------|
 | `Cmd+O` | Öppna fil(er) |
-| `Cmd+R` | Ladda om databasen |
+| `Cmd+R` | Ladda om fönstret |
 | `Cmd+S` | Spara alla ändringar |
 | `Escape` | Förkasta ändringar |
 | `Cmd+Q` | Avsluta (Windows/Linux) |
