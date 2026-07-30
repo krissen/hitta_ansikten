@@ -6,6 +6,15 @@ index prefix, a newline, then the person name. Some names are not persons at
 all but markers meaning "do not enrol this face": the reviewer skipped it, or
 the identity is unknown.
 
+**There is a second, live prefix form: ``"#manuell\\nElis Niemi"``**, written by
+``add_manual_face`` in ``hitta_ansikten.py`` for a face the reviewer named by
+hand. It is not handled here — this module knows only ``#N`` — and the readers
+downstream disagree about it: ``core.naming`` and ``rename_service`` split on
+the newline and keep the name, while ``core.db.extract_face_labels`` matches
+``#\\d+`` and drops it. That divergence is **pre-existing and deliberately left
+alone by the consolidation**; unifying it changes behaviour and is tracked as
+its own item in ROADMAP.md.
+
 This module is the single definition of that vocabulary. It is deliberately a
 leaf: it imports nothing from ``core`` (or the API), so both ``core.db`` and
 ``core.naming`` can use it without an import cycle.
@@ -25,6 +34,13 @@ CANONICAL_IGNORE_MARKER = "ignorerad"
 
 # The ``#N\n`` display prefix. Stripped only when it is exactly that shape, so
 # a name that merely contains a newline is left alone.
+#
+# It does NOT match the other live prefix form, ``#manuell\n`` (see the module
+# docstring): ``strip_label_index("#manuell\nElis Niemi")`` returns the string
+# unchanged, prefix and all, and ``is_ignore_label`` therefore judges it on the
+# whole string. That is the pre-existing behaviour, kept on purpose — widening
+# this pattern would silently change what the statistics path counts. The
+# unification is tracked in ROADMAP.md.
 _INDEX_PREFIX_RE = re.compile(r"^#\d+\n")
 
 

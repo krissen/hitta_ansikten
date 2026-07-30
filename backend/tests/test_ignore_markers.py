@@ -5,6 +5,10 @@ inline mechanisms that disagreed. They now share ``core.labels``. This matrix is
 what keeps them from diverging again: every marker, in both label forms
 (``#N\\nmarker`` and bare), through every consolidated path.
 
+Section 6 pins the one divergence this change did *not* remove: the second live
+prefix form ``#manuell\\n``, which naming/rename keep and ``extract_face_labels``
+drops. It is pre-existing; unifying it is a behaviour change tracked in ROADMAP.
+
 Paths covered:
   * ``core.labels.is_ignore_name`` / ``is_ignore_label`` (the helpers)
   * ``core.db.extract_face_labels``
@@ -27,6 +31,7 @@ from core.labels import (
     IGNORE_MARKERS,
     is_ignore_label,
     is_ignore_name,
+    strip_label_index,
 )
 from core.naming import collect_persons_for_files as naming_collect_persons
 
@@ -203,7 +208,44 @@ def test_calc_ignored_fraction_does_not_count_person_names(name):
 
 
 # --------------------------------------------------------------------------
-# 6. Cross-path agreement — the actual invariant
+# 6. The `#manuell` prefix — pinning a divergence this PR did NOT fix
+# --------------------------------------------------------------------------
+# `add_manual_face` (hitta_ansikten.py) writes the other live prefix form,
+# `#manuell\n<name>`. The paths disagree about it and still do after the
+# consolidation: naming/rename keep the name, extract_face_labels drops it.
+# These two tests pin that divergence so it is visible in the matrix rather
+# than silently absent. Unifying the forms is a behaviour change with its own
+# ROADMAP item — when it lands, these are the tests that must change.
+
+def test_manual_prefix_is_kept_by_naming_and_rename(tmp_path):
+    """naming/rename split on the newline, so a manual name survives."""
+    test_file = tmp_path / "260701_100000.NEF"
+    test_file.touch()
+    log = [_entry(test_file, ["#manuell\nElis Niemi"])]
+
+    with patch("core.naming.get_file_hash", return_value="hash123"):
+        naming_result = naming_collect_persons(
+            [str(test_file)], {}, processed_files=[], attempt_log=log
+        )
+    with patch("api.services.rename_service.get_file_hash", return_value="hash123"):
+        rename_result = rename_collect_persons([str(test_file)], {}, attempt_log=log)
+
+    assert naming_result[test_file.name] == ["Elis Niemi"]
+    assert rename_result[str(test_file)] == ["Elis Niemi"]
+
+
+def test_manual_prefix_is_dropped_by_extract_face_labels():
+    """extract_face_labels matches `#\\d+` only, so the same name is lost here.
+
+    Pre-existing, out of scope for the consolidation, tracked in ROADMAP.md.
+    `strip_label_index` likewise leaves the label untouched — it knows `#N` only.
+    """
+    assert extract_face_labels([{"label": "#manuell\nElis Niemi"}]) == []
+    assert strip_label_index("#manuell\nElis Niemi") == "#manuell\nElis Niemi"
+
+
+# --------------------------------------------------------------------------
+# 7. Cross-path agreement — the actual invariant
 # --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("marker", MARKER_FORMS)

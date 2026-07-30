@@ -508,8 +508,17 @@ def extract_face_labels(labels: list[str | dict[str, Any]]) -> list[str]:
     """Tar ut alla personnamn från en labels_per_attempt-lista.
 
     Ignore markers are filtered via :func:`core.labels.is_ignore_name`, the
-    shared vocabulary. Only labels carrying the ``#N\\n`` prefix are considered
-    — a bare name is not a review label.
+    shared vocabulary.
+
+    Only labels matching ``#\\d+\\n`` are read, which **drops manually added
+    faces**: those carry the other live prefix form, ``#manuell\\n`` (written by
+    ``add_manual_face`` in ``hitta_ansikten.py``) — 256 names across 222
+    reviewed attempts in the current log. Their names are therefore missing
+    from everything built on this function, including the statistics module's
+    recent-images list, while ``core.naming`` and ``rename_service`` split on
+    the newline and do keep them. The loss is **pre-existing and out of scope
+    for the ignore-marker consolidation**, not a decision taken here; unifying
+    the two prefix forms is a behaviour change tracked in ROADMAP.md.
     """
     persons = []
     for label in labels:
