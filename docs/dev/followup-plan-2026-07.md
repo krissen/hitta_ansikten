@@ -253,7 +253,15 @@ in both directions. `extract_face_labels` gained the `okant` it lacked.
 `tests/test_ignore_markers.py` is the invariant matrix that keeps the class from
 returning: every marker in case and whitespace variants × prefixed and bare ×
 every consolidated path, plus a cross-path agreement test asserting one verdict
-per label. 131 new tests.
+per label. 134 new tests.
+
+Two of those pin a divergence this change deliberately does **not** remove: the
+second live prefix form `#manuell\n<name>`, written by `add_manual_face` for a
+hand-named face. `core/labels.py` knows only `#N`, so `core/naming.py` and
+`rename_service` keep such a name while `extract_face_labels` drops it — 256
+names across 222 used attempts in the current corpus, of 274 `#manuell` labels
+in all, which is every label that is not `#N`. Pre-existing, documented in both
+docstrings, and tracked in ROADMAP as its own behaviour-changing PR.
 
 This closes **all of Phase 1** — 1.1 landed as #254–#262, 1.2 as #263, and 1.3
 here. Phase 2 is next.
