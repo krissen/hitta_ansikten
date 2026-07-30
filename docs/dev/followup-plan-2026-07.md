@@ -168,6 +168,64 @@ exact bug that took CI down on 2026-07-18.
 Two shapes work: a root config that points at the same rule set, or a second CI
 step for `shared/`. Either is fine; the mirroring is what matters.
 
+**Done** — root shape, with the rule set *inherited* rather than mirrored by
+hand: `ruff.toml` in the repo root is one line, `extend =
+"backend/pyproject.toml"`, and CI gains a `ruff check .` step run from the repo
+root in the backend job. The step lints `.` rather than an enumerated `shared/`
+deliberately: enumeration is the same drift that caused this phase — a new
+top-level directory would be silently unlinted again. From the root it sweeps 148
+files (149 under 0.16.0, which counts `ruff.toml` itself), all of `backend/` plus
+`shared/`, clean on both versions in ~20 ms. `backend/` being swept twice is not a
+duplicate check to remove: the backend step runs with `backend/` as the invocation
+root, which is the shape developers use locally, and the root step is the drift
+guard. Inheriting satisfies the "never fall back to the
+default" requirement without creating a second `select` list to keep in sync —
+the next rule adoption in `backend/pyproject.toml` covers `shared/` in the same
+edit. That the inherited set really applies is verified by a negative test rather
+than assumed: an injected `List[int]` annotation reports `UP006`/`UP035`, which
+are **not** in ruff's default set, plus `F401`/`E402` — 5 findings, exit 1, on
+both 0.15.20 and 0.16.0. The inheritance was then checked against a *later*
+adoption rather than only the set that existed when it was written: with 1.1e
+merged, `DTZ005` appears in the root config's enabled rules without `ruff.toml`
+being touched, and an injected `datetime.now()` in `shared/` is reported from the
+root on both versions. The `--config backend/pyproject.toml` shape was measured
+too and also works, but leaves the trap open for anyone running ruff locally or
+through an editor from the root, where no flag is passed. Three things worth
+knowing for later:
+
+- **`backend/` is unaffected, and that is measured, not argued.** Ruff resolves
+  each file against the nearest configuration, so `backend/pyproject.toml` still
+  wins there: `ruff check . --show-settings` in `backend/` is byte-identical
+  before and after the root config exists (438 lines, `project_root` unchanged).
+- **Relative globs in an inherited config resolve against the directory of the
+  file that *defines* them.** `per-file-ignores` for `"api/server.py"` in
+  `backend/pyproject.toml` resolves to `<root>/backend/api/server.py` even when
+  ruff is invoked from the repo root (`--show-settings`:
+  `absolute_matcher = …/backend/api/server.py`), and it keeps working: a decoy
+  `<root>/api/server.py` with a deliberate `E402` **is** reported on both
+  versions, while `backend/api/server.py` stays exempt. The inherited
+  `extend-exclude` behaves the same way — a probe file under
+  `backend/preprocessed_cache/` is still excluded from a root-level run. So
+  backend-relative entries in the backend config are safe to add; they mean the
+  same thing from either root. **`--config` is the shape that differs**: passing
+  `--config backend/pyproject.toml` resolves those globs against the working
+  directory instead (`<root>/api/server.py`), which **inverts which file is
+  protected**: run from the root, `backend/api/server.py` loses its exemption and
+  its two deliberate `E402` are reported on both versions, while the decoy would
+  be the file exempted. That is the strongest reason the root config was chosen
+  over the flag. One setting genuinely does follow the
+  invocation root: `linter.src` becomes `<root>` + `<root>/src`, which is inert
+  here (no first-party imports are resolved from the root).
+- **A root-level run does sweep Python placed anywhere not excluded, `frontend/`
+  included** — verified with a probe file, which was reported. There is no Python
+  under `frontend/` today, so the step is green; if a build helper lands there it
+  gets the same rule set, which is the intent.
+
+The shebang and the 100644 mode on `generate_schemas.py` are left alone
+deliberately: the documented invocation is `python shared/generate_schemas.py`,
+never `./generate_schemas.py`, and `EXE001` is outside the locked set. The bug
+was the fallback, not the file.
+
 ### 1.3 Ignore-marker consolidation
 
 Four mechanisms filter the same concept — labels meaning "this is not a person":

@@ -1,0 +1,29 @@
+# Root ruff configuration — exists so that Python outside `backend/` is linted
+# at all. `shared/shared_types.py` and `shared/generate_schemas.py` are real
+# project source, but the rule set lives in `backend/pyproject.toml`, which ruff
+# only discovers when run with `backend/` as its root.
+#
+# CI runs `ruff check .` from the repo root against this file (see
+# .github/workflows/ci.yml), so *any* Python outside the excluded directories is
+# covered — a new top-level directory cannot become silently unlinted the way an
+# enumerated `ruff check shared/` would allow. Files under `backend/` are swept
+# too and are linted through their own configuration, which is why the backend
+# step still exists: it is the invocation shape developers use locally.
+#
+# `extend` rather than a copied rule list: the locked `select` in
+# `backend/pyproject.toml` stays the single source of truth, so adopting a rule
+# there covers `shared/` in the same edit — there is no second list to drift.
+#
+# Without this file, a root-level `ruff check` finds no configuration and falls back
+# to ruff's *default* rule set, which is version-dependent: 0.16.0 reports
+# EXE001 on `generate_schemas.py:1` (shebang on a non-executable file) while
+# 0.15.20 does not. That fallback is what took CI down on 2026-07-18. The
+# shebang stays and the file mode is left at 100644 deliberately — the
+# documented invocation is `python shared/generate_schemas.py`, never
+# `./generate_schemas.py`, and EXE001 is outside the locked set.
+#
+# Files under `backend/` are unaffected: ruff resolves each file against the
+# nearest configuration, and `backend/pyproject.toml` still wins there — including
+# its `per-file-ignores`, whose relative globs resolve against the directory of
+# the file that *defines* them (`backend/`), not against the invocation root.
+extend = "backend/pyproject.toml"
