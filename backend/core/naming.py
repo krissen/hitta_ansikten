@@ -14,18 +14,9 @@ import unicodedata
 from pathlib import Path
 
 from core.db import get_file_hash, load_attempt_log
+from core.labels import is_ignore_name
 
 logger = logging.getLogger(__name__)
-
-# Label markers that mean "this face is not a person" — the reviewer skipped it,
-# or the identity is unknown. Compare case-folded. ``okant`` is the ASCII
-# spelling of ``okänt``; both occur in the log.
-#
-# This is the canonical set. Near-copies still exist elsewhere (``core/db.py``,
-# ``api/services/rename_service.py``, ``api/services/statistics_service.py``)
-# and they do not all agree — ``db.py`` omits ``okant``. Consolidating them
-# changes application behaviour and belongs in its own change.
-IGNORE_MARKERS: frozenset[str] = frozenset({"ignorerad", "ign", "okänt", "okant"})
 
 
 def extract_prefix_suffix(fname: str) -> tuple[str | None, str | None]:
@@ -128,7 +119,7 @@ def collect_persons_for_files(
                         label = lbl["label"] if isinstance(lbl, dict) else lbl
                         if "\n" in label:
                             namn = label.split("\n", 1)[1]
-                            if namn.lower() not in IGNORE_MARKERS:
+                            if not is_ignore_name(namn):
                                 persons.append(namn)
                     if persons:
                         if fh:

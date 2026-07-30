@@ -13,6 +13,8 @@ from typing import Any
 import numpy as np
 from xdg.BaseDirectory import xdg_data_home
 
+from core.labels import is_ignore_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -503,7 +505,12 @@ def load_processed_files() -> list[dict[str, Any]]:
 
 
 def extract_face_labels(labels: list[str | dict[str, Any]]) -> list[str]:
-    """Tar ut alla personnamn från en labels_per_attempt-lista."""
+    """Tar ut alla personnamn från en labels_per_attempt-lista.
+
+    Ignore markers are filtered via :func:`core.labels.is_ignore_name`, the
+    shared vocabulary. Only labels carrying the ``#N\\n`` prefix are considered
+    — a bare name is not a review label.
+    """
     persons = []
     for label in labels:
         if isinstance(label, dict):
@@ -511,7 +518,7 @@ def extract_face_labels(labels: list[str | dict[str, Any]]) -> list[str]:
         match = re.match(r"#\d+\n(.+)", label)
         if match:
             name = match.group(1).strip()
-            if name.lower() not in {"ignorerad", "okänt", "ign"}:
+            if not is_ignore_name(name):
                 persons.append(name)
     return persons
 

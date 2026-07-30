@@ -58,6 +58,7 @@ from cli_image import (
 )
 from cli_matching import best_matches, get_face_match_status, label_preview_for_encodings
 from core.attempts import log_attempt_stats
+from core.labels import CANONICAL_IGNORE_MARKER, is_ignore_name
 from core.naming import (
     build_new_filename,
     collect_persons_for_files,
@@ -489,7 +490,7 @@ def user_review_encodings(
                     "created_at": datetime.now().astimezone().isoformat(),
                     "encoding_hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()
                 })
-                labels.append({"label": f"#{i+1}\nignorerad", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
+                labels.append({"label": f"#{i+1}\n{CANONICAL_IGNORE_MARKER}", "hash": hashlib.sha1(normalized_encoding.tobytes()).hexdigest()})
                 break
             elif action == "name":
                 name = best_name if best_name else input_name(list(known_faces.keys()))
@@ -625,7 +626,7 @@ def remove_encodings_for_file(
             removed += 1
     # Ta bort från known_faces
     for hashval, namn in labels_by_hash.items():
-        if namn and namn != "ignorerad" and namn in known_faces:
+        if namn and not is_ignore_name(namn) and namn in known_faces:
             idx_to_del = None
             for idx, enc in enumerate(known_faces[namn]):
                 enc_hash = hash_encoding(enc)

@@ -28,6 +28,7 @@ from core.attempts import log_attempt_stats
 from core.config import load_config
 from core.db import BASE_DIR, get_file_hash
 from core.files import RAW_EXTENSIONS
+from core.labels import CANONICAL_IGNORE_MARKER
 from core.matching import _get_backend_thresholds
 from core.quality import GateConfig, QualitySignals, crop_sharpness, evaluate
 from face_backends import create_backend
@@ -1352,7 +1353,7 @@ class DetectionService:
         for face in sorted(reviewed_faces, key=lambda f: f.get('face_index', 0)):
             face_index = face.get('face_index', 0)
             if face.get('is_ignored'):
-                label = f"#{face_index + 1}\nignorerad"
+                label = f"#{face_index + 1}\n{CANONICAL_IGNORE_MARKER}"
             elif face.get('person_name'):
                 label = f"#{face_index + 1}\n{face['person_name']}"
             else:

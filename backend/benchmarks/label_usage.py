@@ -40,10 +40,14 @@ from pathlib import Path
 DEFAULT_LOG = Path("~/.local/share/faceid/attempt_stats.jsonl").expanduser()
 
 try:
-    # Reuse the backend's canonical ignore-marker set when available.
-    from core.naming import IGNORE_MARKERS
+    # Reuse the backend's canonical ignore-marker vocabulary when available.
+    from core.labels import CANONICAL_IGNORE_MARKER, IGNORE_MARKERS, is_ignore_name
 except ImportError:  # pragma: no cover - fallback if run outside the backend tree
     IGNORE_MARKERS = frozenset({"ignorerad", "ign", "okänt", "okant"})
+    CANONICAL_IGNORE_MARKER = "ignorerad"
+
+    def is_ignore_name(name: str) -> bool:
+        return name.strip().lower() in IGNORE_MARKERS
 
 # The label the reviewer picks when a detected face should not be enrolled.
 # It is an *action*, not a person, and is counted separately everywhere.
@@ -52,7 +56,7 @@ except ImportError:  # pragma: no cover - fallback if run outside the backend tr
 # occurs in the current corpus, but a log carrying "ign"/"okänt"/"okant" would
 # otherwise count them as people, inflating both the name count and top-N
 # coverage.
-IGNORE_LABEL = "ignorerad"
+IGNORE_LABEL = CANONICAL_IGNORE_MARKER
 
 # A review outcome of "ok" means the attempt was accepted. Anything else
 # (retry, skipped, no_faces, all_ignored) is a review that did not land
@@ -79,7 +83,7 @@ def label_name(label: dict | str) -> str:
     if not isinstance(text, str):
         return ""
     name = text.split("\n")[-1].strip()
-    if name.lower() in IGNORE_MARKERS:
+    if is_ignore_name(name):
         return IGNORE_LABEL
     return name
 
