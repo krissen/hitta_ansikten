@@ -303,22 +303,32 @@ beforeEach(() => {
 afterEach(async () => {
   // Settle whatever the last render scheduled, while the mocks still work.
   //
-  // React commits the DOM before it runs passive effects, so a `waitFor` that
-  // settles on rendered output can return in the window between the two — the
-  // renamed row is on screen, the effect it triggered has not run yet. The test
-  // then ends with a passive effect pending, and that effect commits during
-  // teardown: after this hook's `vi.restoreAllMocks()` has stripped
-  // `api.post`, and inside React's flush during Testing Library's cleanup
-  // (registered at import time, so Vitest's reverse hook order runs it *after*
-  // this one). `api.post(...)` then returns undefined and the file-stats effect
-  // at FileQueueModule.jsx:263 throws `undefined.then` — which is what turned
-  // dev red, intermittently and only under load, while every PR check was green.
+  // Work a test leaves behind can land outside any act() scope — React
+  // schedules it on its own Scheduler macrotask — and whether it lands before or
+  // after the test body ends is exactly what CPU contention shifts. (It is NOT
+  // that `waitFor` returns between commit and the passive-effect flush: that was
+  // the first theory, and instrumenting it disproved it — Testing Library's
+  // asyncAct flushes the effect before `waitFor` returns, every time.)
   //
-  // Draining here fixes the ordering rather than the symptom: the effects run
-  // against a live transport, exactly as they do in the app. It is the same
+  // When it lands after, it commits during teardown: after this hook's
+  // `vi.restoreAllMocks()` has stripped `api.post`, and inside React's flush
+  // during Testing Library's cleanup (registered at import time, so Vitest's
+  // reverse hook order runs it *after* this one). `api.post(...)` then returns
+  // undefined and the file-stats effect at FileQueueModule.jsx:263 throws
+  // `undefined.then` — which is what turned dev red, intermittently and only
+  // under load, while every PR check was green.
+  //
+  // Draining here fixes the ordering rather than the symptom: the work runs
+  // against a live transport, exactly as it does in the app. It is the same
   // hazard the re-armed apiClient mocks above address from the other end, and
   // the same one the culling Cmd+Z test handles per-test — done once here, so
   // no future test in this file has to remember it.
+  //
+  // One caveat worth knowing before relying on it: settle() is a single
+  // macrotask. It drains queued work but deliberately does not wait for a
+  // promise that is genuinely still pending. Every api mock in this file
+  // resolves immediately, so that is enough — a mock that resolved on a timer
+  // would reopen this class.
   await settle();
   vi.restoreAllMocks();
 });

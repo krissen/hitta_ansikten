@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import { useDecodedImage } from '../src/renderer/hooks/useDecodedImage.js';
 
 // jsdom's HTMLImageElement never fires load/error on its own, and there is no
@@ -39,7 +40,19 @@ beforeEach(() => {
   bitmaps = [];
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Drain before the fakes go away — same class as the other component suites,
+  // with the image decoder as the transport instead of api.post. Work a test
+  // leaves behind can land outside any act() scope (React schedules it on its
+  // own Scheduler macrotask), and whether it lands before or after the test body
+  // ends is what CPU contention shifts. Landing after means it runs once
+  // globalThis.Image and createImageBitmap are already deleted, and it throws
+  // where no test can see it.
+  //
+  // settle() is a single macrotask: it drains queued work but deliberately does
+  // not wait for a promise that is genuinely still pending. The fakes here are
+  // driven by explicit fire helpers, so that is enough.
+  await settle();
   delete globalThis.Image;
   delete globalThis.createImageBitmap;
   vi.restoreAllMocks();

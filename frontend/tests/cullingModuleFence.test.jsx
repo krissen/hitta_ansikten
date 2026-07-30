@@ -142,14 +142,20 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  // Drain before the mocks go away. React commits the DOM before it runs
-  // passive effects, so a wait that settles on rendered output can return with
-  // an effect still pending; it then commits during teardown — after
+  // Drain before the mocks go away. Work a test leaves behind can land outside
+  // any act() scope — React schedules it on its own Scheduler macrotask — and
+  // whether it lands before or after the test body ends is exactly what CPU
+  // contention shifts. Landing after means it commits during teardown: after
   // vi.restoreAllMocks() here, and inside Testing Library's cleanup, which
   // Vitest's reverse hook order runs after this hook. The transport is gone by
   // then, and the effect throws where no test can see it. Draining here settles
-  // those effects while their mocks still work. Same hazard that took dev red
+  // that work while the mocks still function. Same hazard that took dev red
   // through fileQueueModule.test.jsx.
+  //
+  // settle() is one macrotask: it drains queued work, but deliberately does not
+  // wait for a promise that is genuinely still pending. Every api mock in these
+  // files resolves immediately, so that is enough today — a mock that resolves
+  // on a timer would reopen this.
   await settle();
   global.fetch = originalFetch;
   vi.restoreAllMocks();
