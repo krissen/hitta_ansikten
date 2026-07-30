@@ -364,17 +364,32 @@ prints on a healthy run, and anything that does print is genuinely halfway to
 timing out. If work here makes tests faster, that threshold should come down with
 them.
 
-### 3.3 `PreferencesManager.load()` does not persist migration
+### 3.3 `PreferencesManager.load()` does not persist migration — **Done**
 
-`load()` never writes back the migrated result and `mergeWithDefaults` copies the
-stored version over the default, so an install stays at its old version and
-re-enters `migrate()` on every launch until an unrelated write happens to save.
+`load()` never wrote back the migrated result and `mergeWithDefaults` copies the
+stored version over the default, so an install stayed at its old version and
+re-entered `migrate()` on every launch until an unrelated write happened to save.
 
 Harmless while `migrate()` is a pure merge — which it is — but the method is
 documented as the seam for future per-version steps, and the first
-non-idempotent one will run repeatedly. The fix (`save()` after migrating)
-changes when preferences first touch disk, which is why it is its own PR and not
+non-idempotent one would have run repeatedly. The fix (`save()` after migrating)
+changes when preferences first touch disk, which is why it was its own PR and not
 a line in someone else's.
+
+**Done** — `load()` calls `this.save()` immediately after `migrate()`. Two
+decisions worth carrying forward. **Only the migration branch writes:** a payload
+already at the current version is merged in memory and left alone on disk, so an
+ordinary launch costs no write; writing unconditionally after `load()` would have
+been simpler but turned every start into a storage write with nothing changed.
+The fresh-install branch (no stored payload) is untouched and still writes
+nothing until the user saves. **Error handling is inherited from `save()`**,
+which catches, logs and returns `false` — `load()` runs from the constructor, so
+a throw there would take the singleton with it; a read-only or full backend now
+degrades to the old behaviour (migration applies in memory, the version stays put
+on disk, the step repeats next start) instead of breaking startup. The idempotence
+requirement on a future per-version step therefore remains, for the weaker reason.
+Frontend suite **927 → 929 passed** across 96 files, `npm run build:workspace`
+clean.
 
 ---
 

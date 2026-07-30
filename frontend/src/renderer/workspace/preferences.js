@@ -202,6 +202,12 @@ export class PreferencesManager {
       if (parsed.version !== this.version) {
         debug('Preferences', `Migrating from v${parsed.version} to v${this.version}`);
         this.preferences = this.migrate(parsed);
+        // Persist the migrated result (save() stamps the current version), so a
+        // migration runs once per install rather than on every launch. Only this
+        // branch writes: an already-current payload is merged in memory and left
+        // alone on disk. save() swallows its own errors, so a read-only or full
+        // storage backend degrades to the old behaviour instead of failing load.
+        this.save();
       } else {
         // Merge with defaults to handle new keys
         this.preferences = this.mergeWithDefaults(parsed);
@@ -343,12 +349,10 @@ export class PreferencesManager {
     // step is needed yet; this is where one would go when a future version has
     // to reshape or rename a stored value.
     //
-    // Any step added here MUST be idempotent. load() does not persist the
-    // migrated result and mergeWithDefaults copies the stored version over the
-    // default, so a v1 install stays at version 1 — and re-enters this method on
-    // every launch — until some unrelated write happens to save. A step that is
-    // not safe to repeat would run again each start. See ROADMAP.md (Teknisk
-    // skuld > Frontend) for the real fix.
+    // load() persists the result of this method, so a step added here runs once
+    // per install rather than on every launch. It should still be idempotent:
+    // if the write fails (read-only or full storage) the install stays at its
+    // old version and the step is repeated on the next start.
     debug('Preferences', 'No per-version step needed, merging with defaults');
     return this.mergeWithDefaults(old);
   }

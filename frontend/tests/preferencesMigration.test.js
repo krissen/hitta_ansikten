@@ -51,13 +51,54 @@ describe('preferences v1 -> v2 (external editor)', () => {
     expect(prefs.get('paths.externalEditor')).toBe('Adobe Lightroom Classic');
   });
 
-  it('stamps the current version on the next save, not on load', () => {
-    // Pre-existing behaviour: mergeWithDefaults copies the stored version over
-    // the default, so the bump lands when something is written back.
+  it('writes the migrated payload back to storage, at the current version', () => {
     const prefs = loadStored({ version: 1, paths: { rawRoot: '~/Bilder/raw' } });
-    expect(prefs.get('version')).toBe(1);
-    prefs.save();
     expect(prefs.get('version')).toBe(2);
+
+    // On disk, not just in memory: a second manager must not re-migrate.
+    const onDisk = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    expect(onDisk.version).toBe(2);
+    expect(onDisk.paths.rawRoot).toBe('~/Bilder/raw');
+    expect(onDisk.paths.externalEditor).toBe(DEFAULT_EXTERNAL_EDITOR);
+  });
+
+  it('leaves an already-current payload untouched on disk', () => {
+    const stored = { version: 2, paths: { rawRoot: '~/Bilder/raw' } };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+
+    let writes = 0;
+    const setItem = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = (k, v) => {
+      writes += 1;
+      setItem(k, v);
+    };
+    try {
+      new PreferencesManager();
+    } finally {
+      localStorage.setItem = setItem;
+    }
+
+    expect(writes).toBe(0);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY))).toEqual(stored);
+  });
+
+  it('survives a storage backend that refuses writes', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 1 }));
+
+    const setItem = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = () => {
+      throw new Error('QuotaExceededError');
+    };
+    let prefs;
+    try {
+      prefs = new PreferencesManager();
+    } finally {
+      localStorage.setItem = setItem;
+    }
+
+    // The migration still applies in memory; only the write back is lost.
+    expect(prefs.get('paths.externalEditor')).toBe(DEFAULT_EXTERNAL_EDITOR);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).version).toBe(1);
   });
 
   it('preserves the rest of a v1 payload', () => {
