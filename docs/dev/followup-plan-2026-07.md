@@ -540,7 +540,7 @@ written, three consecutive runs; rebasing onto dev picked up the tests merged
 while the branch was open, and both sides moved together to 938.) `npx eslint
 tests/` clean.
 
-### 3.2 Contention cost profile
+### 3.2 Contention cost profile — **Done**
 
 `testTimeout` is 20 s because component tests measure 3–6 s under heavy CPU
 sharing instead of 10–100 ms. That is a budget, not an optimisation.
@@ -560,6 +560,57 @@ and 5/10 on a lighter machine — same method, both 0/10 after #256.
 prints on a healthy run, and anything that does print is genuinely halfway to
 timing out. If work here makes tests faster, that threshold should come down with
 them.
+
+**Done** — the answer is `pool: 'threads'`, and the thresholds came down with it.
+Measurements and their conditions are in CHANGELOG.md; what belongs here is what
+the numbers settled, including two candidates that are now closed.
+
+**The profile.** Test bodies are cheap: 9.6 s of summed file execution across 96
+files, median file 0.03 s, heaviest 1.37 s. jsdom construction is the cost —
+163–304 ms per file, against 0 ms under the node environment. The plan's 487 s
+figure is per *contended* run, not per serial run: serially the summed
+`environment` is ~31 s, and under the ten-parallel recipe it is 422–464 s, which
+is the same measurement the 487 s came from.
+
+**What was rejected, so it is not re-litigated.** `isolate: false` fails 51 tests
+— the suite's files install their own globals and a shared environment leaks them
+between files; it would need a test-wide rewrite, not a config flag. The
+environment split (node for files that never touch the DOM) is real but small:
+exactly 32 of 96 files pass under `--environment node`, worth ~7 s of summed
+environment ≈ 0.9 s of wall clock across eight workers, against 3.5 s for the
+pool change — and the 32 are not expressible as a glob, so it would mean a
+hand-maintained file list that drifts. Revisit only if the file count grows
+enough to change that arithmetic.
+
+**What decided it was stability, not speed.** Ten full suites against each other:
+the fork pool produced `Test timed out in 20000ms` in 5 of 20 runs (66 tests over
+10 s, worst 25–28 s, every failure a timeout rather than an assertion), the
+thread pool none in 30 runs — one of those arms under a *higher* background load
+than the fork arm ever saw. Note the fork arm's redness is itself load-dependent
+and varies between batches (5/10 in one, 0 timeouts in the next), which is the
+instability rather than a measurement fault.
+
+Those arms were measured before the `fileQueueModule` teardown race was fixed, and
+that race — not the pool — was the one red run left in the thread arms. The recipe
+was therefore run once more on the rebased branch, with the race gone: **0 of 10
+red, zero timeouts, and no test over the new 7.5 s threshold**. The result is now
+clean rather than clean-with-an-exception.
+
+**The thresholds now follow measurement.** Under the same recipe the per-test
+distribution is p50 1.11 s, p90 2.41 s, p99 4.29 s, max 6.17 s (1605 tests over
+500 ms in ten runs), so `testTimeout`/`hookTimeout` are 15 s — 2.4x the worst
+observed case, deliberately not the maximum, because CI runners are smaller than
+the machine measured on — and `slowTestThreshold` is 7.5 s, still half the budget.
+At 10 s against a 20 s budget the guard could never fire; both moved together so
+the relationship survives. `--slowTestThreshold=500` is how the distribution above
+was produced, and is the way to take it again.
+
+**Method note for whoever measures next.** The machine was not quiet — a foreign
+CPU-bound process held roughly one core throughout, and load average climbed from
+~12 to ~270 during the parallel runs. That is why the speed comparison is three
+*alternating* pairs rather than two separate series: paired arms meet the same
+background load, unpaired ones do not, and on a shared machine the difference is
+larger than the effect being measured.
 
 ### 3.3 `PreferencesManager.load()` does not persist migration — **Done**
 
