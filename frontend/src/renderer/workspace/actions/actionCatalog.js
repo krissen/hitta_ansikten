@@ -10,12 +10,13 @@
  * pipeline steps already follow (WORKFLOW_STEPS in workflowSteps.js): one
  * source, everything else derived.
  *
- * Scope, stated plainly: the catalog currently covers the actions reachable from
- * those four keyboard listeners. It does NOT yet cover the app menu
- * (src/main/menu.js → `menu-command` IPC → flexlayout/menuCommands.js), which is
- * a third way to trigger actions and carries roughly two dozen menu-only ones
- * (Cmd+S save-all, theme switching, layout templates, the Cmd+Shift+<letter>
- * module accelerators). Taking those in is separate work; see ROADMAP.md.
+ * Scope, stated plainly: the catalog covers the actions reachable from those four
+ * keyboard listeners AND from the app menu (src/main/menu.js → `menu-command`
+ * IPC → flexlayout/menuCommands.js) — the third trigger path, which carries some
+ * two dozen menu-only actions (Cmd+S save-all, theme switching, layout templates,
+ * the Cmd+Shift+<letter> module accelerators). Every command menu.js sends is
+ * declared here; the catalog test fails if one is added without an entry, or if a
+ * declared command has no handler at all.
  *
  * Pure data: no i18n resolution (`titleKey`, not `t()`), no React, no imports
  * with side effects — so it can be unit-tested and read by non-UI code.
@@ -28,7 +29,10 @@
  *   section   Shortcuts-help section the action is listed under (SECTIONS below).
  *   titleKey  i18n key for the human-readable label. Not resolved here.
  *   keys      Keyboard bindings, as the help overlay spells them. A '×2' suffix
- *             means a double-tap of that key (e.g. '+×2').
+ *             means a double-tap of that key (e.g. '+×2'). Empty for a menu-only
+ *             action with no accelerator (Papperskorg, the theme entries): such an
+ *             action still has a binding, it is just `menuCommand` rather than a
+ *             key. One of the two must be non-empty.
  *   kind      'trigger' — discrete action.
  *             'range'   — absolute value picks among N targets (a fader).
  *             'delta'   — relative change, signed (a knob).
@@ -39,7 +43,7 @@
  *             'destructive' — mounted AND deliberately left out of default
  *                             mappings (it deletes things).
  *   route     How the action is performed, or null when it is not reachable from
- *             either bus today (see "Unrouted actions" below). Two buses, no new
+ *             any bus today (see "Unrouted actions" below). Three buses, no new
  *             mechanism:
  *               { via: 'emit', event }            — moduleAPI.emit(event). The
  *                                                   event must have a live
@@ -53,6 +57,18 @@
  *                                                   (workspaceCommands.js).
  *                                                   `intent.type` must be one the
  *                                                   router handles.
+ *               { via: 'menu', command }          — the menu-command table
+ *                                                   (menuCommands.js) performs it
+ *                                                   itself, with a direct call on
+ *                                                   its workspace ctx and no bus
+ *                                                   underneath: theme switching,
+ *                                                   the layout-geometry helpers,
+ *                                                   the file dialog, the welcome
+ *                                                   card. `command` is the
+ *                                                   `menu-command` string, or an
+ *                                                   array where one action has one
+ *                                                   command per target (the four
+ *                                                   move-to-new-tabset directions).
  *               { …, fills: ['moduleId'] }        — the intent is a template: the
  *                                                   listed fields are supplied by
  *                                                   the caller (e.g. from a
@@ -61,16 +77,31 @@
  *             A property with one event per state (boxes on/off, auto-center,
  *             file info) is two actions, one per state — the bus has no toggle
  *             event, and the keyboard key that toggles is listed on both.
+ *   menuCommand
+ *             The `menu-command` string(s) the app menu sends for this action,
+ *             where that is not already implied by `route`. Two cases need it, and
+ *             only those two:
+ *               - a 'dispatch' action (the menu item builds an intent through
+ *                 menuCommands.js, so the command name is nothing the intent
+ *                 mentions: 'open-review-module' → open-module review-module);
+ *               - a menu command with no handler at all, which reaches modules via
+ *                 the broadcast fallback but that nothing listens for.
+ *             An 'emit' action needs no `menuCommand`: the menu sends the event
+ *             name verbatim and menuCommands' fallback broadcasts it, so
+ *             `route.event` already IS the command. A 'menu' action carries it in
+ *             `route.command`. String or array, same as `route.command`.
  *   help      false to keep the action out of the shortcuts-help overlay, or an
  *             override object for how its row renders: { keys, sep }. `keys`
  *             overrides the row's key list (used where one help row covers an
  *             action's primary bindings only, or covers a pair of actions);
  *             `sep` is the joiner between keys ('+' when omitted).
  *
- * Unrouted actions (`route: null`) are real actions that no bus can trigger yet:
- * they are implemented inline in a keyboard listener. Migrating those four
- * listeners onto this catalog — and giving the unrouted actions a bus target — is
- * deliberately a separate change; this file does not touch them.
+ * Unrouted actions (`route: null`) are real actions that no bus can trigger yet.
+ * Two kinds, and they need opposite fixes: most are implemented inline in a
+ * keyboard listener, and migrating those four listeners onto this catalog — giving
+ * each action a bus target — is deliberately a separate change (see phase 2.3).
+ * The rest are menu items with a `menuCommand` that nothing handles at all: those
+ * are defects, listed in KNOWN_DEAD_MENU_COMMANDS below, not work in progress.
  */
 
 /**
@@ -94,6 +125,37 @@ export const ACTION_KINDS = ['trigger', 'range', 'delta'];
 /** Allowed `scope` values. */
 export const ACTION_SCOPES = ['global', 'module', 'destructive'];
 
+/** Allowed `route.via` values — the buses an action can be performed on. */
+export const ACTION_ROUTE_BUSES = ['emit', 'dispatch', 'menu'];
+
+/**
+ * Menu commands the app menu sends that nothing handles: no entry in
+ * menuCommands.js and no module subscribed to the broadcast fallback, so the item
+ * is visible, sometimes carries an accelerator, and does nothing when picked.
+ *
+ * They are catalogued as ordinary actions — they are menu items the user can see —
+ * and listed here so the reachability test stays green while they exist. The list
+ * is a defect record, not a design: every entry is a menu item to wire up or
+ * remove. See phase 2.2 in docs/dev/followup-plan-2026-07.md.
+ *
+ * TODO(2.2): empty this list and delete it. `reload-database` was the known one;
+ * the other seven surfaced when this test was written.
+ * @type {readonly string[]}
+ */
+export const KNOWN_DEAD_MENU_COMMANDS = Object.freeze([
+  // Arkiv ▸ Ladda om databas (Cmd+R) — the accelerator makes it look wired up.
+  'reload-database',
+  // Fönster ▸ Rutnätsförval (Cmd+Shift+1..5) — five items, one dead mechanism.
+  'grid-preset-50-50',
+  'grid-preset-60-40',
+  'grid-preset-70-30',
+  'grid-preset-30-70',
+  'grid-preset-40-60',
+  // Fönster ▸ Exportera/Importera layout… — the ellipsis promises a dialog.
+  'export-layout',
+  'import-layout',
+]);
+
 /**
  * Every user-triggerable action, grouped by section in display order.
  * @type {{
@@ -106,7 +168,9 @@ export const ACTION_SCOPES = ['global', 'module', 'destructive'];
  *   scope: 'global' | 'module' | 'destructive',
  *   route: { via: 'emit', event: string, eventDown?: string }
  *         | { via: 'dispatch', intent: object }
+ *         | { via: 'menu', command: string | string[] }
  *         | null,
+ *   menuCommand?: string | string[],
  *   help?: false | { keys?: string[], sep?: string },
  * }[]}
  */
@@ -145,6 +209,183 @@ export const ACTIONS = [
     route: null,
   },
 
+  // Menu-only: Visa ▸ <module>. Each opens one module through the open-module
+  // intent; the Cmd+Shift+<letter> accelerators are the menu's, not a listener's,
+  // and have never been in the shortcuts overlay. `owner` is the module the action
+  // opens (the same reading general.preferences already used); `scope` is 'global'
+  // because opening a module is precisely what you do when it is not mounted.
+  {
+    id: 'nav.openImageViewer',
+    owner: 'image-viewer',
+    section: 'navigation',
+    titleKey: 'modules.image-viewer',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'image-viewer' } },
+    menuCommand: 'open-image-viewer',
+    help: false,
+  },
+  {
+    id: 'nav.openOriginalView',
+    owner: 'original-view',
+    section: 'navigation',
+    titleKey: 'menu.view.openOriginalView',
+    keys: ['Cmd', 'Shift', 'O'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'original-view' } },
+    menuCommand: 'open-original-view',
+    help: false,
+  },
+  {
+    id: 'nav.openLogViewer',
+    owner: 'log-viewer',
+    section: 'navigation',
+    titleKey: 'menu.view.openLogViewer',
+    keys: ['Cmd', 'L'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'log-viewer' } },
+    menuCommand: 'open-log-viewer',
+    help: false,
+  },
+  {
+    id: 'nav.openReviewModule',
+    owner: 'review-module',
+    section: 'navigation',
+    titleKey: 'menu.view.openReviewModule',
+    keys: ['Cmd', 'Shift', 'F'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'review-module' } },
+    menuCommand: 'open-review-module',
+    help: false,
+  },
+  {
+    id: 'nav.openStatistics',
+    owner: 'statistics-dashboard',
+    section: 'navigation',
+    titleKey: 'modules.statistics-dashboard',
+    keys: ['Cmd', 'Shift', 'S'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'statistics-dashboard' } },
+    menuCommand: 'open-statistics-dashboard',
+    help: false,
+  },
+  {
+    // The menu's Cmd+Shift+I opens the module; the router ALSO knows an
+    // 'open-import' handoff intent (CLI launch, with a destination folder). The
+    // menu item is the plain open, so that is what this action declares.
+    id: 'nav.openImport',
+    owner: 'import',
+    section: 'navigation',
+    titleKey: 'modules.import',
+    keys: ['Cmd', 'Shift', 'I'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'import' } },
+    menuCommand: 'open-import',
+    help: false,
+  },
+  {
+    id: 'nav.openRenameNef',
+    owner: 'rename-nef',
+    section: 'navigation',
+    titleKey: 'modules.rename-nef',
+    keys: ['Cmd', 'Shift', 'B'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'rename-nef' } },
+    menuCommand: 'open-rename-nef',
+    help: false,
+  },
+  {
+    id: 'nav.openPlayerCount',
+    owner: 'player-count',
+    section: 'navigation',
+    titleKey: 'modules.player-count',
+    keys: ['Cmd', 'Shift', 'K'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'player-count' } },
+    menuCommand: 'open-player-count',
+    help: false,
+  },
+  {
+    id: 'nav.openCulling',
+    owner: 'culling',
+    section: 'navigation',
+    titleKey: 'modules.culling',
+    keys: ['Cmd', 'Shift', 'G'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'culling' } },
+    menuCommand: 'open-culling',
+    help: false,
+  },
+  {
+    id: 'nav.openTrash',
+    owner: 'trash',
+    section: 'navigation',
+    titleKey: 'menu.view.openTrash',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'trash' } },
+    menuCommand: 'open-trash',
+    help: false,
+  },
+  {
+    id: 'nav.openDatabase',
+    owner: 'database-management',
+    section: 'navigation',
+    titleKey: 'modules.database-management',
+    keys: ['Cmd', 'Shift', 'D'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'database-management' } },
+    menuCommand: 'open-database-management',
+    help: false,
+  },
+  {
+    id: 'nav.openRefineFaces',
+    owner: 'refine-faces',
+    section: 'navigation',
+    titleKey: 'modules.refine-faces',
+    keys: ['Cmd', 'Shift', 'E'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'refine-faces' } },
+    menuCommand: 'open-refine-faces',
+    help: false,
+  },
+  {
+    id: 'nav.openFileQueue',
+    owner: 'file-queue',
+    section: 'navigation',
+    titleKey: 'modules.file-queue',
+    keys: ['Cmd', 'Shift', 'U'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'file-queue' } },
+    menuCommand: 'open-file-queue',
+    help: false,
+  },
+  {
+    id: 'nav.openThemeEditor',
+    owner: 'theme-editor',
+    section: 'navigation',
+    titleKey: 'menu.theme.editor',
+    keys: ['Cmd', 'Shift', 'T'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'theme-editor' } },
+    menuCommand: 'open-theme-editor',
+    help: false,
+  },
+
   // --- Layout ---------------------------------------------------------------
   {
     id: 'layout.switchStep',
@@ -158,6 +399,16 @@ export const ACTIONS = [
     // which marks the intent as a template rather than a malformed one.
     route: { via: 'dispatch', intent: { type: 'open-workflow-step' }, fills: ['moduleId'] },
     scope: 'global',
+    // Fönster ▸ Arbetsflödessteg — one menu item per step, all the same action.
+    // menuCommands.js generates the five handlers from WORKFLOW_STEPS, so this
+    // list is the same order by construction.
+    menuCommand: [
+      'workflow-step-import',
+      'workflow-step-rename',
+      'workflow-step-review',
+      'workflow-step-count',
+      'workflow-step-culling',
+    ],
   },
   {
     id: 'layout.addColumn',
@@ -167,7 +418,7 @@ export const ACTIONS = [
     keys: ['Cmd', 'Shift', ']'],
     kind: 'trigger',
     scope: 'global',
-    route: null,
+    route: { via: 'menu', command: 'layout-add-column' },
   },
   {
     id: 'layout.removeColumn',
@@ -177,7 +428,7 @@ export const ACTIONS = [
     keys: ['Cmd', 'Shift', '['],
     kind: 'trigger',
     scope: 'global',
-    route: null,
+    route: { via: 'menu', command: 'layout-remove-column' },
   },
   {
     id: 'layout.addRow',
@@ -187,7 +438,7 @@ export const ACTIONS = [
     keys: ['Cmd', 'Shift', '}'],
     kind: 'trigger',
     scope: 'global',
-    route: null,
+    route: { via: 'menu', command: 'layout-add-row' },
   },
   {
     id: 'layout.removeRow',
@@ -197,7 +448,7 @@ export const ACTIONS = [
     keys: ['Cmd', 'Shift', '{'],
     kind: 'trigger',
     scope: 'global',
-    route: null,
+    route: { via: 'menu', command: 'layout-remove-row' },
   },
   {
     // In a listener (FlexLayoutWorkspace), never listed in the overlay.
@@ -212,7 +463,9 @@ export const ACTIONS = [
     help: false,
   },
   {
-    // In a listener (FlexLayoutWorkspace), never listed in the overlay.
+    // In a listener (FlexLayoutWorkspace), never listed in the overlay. The menu
+    // has one item per direction (Fönster ▸ Layout), hence four commands for the
+    // one action — the same shape as the arrow-set the keys describe.
     id: 'layout.moveToNewTabset',
     owner: null,
     section: 'layout',
@@ -220,7 +473,113 @@ export const ACTIONS = [
     keys: ['Cmd', 'Alt', '←→↑↓'],
     kind: 'trigger',
     scope: 'global',
+    route: {
+      via: 'menu',
+      command: [
+        'layout-move-new-left',
+        'layout-move-new-right',
+        'layout-move-new-above',
+        'layout-move-new-below',
+      ],
+    },
+    help: false,
+  },
+
+  // Menu-only layout actions. None has ever been in the overlay: they are picked
+  // from Fönster, and the two with accelerators (Cmd+Shift+L, Cmd+Shift+1..5)
+  // were never documented as keyboard shortcuts.
+  {
+    id: 'layout.templateComparison',
+    owner: null,
+    section: 'layout',
+    titleKey: 'menu.window.comparisonMode',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'load-layout', name: 'comparison' } },
+    menuCommand: 'layout-template-comparison',
+    help: false,
+  },
+  {
+    // Labelled "Statistikläge"; the layout it loads is named 'database'.
+    id: 'layout.templateStats',
+    owner: null,
+    section: 'layout',
+    titleKey: 'menu.window.statsMode',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'load-layout', name: 'database' } },
+    menuCommand: 'layout-template-stats',
+    help: false,
+  },
+  {
+    id: 'layout.reset',
+    owner: null,
+    section: 'layout',
+    titleKey: 'menu.window.resetLayout',
+    keys: ['Cmd', 'Shift', 'L'],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'reset-layout' } },
+    menuCommand: 'reset-layout',
+    help: false,
+  },
+  {
+    id: 'layout.resetAll',
+    owner: null,
+    section: 'layout',
+    titleKey: 'menu.window.resetAllLayouts',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'dispatch', intent: { type: 'reset-all-layouts' } },
+    menuCommand: 'reset-all-layouts',
+    help: false,
+  },
+  {
+    // Dead: five menu items, one per split ratio, none of them handled.
+    id: 'layout.gridPreset',
+    owner: null,
+    section: 'layout',
+    titleKey: 'menu.window.gridPresets',
+    keys: ['Cmd', 'Shift', '1-5'],
+    kind: 'range',
+    scope: 'global',
     route: null,
+    menuCommand: [
+      'grid-preset-50-50',
+      'grid-preset-60-40',
+      'grid-preset-70-30',
+      'grid-preset-30-70',
+      'grid-preset-40-60',
+    ],
+    help: false,
+  },
+  {
+    // Dead.
+    id: 'layout.export',
+    owner: null,
+    section: 'layout',
+    titleKey: 'menu.window.exportLayout',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: null,
+    menuCommand: 'export-layout',
+    help: false,
+  },
+  {
+    // Dead.
+    id: 'layout.import',
+    owner: null,
+    section: 'layout',
+    titleKey: 'menu.window.importLayout',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: null,
+    menuCommand: 'import-layout',
     help: false,
   },
 
@@ -504,7 +863,9 @@ export const ACTIONS = [
     keys: ['Cmd', 'O'],
     kind: 'trigger',
     scope: 'global',
-    route: null,
+    // Arkiv ▸ Öppna bild… — menuCommands opens the multi-file dialog itself and
+    // hands the paths to window.fileQueue, so the menu table is the performer.
+    route: { via: 'menu', command: 'open-file' },
   },
   {
     id: 'queue.navigate',
@@ -725,7 +1086,9 @@ export const ACTIONS = [
     keys: ['?'],
     kind: 'trigger',
     scope: 'global',
-    route: null,
+    // Hjälp ▸ Tangentbordsgenvägar (Cmd+/) toggles the same overlay as '?'. The
+    // overlay row keeps listing '?' only, as it always has.
+    route: { via: 'menu', command: 'show-keyboard-shortcuts' },
   },
   {
     id: 'general.reload',
@@ -738,6 +1101,21 @@ export const ACTIONS = [
     route: null,
   },
   {
+    // Arkiv ▸ Ladda om databas. Dead, and its Cmd+R menu accelerator wins over
+    // any renderer keydown, so it is also what makes general.reload above ("Ladda
+    // om fönstret", same key) unreachable. Both halves are 2.2's to settle.
+    id: 'general.reloadDatabase',
+    owner: null,
+    section: 'general',
+    titleKey: 'menu.file.reloadDatabase',
+    keys: ['Cmd', 'R'],
+    kind: 'trigger',
+    scope: 'global',
+    route: null,
+    menuCommand: 'reload-database',
+    help: false,
+  },
+  {
     id: 'general.preferences',
     owner: 'preferences',
     section: 'general',
@@ -746,6 +1124,82 @@ export const ACTIONS = [
     kind: 'trigger',
     scope: 'global',
     route: { via: 'dispatch', intent: { type: 'open-module', moduleId: 'preferences' } },
+    // Three menu items send it: the mac app menu (Cmd+,), the Arkiv menu on
+    // Windows/Linux (Ctrl+,) and Visa ▸ Inställningar (Cmd+Shift+P). One command.
+    menuCommand: 'open-preferences',
+  },
+  {
+    id: 'general.saveAll',
+    owner: 'review-module',
+    section: 'general',
+    titleKey: 'menu.file.saveAll',
+    keys: ['Cmd', 'S'],
+    kind: 'trigger',
+    scope: 'module',
+    // No table entry: menuCommands' fallback broadcasts the command name, and
+    // ReviewModule subscribes to it. The menu is the only trigger there is.
+    route: { via: 'emit', event: 'save-all-changes' },
+    help: false,
+  },
+  {
+    // Bare Escape as a global menu accelerator. ReviewModule discards its pending
+    // edits on it; the culling Escape actions are a separate, module-local
+    // listener (culling.closeMenu and friends above).
+    id: 'general.discardChanges',
+    owner: 'review-module',
+    section: 'general',
+    titleKey: 'menu.file.discard',
+    keys: ['Esc'],
+    kind: 'trigger',
+    scope: 'module',
+    route: { via: 'emit', event: 'discard-changes' },
+    help: false,
+  },
+  {
+    id: 'general.showWelcome',
+    owner: null,
+    section: 'general',
+    titleKey: 'menu.help.showWelcome',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'menu', command: 'show-welcome' },
+    help: false,
+  },
+  {
+    // Visa ▸ Tema ▸ … — three items, three preferences, no accelerators. Handled
+    // by menuCommands calling themeManager directly, so 'menu' is the bus.
+    id: 'general.themeLight',
+    owner: null,
+    section: 'general',
+    titleKey: 'menu.theme.light',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'menu', command: 'theme-light' },
+    help: false,
+  },
+  {
+    id: 'general.themeDark',
+    owner: null,
+    section: 'general',
+    titleKey: 'menu.theme.dark',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'menu', command: 'theme-dark' },
+    help: false,
+  },
+  {
+    id: 'general.themeSystem',
+    owner: null,
+    section: 'general',
+    titleKey: 'menu.theme.followSystem',
+    keys: [],
+    kind: 'trigger',
+    scope: 'global',
+    route: { via: 'menu', command: 'theme-system' },
+    help: false,
   },
   {
     // In a listener (FlexLayoutWorkspace), never listed in the overlay.
@@ -777,4 +1231,29 @@ export function actionsForSection(sectionId) {
  */
 export function getAction(id) {
   return ACTIONS.find((a) => a.id === id);
+}
+
+/**
+ * Every `menu-command` string that triggers an action, from all three places one
+ * can appear: `route.command` (the menu table performs it), `menuCommand` (the
+ * menu is a trigger for an action some other bus performs), and an 'emit' route's
+ * event names — where the menu carries such an action it sends the event name
+ * verbatim, and menuCommands' fallback broadcasts it, so there the event name IS
+ * the command.
+ * @param {typeof ACTIONS[number]} action
+ * @returns {string[]}
+ */
+export function menuCommandsOf(action) {
+  const out = [];
+  const push = (v) => {
+    if (Array.isArray(v)) out.push(...v);
+    else if (typeof v === 'string') out.push(v);
+  };
+  if (action.route?.via === 'menu') push(action.route.command);
+  if (action.route?.via === 'emit') {
+    push(action.route.event);
+    push(action.route.eventDown);
+  }
+  push(action.menuCommand);
+  return out;
 }
