@@ -209,8 +209,11 @@ knowing for later:
   backend-relative entries in the backend config are safe to add; they mean the
   same thing from either root. **`--config` is the shape that differs**: passing
   `--config backend/pyproject.toml` resolves those globs against the working
-  directory instead (`<root>/api/server.py`), which is a second reason the root
-  config was chosen over the flag. One setting genuinely does follow the
+  directory instead (`<root>/api/server.py`), which **inverts which file is
+  protected**: run from the root, `backend/api/server.py` loses its exemption and
+  its two deliberate `E402` are reported on both versions, while the decoy would
+  be the file exempted. That is the strongest reason the root config was chosen
+  over the flag. One setting genuinely does follow the
   invocation root: `linter.src` becomes `<root>` + `<root>/src`, which is inert
   here (no first-party imports are resolved from the root).
 - **A root-level run does sweep Python placed anywhere not excluded, `frontend/`
