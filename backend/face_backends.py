@@ -283,7 +283,7 @@ class InsightFaceBackend(FaceBackend):
                 logger.error(f"[InsightFaceBackend] Captured stderr:\n{stderr_buffer.getvalue()}")
             if stdout_buffer.getvalue():
                 logger.error(f"[InsightFaceBackend] Captured stdout:\n{stdout_buffer.getvalue()}")
-            logger.error(f"[InsightFaceBackend] Failed to import insightface: {e}", exc_info=True)
+            logger.exception(f"[InsightFaceBackend] Failed to import insightface: {e}")
             logger.error("Install with: pip install insightface onnxruntime")
             raise
         except Exception as e:
@@ -292,7 +292,7 @@ class InsightFaceBackend(FaceBackend):
                 logger.error(f"[InsightFaceBackend] Captured stderr:\n{stderr_buffer.getvalue()}")
             if stdout_buffer.getvalue():
                 logger.error(f"[InsightFaceBackend] Captured stdout:\n{stdout_buffer.getvalue()}")
-            logger.error(f"[InsightFaceBackend] Failed to initialize: {e}", exc_info=True)
+            logger.exception(f"[InsightFaceBackend] Failed to initialize: {e}")
             raise
 
     @property

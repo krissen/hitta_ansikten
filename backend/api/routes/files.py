@@ -189,7 +189,7 @@ async def rename_preview(request: RenamePreviewRequest):
             name_map=result["name_map"]
         )
     except Exception as e:
-        logger.error(f"[Files] Error generating rename preview: {e}", exc_info=True)
+        logger.exception(f"[Files] Error generating rename preview: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -222,7 +222,7 @@ async def rename_files(request: RenameExecuteRequest):
             db_entries_updated=result.get("db_entries_updated", 0)
         )
     except Exception as e:
-        logger.error(f"[Files] Error executing rename: {e}", exc_info=True)
+        logger.exception(f"[Files] Error executing rename: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -67,15 +67,16 @@ extend-exclude = [
 # means a new ruff release can no longer silently change which rules apply;
 # adopting new rules is a deliberate edit to this list.
 #
-# The remaining rules ruff 0.16 would add by default (G201, BLE001,
-# DTZ005) are adopted family by family, not at once. `E402` is deliberately
-# absent from that list: it is already part of `E4` above and measures zero
-# findings here, so there is nothing to adopt — do not add it back.
+# The remaining rules ruff 0.16 would add by default (BLE001, DTZ005) are
+# adopted family by family, not at once. `E402` is deliberately absent from
+# that list: it is already part of `E4` above and measures zero findings
+# here, so there is nothing to adopt — do not add it back.
 select = [
     "E4",
     "E7",
     "E9",
     "F",
+    "G201",  # logger.error(..., exc_info=True) -> logger.exception(...)
     "I",
     "LOG015",  # root-logger call; use a module logger
     "RUF100",  # unused `# noqa` directive
