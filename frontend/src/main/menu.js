@@ -172,8 +172,16 @@ function createApplicationMenu(mainWindow) {
         },
         { type: 'separator' },
         {
+          // No accelerator, for the same reason as the two items below: this is
+          // a module-scoped action (only CullingModule subscribes to
+          // open-raw-in-lightroom), and a GLOBAL accelerator for one does
+          // nothing at all outside that module while still consuming the key
+          // everywhere. It used to carry CmdOrCtrl+Shift+L, which collided with
+          // Fönster ▸ Återställ layout — the only duplicated accelerator in this
+          // file, with undefined resolution. Återställ layout keeps the key
+          // because it is genuinely global; inside Gallra spelare the bare 'L'
+          // already triggers this action. Menu item stays for discoverability.
           label: t('menu.file.openInLightroom'),
-          accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
             sendMenuCommand('open-raw-in-lightroom');
           }

@@ -521,8 +521,8 @@ export const ACTIONS = [
     help: false,
   },
   {
-    // Shares Cmd+Shift+L with culling.openLightroom; see the comment there. The
-    // key is listed on both because which one fires is undefined.
+    // Sole owner of Cmd+Shift+L since the collision with the external-editor
+    // item was resolved: this action is global, that one was module-scoped.
     id: 'layout.reset',
     owner: null,
     section: 'layout',
@@ -1045,24 +1045,21 @@ export const ACTIONS = [
     route: null,
   },
   {
-    // Cmd+Shift+L is DOUBLE-BOUND in menu.js — the only duplicated accelerator in
-    // the file. It sits on Arkiv ▸ Öppna original i extern editor (this action)
-    // and on Fönster ▸ Återställ layout (layout.reset). Which of the two fires is
-    // undefined; ROADMAP already tracks the collision and the fix (give one of
-    // them its own key). Both actions therefore list the key: recording it on only
-    // one would be a claim about the resolution order that nobody has verified,
-    // and dropping it from both would hide a binding the user really can press.
-    // The help row keeps listing 'L' only, as it always has.
+    // The Cmd+Shift+L collision is resolved: Arkiv ▸ Öppna original i extern
+    // editor lost that accelerator, layout.reset kept it. This action is
+    // module-scoped (CullingModule is the only subscriber), so a global
+    // accelerator did nothing outside Gallra spelare while consuming the key
+    // everywhere — and inside it, bare 'L' already triggers this. The menu item
+    // remains, without an accelerator, for discoverability.
     id: 'culling.openLightroom',
     owner: 'culling',
     section: 'culling',
     titleKey: 'shortcuts.desc.culling.openLightroom',
-    keys: ['L', 'Cmd+Shift+L'],
+    keys: ['L'],
     kind: 'trigger',
     scope: 'module',
     route: { via: 'emit', event: 'open-raw-in-lightroom' },
     menuCommand: 'open-raw-in-lightroom',
-    help: { keys: ['L'] },
   },
 
   // --- General --------------------------------------------------------------
