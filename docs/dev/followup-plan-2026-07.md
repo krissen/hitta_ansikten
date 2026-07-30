@@ -370,22 +370,35 @@ per item (wire up or remove) is the work; deleting is a legitimate outcome for a
 of them, and probably the right one for the grid presets, whose ratios the
 draggable splitters already give.
 
-**Done — all fourteen removed, and the history is what decided it.** `git log -S`
-on each command converged on one commit: **5686ff9 (2025-12-31), "Remove dockview
-mode"**, which deleted `workspace.js` and with it the switch cases that
-implemented every one of them. The menu items and the handler aliases stayed
-behind. So this was not a set of never-implemented stubs — it was a working
-feature set orphaned by a layout-engine migration, and *nothing has worked for
-seven months without a single bug report*. That is the strongest evidence
-available that the features are not wanted, and it turned every per-item decision
-towards removal rather than reimplementation:
+**Done — all fourteen removed, and the history is what decided it.** For the eight
+dead *commands*, `git log -S` converged on one commit: **5686ff9 (2025-12-31),
+"Remove dockview mode"**, which deleted `workspace.js` and with it the switch
+cases that implemented them. The menu items stayed behind. So these were not
+never-implemented stubs — they were a working feature set orphaned by a
+layout-engine migration, and *nothing has worked for seven months without a single
+bug report*. That is the strongest evidence available that the features are not
+wanted, and it turned every per-item decision towards removal rather than
+reimplementation.
+
+**The six handler aliases do not share that history**, and an earlier draft of
+this section was wrong to say they did — review caught it. Searching `menu.js`
+per alias gives three answers, not one: `layout-template-review` (added in
+`40ae5b0`) and `layout-queue-review` (added in `7240497`) *had* menu items and
+kept them well past the dockview removal, losing them only in `fe4cfe1` (#237,
+the Window-menu rewrite around the pipeline morph); `layout-review`,
+`layout-comparison`, `layout-database` and `layout-review-with-logs` have **never**
+had a menu item in any commit — the search is empty for all four, so they were
+programmatic table entries from the start. Same outcome, different reasons: two
+are leftovers from a menu rewrite, four were never menu-driven at all. The lesson
+is the one this plan keeps relearning — verify per item; a shared symptom is not
+a shared cause.
 
 | Item | Decision | Why |
 |---|---|---|
-| Arkiv ▸ Ladda om databas (`Cmd+R`) | Remove menu item | The backend endpoint lives and is tested, so wiring was possible — but the accelerator shadows the window reload FlexLayoutWorkspace really implements, and the old code reported via `alert()`. A DB reload belongs as a button in Databashantering, not on a global key. Endpoint untouched. |
+| Arkiv ▸ Ladda om databas (`Cmd+R`) | Remove menu item | The backend endpoint lives and is tested, so wiring was possible — but the accelerator shadows the window reload FlexLayoutWorkspace really implements, and the old code reported via `alert()`. A DB reload belongs as a button in Databashantering, not on a global key. Endpoint untouched. **Side effect: `Cmd+R` starts working** — `FlexLayoutWorkspace.jsx:624` has always implemented it, the menu accelerator was intercepting the key. |
 | Fönster ▸ Rutnätsförval (`Cmd+Shift+1..5`) | Remove submenu | Emulated dragging a splitter to a fixed ratio; FlexLayout splitters are draggable, so the feature *is* the interaction it stood in for. Never documented. Frees five keys that read as siblings of the `Cmd+1..5` steps. |
 | Fönster ▸ Exportera/Importera layout | Remove items | Per-step layout memory plus reset-layout / reset-all-layouts cover the need; layout JSON on disk is a debugging aid. Never documented, and the ellipsis promised a dialog that never opened. |
-| Six `layout-*` handler aliases | Remove | The menu is the dispatch table's only caller, so an alias without a menu item is unreachable by construction. The two with menu items stay; `load-layout` still accepts every name in `layouts.js`. |
+| Six `layout-*` handler aliases | Remove | The menu is the dispatch table's only caller, so an alias without a menu item is unreachable by construction — whether it lost one (two of them) or never had one (four). The two surviving templates stay; `load-layout` still accepts every name in `layouts.js`. |
 
 Both exception lists are now empty and **kept, not deleted**. An empty list plus
 its honesty test is cheap regression protection: a future entry must be a command
