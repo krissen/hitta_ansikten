@@ -16,6 +16,7 @@ import {
   ACTION_SCOPES,
   ACTION_ROUTE_BUSES,
   KNOWN_DEAD_MENU_COMMANDS,
+  KNOWN_UNREACHABLE_HANDLERS,
   actionsForSection,
   getAction,
   menuCommandsOf,
@@ -85,12 +86,11 @@ function collectSentMenuCommands() {
 }
 
 /**
- * Commands the renderer handles: a key in the menu-command dispatch table, or —
- * via that table's broadcast fallback — an event some module subscribes to. The
- * table is built for real rather than grepped, so a handler added as a computed
- * key (the generated `workflow-step-*` entries) counts like any other.
+ * Keys of the menu-command dispatch table. Built for real rather than grepped, so
+ * a handler added as a computed key (the generated `workflow-step-*` entries)
+ * counts like any other.
  */
-function collectHandledMenuCommands() {
+function collectTableHandlers() {
   const noop = () => {};
   const ctx = {
     dispatch: noop,
@@ -101,7 +101,15 @@ function collectHandledMenuCommands() {
     showWelcome: noop,
     toggleShortcutsHelp: noop,
   };
-  return new Set([...Object.keys(buildMenuCommandTable(ctx)), ...collectSubscribedEvents()]);
+  return new Set(Object.keys(buildMenuCommandTable(ctx)));
+}
+
+/**
+ * Commands the renderer handles: a key in the dispatch table, or — via that
+ * table's broadcast fallback — an event some module subscribes to.
+ */
+function collectHandledMenuCommands() {
+  return new Set([...collectTableHandlers(), ...collectSubscribedEvents()]);
 }
 
 describe('action catalog integrity', () => {
@@ -187,6 +195,41 @@ describe('action catalog integrity', () => {
         if (dead.has(command)) continue;
         expect(handled, `${action.id} → '${command}' (nothing handles it)`).toContain(command);
       }
+    }
+  });
+
+  it('declares only menu commands the app menu still sends', () => {
+    // The third direction, and the one the catalog was missing. Directions one and
+    // two pin the menu to the catalog and the catalog to the renderer; without
+    // this one, a menu item deleted from menu.js leaves its action behind,
+    // claiming a binding the user no longer has. It can only be checked because
+    // menuCommandsOf reads declared bindings — while the binding was inferred from
+    // route.event, this assertion was comparing menu.js against itself.
+    const sent = collectSentMenuCommands();
+    for (const action of ACTIONS) {
+      for (const command of menuCommandsOf(action)) {
+        expect(sent, `${action.id} → '${command}' (menu.js no longer sends it)`).toContain(command);
+      }
+    }
+  });
+
+  it('has a menu item for every dispatch-table handler', () => {
+    // The mirror of the reachability check: a handler nothing can reach is as dead
+    // as a command nothing handles, and the menu is the table's only caller.
+    const sent = collectSentMenuCommands();
+    const known = new Set(KNOWN_UNREACHABLE_HANDLERS);
+    for (const handler of collectTableHandlers()) {
+      if (known.has(handler)) continue;
+      expect(sent, `menuCommands handles '${handler}', no menu item sends it`).toContain(handler);
+    }
+  });
+
+  it('keeps the unreachable-handler list honest in both directions', () => {
+    const sent = collectSentMenuCommands();
+    const handlers = collectTableHandlers();
+    for (const handler of KNOWN_UNREACHABLE_HANDLERS) {
+      expect(handlers, `'${handler}' is no longer a handler — drop it`).toContain(handler);
+      expect(sent, `'${handler}' has a menu item now — drop it from the list`).not.toContain(handler);
     }
   });
 
