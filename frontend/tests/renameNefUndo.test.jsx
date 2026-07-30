@@ -81,7 +81,16 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Drain before the mocks go away. React commits the DOM before it runs
+  // passive effects, so a wait that settles on rendered output can return with
+  // an effect still pending; it then commits during teardown — after
+  // vi.restoreAllMocks() here, and inside Testing Library's cleanup, which
+  // Vitest's reverse hook order runs after this hook. The transport is gone by
+  // then, and the effect throws where no test can see it. Draining here settles
+  // those effects while their mocks still work. Same hazard that took dev red
+  // through fileQueueModule.test.jsx.
+  await settle();
   clearWorkingFolder();
   vi.restoreAllMocks();
 });

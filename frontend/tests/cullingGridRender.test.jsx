@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
+import { settle } from './helpers/settle.js';
 import { CullingGrid } from '../src/renderer/components/CullingGrid.jsx';
 
 // The grid renders one cell per file, marks the selected cell, and — when a
@@ -25,7 +26,16 @@ beforeEach(() => {
   global.fetch = vi.fn(() => new Promise(() => {}));
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // Drain before the mocks go away. React commits the DOM before it runs
+  // passive effects, so a wait that settles on rendered output can return with
+  // an effect still pending; it then commits during teardown — after
+  // vi.restoreAllMocks() here, and inside Testing Library's cleanup, which
+  // Vitest's reverse hook order runs after this hook. The transport is gone by
+  // then, and the effect throws where no test can see it. Draining here settles
+  // those effects while their mocks still work. Same hazard that took dev red
+  // through fileQueueModule.test.jsx.
+  await settle();
   global.fetch = originalFetch;
 });
 
