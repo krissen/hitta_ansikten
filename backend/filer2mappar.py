@@ -223,6 +223,15 @@ def execute_moves(
 
     for date, files in sorted(moves.items()):
         target_dir = base_dir / date
+        file_set = set(files)
+        sidecars_by_main = {
+            file: [sidecar for sidecar in find_sidecar_files(file) if sidecar in file_set]
+            for file in files
+            if file.suffix.lower() != ".xmp"
+        }
+        attached_sidecars = {
+            sidecar for sidecars in sidecars_by_main.values() for sidecar in sidecars
+        }
 
         if not dry_run and not target_dir.exists():
             target_dir.mkdir(parents=True)
@@ -232,7 +241,13 @@ def execute_moves(
             print(f"(dry) Skapar mapp: {target_dir.name}/")
 
         for file in files:
+            if file in attached_sidecars:
+                continue
             target = target_dir / file.name
+            sidecar_pairs = [
+                (sidecar, target_dir / sidecar.name)
+                for sidecar in sidecars_by_main.get(file, [])
+            ]
 
             if target.exists():
                 print(f"SKIP (finns redan): {file.name}", file=sys.stderr)
@@ -240,16 +255,19 @@ def execute_moves(
 
             if dry_run:
                 print(f"(dry) {file.name} -> {date}/")
+                for sidecar, _target in sidecar_pairs:
+                    print(f"(dry) {sidecar.name} -> {date}/")
             else:
                 try:
-                    fs_ops.rename_with_sidecars(
+                    moved = fs_ops.rename_with_sidecars(
                         file,
                         target,
+                        sidecar_pairs,
                         tool="filer2mappar",
                         journal_op="move",
                         batch_id=batch_id,
                     )
-                    total_moved += 1
+                    total_moved += len(moved)
                     if verbose:
                         print(f"{file.name} -> {date}/")
                 except OSError as e:
@@ -296,8 +314,6 @@ def build_source_index(
             continue
         token, timestamp = parsed
         relative_dir = path.parent.relative_to(source_root)
-        if relative_dir == Path("."):
-            continue
         by_token[token].add(relative_dir)
         by_time[timestamp].add(relative_dir)
     return dict(by_token), sorted(by_time.items())
@@ -381,11 +397,15 @@ def compute_matched_moves(
         folders = source_index.get(token, set())
         if len(folders) == 1:
             folder = next(iter(folders))
+            if folder == Path("."):
+                continue
             safe.append((path, target_root / folder / path.name))
             continue
         guess = guess_source_folder(timestamp, source_timeline, evidence, window_minutes)
         if guess:
             folder, delta_seconds = guess
+            if folder == Path("."):
+                continue
             guessed.append((path, target_root / folder / path.name, delta_seconds))
         else:
             unresolved.append(path)

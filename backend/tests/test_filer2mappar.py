@@ -28,6 +28,36 @@ def test_exact_match_mirrors_nested_source_folder(tmp_path):
     assert unresolved == []
 
 
+def test_source_image_at_root_marks_developed_image_as_already_placed(tmp_path):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "260801_120000.NEF")
+    developed = _write(target / "260801_120000_Anna.jpg")
+
+    safe, guessed, unresolved = filer2mappar.compute_matched_moves(source, target, 30)
+
+    assert safe == []
+    assert guessed == []
+    assert unresolved == []
+    assert developed.exists()
+
+
+def test_root_source_participates_in_nearest_source_guess(tmp_path):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "shoot" / "260801_120000.NEF")
+    _write(source / "260801_121000.NEF")
+    _write(source / "shoot" / "260801_122000.NEF")
+    _write(target / "260801_120000.jpg")
+    uncertain = _write(target / "260801_121100.jpg")
+    _write(target / "260801_122000.jpg")
+
+    _safe, guessed, unresolved = filer2mappar.compute_matched_moves(source, target, 30)
+
+    assert guessed == []
+    assert unresolved == [uncertain]
+
+
 def test_multiple_source_formats_in_one_folder_are_still_unambiguous(tmp_path):
     source = tmp_path / "nerladdat"
     target = tmp_path / "framkallat"
@@ -233,3 +263,21 @@ def test_legacy_date_folder_mode_still_moves_and_journals(tmp_path, monkeypatch)
     row = json.loads((tmp_path / "rename_journal.jsonl").read_text().strip())
     assert row["op"] == "move"
     assert row["tool"] == "filer2mappar"
+
+
+def test_legacy_date_mode_keeps_main_and_sidecar_atomic_on_collision(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    original = _write(tmp_path / "260801_120000.NEF", b"new")
+    sidecar = _write(tmp_path / "260801_120000.xmp", b"sidecar")
+    occupied = _write(tmp_path / "260801" / original.name, b"old")
+
+    result = filer2mappar.main(["*.NEF"])
+
+    assert result == 0
+    assert original.read_bytes() == b"new"
+    assert sidecar.read_bytes() == b"sidecar"
+    assert occupied.read_bytes() == b"old"
+    assert not (tmp_path / "260801" / sidecar.name).exists()
+    assert not (tmp_path / "rename_journal.jsonl").exists()
