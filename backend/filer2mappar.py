@@ -427,6 +427,18 @@ def execute_matched_moves(
         sidecar_pairs = [(sidecar, target.with_suffix(sidecar.suffix)) for sidecar in sidecars]
         relative_target = target
         if dry_run:
+            occupied = next(
+                (destination for destination in [target, *(dst for _src, dst in sidecar_pairs)]
+                 if destination.exists()),
+                None,
+            )
+            if occupied is not None:
+                failed += 1
+                print(
+                    f"FEL: {source.name}: målet finns redan: {occupied}",
+                    file=sys.stderr,
+                )
+                continue
             print(f"(dry) {source.name} -> {relative_target.parent}/")
             continue
         try:

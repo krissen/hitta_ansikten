@@ -223,6 +223,28 @@ def test_match_command_never_overwrites_existing_target(tmp_path):
     assert occupied.read_bytes() == b"old"
 
 
+def test_match_dry_run_reports_occupied_sidecar_target(tmp_path, capsys):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "shoot" / "260801_120000.NEF")
+    developed = _write(target / "260801_120000.jpg")
+    sidecar = _write(target / "260801_120000.xmp", b"new sidecar")
+    occupied = _write(target / "shoot" / sidecar.name, b"old sidecar")
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--dry-run", "--kallrot", str(source),
+        "--malrot", str(target),
+    ])
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert developed.exists()
+    assert sidecar.read_bytes() == b"new sidecar"
+    assert occupied.read_bytes() == b"old sidecar"
+    assert "målet finns redan" in output.err
+    assert f"(dry) {developed.name}" not in output.out
+
+
 def test_match_command_reports_destination_directory_creation_failure(
     tmp_path, capsys
 ):
