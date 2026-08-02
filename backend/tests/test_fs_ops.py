@@ -1,6 +1,7 @@
 """Tests for core.fs_ops: safe move primitives + the append-only journal."""
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -44,6 +45,14 @@ def test_record_writes_row(journal):
     assert row["dst"] == "/b.NEF"
     assert row["sidecars"] == []  # none passed → empty list, never absent
     assert "ts" in row
+
+
+def test_journal_base_dir_does_not_import_db_for_standalone_cli(tmp_path, monkeypatch):
+    monkeypatch.delitem(sys.modules, "core.db", raising=False)
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+
+    assert fs_ops._journal_base_dir() == tmp_path / "faceid"
+    assert "core.db" not in sys.modules
 
 
 def test_record_lists_moved_sidecars(journal):
