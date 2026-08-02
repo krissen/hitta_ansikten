@@ -306,6 +306,32 @@ def test_match_dry_run_reports_blocked_destination_parent(tmp_path, capsys):
     assert f"(dry) {developed.name}" not in output.out
 
 
+def test_match_dry_run_reports_unwritable_destination_parent(
+    tmp_path, monkeypatch, capsys
+):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "shoot" / "260801_120000.NEF")
+    developed = _write(target / "260801_120000.jpg")
+    real_access = filer2mappar.os.access
+    monkeypatch.setattr(
+        filer2mappar.os,
+        "access",
+        lambda path, mode: False if path == target else real_access(path, mode),
+    )
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--dry-run", "--kallrot", str(source),
+        "--malrot", str(target),
+    ])
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert developed.exists()
+    assert "målkatalogen är inte skrivbar" in output.err
+    assert f"(dry) {developed.name}" not in output.out
+
+
 def test_unresolved_suggests_sixty_minute_window(tmp_path, capsys):
     source = tmp_path / "nerladdat"
     target = tmp_path / "framkallat"

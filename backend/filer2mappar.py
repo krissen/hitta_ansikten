@@ -227,6 +227,8 @@ def preflight_destinations(destinations: list[Path]) -> str | None:
             existing_parent = existing_parent.parent
         if not existing_parent.is_dir():
             return f"målkatalogens sökväg blockeras av en fil: {existing_parent}"
+        if not os.access(existing_parent, os.W_OK | os.X_OK):
+            return f"målkatalogen är inte skrivbar: {existing_parent}"
     return None
 
 
