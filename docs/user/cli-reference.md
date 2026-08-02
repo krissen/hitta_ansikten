@@ -268,10 +268,18 @@ närmast föregående och efterföljande exakt matchbara framkallade bild pekar 
 samma källmapp. Standardfönstret är 30 minuter. Gissningar visas men lämnas
 kvar i roten tills `--flytta-osakra` anges. Olösta filer lämnas alltid orörda.
 Källroten och målroten måste vara separata katalogträd och får inte ligga inuti
-varandra.
+varandra. XMP-sidecars följer med huvudbilden som en enhet.
+
+`--dry-run` kontrollerar även att bildens och sidecarens mål är lediga och att
+målkatalogen kan skapas eller skrivas till. En konflikt redovisas som fel utan
+att någon fil flyttas. Kommandot returnerar status 1 om filer är olösta eller
+om en vald flytt inte kan utföras; kvalificerade gissningar som inte valts med
+`--flytta-osakra` räknas inte som fel.
 
 | Flagga | Beskrivning |
 |--------|-------------|
+| `-n, --dry-run` | Förhandsgranska och kontrollera mål utan att flytta |
+| `-v, --verbose` | Visa varje utförd flytt |
 | `--kallrot SÖKVÄG` | Källträd; normalt `~/Pictures/nerladdat` |
 | `--malrot SÖKVÄG` | Rot för framkallade bilder; normalt `~/Pictures/framkallat` |
 | `--flytta-osakra` | Verkställ även kvalificerade gissningar |

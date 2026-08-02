@@ -123,7 +123,7 @@ deliverables, DoD) för en prestandarelease.
 
 ## Kända brister
 
-- [x] **Framkallade rotbilder kan fördelas efter källornas verkliga mappstruktur.** `filer2mappar matcha-kalla` matchar `YYMMDD_HHMMSS` mot stödda källbilder rekursivt under `~/Pictures/nerladdat` och speglar deras relativa mappar under `~/Pictures/framkallat`. Entydiga träffar flyttas direkt; konservativa närtidsförslag redovisas men kräver `--flytta-osakra`, med 30 minuters standard och justerbart `--tidsfonster`. XMP följer med, mål skrivs aldrig över och flyttarna journalförs. Verifierat skrivskyddat mot den aktuella arbetsmängden: 28 säkra, 0 osäkra, 0 olösta.
+- [x] **Framkallade rotbilder kan fördelas efter källornas verkliga mappstruktur.** `filer2mappar matcha-kalla` matchar `YYMMDD_HHMMSS` mot stödda källbilder rekursivt under `~/Pictures/nerladdat` och speglar deras relativa mappar under `~/Pictures/framkallat`. Entydiga träffar flyttas direkt; konservativa närtidsförslag redovisas men kräver `--flytta-osakra`, med 30 minuters standard och justerbart `--tidsfonster`. XMP följer med atomiskt, mål (även hängande symlänkar) skrivs aldrig över och flyttarna journalförs. Dry-run validerar hela destinationsenheten och dess katalogsökväg utan att flytta något. Verifierat skrivskyddat mot den aktuella arbetsmängden: 28 säkra, 0 osäkra, 0 olösta.
 
 ### UI/UX
 
