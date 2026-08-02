@@ -145,6 +145,21 @@ def test_rename_with_sidecars_never_overwrites(journal, tmp_path):
     assert not journal.exists()  # nothing moved → nothing journaled
 
 
+def test_rename_with_sidecars_never_overwrites_dangling_symlink(journal, tmp_path):
+    source = tmp_path / "a.jpg"
+    source.write_bytes(b"a")
+    target = tmp_path / "b.jpg"
+    target.symlink_to(tmp_path / "missing.jpg")
+
+    with pytest.raises(FileExistsError):
+        fs_ops.rename_with_sidecars(source, target, tool="culling")
+
+    assert source.read_bytes() == b"a"
+    assert target.is_symlink()
+    assert target.readlink() == tmp_path / "missing.jpg"
+    assert not journal.exists()
+
+
 def test_rename_with_sidecars_rolls_back_on_sidecar_failure(journal, tmp_path, monkeypatch):
     img = tmp_path / "a.jpg"
     img.write_bytes(b"a")

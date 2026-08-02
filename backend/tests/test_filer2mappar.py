@@ -245,6 +245,28 @@ def test_match_dry_run_reports_occupied_sidecar_target(tmp_path, capsys):
     assert f"(dry) {developed.name}" not in output.out
 
 
+def test_match_dry_run_reports_dangling_symlink_target(tmp_path, capsys):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "shoot" / "260801_120000.NEF")
+    developed = _write(target / "260801_120000.jpg")
+    occupied = target / "shoot" / developed.name
+    occupied.parent.mkdir()
+    occupied.symlink_to(target / "missing.jpg")
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--dry-run", "--kallrot", str(source),
+        "--malrot", str(target),
+    ])
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert developed.exists()
+    assert occupied.is_symlink()
+    assert "målet finns redan" in output.err
+    assert f"(dry) {developed.name}" not in output.out
+
+
 def test_match_command_reports_destination_directory_creation_failure(
     tmp_path, capsys
 ):

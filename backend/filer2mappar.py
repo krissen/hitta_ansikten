@@ -215,11 +215,15 @@ def preflight_destinations(destinations: list[Path]) -> str | None:
         if key in seen:
             return f"målnamn krockar inom operationen: {destination.name}"
         seen.add(key)
-        if destination.exists():
+        if destination.exists() or destination.is_symlink():
             return f"målet finns redan: {destination}"
 
         existing_parent = destination.parent
-        while not existing_parent.exists() and existing_parent != existing_parent.parent:
+        while (
+            not existing_parent.exists()
+            and not existing_parent.is_symlink()
+            and existing_parent != existing_parent.parent
+        ):
             existing_parent = existing_parent.parent
         if not existing_parent.is_dir():
             return f"målkatalogens sökväg blockeras av en fil: {existing_parent}"
