@@ -240,6 +240,43 @@ Flytta filer till undermappar baserat på datum (YYMMDD).
 ./filer2mappar.py --from 260101 --to 260131 *.NEF
 ```
 
+#### Matcha framkallade bilder mot källmappar
+
+Underkommandot `matcha-kalla` fördelar stödda bildfiler från roten av
+`~/Pictures/framkallat` till samma relativa mappar som motsvarande källbilder
+har under `~/Pictures/nerladdat`. Matchningen använder den inledande
+tidsstämpeln `YYMMDD_HHMMSS`; text och filändelse efter tidsstämpeln får skilja
+sig. Källan kan vara valfritt stött bildformat, exempelvis NEF, JPG eller TIFF.
+
+```bash
+# Förhandsgranska den normala arbetsgången
+filer2mappar matcha-kalla --dry-run
+
+# Flytta alla entydiga träffar
+filer2mappar matcha-kalla
+
+# Verkställ även redovisade kvalificerade gissningar
+filer2mappar matcha-kalla --flytta-osakra
+
+# Använd ett större tidsfönster eller andra katalogrötter
+filer2mappar matcha-kalla --tidsfonster 60
+filer2mappar matcha-kalla --kallrot /sökväg/källor --malrot /sökväg/framkallat
+```
+
+En gissning görs bara när närmaste källbild ligger inom tidsfönstret och både
+närmast föregående och efterföljande exakt matchbara framkallade bild pekar på
+samma källmapp. Standardfönstret är 30 minuter. Gissningar visas men lämnas
+kvar i roten tills `--flytta-osakra` anges. Olösta filer lämnas alltid orörda.
+Källroten och målroten måste vara separata katalogträd och får inte ligga inuti
+varandra.
+
+| Flagga | Beskrivning |
+|--------|-------------|
+| `--kallrot SÖKVÄG` | Källträd; normalt `~/Pictures/nerladdat` |
+| `--malrot SÖKVÄG` | Rot för framkallade bilder; normalt `~/Pictures/framkallat` |
+| `--flytta-osakra` | Verkställ även kvalificerade gissningar |
+| `--tidsfonster MINUTER` | Maximalt tidsavstånd för gissningar; normalt 30 |
+
 | Flagga | Beskrivning |
 |--------|-------------|
 | `-n, --dry-run` | Visa vad som skulle göras |

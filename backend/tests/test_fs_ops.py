@@ -1,6 +1,7 @@
 """Tests for core.fs_ops: safe move primitives + the append-only journal."""
 
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -44,6 +45,14 @@ def test_record_writes_row(journal):
     assert row["dst"] == "/b.NEF"
     assert row["sidecars"] == []  # none passed → empty list, never absent
     assert "ts" in row
+
+
+def test_journal_base_dir_does_not_import_db_for_standalone_cli(tmp_path, monkeypatch):
+    monkeypatch.delitem(sys.modules, "core.db", raising=False)
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+
+    assert fs_ops._journal_base_dir() == tmp_path / "faceid"
+    assert "core.db" not in sys.modules
 
 
 def test_record_lists_moved_sidecars(journal):
@@ -134,6 +143,30 @@ def test_rename_with_sidecars_never_overwrites(journal, tmp_path):
     assert a.read_bytes() == b"a"
     assert b.read_bytes() == b"b"
     assert not journal.exists()  # nothing moved → nothing journaled
+
+
+def test_rename_with_sidecars_never_overwrites_dangling_symlink(journal, tmp_path):
+    source = tmp_path / "a.jpg"
+    source.write_bytes(b"a")
+    target = tmp_path / "b.jpg"
+    target.symlink_to(tmp_path / "missing.jpg")
+
+    with pytest.raises(FileExistsError):
+        fs_ops.rename_with_sidecars(source, target, tool="culling")
+
+    assert source.read_bytes() == b"a"
+    assert target.is_symlink()
+    assert target.readlink() == tmp_path / "missing.jpg"
+    assert not journal.exists()
+
+
+def test_guard_allows_symlink_when_destination_is_source(tmp_path):
+    real = tmp_path / "real.jpg"
+    real.write_bytes(b"image")
+    source = tmp_path / "image.jpg"
+    source.symlink_to(real)
+
+    fs_ops._guard_target(source, source)
 
 
 def test_rename_with_sidecars_rolls_back_on_sidecar_failure(journal, tmp_path, monkeypatch):

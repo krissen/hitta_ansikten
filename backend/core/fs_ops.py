@@ -29,6 +29,7 @@ a failure to record must never fail the filesystem operation itself.
 import json
 import logging
 import os
+import sys
 import uuid
 from collections.abc import Callable, Iterable, Sequence
 from datetime import datetime, timezone
@@ -51,14 +52,31 @@ def new_batch_id() -> str:
     return uuid.uuid4().hex
 
 
-def journal_path() -> Path:
-    """Path to the append-only journal, under the live ``core.db.BASE_DIR``.
+def _journal_base_dir() -> Path:
+    """Return the data directory without importing the database dependency tree.
 
-    Read fresh each call (not captured at import) so tests can redirect the data
-    dir by monkeypatching ``core.db.BASE_DIR``.
+    GUI/API processes already have ``core.db`` loaded, and tests may replace its
+    ``BASE_DIR``. Standalone utility scripts do not: deriving the standard XDG
+    path here keeps their move journal independent of numpy, pyxdg, and the rest
+    of the database stack.
     """
-    from core import db
-    return db.BASE_DIR / "rename_journal.jsonl"
+    db_module = sys.modules.get("core.db")
+    if db_module is not None and hasattr(db_module, "BASE_DIR"):
+        return Path(db_module.BASE_DIR)
+    data_home = os.environ.get("XDG_DATA_HOME")
+    if data_home:
+        return Path(data_home) / "faceid"
+    return Path.home() / ".local" / "share" / "faceid"
+
+
+def journal_path() -> Path:
+    """Path to the append-only journal under the live application data dir.
+
+    Read fresh each call so a loaded ``core.db`` can redirect ``BASE_DIR`` in
+    tests, while standalone scripts can use the standard XDG path without
+    importing ``core.db`` and its optional runtime dependencies.
+    """
+    return _journal_base_dir() / "rename_journal.jsonl"
 
 
 def record(*, op: str, tool: str, batch_id: str, src, dst,
@@ -408,7 +426,7 @@ def rename_with_sidecars(
 
 def _guard_target(src: Path, dst: Path) -> None:
     """Refuse to overwrite: raise if dst exists and is not src (case-only ok)."""
-    if dst.exists() and not dst.samefile(src):
+    if (dst.exists() or dst.is_symlink()) and not _is_case_only_same(dst, src):
         raise FileExistsError(f"målnamn upptaget: {dst.name}")
 
 
