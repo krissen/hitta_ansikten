@@ -160,6 +160,15 @@ def test_rename_with_sidecars_never_overwrites_dangling_symlink(journal, tmp_pat
     assert not journal.exists()
 
 
+def test_guard_allows_symlink_when_destination_is_source(tmp_path):
+    real = tmp_path / "real.jpg"
+    real.write_bytes(b"image")
+    source = tmp_path / "image.jpg"
+    source.symlink_to(real)
+
+    fs_ops._guard_target(source, source)
+
+
 def test_rename_with_sidecars_rolls_back_on_sidecar_failure(journal, tmp_path, monkeypatch):
     img = tmp_path / "a.jpg"
     img.write_bytes(b"a")

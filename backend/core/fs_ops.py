@@ -426,7 +426,7 @@ def rename_with_sidecars(
 
 def _guard_target(src: Path, dst: Path) -> None:
     """Refuse to overwrite: raise if dst exists and is not src (case-only ok)."""
-    if dst.is_symlink() or (dst.exists() and not dst.samefile(src)):
+    if (dst.exists() or dst.is_symlink()) and not _is_case_only_same(dst, src):
         raise FileExistsError(f"målnamn upptaget: {dst.name}")
 
 
