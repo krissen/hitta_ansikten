@@ -267,6 +267,8 @@ En gissning görs bara när närmaste källbild ligger inom tidsfönstret och b�
 närmast föregående och efterföljande exakt matchbara framkallade bild pekar på
 samma källmapp. Standardfönstret är 30 minuter. Gissningar visas men lämnas
 kvar i roten tills `--flytta-osakra` anges. Olösta filer lämnas alltid orörda.
+Källroten och målroten måste vara separata katalogträd och får inte ligga inuti
+varandra.
 
 | Flagga | Beskrivning |
 |--------|-------------|

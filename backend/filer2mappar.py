@@ -481,6 +481,13 @@ def match_source_main(argv: list[str]) -> int:
         if not root.is_dir():
             print(f"FEL: {label} finns inte eller är ingen katalog: {root}", file=sys.stderr)
             return 1
+    if (
+        source_root == target_root
+        or source_root in target_root.parents
+        or target_root in source_root.parents
+    ):
+        print("FEL: källrot och målrot får inte överlappa", file=sys.stderr)
+        return 1
 
     safe, guessed, unresolved = compute_matched_moves(
         source_root, target_root, args.tidsfonster

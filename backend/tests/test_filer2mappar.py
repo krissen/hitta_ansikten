@@ -238,6 +238,20 @@ def test_unresolved_suggests_sixty_minute_window(tmp_path, capsys):
     assert "--tidsfonster 60" in capsys.readouterr().err
 
 
+def test_match_command_rejects_overlapping_source_and_target_roots(tmp_path, capsys):
+    source = tmp_path / "nerladdat"
+    target = source / "framkallat"
+    original = _write(target / "260801_120000.jpg")
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target)
+    ])
+
+    assert result == 1
+    assert original.exists()
+    assert "får inte överlappa" in capsys.readouterr().err
+
+
 def test_non_images_in_target_root_are_ignored(tmp_path):
     source = tmp_path / "nerladdat"
     target = tmp_path / "framkallat"
