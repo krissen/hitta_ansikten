@@ -207,6 +207,25 @@ def compute_moves(
     return moves
 
 
+def preflight_destinations(destinations: list[Path]) -> str | None:
+    """Return a non-mutating collision/path error for a planned move unit."""
+    seen: set[str] = set()
+    for destination in destinations:
+        key = str(destination).casefold()
+        if key in seen:
+            return f"målnamn krockar inom operationen: {destination.name}"
+        seen.add(key)
+        if destination.exists():
+            return f"målet finns redan: {destination}"
+
+        existing_parent = destination.parent
+        while not existing_parent.exists() and existing_parent != existing_parent.parent:
+            existing_parent = existing_parent.parent
+        if not existing_parent.is_dir():
+            return f"målkatalogens sökväg blockeras av en fil: {existing_parent}"
+    return None
+
+
 def execute_moves(
     moves: dict[str, list[Path]],
     base_dir: Path,
@@ -257,6 +276,12 @@ def execute_moves(
                 continue
 
             if dry_run:
+                preflight_error = preflight_destinations([
+                    target, *(dst for _src, dst in sidecar_pairs)
+                ])
+                if preflight_error:
+                    print(f"SKIP: {file.name}: {preflight_error}", file=sys.stderr)
+                    continue
                 print(f"(dry) {file.name} -> {date}/")
                 for sidecar, _target in sidecar_pairs:
                     print(f"(dry) {sidecar.name} -> {date}/")
@@ -427,15 +452,13 @@ def execute_matched_moves(
         sidecar_pairs = [(sidecar, target.with_suffix(sidecar.suffix)) for sidecar in sidecars]
         relative_target = target
         if dry_run:
-            occupied = next(
-                (destination for destination in [target, *(dst for _src, dst in sidecar_pairs)]
-                 if destination.exists()),
-                None,
-            )
-            if occupied is not None:
+            preflight_error = preflight_destinations([
+                target, *(dst for _src, dst in sidecar_pairs)
+            ])
+            if preflight_error:
                 failed += 1
                 print(
-                    f"FEL: {source.name}: målet finns redan: {occupied}",
+                    f"FEL: {source.name}: {preflight_error}",
                     file=sys.stderr,
                 )
                 continue

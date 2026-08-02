@@ -264,6 +264,26 @@ def test_match_command_reports_destination_directory_creation_failure(
     assert "FEL: 260801_120000.jpg" in capsys.readouterr().err
 
 
+def test_match_dry_run_reports_blocked_destination_parent(tmp_path, capsys):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "shoot" / "260801_120000.NEF")
+    developed = _write(target / "260801_120000.jpg")
+    blocker = _write(target / "shoot", b"not a directory")
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--dry-run", "--kallrot", str(source),
+        "--malrot", str(target),
+    ])
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert developed.exists()
+    assert blocker.read_bytes() == b"not a directory"
+    assert "sökväg blockeras av en fil" in output.err
+    assert f"(dry) {developed.name}" not in output.out
+
+
 def test_unresolved_suggests_sixty_minute_window(tmp_path, capsys):
     source = tmp_path / "nerladdat"
     target = tmp_path / "framkallat"
@@ -357,3 +377,20 @@ def test_legacy_date_mode_assigns_shared_stem_sidecar_once(tmp_path, monkeypatch
     ]
     assert len(rows) == 2
     assert sum(len(row["sidecars"]) for row in rows) == 1
+
+
+def test_legacy_dry_run_reports_occupied_sidecar_target(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    original = _write(tmp_path / "260801_120000.NEF")
+    sidecar = _write(tmp_path / "260801_120000.xmp", b"new sidecar")
+    occupied = _write(tmp_path / "260801" / sidecar.name, b"old sidecar")
+
+    result = filer2mappar.main(["--dry-run", "*.NEF"])
+
+    output = capsys.readouterr()
+    assert result == 0
+    assert original.exists()
+    assert sidecar.read_bytes() == b"new sidecar"
+    assert occupied.read_bytes() == b"old sidecar"
+    assert "målet finns redan" in output.err
+    assert f"(dry) {original.name}" not in output.out
