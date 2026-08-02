@@ -224,14 +224,17 @@ def execute_moves(
     for date, files in sorted(moves.items()):
         target_dir = base_dir / date
         file_set = set(files)
-        sidecars_by_main = {
-            file: [sidecar for sidecar in find_sidecar_files(file) if sidecar in file_set]
-            for file in files
-            if file.suffix.lower() != ".xmp"
-        }
-        attached_sidecars = {
-            sidecar for sidecars in sidecars_by_main.values() for sidecar in sidecars
-        }
+        sidecars_by_main: dict[Path, list[Path]] = {}
+        attached_sidecars: set[Path] = set()
+        for file in files:
+            if file.suffix.lower() == ".xmp":
+                continue
+            sidecars = [
+                sidecar for sidecar in find_sidecar_files(file)
+                if sidecar in file_set and sidecar not in attached_sidecars
+            ]
+            sidecars_by_main[file] = sidecars
+            attached_sidecars.update(sidecars)
 
         if not dry_run and not target_dir.exists():
             target_dir.mkdir(parents=True)

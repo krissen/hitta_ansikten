@@ -281,3 +281,24 @@ def test_legacy_date_mode_keeps_main_and_sidecar_atomic_on_collision(
     assert occupied.read_bytes() == b"old"
     assert not (tmp_path / "260801" / sidecar.name).exists()
     assert not (tmp_path / "rename_journal.jsonl").exists()
+
+
+def test_legacy_date_mode_assigns_shared_stem_sidecar_once(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    raw = _write(tmp_path / "260801_120000.NEF")
+    jpeg = _write(tmp_path / "260801_120000.jpg")
+    sidecar = _write(tmp_path / "260801_120000.xmp")
+
+    result = filer2mappar.main(["*.NEF", "*.jpg"])
+
+    target = tmp_path / "260801"
+    assert result == 0
+    assert (target / raw.name).exists()
+    assert (target / jpeg.name).exists()
+    assert (target / sidecar.name).exists()
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "rename_journal.jsonl").read_text().splitlines()
+    ]
+    assert len(rows) == 2
+    assert sum(len(row["sidecars"]) for row in rows) == 1
