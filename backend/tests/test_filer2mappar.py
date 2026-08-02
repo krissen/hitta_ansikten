@@ -223,6 +223,25 @@ def test_match_command_never_overwrites_existing_target(tmp_path):
     assert occupied.read_bytes() == b"old"
 
 
+def test_match_command_reports_destination_directory_creation_failure(
+    tmp_path, capsys
+):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "shoot" / "260801_120000.NEF")
+    developed = _write(target / "260801_120000.jpg")
+    blocker = _write(target / "shoot", b"not a directory")
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target)
+    ])
+
+    assert result == 1
+    assert developed.exists()
+    assert blocker.read_bytes() == b"not a directory"
+    assert "FEL: 260801_120000.jpg" in capsys.readouterr().err
+
+
 def test_unresolved_suggests_sixty_minute_window(tmp_path, capsys):
     source = tmp_path / "nerladdat"
     target = tmp_path / "framkallat"

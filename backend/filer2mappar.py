@@ -429,8 +429,8 @@ def execute_matched_moves(
         if dry_run:
             print(f"(dry) {source.name} -> {relative_target.parent}/")
             continue
-        target.parent.mkdir(parents=True, exist_ok=True)
         try:
+            target.parent.mkdir(parents=True, exist_ok=True)
             fs_ops.rename_with_sidecars(
                 source,
                 target,
