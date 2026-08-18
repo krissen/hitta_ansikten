@@ -414,6 +414,35 @@ def guess_source_folder(
     return candidate, round(min_delta)
 
 
+def resolve_selection(
+    patterns: list[str], target_root: Path
+) -> tuple[set[str], list[str]]:
+    """Resolve CLI patterns to names of root images inside ``target_root``.
+
+    Selecting files narrows which moves are carried out; the guess evidence is
+    still built from every root image, so a partial selection cannot change how
+    a file is classified.
+    """
+    selected: set[str] = set()
+    problems: list[str] = []
+    for pattern in patterns:
+        candidate = Path(pattern)
+        matches = [candidate] if candidate.is_file() else [
+            Path(match) for match in sorted(glob(pattern)) if Path(match).is_file()
+        ]
+        if not matches:
+            problems.append(f"{pattern}: ingen fil matchar")
+            continue
+        for match in matches:
+            if match.resolve().parent != target_root:
+                problems.append(f"{match}: ligger inte direkt i målroten {target_root}")
+            elif match.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                problems.append(f"{match}: ostött filformat")
+            else:
+                selected.add(match.name)
+    return selected, problems
+
+
 def compute_matched_moves(
     source_root: Path,
     target_root: Path,
@@ -517,6 +546,10 @@ def match_source_main(argv: list[str]) -> int:
         "--tidsfonster", type=int, default=30, metavar="MINUTER",
         help="Maximalt tidsavstånd för gissningar (default: 30)",
     )
+    parser.add_argument(
+        "patterns", nargs="*", metavar="FIL",
+        help="Filer eller glob-mönster i målrotens topp (default: alla)",
+    )
     args = parser.parse_args(argv)
     source_root = args.kallrot.expanduser().resolve()
     target_root = args.malrot.expanduser().resolve()
@@ -537,6 +570,25 @@ def match_source_main(argv: list[str]) -> int:
     safe, guessed, unresolved = compute_matched_moves(
         source_root, target_root, args.tidsfonster
     )
+    if args.patterns:
+        selection, problems = resolve_selection(args.patterns, target_root)
+        for problem in problems:
+            print(f"FEL: {problem}", file=sys.stderr)
+        if problems:
+            return 1
+        safe = [pair for pair in safe if pair[0].name in selection]
+        guessed = [item for item in guessed if item[0].name in selection]
+        unresolved = [path for path in unresolved if path.name in selection]
+        skipped = selection - {
+            path.name
+            for path in (
+                [pair[0] for pair in safe]
+                + [item[0] for item in guessed]
+                + unresolved
+            )
+        }
+        for name in sorted(skipped):
+            print(f"{name}: källan ligger i källrotens topp — ingen mapp att spegla")
     rerun_base = (
         "filer2mappar matcha-kalla "
         f"--kallrot {shlex.quote(str(source_root))} "

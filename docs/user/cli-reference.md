@@ -261,7 +261,18 @@ filer2mappar matcha-kalla --flytta-osakra
 # Använd ett större tidsfönster eller andra katalogrötter
 filer2mappar matcha-kalla --tidsfonster 60
 filer2mappar matcha-kalla --kallrot /sökväg/källor --malrot /sökväg/framkallat
+
+# Begränsa till utpekade filer eller glob-mönster
+filer2mappar matcha-kalla -n *.jpg
+filer2mappar matcha-kalla 260818_073043-0_Ellen.jpg
 ```
+
+Utan filargument behandlas alla stödda bilder i målrotens topp. Anges filer
+eller glob-mönster flyttas bara de, men klassificeringen bygger fortfarande på
+*alla* rotbilder — ett urval kan alltså inte göra en gissning sämre underbyggd
+än den hade varit. Filerna måste ligga direkt i målroten och ha ett stött
+format; annars avbryts körningen med status 1 utan att någon fil flyttas, likaså
+om ett mönster inte matchar någon fil.
 
 En gissning görs bara när närmaste källbild ligger inom tidsfönstret och både
 närmast föregående och efterföljande exakt matchbara framkallade bild pekar på
@@ -283,6 +294,7 @@ om en vald flytt inte kan utföras; kvalificerade gissningar som inte valts med
 | `--kallrot SÖKVÄG` | Källträd; normalt `~/Pictures/nerladdat` |
 | `--malrot SÖKVÄG` | Rot för framkallade bilder; normalt `~/Pictures/framkallat` |
 | `--flytta-osakra` | Verkställ även kvalificerade gissningar |
+| `FIL ...` | Filer eller glob-mönster i målrotens topp (default: alla) |
 | `--tidsfonster MINUTER` | Maximalt tidsavstånd för gissningar; normalt 30 |
 
 | Flagga | Beskrivning |

@@ -454,3 +454,86 @@ def test_top_level_help_advertises_source_matching(capsys):
     assert exit_info.value.code == 0
     assert "matcha-kalla" in output
     assert "matcha-kalla --help" in output
+
+
+def test_selection_moves_only_the_named_files(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "260801" / "utflykt" / "260801_120000.NEF")
+    _write(source / "260802" / "cup" / "260802_090000.NEF")
+    chosen = _write(target / "260801_120000-0_Elis.jpg")
+    untouched = _write(target / "260802_090000-0_Ellen.jpg")
+    monkeypatch.chdir(target)
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target),
+        chosen.name,
+    ])
+
+    capsys.readouterr()
+    assert result == 0
+    assert (target / "260801" / "utflykt" / chosen.name).exists()
+    assert not chosen.exists()
+    assert untouched.exists()
+
+
+def test_selection_keeps_full_evidence_for_guesses(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    folder = source / "shoot"
+    _write(folder / "260801_120000.NEF")
+    _write(folder / "260801_121000.NEF")
+    _write(folder / "260801_122000.NEF")
+    _write(target / "260801_120000.jpg")
+    uncertain = _write(target / "260801_121100_changed.jpg")
+    _write(target / "260801_122000.jpg")
+    monkeypatch.chdir(target)
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target),
+        "--flytta-osakra", uncertain.name,
+    ])
+
+    output = capsys.readouterr().out
+    assert result == 0
+    assert "Säkra: 0, osäkra förslag: 1" in output
+    assert (target / "shoot" / uncertain.name).exists()
+    assert (target / "260801_120000.jpg").exists()
+
+
+def test_selection_rejects_files_outside_the_target_root(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "260801" / "utflykt" / "260801_120000.NEF")
+    developed = _write(target / "260801_120000-0_Elis.jpg")
+    outside = _write(tmp_path / "annat" / "260801_120000-1_Elis.jpg")
+    monkeypatch.chdir(tmp_path)
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target),
+        str(outside),
+    ])
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert "ligger inte direkt i målroten" in output.err
+    assert developed.exists()
+    assert outside.exists()
+
+
+def test_selection_without_matches_reports_the_pattern(tmp_path, monkeypatch, capsys):
+    source = tmp_path / "nerladdat"
+    target = tmp_path / "framkallat"
+    _write(source / "260801" / "utflykt" / "260801_120000.NEF")
+    developed = _write(target / "260801_120000-0_Elis.jpg")
+    monkeypatch.chdir(target)
+
+    result = filer2mappar.main([
+        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target),
+        "*.tif",
+    ])
+
+    output = capsys.readouterr()
+    assert result == 1
+    assert "ingen fil matchar" in output.err
+    assert developed.exists()
