@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 import filer2mappar
 
 
@@ -442,3 +444,13 @@ def test_legacy_dry_run_reports_occupied_sidecar_target(tmp_path, monkeypatch, c
     assert occupied.read_bytes() == b"old sidecar"
     assert "målet finns redan" in output.err
     assert f"(dry) {original.name}" not in output.out
+
+
+def test_top_level_help_advertises_source_matching(capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        filer2mappar.main(["--help"])
+
+    output = capsys.readouterr().out
+    assert exit_info.value.code == 0
+    assert "matcha-kalla" in output
+    assert "matcha-kalla --help" in output

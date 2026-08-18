@@ -7,6 +7,10 @@ Datumkällor:
 - Fil (--file-date): Filens modifieringsdatum
 
 Filer flyttas till mapp YYMMDD/. Sidecar-filer (.xmp) följer med automatiskt.
+
+Underkommando:
+- matcha-kalla: fördela framkallade bilder till samma relativa mappar som
+  motsvarande källbilder ligger i (se `filer2mappar matcha-kalla --help`)
 """
 
 import argparse
@@ -582,8 +586,17 @@ def main(argv: list[str] | None = None) -> int:
         return match_source_main(argv[1:])
 
     parser = argparse.ArgumentParser(
+        usage="%(prog)s [flaggor] [patterns ...]\n"
+              "       %(prog)s matcha-kalla [flaggor]",
         description="Flytta filer till undermappar baserat på datum (YYMMDD)",
-        epilog="Datumformat: YYMMDD, YYYY-MM-DD, YY-MM-DD eller YYYYMMDD"
+        epilog=(
+            "underkommando:\n"
+            "  matcha-kalla          Fördela framkallade bilder enligt källornas\n"
+            "                        relativa mappar (%(prog)s matcha-kalla --help)\n"
+            "\n"
+            "Datumformat: YYMMDD, YYYY-MM-DD, YY-MM-DD eller YYYYMMDD"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # Allmänna
