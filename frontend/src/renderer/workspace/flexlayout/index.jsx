@@ -15,7 +15,8 @@ import { ConfirmProvider } from '../../context/ConfirmContext.jsx';
 import { NotificationListener } from '../../components/NotificationListener.jsx';
 import { ConnectionStatus } from '../../components/ConnectionStatus.jsx';
 import { debug, debugError } from '../../shared/debug.js';
-import { createMidiClient } from '../../shared/midi/client.js';
+import { getWorkspaceMidi } from '../../shared/midi/client.js';
+import { createInputLayer } from '../../shared/midi/inputLayer.js';
 
 // Import theme system (must be first among CSS imports to define variables)
 import '../../theme.css';
@@ -68,11 +69,19 @@ function initFlexLayoutWorkspace() {
   debug('FlexLayout', 'Workspace initialized');
 
   // X-TOUCH MINI control surface: always-on Web MIDI. Quiet no-op when the
-  // device is absent; statechange drives hot-plug recovery, and the message
-  // consumer arrives with the MIDI input layer.
-  const midi = createMidiClient({
+  // device is absent; statechange drives hot-plug recovery, rescan() is the
+  // manual fallback (LogViewer's MIDI button).
+  const midi = getWorkspaceMidi({
     log: (msg) => debug('MIDI', msg),
     onStatus: (status, detail) => debug('MIDI', `status ${status}`, detail),
+  });
+  // The input layer attaches itself as the message consumer: wire parser,
+  // software focus gate and knob delta decoding. Its events get real
+  // consumers in etapp 3 — until then they are logged.
+  createInputLayer({
+    client: midi,
+    log: (msg) => debug('MIDI', msg),
+    onEvent: (event) => debug('MIDI', 'input', event),
   });
   midi.connect().catch((err) => debugError('MIDI', 'connect failed', err));
 }

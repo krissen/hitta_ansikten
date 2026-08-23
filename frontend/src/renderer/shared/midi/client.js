@@ -39,12 +39,30 @@ export function createMidiClient({
   let output = null;
   let inFlight = null;
   let lastStatus = '';
+  let handleMessage = onMessage;
+  const statusListeners = new Set();
 
   function setStatus(status, detail) {
     if (status === lastStatus) return;
     lastStatus = status;
     onStatus(status, detail);
+    for (const fn of statusListeners) fn(status, detail);
     log(`status: ${status}${detail ? ` (${detail})` : ''}`);
+  }
+
+  /**
+   * Replace the message consumer after construction — the input layer
+   * attaches itself this way once it exists. Pass nothing to fall back to
+   * the constructor's callback.
+   */
+  function setOnMessage(fn) {
+    handleMessage = typeof fn === 'function' ? fn : onMessage;
+  }
+
+  /** Subscribe to connection-status transitions; returns an unsubscribe. */
+  function onStatusChange(fn) {
+    statusListeners.add(fn);
+    return () => statusListeners.delete(fn);
   }
 
   function detach() {
@@ -72,7 +90,7 @@ export function createMidiClient({
       return false;
     }
     input.onmidimessage = (event) =>
-      onMessage(event.data, event.timeStamp, event);
+      handleMessage(event.data, event.timeStamp, event);
     log(`bound "${name}": ${inputs.length} in / ${outputs.length} out`);
     setStatus('connected');
     return true;
@@ -149,6 +167,8 @@ export function createMidiClient({
     rescan,
     disconnect,
     send,
+    setOnMessage,
+    onStatusChange,
     get connected() {
       return Boolean(input);
     },
@@ -156,4 +176,16 @@ export function createMidiClient({
       return name;
     },
   };
+}
+
+let workspaceClient = null;
+
+/**
+ * The one client the workspace shares across surfaces (boot connection in
+ * flexlayout/index.jsx, the LogViewer status button, the input layer).
+ * Options only take effect on first call.
+ */
+export function getWorkspaceMidi(options = {}) {
+  if (!workspaceClient) workspaceClient = createMidiClient(options);
+  return workspaceClient;
 }
