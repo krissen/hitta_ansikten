@@ -80,7 +80,7 @@ hardware pass could flow without per-step page reloads losing the MIDI
 connection:
 
 ```
-mkdir -p /tmp/xt && mkfifo /tmp/xt/cmd                 # command pipe
+mkdir -m 700 /tmp/xt && mkfifo -m 600 /tmp/xt/cmd       # private: the pipe runs JS
 cd frontend/scripts/midi-probe                          # server root = probe dir
 python3 -m http.server 8765 --bind 127.0.0.1 &          # port pairs with PROBE_URL's default
 conda run -n default --no-capture-output \
