@@ -83,7 +83,7 @@ def main():
                   "ports": ports})
             browser.close()
             return 1
-        emit({"ok": True, "phase": "ready", "status": status, "portRows": ports})
+        emit({"ok": True, "phase": "ready", "status": status, "ports": ports})
 
         while True:
             with open(CMD_FIFO) as fifo:

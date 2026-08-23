@@ -466,26 +466,41 @@ visibly — before the counter was read.)
 | E4b Pan mode first | 1 (layer B), clean setup | 1 | 7 | 41 | 42 | **No — V±1** |
 | E4a plain ring value | 5 (layer B) | 1 | 7 | ~27 | 28 | **No** — no jump toward centre |
 | E4a plain ring value | 5 (layer A) | 1 | 7 | 0 (knob sat at its end stop) | 1 | **No** |
+| Fan mode first (mode 2) | 1 (layer A) | 1 | 7 | 74 — see anomaly below | 71 | see anomaly note; thereafter clean +1/detent 71→75 |
+| Fan mode, ring value 13 | 1 (layer A) | 1 | 13 | 71 | 72 | **No — V±1**; then 73, 74, 75 over three more detents |
+| Spread mode first (mode 3) | 1 (layer A) | 1 | 7 | 75 | 76 | **No — V±1** |
+| Trim mode first (mode 4) | 1 (layer A) | 1 | 7 | 76 | 77 | **No** — then clean tracking 78…102 CW and down to 22 CCW |
 
 | Question | Answer |
 | --- | --- |
 | Does the LED ring visibly respond at all? | **Yes — but only on the right receive channel** (see below). |
 | Which channel do RX messages have to be sent on? | **Global channel = channel 1 from factory.** The SysEx info request (`f0 40 41 42 51 …`, handson protocol, read live with mido) answered `global ch: 0x00` = channel 1 — not `Off`. Writes on transmit channel 11 are received by no one; on channel 1 they land instantly. |
-| Does the ring mode (Single/Pan/Fan/Spread/Trim) change the answer? | **No.** E4b (Pan first) gave the same V±1 as E4a. |
+| Does the ring mode (Single/Pan/Fan/Spread/Trim) change the answer? | **No — all five were exercised** (Single = factory, plus explicit Pan, Fan, Spread and Trim writes before each value write). Every mode behaves identically for this purpose: the value write lands as a single-LED overlay, and the ring is redrawn *from the internal counter* at the next physical turn. |
 | Is there a latency or rate limit on ring writes? | Not measured systematically; writes took effect with no observed delay. |
 
-**The discovery that reframes the whole question:** in Pan mode the device
-**redraws the ring from its internal counter on every counter change**. After
-a ring write put the marker at north (value 7), a single detent turned the
-ring to a position matching the *counter* (e.g. 28 of 127 ≈ west of north),
-not the written value. The ring write is an overlay that the next physical
-turn sweeps away — which is also why a working recentering would have been
-directly visible in the ring, and why its absence is trustworthy here.
+**The mechanism, established across all five modes:** a ring write is a
+**single-LED overlay**. At the next physical turn the device redraws the whole
+ring *from its internal counter* — Pan draws a marker at the counter's
+position, Fan fills from one edge to it, Spread and Trim draw symmetrically
+around the middle with counter-derived width. The redraw is why a working
+recentering would have been directly visible in the ring, and why its absence
+is trustworthy here.
+
+One anomaly is recorded rather than smoothed over: during the first Fan test,
+exactly one message arrived where the previous counter was 74 and the reported
+value was 71 (`74 → 71`, single message, no other traffic in the gap). Three
+detents' worth of movement in one report has no explanation consistent with
+the rest of the session (every other detent produced exactly one message); it
+may have been a merged or lost detent burst, or a firmware quirk. It does not
+carry the verdict — which rests on the many clean V±1 observations either
+side of it — but the table carries raw numbers instead of summary words
+precisely so this row stays visible.
 
 **Consequence — NEGATIVE.** The counter does not move on any ring write, in
-any ring mode, for either tested encoder, in either preset, with values
-1/7/13. This is the only negative branch of the protocol's three outcomes:
-**the LED ring is decorative, and phase 6 (knobs) cannot proceed as designed.**
+any of the five ring modes, for either tested encoder, in either preset, with
+values 1/7/13. This is the only negative branch of the protocol's three
+outcomes: **the LED ring is decorative, and phase 6 (knobs) cannot proceed as
+designed.**
 Per the original plan this forces an owner decision among:
 
 1. absolute knobs with dead ends at 0/127,
