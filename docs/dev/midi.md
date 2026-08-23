@@ -509,10 +509,50 @@ Per the original plan this forces an owner decision among:
    writing does not per `x-touch-mini-handson.md`), or
 3. dropping the knob layer entirely.
 
+**Decision (2026-08-23): option 1 — the knobs ship as absolute value
+controls with dead ends at 0/127.** No Windows editor and no knob-phase
+cancellation; the keyboard fallback stays.
+
+**Implementation note (same day):** "absolute" describes the wire format,
+not the interaction. The app owns what the start value means: baseline a
+knob on first touch (re-baseline after an idle gap), decode subsequent
+values as deltas against that baseline, and treat a value parked at a rail
+(0/127) as disengaged until it moves clear of the rail — so the wind-back
+home is silent instead of dragging the parameter backwards. Done this way
+the dead ends cost only a small dead zone at each extreme, and the knob's
+physical start position carries no inherent meaning.
+
+Two hardware facts make this easier than it sounds. The knobs are
+**mechanically endless** — they spin freely in both directions; the 0/127
+rails exist only as firmware clipping, so parking at a rail is recoverable
+by winding back rather than by fighting a stop. And the knobs carry **no
+physical position marking**: the LED ring is their only state surface. Ring
+writes persist between turns, so at rest the app can render the *semantic*
+value (e.g. the current adjustment as a Pan marker) over the ring, while
+during a turn the device's own counter-driven redraw gives plain directional
+feedback whose absolute position nobody needs to interpret.
+
+**Reference behaviour, proven daily on this machine:** this loop is exactly
+how the existing Lightroom Classic + MIDI2LR pairing already works — no
+Windows editor anywhere. On every image change Lightroom pushes its develop
+values out, MIDI2LR *declares* them on the rings ("the knob stands here"),
+the user adjusts from that declared state, and however far the previous
+image was driven, the next one starts from sensible values — because the
+declaration, not the physical counter, defines what the knob means.
+
+The mechanism behind that experience is verified in MIDI2LR's source
+(`~/dev/MIDI2LR`, not inferred from behaviour): `LR_IPC_In.cpp` parses the
+value lines the Lua plugin emits over TCP, `ControlsModel::PluginToController`
+maps plugin units into controller coordinates, and `MIDISender` sends the
+result straight to the device — which is the CC 9–16 ring write from the RX
+table above. The pickup logic itself lives inside the Lua plugin inside
+Lightroom (`SettingsManager` merely forwards `Pickup {0|1}`). Phase 6 should
+copy this loop: declare state on the rings at every relevant transition (new
+image, new review step) and let adjustment happen against the declaration.
 Not picked silently. Note the silver lining recorded the same day: the
 *buttons* half of phase 6's plan (16 name buttons + actions on encoder
-presses, from the corpus analysis above) does not depend on E4 at all and can
-proceed regardless.
+presses, from the corpus analysis above) does not depend on E4 at all and
+can proceed regardless.
 
 ---
 

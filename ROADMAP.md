@@ -44,16 +44,23 @@ deliverables, DoD) för en prestandarelease.
     `id`:er är inte testade (raderna står öppna i E1-tabellen i
     [docs/dev/midi.md](docs/dev/midi.md)). Kör dem innan ett id minns i
     preferenser; tills dess, matcha på `name` eller läs id:t varje session.
-  - [ ] **Fas 6 (rattar) är blockad på E4:s negativa utfall — ägarbeslut.**
-    E4 kördes först av alla och föll ut negativt på samtliga varianter (båda
-    rattarna testade, båda lagren, ringvärden 1/7/13, Pan-läge först):
-    skrivningar till LED-kransen bekräftas mottagna men flyttar aldrig
-    encoderns interna räknare (alltid V±1). Kransen är dekorativ — enheten
-    ritar själv om den från sin internräknare vid varje vridning. Ratt-fasen
-    måste väljas på nytt: absoluta rattar med ändlägen, X-TOUCH Editor i
-    Windows-VM (SysEx-skrivning fungerar inte från macOS), eller ingen
-    ratt-fas. Knapp-hälften av fas 6 (16 namnknappar + åtgärder på rattryckens
-    note 0–7) beror inte på E4 och kan gå vidare oberoende.
+  - [x] **Fas 6 (rattar): E4 föll negativt — ägaren har valt väg.** E4 kördes
+    först av alla och föll ut negativt på samtliga varianter (båda rattarna,
+    båda lagen, alla fem ringlägen, värden 1/7/13): skrivningar till
+    LED-kransen bekräftas mottagna men flyttar aldrig encoderns internräknare.
+    Kransen är dekorativ — enheten ritar själv om den från sin internräknare
+    vid varje vridning. **Beslut 2026-08-23: alternativ A — rattarna körs som
+    absoluta värdesreglage, där appen initierar vad startvärdet betyder:**
+    baslinje vid första beröring (och efter tomgång), efterföljande värden
+    avkodas som delta, parkering vid ändläge (0/127, ren firmwareklippning —
+    rattarna är mekaniskt ändlösa) = urkoppling tills ratten rört sig därifrån,
+    så hemvirkningen är tyst. Utan fysiska markörer är kransen enda
+    tillståndsytan: i vila ritar appen semantiskt värde via kransskrivning
+    (den består mellan vrid), under vrid ger enhetens egen omritning
+    riktningsfeedback. Ingen Windows-editor och ingen avskrivning av
+    ratt-fasen; tangentbordet står kvar som utväg. Knapp-hälften av fas 6
+    (16 namnknappar + åtgärder på rattryckens note 0–7) beror inte på E4 och
+    kan gå vidare oberoende.
   - [x] **Loggmätning av namnfördelningen** (`backend/benchmarks/label_usage.py`,
     körs med `python -m benchmarks.label_usage`). Mätt på
     `attempt_stats.jsonl` (7 785 bilder, 2025-06-07 → 2026-07-17): `ignorerad`
