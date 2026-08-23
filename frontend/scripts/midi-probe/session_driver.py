@@ -78,9 +78,18 @@ def main():
         # <td class="empty"> row, which must not read as a present port.
         empty_rows = page.locator("#portBody td.empty").count()
         ports = page.locator("#portBody tr").count() - empty_rows
-        if "Ansluten" not in status or "ingen enhet" in status or ports == 0:
+        # Any MIDI endpoint (an IAC bus, a DAW's virtual ports) makes the
+        # row count nonzero; readiness requires the controller itself,
+        # present as both an input and an output.
+        xtouch_ports = page.evaluate(
+            "[...document.querySelectorAll('#portBody tr')]"
+            ".filter(tr => tr.textContent.includes('X-TOUCH MINI')"
+            " && !tr.querySelector('td.empty')).length"
+        )
+        if ("Ansluten" not in status or "ingen enhet" in status
+                or xtouch_ports < 2):
             emit({"ok": False, "phase": "ready", "status": status,
-                  "ports": ports})
+                  "ports": ports, "xtouchPorts": xtouch_ports})
             browser.close()
             return 1
         emit({"ok": True, "phase": "ready", "status": status, "ports": ports})
