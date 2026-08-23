@@ -5,7 +5,8 @@ commands, so a hardware pass is not broken into per-step page loads. Driven
 by single-line JSON commands over a named pipe; results come back as JSON
 lines in an output log. Run it once per session:
 
-    mkfifo /tmp/xt/cmd   # command pipe (mkdir -p /tmp/xt first if needed)
+    mkdir -m 700 /tmp/xt   # private: the pipe executes arbitrary JS
+    mkfifo -m 600 /tmp/xt/cmd
     conda run -n default --no-capture-output \
       python frontend/scripts/midi-probe/session_driver.py &
     echo '{"op":"eval","expr":"1+1"}' > /tmp/xt/cmd
@@ -92,6 +93,14 @@ def main():
                   "ports": ports, "xtouchPorts": xtouch_ports})
             browser.close()
             return 1
+        # The probe leaves the first enumerated output selected; make sure
+        # the controller's own output is the one experiment writes go to.
+        page.eval_on_selector(
+            "#outPort",
+            "sel => { const opt = [...sel.options]"
+            ".find(o => o.textContent.includes('X-TOUCH MINI'));"
+            " if (opt) sel.value = opt.value; }",
+        )
         emit({"ok": True, "phase": "ready", "status": status, "ports": ports})
 
         while True:
