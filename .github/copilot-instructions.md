@@ -18,7 +18,7 @@ shared guidance, update CLAUDE.md (canonical) and mirror anything essential here
 
 ## Git
 - `master` is protected; `dev` is the main branch — branch features off `dev`, PR into `dev`.
-- Commit format: `(scope) description` — `(filename)`, `(feature)`, or `(type)` (fix/docs/style/refactor/perf/test/chore).
+- Commit format: Conventional Commits — `type(scope): subject` (mandatory scope, English, imperative subject). The bare `(scope) description` style seen in older history is retired — do not imitate it.
 
 ## Testing (run before pushing)
 - Backend: `cd backend && pytest`  (tests in `backend/tests/`)

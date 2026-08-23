@@ -44,10 +44,18 @@ git push origin feature/my-feature
 - **Never** add "Generated with Claude" footers
 - **Never** add "Co-Authored-By: Claude"
 
-Format: `(scope) description`
-- `(filename)` for single file
-- `(feature)` for multi-file feature
-- `(type)` for general changes (fix, docs, refactor)
+Format: **Conventional Commits 1.0** — `type(scope): subject`
+- `type`: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+- `scope` is mandatory: a filename without extension (`luarc`) or a
+  module/feature name (`auth`, `midi-probe`)
+- Subject: imperative mood, lowercase first letter, no trailing period,
+  ≤ 72 characters
+- Breaking change: `type(scope)!: subject` plus a footer
+  `BREAKING CHANGE: <description>`
+- English only; no monolith commits — one logical change per commit
+
+> **History note:** older commits use the retired bare `(scope) description`
+> format. Do not imitate it — every new commit follows Conventional Commits.
 
 ---
 
