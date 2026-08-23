@@ -669,7 +669,7 @@ the 2026-08-18 provkörning, which explains their non-effect there.
 | Operation mode select | CC 127 | 0 = standard, 1 = MC mode | **not exercised — factory claim** (device already in standard) |
 | Preset layer change | Program Change | 0 = layer A, 1 = layer B | **not exercised — factory claim** |
 | LED ring behaviour | Encoders 1–8: CC 1–8 | 0 Single / 1 Pan / 2 Fan / 3 Spread / 4 Trim | received on channel 1; **the effect is overridden by the device's own drawing at the next turn** |
-| LED ring value | Encoders 1–8: CC 9–16 | 0 off, 1–13 LED 1–13, 14–26 blinking, 27/28 all | received; **does not move the counter** (E4) — a pure overlay |
+| LED ring value | Encoders 1–8: CC 9–16 | factory claim: 0 = all off, 1–13 = LED on, 14–26 = blinking, 27/28 = all (on/blinking), 29–127 ignored. **Only 1, 7 and 13 were exercised** — the other ranges remain factory claims | received on channel 1 for the tested values; **does not move the counter**, in any of the five modes (E4) — a pure overlay |
 | Button LEDs | Upper row: note 0–7. Lower row: note 8–15 | vel 0/off = off, 1 = on, 2 = blink, 3–127 ignored | **fully confirmed**, including the ignoring |
 | Layer A/B LEDs | not drivable | follow the layer switch | confirmed; the whole surface re-renders on a layer change |
 
