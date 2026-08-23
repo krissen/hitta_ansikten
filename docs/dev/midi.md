@@ -80,17 +80,21 @@ hardware pass could flow without per-step page reloads losing the MIDI
 connection:
 
 ```
-mkfifo /tmp/xt/cmd   # command pipe
-python3 -m http.server 8765 --bind 127.0.0.1 &        # serve this directory
+mkdir -p /tmp/xt && mkfifo /tmp/xt/cmd                 # command pipe
+cd frontend/scripts/midi-probe                          # server root = probe dir
+python3 -m http.server 8765 --bind 127.0.0.1 &          # port pairs with PROBE_URL's default
 conda run -n default --no-capture-output \
-  python frontend/scripts/midi-probe/session_driver.py &
+  python session_driver.py &
 echo '{"op":"eval","expr":"document.getElementById(\"e1\").click()"}' > /tmp/xt/cmd
 ```
 
-`session_driver.py` keeps one headed Chrome window alive and answers three
-commands (`eval`, `wait`, `shot`) over the pipe; results land as JSON lines in
-`/tmp/xt/out.log`. Two facts about the launch environment were settled the
-hard way that day and are encoded in the driver:
+`session_driver.py` keeps one headed Chrome window alive and answers four
+commands (`eval`, `wait`, `shot`, `quit`) over the pipe; results land as JSON
+lines in `/tmp/xt/out.log`. The driver needs **playwright** plus Google
+Chrome installed (`pip install playwright`); `PROBE_URL`, `CMD_FIFO` and
+`OUT_LOG` are environment-overridable and the permission origin follows
+`PROBE_URL`. Two facts about the launch environment were settled the hard way
+that day and are encoded in the driver:
 
 - **Real Chrome (`channel="chrome"`), not Playwright's bundled Chromium.** The
   bundled build denies Web MIDI outright.
@@ -246,9 +250,9 @@ cannot coexist and the whole design changes.
 | Run | Port type | `name` | `id` | `manufacturer` | `version` | `state` | `connection` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | A: without Lightroom | input | X-TOUCH MINI | 566892452 | Behringer | (empty) | connected | open |
-| A: without Lightroom | output | X-TOUCH MINI | −412452614 | Behringer | (empty) | connected | closed |
+| A: without Lightroom | output | X-TOUCH MINI | -412452614 | Behringer | (empty) | connected | closed |
 | B: with Lightroom + MIDI2LR | input | X-TOUCH MINI | 566892452 | Behringer | (empty) | connected | open |
-| B: with Lightroom + MIDI2LR | output | X-TOUCH MINI | −412452614 | Behringer | (empty) | connected | closed |
+| B: with Lightroom + MIDI2LR | output | X-TOUCH MINI | -412452614 | Behringer | (empty) | connected | closed |
 | C: after replug | — | **not run** | | | | | |
 
 | Question | Answer |
@@ -256,7 +260,7 @@ cannot coexist and the whole design changes.
 | Does the probe still receive while MIDI2LR is connected? | **Yes.** 18 CC messages observed in the probe while MIDI2LR drove Lightroom simultaneously. |
 | Does MIDI2LR still receive while the probe is connected? | **Yes.** Knob turns moved develop sliders in LrC throughout the session. |
 | Is `id` stable across replug? | **Not tested** (no replug performed). |
-| Is `id` stable across a reboot? | Not tested — but the ids are **identical across processes and days**: the same `566892452`/`−412452614` that MIDI2LR's `Controllers.xml` stored during the 2026-08-18 provkörning. |
+| Is `id` stable across a reboot? | Not tested — but the ids are **identical across processes and days**: the same `566892452`/`-412452614` that MIDI2LR's `Controllers.xml` stored during the 2026-08-18 provkörning. |
 
 **Consequence (confirmed).** Concurrent access confirmed → Ansikten can open
 the device alongside MIDI2LR, and "who owns the device" is a UX question, not

@@ -5,10 +5,14 @@ commands, so a hardware pass is not broken into per-step page loads. Driven
 by single-line JSON commands over a named pipe; results come back as JSON
 lines in an output log. Run it once per session:
 
-    mkfifo /tmp/xt/cmd   # command pipe
+    mkfifo /tmp/xt/cmd   # command pipe (mkdir -p /tmp/xt first if needed)
     conda run -n default --no-capture-output \
       python frontend/scripts/midi-probe/session_driver.py &
     echo '{"op":"eval","expr":"1+1"}' > /tmp/xt/cmd
+
+Requires playwright and Google Chrome in addition to the probe itself.
+Override PROBE_URL / CMD_FIFO / OUT_LOG via the environment to relocate any
+of them; the permission origin follows PROBE_URL automatically.
 
 Commands (one JSON object per line):
   {"op": "eval",  "expr": "<js>"}    -> {"ok": true, "result": <json>}
@@ -33,10 +37,13 @@ import json
 import os
 import sys
 import traceback
+from urllib.parse import urlsplit
 
 from playwright.sync_api import sync_playwright
 
 PROBE_URL = os.environ.get("PROBE_URL", "http://127.0.0.1:8765/probe.html")
+# The permission grant must name exactly the origin the page runs from.
+ORIGIN = "{0.scheme}://{0.netloc}".format(urlsplit(PROBE_URL))
 CMD_FIFO = os.environ.get("CMD_FIFO", "/tmp/xt/cmd")
 OUT_LOG = os.environ.get("OUT_LOG", "/tmp/xt/out.log")
 
@@ -51,9 +58,7 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, channel="chrome")
         context = browser.new_context()
-        context.grant_permissions(
-            ["midi", "midi-sysex"], origin="http://127.0.0.1:8765"
-        )
+        context.grant_permissions(["midi", "midi-sysex"], origin=ORIGIN)
         page = context.new_page()
         page.goto(PROBE_URL)
         page.wait_for_load_state("networkidle")
