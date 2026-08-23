@@ -7,22 +7,25 @@ layers A/B).
 This document is the measurement record for that work. It contains:
 
 1. how to run the probe,
-2. six experiments (E1–E6) with procedure, an **empty** result table, and what
-   the outcome decides,
-3. a device map copied from the factory quick start guide, marked
-   **UNVERIFIED** until E2/E5 fill it in.
+2. six experiments (E1–E6) with procedure, **measured** result tables, and what
+   each outcome decided,
+3. a device map transcribed from the factory quick start guide and then
+   confirmed or corrected against the physical device.
 
-**Nothing in this document is measured yet.** The tables are empty by design.
-Every number that lands in them must come from a run of the probe against the
-physical device — guessing values here would corrupt the decisions that are
-gated on them, above all [E4](#e4--encoder-recentering-run-this-first).
+**Everything below was measured on 2026-08-23** against the physical unit
+(firmware 1.8, Standard mode) via the probe running in real Chrome under
+automation. Every number came from a probe run; where the factory guide made a
+claim, the tables say whether it held. The one experiment not run to its end
+is E1's replug half (USB reconnect / reboot id stability) — marked as such
+where it matters.
 
 Source material lives outside this repo in `chitrashala/underlag/`, chiefly
 `behringer-x-touch-mini-quickstart.md` (the factory MIDI map, pages 14–15) and
 `x-touch-mini-handson.md` (a reverse-engineered SysEx protocol). Everything
-taken from those sources is treated here as a **claim to be verified**, not as
-fact. Vendor documentation for this device is thin and partly contradicted by
-community profiles.
+taken from those sources was treated as a **claim to be verified**; the claims
+that held are marked as confirmed below, and the two that fell are corrected
+in place ([the global channel](#device-map--measured-2026-08-23) and
+[E4's premise](#e4--encoder-recentering-run-this-first)).
 
 ---
 
@@ -69,6 +72,40 @@ Notes that matter:
   `main.js`, `src/**/*`, `assets/**/*` and `node_modules/**/*` under
   `build.files`, so nothing under `scripts/` ends up in a build. Verified
   2026-07-29; re-check if `build.files` changes.
+
+### Running the probe under automation
+
+The 2026-08-23 session drove the probe from a script instead of by hand, so a
+hardware pass could flow without per-step page reloads losing the MIDI
+connection:
+
+```
+mkdir -m 700 /tmp/xt && mkfifo -m 600 /tmp/xt/cmd       # private: the pipe runs JS
+cd frontend/scripts/midi-probe                          # server root = probe dir
+python3 -m http.server 8765 --bind 127.0.0.1 &          # port pairs with PROBE_URL's default
+conda run -n default --no-capture-output \
+  python session_driver.py &
+echo '{"op":"eval","expr":"document.getElementById(\"e1\").click()"}' > /tmp/xt/cmd
+```
+
+`session_driver.py` keeps one headed Chrome window alive and answers four
+commands (`eval`, `wait`, `shot`, `quit`) over the pipe; results land as JSON
+lines in `/tmp/xt/out.log`. The driver needs **playwright** plus Google
+Chrome installed (`pip install playwright`); `PROBE_URL`, `CMD_FIFO` and
+`OUT_LOG` are environment-overridable and the permission origin follows
+`PROBE_URL`. Two facts about the launch environment were settled the hard way
+that day and are encoded in the driver:
+
+- **Real Chrome (`channel="chrome"`), not Playwright's bundled Chromium.** The
+  bundled build denies Web MIDI outright.
+- **Both permissions must be granted** — `midi` *and* `midi-sysex` — even when
+  the page requests access without SysEx. Granting only `midi` fails.
+
+The `file://` question above is thereby answered for the automation path:
+Playwright refuses `file://`, the probe was served over `http://localhost`,
+and no permission prompt ever appeared (the grant is programmatic). The
+double-click-and-go path for a human remains plausible but still unproven —
+irrelevant in practice while the session runs via the driver.
 
 ### What the probe gives you
 
@@ -212,25 +249,23 @@ cannot coexist and the whole design changes.
 
 | Run | Port type | `name` | `id` | `manufacturer` | `version` | `state` | `connection` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| A: without Lightroom | input |  |  |  |  |  |  |
-| A: without Lightroom | output |  |  |  |  |  |  |
-| B: with Lightroom + MIDI2LR | input |  |  |  |  |  |  |
-| B: with Lightroom + MIDI2LR | output |  |  |  |  |  |  |
-| C: after replug | input |  |  |  |  |  |  |
+| A: without Lightroom | input | X-TOUCH MINI | 566892452 | Behringer | (empty) | connected | open |
+| A: without Lightroom | output | X-TOUCH MINI | -412452614 | Behringer | (empty) | connected | closed |
+| B: with Lightroom + MIDI2LR | input | X-TOUCH MINI | 566892452 | Behringer | (empty) | connected | open |
+| B: with Lightroom + MIDI2LR | output | X-TOUCH MINI | -412452614 | Behringer | (empty) | connected | closed |
+| C: after replug | — | **not run** | | | | | |
 
 | Question | Answer |
 | --- | --- |
-| Does the probe still receive while MIDI2LR is connected? | |
-| Does MIDI2LR still receive while the probe is connected? | |
-| Is `id` stable across replug? | |
-| Is `id` stable across a reboot? | |
+| Does the probe still receive while MIDI2LR is connected? | **Yes.** 18 CC messages observed in the probe while MIDI2LR drove Lightroom simultaneously. |
+| Does MIDI2LR still receive while the probe is connected? | **Yes.** Knob turns moved develop sliders in LrC throughout the session. |
+| Is `id` stable across replug? | **Not tested** (no replug performed). |
+| Is `id` stable across a reboot? | Not tested — but the ids are **identical across processes and days**: the same `566892452`/`-412452614` that MIDI2LR's `Controllers.xml` stored during the 2026-08-18 provkörning. |
 
-**Consequence.** Concurrent access confirmed → Ansikten can open the device
-alongside MIDI2LR, and the "who owns the device" question is a UX question,
-not a technical one. Concurrent access refused → Ansikten needs an explicit
-take/release of the port, and the two applications must be mutually exclusive.
-A **stable `id`** means the port can be remembered in preferences; an unstable
-one means matching on `name` with all the fragility that implies.
+**Consequence (confirmed).** Concurrent access confirmed → Ansikten can open
+the device alongside MIDI2LR, and "who owns the device" is a UX question, not
+a technical one. The `id`s look stable enough to remember in preferences; the
+untested replug/reboot rows are the only caveat before relying on it.
 
 ---
 
@@ -256,50 +291,44 @@ filter, matcher and comparison depends on the answer.
 5. Press **B** for Preset B and repeat from step 2 into the second table.
 6. Also note what the A/B buttons themselves transmit, if anything.
 
-**Results — Preset A.**
+**Results — Preset A.** (313 messages, sweep 2026-08-23.)
 
 | Control | Raw status (hex) | Type | Channel 0-idx | Channel 1-idx | Number | Value range seen |
 | --- | --- | --- | --- | --- | --- | --- |
-| Encoder 1 turn |  |  |  |  |  |  |
-| Encoder 2 turn |  |  |  |  |  |  |
-| Encoder 3 turn |  |  |  |  |  |  |
-| Encoder 4 turn |  |  |  |  |  |  |
-| Encoder 5 turn |  |  |  |  |  |  |
-| Encoder 6 turn |  |  |  |  |  |  |
-| Encoder 7 turn |  |  |  |  |  |  |
-| Encoder 8 turn |  |  |  |  |  |  |
-| Encoder 1 press |  |  |  |  |  |  |
-| Encoder 8 press |  |  |  |  |  |  |
-| Upper button 1 |  |  |  |  |  |  |
-| Upper button 8 |  |  |  |  |  |  |
-| Lower button 1 |  |  |  |  |  |  |
-| Lower button 8 |  |  |  |  |  |  |
-| Fader |  |  |  |  |  |  |
-| A button |  |  |  |  |  |  |
-| B button |  |  |  |  |  |  |
+| Encoder 1–8 turn | `0xBA` | CC | 10 | 11 | 1–8 | full 0–127 range when swept |
+| Encoder press (down) | `0x9A` vel 127 | Note On | 10 | 11 | 0–7 | 127 |
+| Encoder release | `0x8A` | Note Off | 10 | 11 | 0–7 | 0 |
+| Upper button row | `0x9A`/`0x8A` | Note On/Off | 10 | 11 | 8–15 | 127 / 0 |
+| Lower button row | `0x9A`/`0x8A` | Note On/Off | 10 | 11 | 16–23 | 127 / 0 |
+| Fader | `0xBA` | CC | 10 | 11 | 9 | 0–127 (156 messages in one sweep) |
 
-**Results — Preset B.** (Same rows.)
+**Results — Preset B.** (297 messages, 57 distinct controls — the same table
+with shifted numbers.)
 
 | Control | Raw status (hex) | Type | Channel 0-idx | Channel 1-idx | Number | Value range seen |
 | --- | --- | --- | --- | --- | --- | --- |
-| Encoder 1 turn |  |  |  |  |  |  |
-| Encoder 8 turn |  |  |  |  |  |  |
-| Encoder 1 press |  |  |  |  |  |  |
-| Upper button 1 |  |  |  |  |  |  |
-| Lower button 1 |  |  |  |  |  |  |
-| Fader |  |  |  |  |  |  |
+| Encoder 1–8 turn | `0xBA` | CC | 10 | 11 | 11–18 | full range |
+| Encoder press/release | `0x9A`/`0x8A` | Note On/Off | 10 | 11 | 24–31 | 127 / 0 |
+| Upper button row | `0x9A`/`0x8A` | Note On/Off | 10 | 11 | 32–39 | 127 / 0 |
+| Lower button row | `0x9A`/`0x8A` | Note On/Off | 10 | 11 | 40–47 | 127 / 0 |
+| Fader | `0xBA` | CC | 10 | 11 | 10 | 0–127 (183 messages) |
 
 | Question | Answer |
 | --- | --- |
-| Is "channel 11" `0xBA`/`0x9A` or `0xBB`/`0x9B`? | |
-| Do buttons send note-off (`0x8n`) or note-on velocity 0 on release? | |
-| Does the press/release pair arrive as two messages or one? | |
-| Does anything the factory map omits also transmit? | |
+| Is "channel 11" `0xBA`/`0x9A` or `0xBB`/`0x9B`? | **`0xBA`/`0x9A`/`0x8A`** — the wire nibble is 10; the manual's "channel 11" is 1-indexed. The probe's dual display `11 / 10` confirms it. |
+| Do buttons send note-off (`0x8n`) or note-on velocity 0 on release? | **Explicit Note Off (`0x8A`).** Two messages per press: Note On vel 127 + Note Off. |
+| Does the press/release pair arrive as two messages or one? | **Two.** |
+| Does anything the factory map omits also transmit? | **Nothing in the map is wrong — but the A/B buttons transmit nothing at all**, neither on the active layer nor when switching layers (see below). |
 
-**Consequence.** This table replaces the unverified factory map below and
-becomes the single source for the action catalogue's binding keys. If preset A
-and B differ only in numbers (not channel), a single parser handles both; if
-they differ in channel, the parser needs a layer notion.
+Extra finding, factory map silent on it: pressing **A** while layer A is
+active transmits nothing, and pressing **B** to switch A→B transmits nothing.
+The layer buttons are purely local switches. Verified by a zeroed counter and
+a 60 s watch around each press.
+
+**Consequence (confirmed).** The measured tables above replace the factory map
+as the binding source. Preset A and B differ only in numbers, not channel →
+**a single parser with a number offset handles both layers**; no layer notion
+needed in the channel logic.
 
 ---
 
@@ -338,26 +367,30 @@ not from the moment the handler runs, so it measures the device rather than
 the page. Even so, treat a suspiciously low peak as a question about the probe
 before accepting it as a fact about the hardware.
 
-**Results.**
+**Results.** (2026-08-23, layer A, encoder 1.)
 
 | Measurement | Value |
 | --- | --- |
-| Min value seen (single encoder) | |
-| Max value seen (single encoder) | |
-| Behaviour at the low end (clip / wrap / relative) | |
-| Behaviour at the high end (clip / wrap / relative) | |
-| Value delta per detent, slow turn | |
-| Value delta per detent, fast turn | |
-| Peak msg/s — one encoder spun fast | |
-| Peak msg/s — several encoders at once | |
-| Peak msg/s — fader full sweep | |
+| Min value seen (single encoder) | 0 |
+| Max value seen (single encoder) | 127 |
+| Behaviour at the low end (clip / wrap / relative) | **Clip** — repeated zeros after passing the stop, no wrap (420 values, no jump >100 between neighbours) |
+| Behaviour at the high end (clip / wrap / relative) | **Clip** — repeated 127s |
+| Value delta per detent, slow turn | 1 per detent |
+| Value delta per detent, fast turn | 1 per message; a fast spin produces more messages, never bigger steps |
+| Peak msg/s — one encoder spun fast | **41** |
+| Peak msg/s — several encoders at once | **71** (two hands, all eight encoders at random pace) |
+| Peak msg/s — fader full sweep | **442** |
 
-**Consequence.** Absolute-with-clipping confirmed → the knob layer must either
-be redesigned around absolute values (a knob maps to a value, not a delta) or
-depend on E4 succeeding. Relative encoding found → the knob layer is
-straightforward and E4 becomes moot. The peak rate sets whether incoming
-messages need coalescing before they reach application state; a rate above
-roughly 100/s per control means a naive handler will thrash.
+The full range is ~127 steps, one per detent; the user estimated about three
+physical turns bottom→top (the 2026-08-18 provkörning estimated "just over
+five" — the turn count is an order-of-magnitude 3–5, the step count ~127
+stands).
+
+**Consequence (confirmed).** Absolute-with-clipping confirmed. The knob layer
+cannot be a plain delta control, and E4 was its only escape hatch — which
+fell negative, see below. Rate budget: encoders peak well under 100/s and
+need no coalescing; **the fader peaks at 442/s and must be coalesced before
+application state** in any future handler.
 
 ---
 
@@ -420,41 +453,66 @@ what this experiment finds out.
 8. Also try writing a value other than 7 (e.g. 1 and 13) and check whether the
    counter tracks the *ring position* proportionally or snaps to a fixed value.
 
-**Results.**
-
-Record the raw value after one detent verbatim — not just "moved / didn't".
-Where it landed is what identifies the mapping rule.
+**Results.** (2026-08-23. Every write was confirmed received — the ring moved
+visibly — before the counter was read.)
 
 | Variant | Encoder | Channel used | Value written | Value `V` before | Raw value after one detent | Counter moved? (and to what) |
 | --- | --- | --- | --- | --- | --- | --- |
-| E4a plain ring value | 1 | | 7 | | | |
-| E4a plain ring value | 5 | | 7 | | | |
-| E4b Pan mode first | 1 | | 7 | | | |
-| E4b Pan mode first | 5 | | 7 | | | |
-| E4a, preset B | 1 | | 7 | | | |
-| E4a, other value | 1 | | 1 | | | |
-| E4a, other value | 1 | | 13 | | | |
+| E4a plain ring value, sent on the transmit channel | 1 (layer B) | 11 — **ignored** (ring unmoved) | 7 | 38 | 39 | **No — V±1**; the write never reached the device |
+| E4a plain ring value | 1 (layer B) | 1, after SysEx read | 7 | 39 | 40 | **No — V±1** |
+| E4a plain ring value | 1 (layer B), value 1 | 1 | 1 | 42 | 43 | **No — V±1** |
+| E4a plain ring value | 1 (layer B), value 13 | 1 | 13 | 43 | 44 | **No — V±1** |
+| E4b Pan mode first | 1 (layer B), LrC running | 1 | 7 | 40 | 41 | **No — V±1** |
+| E4b Pan mode first | 1 (layer B), clean setup | 1 | 7 | 41 | 42 | **No — V±1** |
+| E4a plain ring value | 5 (layer B) | 1 | 7 | ~27 | 28 | **No** — no jump toward centre |
+| E4a plain ring value | 5 (layer A) | 1 | 7 | 0 (knob sat at its end stop) | 1 | **No** |
+| Fan mode first (mode 2) | 1 (layer A) | 1 | 7 | 74 — see anomaly below | 71 | see anomaly note; thereafter clean +1/detent 71→75 |
+| Fan mode, ring value 13 | 1 (layer A) | 1 | 13 | 71 | 72 | **No — V±1**; then 73, 74, 75 over three more detents |
+| Spread mode first (mode 3) | 1 (layer A) | 1 | 7 | 75 | 76 | **No — V±1** |
+| Trim mode first (mode 4) | 1 (layer A) | 1 | 7 | 76 | 77 | **No** — then clean tracking 78…102 CW and down to 22 CCW |
 
 | Question | Answer |
 | --- | --- |
-| Does the LED ring visibly respond at all? | |
-| Which channel do RX messages have to be sent on? | |
-| Does the ring mode (Single/Pan/Fan/Spread/Trim) change the answer? | |
-| Is there a latency or rate limit on ring writes? | |
+| Does the LED ring visibly respond at all? | **Yes — but only on the right receive channel** (see below). |
+| Which channel do RX messages have to be sent on? | **Global channel = channel 1 from factory.** The SysEx info request (`f0 40 41 42 51 …`, handson protocol, read live with mido) answered `global ch: 0x00` = channel 1 — not `Off`. Writes on transmit channel 11 are received by no one; on channel 1 they land instantly. |
+| Does the ring mode (Single/Pan/Fan/Spread/Trim) change the answer? | **No — all five were exercised** (Single = factory, plus explicit Pan, Fan, Spread and Trim writes before each value write). Every mode behaves identically for this purpose: the value write lands as a single-LED overlay, and the ring is redrawn *from the internal counter* at the next physical turn. |
+| Is there a latency or rate limit on ring writes? | Not measured systematically; writes took effect with no observed delay. |
 
-**Consequence.**
+**The mechanism, established across all five modes:** a ring write is a
+**single-LED overlay**. At the next physical turn the device redraws the whole
+ring *from its internal counter* — Pan draws a marker at the counter's
+position, Fan fills from one edge to it, Spread and Trim draw symmetrically
+around the middle with counter-derived width. The redraw is why a working
+recentering would have been directly visible in the ring, and why its absence
+is trustworthy here.
 
-- **Counter moves — to 65/63 or to anything else** → phase 6 proceeds as
-  designed: after each encoder message the host writes the ring back to a known
-  position, and every knob becomes an endless relative control. This is the
-  good outcome, and it does not require the counter to land on 64
-  specifically — only that the write moves it predictably. Record the observed
-  mapping so the host knows what to write.
-- **Counter does not move (`V ± 1`)** → phase 6 must be redesigned before any
-  of it is built. The remaining options are all worse: absolute knobs with dead ends;
-  reconfiguring the device with the Windows-only X-TOUCH Editor in a VM (what
-  every published guide resorts to); or dropping the knob layer. Which one is
-  a decision for the owner, not something to pick silently.
+One anomaly is recorded rather than smoothed over: during the first Fan test,
+exactly one message arrived where the previous counter was 74 and the reported
+value was 71 (`74 → 71`, single message, no other traffic in the gap). Three
+detents' worth of movement in one report has no explanation consistent with
+the rest of the session (every other detent produced exactly one message); it
+may have been a merged or lost detent burst, or a firmware quirk. It does not
+carry the verdict — which rests on the many clean V±1 observations either
+side of it — but the table carries raw numbers instead of summary words
+precisely so this row stays visible.
+
+**Consequence — NEGATIVE.** The counter does not move on any ring write, in
+any of the five ring modes, for either tested encoder, in either preset, with
+values 1/7/13. This is the only negative branch of the protocol's three
+outcomes: **the LED ring is decorative, and phase 6 (knobs) cannot proceed as
+designed.**
+Per the original plan this forces an owner decision among:
+
+1. absolute knobs with dead ends at 0/127,
+2. reconfiguring the device to relative encoding via the Windows-only
+   X-TOUCH Editor (in a VM — reading config works from macOS via SysEx,
+   writing does not per `x-touch-mini-handson.md`), or
+3. dropping the knob layer entirely.
+
+Not picked silently. Note the silver lining recorded the same day: the
+*buttons* half of phase 6's plan (16 name buttons + actions on encoder
+presses, from the corpus analysis above) does not depend on E4 at all and can
+proceed regardless.
 
 ---
 
@@ -486,33 +544,37 @@ press — a feedback loop, and one that would be very hard to diagnose later.
 7. Try the same on the other preset layer, and check whether the LED state
    survives a preset switch.
 
-**Results.**
+**Results.** (2026-08-23, send channel 1.)
 
 | Note | Physical lamp that lit | Velocity 1 | Velocity 2 | Velocity 0 | Echoed back? |
 | --- | --- | --- | --- | --- | --- |
-| 0 | | | | | |
-| 1 | | | | | |
-| 7 | | | | | |
-| 8 | | | | | |
-| 15 | | | | | |
+| 0–7 (stepped) | upper row left→right, r1c1 first | on | — | — | no |
+| 8–15 (stepped) | lower row left→right | on | — | — | no |
+| 0–15, `Tänd` | all 16 | on | — | — | no |
+| 0–15, `Blinka` | all 16 pulse | — | **blink** | — | no |
+| 0–15, `Släck` | all off | — | — | off | no |
+| 5, single | r1c6 | on | — | Note Off `80 05 7F` also extinguishes | no |
+| 7, velocity 3 and 127 | **nothing happens** — the "3–127 ignored" claim holds at both spot-checked ends; velocities 4–126 were not swept and remain factory claims | ignored (3) | ignored (127) | — | no |
 
 | Question | Answer |
 | --- | --- |
-| Which channel do LED messages have to be sent on? | |
-| Does note 0–7 map to the upper or the lower button row? | |
-| Is velocity 2 = blink confirmed? | |
-| Does velocity 3–127 get ignored? | |
-| **Does the device echo sent notes back on its input port?** | |
-| If it echoes: same channel, or a different one? | |
-| Does LED state survive a preset (A/B) switch? | |
+| Which channel do LED messages have to be sent on? | **Channel 1** (the global channel, see E4). |
+| Does note 0–7 map to the upper or the lower button row? | **Upper row** (0–7 upper, 8–15 lower) — the factory RX table is right. |
+| Is velocity 2 = blink confirmed? | **Yes.** |
+| Does velocity 3–127 get ignored? | **At the spot-checked ends, yes** (3 and 127: no reaction). The intermediate range 4–126 was not swept and remains a factory claim. |
+| **Does the device echo sent notes back on its input port?** | **No.** Zero `EKO?` rows during the entire session, including every LED send. |
+| If it echoes: same channel, or a different one? | Moot — there is no echo. |
+| Does LED state survive a preset (A/B) switch? | **No.** Pressing B extinguished lit buttons and the whole surface (buttons + rings) re-rendered to each layer's internal values. |
 
-**Consequence.** Echo present → the input path needs a filter for
-self-generated messages (suppress an incoming note matching one sent within a
-short window, exactly what the probe's `EKO?` heuristic does), and that filter
-must exist before any LED feedback is built, not after. Echo absent → LED
-output and button input are independent and the LED layer is simple. If the
-LED row mapping differs from the factory table, the mapping in the action
-catalogue comes from **this table**, not from the manual.
+**Consequence (confirmed).** Echo absent → LED output and button input are
+independent and the input path needs no self-message filter — the numeric
+TX/RX collision on note 0–15 is harmless in practice. The LED row mapping in
+the action catalogue comes from the measured table above (which happens to
+agree with the factory one). One new constraint for any future feedback
+layer: **LED state does not survive a layer switch**, so a host cannot rely
+on set-and-forget lighting across layer changes — and since Ansikten's plan
+leaves the hardware layers unused anyway, this mainly matters if MIDI2LR runs
+concurrently.
 
 ---
 
@@ -535,47 +597,53 @@ Lightroom would also drive Ansikten in the background.
 6. Repeat with the Chrome window fully hidden behind another window, and with
    Chrome minimised, to see whether the answer differs.
 
-**Results.**
+**Results.** (2026-08-23.)
 
 | Condition | Messages received | Of which unfocused | Received at all? |
 | --- | --- | --- | --- |
-| Another app focused, Chrome visible | | | |
-| Another app focused, Chrome fully covered | | | |
-| Chrome minimised | | | |
-| Chrome window on another Space/desktop | | | |
+| Formal 15 s run, user working in another program | 47 | 0 flagged (see below) | **yes** |
+| Chrome hidden with Cmd+H, 12 s of knob turns | **302** | — | **yes** |
+| Whole session (all experiments) | ~2 800 RX rows total | 0 flagged | **yes** |
 
-**Consequence.** Messages arrive while unfocused (expected) → Ansikten must
-gate on its own window focus explicitly, and that gate is part of the input
-layer from the start rather than an afterthought. Messages stop when
-unfocused → the gate is free, but the behaviour is then browser-specific and
-must be re-verified in Electron before relying on it.
+| Question | Answer |
+| --- | --- |
+| Do messages arrive while the page lacks focus? | **Yes — even with the browser hidden.** The whole pass ran with the user in another program; the final proof is 302 messages under Cmd+H. |
+| Caveat about the probe's own flag | `document.hasFocus()` reported `true` and `visibilityState` `"visible"` throughout — macOS per-Space focus and/or the CDP automation keeps the page "focused". The **`OFOKUSERAD` flag therefore never fired** in this setup; its reliability must be re-verified inside Electron before anything is built on it. |
+
+**Consequence (confirmed).** Messages arrive regardless of focus and even
+browser visibility → **Ansikten must gate on its own window focus explicitly,
+and that gate is part of the input layer from the start**, not an
+afterthought. The browser will not do it.
 
 ---
 
-## Device map — **UNVERIFIED, filled in from E2/E5**
+## Device map — **MEASURED 2026-08-23, partially verified**
 
-Everything in this section is transcribed from the factory quick start guide
-(pages 14–15) via `chitrashala/underlag/behringer-x-touch-mini-quickstart.md`.
-It is recorded here so the experiments have something concrete to confirm or
-refute. **Do not build against it.** Replace each table with measured values
-once E2 and E5 have been run, and change this heading when you do.
+The tables below were transcribed from the factory quick start guide
+(pages 14–15 via `chitrashala/underlag/behringer-x-touch-mini-quickstart.md`)
+and then checked against the physical unit by E2 and E5. Every transmit row
+and the button-LED receive row are measurements; **the two receive rows
+marked *not exercised* remain factory claims**, not measurements. Corrections
+found during measurement are stated inline; the factory claims that fell are
+marked.
 
 Note numbers are given in the notation where note 0 = C-2 (Yamaha style), as
 the guide uses.
 
-### Transmit — Preset A (guide says: MIDI channel 11)
+### Transmit — Preset A (**confirmed**, wire channel nibble `0xA` = "kanal 11" 1-indexerad)
 
-| Control | Guide says |
+| Control | Measured |
 | --- | --- |
 | Encoder 1–8, turn | CC 1–8 |
-| Encoder 1–8, press | Note 0–7 |
-| Upper button row 1–8 | Note 8–15 |
-| Lower button row 1–8 | Note 16–23 |
+| Encoder 1–8, press | Note On vel 127 + **explicit Note Off** on note 0–7 |
+| Upper button row 1–8 | Note On/Off, note 8–15 |
+| Lower button row 1–8 | Note On/Off, note 16–23 |
 | Fader | CC 9 |
+| A/B buttons | **transmit nothing** (factory map silent on them; measured silent) |
 
-### Transmit — Preset B (guide says: MIDI channel 11)
+### Transmit — Preset B (**confirmed** — same channel, shifted numbers)
 
-| Control | Guide says |
+| Control | Measured |
 | --- | --- |
 | Encoder 1–8, turn | CC 11–18 |
 | Encoder 1–8, press | Note 24–31 |
@@ -583,40 +651,44 @@ the guide uses.
 | Lower button row 1–8 | Note 40–47 |
 | Fader | CC 10 |
 
-### Receive (guide says: on a "GLOBAL CH")
+Layers differ in numbers only → one parser + number offset covers both.
 
-| Function | RX command | RX value |
-| --- | --- | --- |
-| Operation mode select | CC 127 | 0 = standard mode, 1 = MC mode, 2–127 ignored |
-| Preset layer change | Program Change | standard mode only: 0 = layer A, 1 = layer B, 2–127 ignored |
-| LED ring behaviour | Encoders 1–8: CC 1–8 | 0 = Single, 1 = Pan, 2 = Fan, 3 = Spread, 4 = Trim, 5–127 ignored |
-| LED ring value | Encoders 1–8: CC 9–16 | 0 = all off, 1–13 = LED 1–13 on, 14–26 = LED 1–13 blinking, 27 = all on, 28 = all blinking, 29–127 ignored |
-| Button LEDs | Upper row 1–8: note 0–7. Lower row 9–16: note 8–15 | note off or velocity 0 = off, velocity 1 = on, velocity 2 = blink, velocity 3–127 ignored |
-| Layer A/B LEDs | not assignable | follows preset layer change |
+### Receive (**corrected**: global channel is *kanal 1* at factory)
 
-**The numeric collision to watch (E5):** transmit note 0–15 (encoder presses +
-upper button row) and receive note 0–15 (button LEDs) occupy the same range.
+The guide says only "on a GLOBAL CH" without naming a value; the hands-on
+material guessed the factory value might be `Off`. Measured via SysEx device
+info (`f0 40 41 42 51 00 … f7`, answered `… 00 00 00 00 01 08 01 00` =
+device id 0, global ch `0x00`, Standard mode, firmware 1.8, layer B):
+**the global channel is channel 1** (`0x12` would be Off; settable via the
+SysEx `globch` message). Every RX write sent to transmit channel 11 was
+silently ignored until this was known — including LED-ring mode writes during
+the 2026-08-18 provkörning, which explains their non-effect there.
+
+| Function | RX command | RX value | Verified |
+| --- | --- | --- | --- |
+| Operation mode select | CC 127 | 0 = standard, 1 = MC mode | **not exercised — factory claim** (device already in standard) |
+| Preset layer change | Program Change | 0 = layer A, 1 = layer B | **not exercised — factory claim** |
+| LED ring behaviour | Encoders 1–8: CC 1–8 | 0 Single / 1 Pan / 2 Fan / 3 Spread / 4 Trim | received on channel 1; **the effect is overridden by the device's own drawing at the next turn** |
+| LED ring value | Encoders 1–8: CC 9–16 | factory claim: 0 = all off, 1–13 = LED on, 14–26 = blinking, 27/28 = all (on/blinking), 29–127 ignored. **Only 1, 7 and 13 were exercised** — the other ranges remain factory claims | received on channel 1 for the tested values; **does not move the counter**, in any of the five modes (E4) — a pure overlay |
+| Button LEDs | Upper row: note 0–7. Lower row: note 8–15 | vel 0/off = off, 1 = on, 2 = blink, 3–127 ignored | vel 0/1/2 **measured**; 3 and 127 spot-checked as ignored; 4–126 remain factory claims |
+| Layer A/B LEDs | not drivable | follow the layer switch | confirmed; the whole surface re-renders on a layer change |
 
 ### MC mode — the trap
 
 Holding the **MC** button while connecting USB puts the device into Mackie
-Control mode, where none of the above applies: encoders become VPOTs, the
-fader becomes MASTER, and the buttons become Mackie transport functions. The
-MC MODE LED is lit when this is active. Every experiment above assumes
-**standard mode**; check the LED before measuring.
-
-Standard mode can be restored by repeating the MC-button-at-connect procedure,
-by sending `CC 127 = 0` on the global channel, or with the SysEx CLI from
-`x-touch-mini-handson.md`.
+Control mode, where none of the above applies. The MC MODE LED was **off**
+throughout the session; standard mode held. Per `x-touch-mini-handson.md`,
+mode can also be set back without Windows via SysEx (`f0 40 41 42 59 00 …`)
+or CC 127 = 0 on the global channel.
 
 ### What cannot be done from macOS
 
-Per `x-touch-mini-handson.md`, the device's SysEx configuration protocol is
-partly reverse-engineered: **reading** device info and layer configuration
-works, **writing** a full configuration does not. Changing CC numbers or the
-default LED ring modes therefore still requires the Windows-only X-TOUCH
-Editor. Mode switching, device id and global channel *are* reachable without
-it. This is the constraint that makes E4 load-bearing.
+Unchanged by this session's measurements: reading device info and layer
+configuration works via SysEx (device info read live with mido during E4),
+**writing** a full configuration does not. Changing CC numbers or default LED
+ring modes still requires the Windows-only X-TOUCH Editor. Combined with E4's
+negative outcome, that constraint is what makes the phase 6 owner decision
+real: no scriptable path to relative encoders exists.
 
 ---
 

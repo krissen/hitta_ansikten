@@ -10,7 +10,7 @@ den här filen är den löpande backlogen/known-issues/teknisk skuld över alla
 horisonter; `performance-plan.md` är en smalare, release-scopad plan (sprintar,
 deliverables, DoD) för en prestandarelease.
 
-**Senast uppdaterad:** 2026-07-29
+**Senast uppdaterad:** 2026-08-23
 
 ---
 
@@ -32,14 +32,28 @@ deliverables, DoD) för en prestandarelease.
     (fristående Chrome-sida, inget byggsteg, buntas aldrig) plus
     [docs/dev/midi.md](docs/dev/midi.md) med experiment E1–E6, tomma
     resultattabeller och en fabrikskarta märkt **OVERIFIERAD**.
-  - [ ] **Kör E1–E6 när enheten anlänt.** Inga mätvärden är ifyllda ännu.
-    Fabrikskartan i doc:en är ett påstående att verifiera, inte facit.
-  - [ ] **Fas 6 (rattar) är grindad på E4.** E4 avgör om en skrivning till
-    encoderns LED-krans också flyttar dess interna räknare, dvs. om absoluta
-    rattar kan fås att bete sig relativt utan Windows-editorn. Faller E4 ut
-    negativt måste ratt-fasen ritas om (absoluta rattar med ändlägen,
-    X-TOUCH Editor i VM, eller ingen ratt-fas) — ett ägarbeslut, inte ett
-    tyst val. **Kör E4 först av alla.**
+  - [x] **Kör E1–E6 när enheten anlänt** — kört 2026-08-23 via sonden under
+    automation (`frontend/scripts/midi-probe/session_driver.py`, riktig Chrome;
+    både `midi`- och `midi-sysex`-behörigheterna krävs). Resultaten står i
+    [docs/dev/midi.md](docs/dev/midi.md): fabrikskartan stämde på
+    sändningssidan ("kanal 11" är 1-indexerad, trådnibble A → `0xBA`/`0x9A`),
+    men mottagarsidan var odokumenterad — **global kanal är kanal 1 från
+    fabrik** (SysEx-läsning), vilket förklarar varför alla RX-skrivningar
+    tidigare ignorerats tyst.
+  - [ ] **E1:s stabilitetshalva är okörd** — replug och reboot för portarnas
+    `id`:er är inte testade (raderna står öppna i E1-tabellen i
+    [docs/dev/midi.md](docs/dev/midi.md)). Kör dem innan ett id minns i
+    preferenser; tills dess, matcha på `name` eller läs id:t varje session.
+  - [ ] **Fas 6 (rattar) är blockad på E4:s negativa utfall — ägarbeslut.**
+    E4 kördes först av alla och föll ut negativt på samtliga varianter (båda
+    rattarna testade, båda lagren, ringvärden 1/7/13, Pan-läge först):
+    skrivningar till LED-kransen bekräftas mottagna men flyttar aldrig
+    encoderns interna räknare (alltid V±1). Kransen är dekorativ — enheten
+    ritar själv om den från sin internräknare vid varje vridning. Ratt-fasen
+    måste väljas på nytt: absoluta rattar med ändlägen, X-TOUCH Editor i
+    Windows-VM (SysEx-skrivning fungerar inte från macOS), eller ingen
+    ratt-fas. Knapp-hälften av fas 6 (16 namnknappar + åtgärder på rattryckens
+    note 0–7) beror inte på E4 och kan gå vidare oberoende.
   - [x] **Loggmätning av namnfördelningen** (`backend/benchmarks/label_usage.py`,
     körs med `python -m benchmarks.label_usage`). Mätt på
     `attempt_stats.jsonl` (7 785 bilder, 2025-06-07 → 2026-07-17): `ignorerad`
@@ -59,10 +73,16 @@ deliverables, DoD) för en prestandarelease.
     inte läsas som en rangordning av handlingar. Att rangordna åtgärder
     kräver ny instrumentering. **Bygg den inte nu** — noterad så att frågan
     inte tappas, inte som beställd uppgift.
-  - [ ] Övriga fynd med konsekvens: E1 avgör om Ansikten kan dela enheten med
-    Lightroom + MIDI2LR, E5 avgör om ingångsfiltrering av egengenererade
-    meddelanden behövs (TX note 0–15 krockar numeriskt med RX note 0–15),
-    E6 avgör att fokusgrinden måste vara mjukvara.
+  - [x] Övriga fynd med konsekvens — besvarade 2026-08-23: **E1** bekräftade
+    samtidig åtkomst (sonden och MIDI2LR tar emot parallellt; id:na stabila
+    över processer och dagar, identiska med MIDI2LR:s Controllers.xml),
+    **E5** fann inget eko alls (TX/RX-krocken på note 0–15 är ofarlig; inget
+    inkomstsfilter behövs) och att LED-tillstånd inte överlever lagerbyte,
+    **E6** visade att meddelanden kommer fram även när webbläsaren är gömd
+    (302 meddelanden under Cmd+H) — fokusgrinden måste vara mjukvara.
+    Sondens `OFOKUSERAD`-flagga kunde däremot aldrig triggas i setuppen
+    (`document.hasFocus()` höll sig sann) — verifieras i Electron innan den
+    byggs på.
 - [x] **Anta ruff 0.16:s nya regler (en regelfamilj per PR)** — CI-stabiliseringen låste regeluppsättningen till `select = ["E4", "E7", "E9", "F", "I"]` i `backend/pyproject.toml` utan att röra kod (se [CHANGELOG.md](CHANGELOG.md)). De 947 fynden antas **familj för familj**, inte i ett svep: `select` utökas i samma PR som koden städas. (947 var talet **under den gamla konfigurationen**, före etapp 1 — använd inte den siffran för att beskriva vad som återstår; se den uppmätta listan nedan.)
   - [x] **Etapp 1 — moderna typannoteringar (UP006 / UP035 / UP045).** 510 fynd i `backend/` + 19 i `shared/shared_types.py`, åtgärdade via safe autofix (inga `--unsafe-fixes`); de fynd autofixen lämnade föll bort när de nu oanvända `typing`-importerna städades av F401/I001. En handrättning: typaliaset `Fingerprint` i `api/services/db_store.py` (ruff håller aliasrewrites osäkra eftersom ett alias kan användas i runtime). `Optional['StartupState']` i `api/services/startup_service.py` lämnas medvetet kvar: den **delvis** citerade formen kan inte bli `'StartupState' | None`, eftersom klasskroppen utvärderas i runtime och `str | None` ger `TypeError`. Att citera **hela** uttrycket (`'StartupState | None'`) hade fungerat och pensionerat repots sista `typing.Optional` — det valdes bort som en läsbarhetsförändring bortom en mekanisk regelfamilj, inte för att det är omöjligt. Ruff flaggar formen inte heller.
   - [x] **Etapp 2 — oanvända `noqa`-direktiv (RUF100).** 22 fynd (inte 24 — den siffran togs före etapp 1), alla safe autofix, identisk fyndlista mot 0.16.0 och 0.15.22. Ett av dem var inte mekaniskt: `# noqa: B006` i `core/image.py` gällde en **ovald** regel och räknades därför som oanvänt, fast det markerade ett muterbart defaultvärde som såg avsiktligt ut. Att läsa koden visade att `last_shown` aldrig har lästs — parametern och dess två tilldelningar är borttagna, vilket avlägsnar överträdelsen permanent i stället för att annotera den. **Regel för resten av arbetet:** varje gång `select` växer, skilj `noqa` för *valda* regler (säkra att stryka) från `noqa` för *ovalda* — de senare ser oanvända ut i dag och tar med sig sin motivering i graven om de bara raderas. Läs koden och bevara motiveringen som kommentar innan direktivet stryks; visar läsningen att motiveringen inte finns, radera konstruktionen i stället.
