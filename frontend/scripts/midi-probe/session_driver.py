@@ -74,9 +74,13 @@ def main():
                     or "saknas" in status):
                 break
             page.wait_for_timeout(250)
-        ports = page.locator("#portBody tr").count()
-        if "Ansluten" not in status:
-            emit({"ok": False, "phase": "ready", "status": status})
+        # Subtract the placeholder row: with no device the probe renders one
+        # <td class="empty"> row, which must not read as a present port.
+        empty_rows = page.locator("#portBody td.empty").count()
+        ports = page.locator("#portBody tr").count() - empty_rows
+        if "Ansluten" not in status or "ingen enhet" in status or ports == 0:
+            emit({"ok": False, "phase": "ready", "status": status,
+                  "ports": ports})
             browser.close()
             return 1
         emit({"ok": True, "phase": "ready", "status": status, "portRows": ports})
