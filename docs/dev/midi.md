@@ -602,12 +602,15 @@ afterthought. The browser will not do it.
 
 ---
 
-## Device map — **MEASURED 2026-08-23**
+## Device map — **MEASURED 2026-08-23, partially verified**
 
 The tables below were transcribed from the factory quick start guide
 (pages 14–15 via `chitrashala/underlag/behringer-x-touch-mini-quickstart.md`)
-and then confirmed against the physical unit by E2 and E5. Corrections found
-during measurement are stated inline; the factory claims that fell are marked.
+and then checked against the physical unit by E2 and E5. Every transmit row
+and the button-LED receive row are measurements; **the two receive rows
+marked *not exercised* remain factory claims**, not measurements. Corrections
+found during measurement are stated inline; the factory claims that fell are
+marked.
 
 Note numbers are given in the notation where note 0 = C-2 (Yamaha style), as
 the guide uses.
@@ -648,8 +651,8 @@ the 2026-08-18 provkörning, which explains their non-effect there.
 
 | Function | RX command | RX value | Verified |
 | --- | --- | --- | --- |
-| Operation mode select | CC 127 | 0 = standard, 1 = MC mode | not exercised (device already in standard) |
-| Preset layer change | Program Change | 0 = layer A, 1 = layer B | not exercised |
+| Operation mode select | CC 127 | 0 = standard, 1 = MC mode | **not exercised — factory claim** (device already in standard) |
+| Preset layer change | Program Change | 0 = layer A, 1 = layer B | **not exercised — factory claim** |
 | LED ring behaviour | Encoders 1–8: CC 1–8 | 0 Single / 1 Pan / 2 Fan / 3 Spread / 4 Trim | received on channel 1; **the effect is overridden by the device's own drawing at the next turn** |
 | LED ring value | Encoders 1–8: CC 9–16 | 0 off, 1–13 LED 1–13, 14–26 blinking, 27/28 all | received; **does not move the counter** (E4) — a pure overlay |
 | Button LEDs | Upper row: note 0–7. Lower row: note 8–15 | vel 0/off = off, 1 = on, 2 = blink, 3–127 ignored | **fully confirmed**, including the ignoring |
