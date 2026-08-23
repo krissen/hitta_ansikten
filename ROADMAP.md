@@ -40,6 +40,10 @@ deliverables, DoD) för en prestandarelease.
     men mottagarsidan var odokumenterad — **global kanal är kanal 1 från
     fabrik** (SysEx-läsning), vilket förklarar varför alla RX-skrivningar
     tidigare ignorerats tyst.
+  - [ ] **E1:s stabilitetshalva är okörd** — replug och reboot för portarnas
+    `id`:er är inte testade (raderna står öppna i E1-tabellen i
+    [docs/dev/midi.md](docs/dev/midi.md)). Kör dem innan ett id minns i
+    preferenser; tills dess, matcha på `name` eller läs id:t varje session.
   - [ ] **Fas 6 (rattar) är blockad på E4:s negativa utfall — ägarbeslut.**
     E4 kördes först av alla och föll ut negativt på samtliga varianter (båda
     rattarna testade, båda lagren, ringvärden 1/7/13, Pan-läge först):
