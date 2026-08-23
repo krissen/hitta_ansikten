@@ -118,14 +118,24 @@ def main():
                   "ports": ports, "pair": pair})
             browser.close()
             return 1
-        # The probe leaves the first enumerated output selected; make sure
-        # the controller's own output is the one experiment writes go to.
-        page.eval_on_selector(
-            "#outPort",
-            "sel => { const opt = [...sel.options]"
-            ".find(o => o.textContent.includes('X-TOUCH MINI'));"
-            " if (opt) sel.value = opt.value; }",
+        # The probe leaves the first enumerated output selected. Web MIDI
+        # can retain a disconnected instance of the controller after a
+        # replug, so pick the id of the *connected* output row from the
+        # port table rather than the first name match.
+        connected_out_id = page.evaluate(
+            "(() => { const cells = tr => [...tr.cells]"
+            ".map(td => td.textContent.trim());"
+            " const row = [...document.querySelectorAll('#portBody tr')]"
+            ".map(cells).find(c => c[0] === 'output'"
+            " && c[1] === 'X-TOUCH MINI' && c[4] === 'connected');"
+            " return row ? row[6] : null; })()"
         )
+        if not connected_out_id:
+            emit({"ok": False, "phase": "ready", "status": status,
+                  "error": "ingen ansluten X-TOUCH-utgång hittad"})
+            browser.close()
+            return 1
+        page.select_option("#outPort", value=connected_out_id)
         emit({"ok": True, "phase": "ready", "status": status, "ports": ports})
 
         while True:
