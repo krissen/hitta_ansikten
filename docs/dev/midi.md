@@ -554,14 +554,14 @@ press — a feedback loop, and one that would be very hard to diagnose later.
 | 0–15, `Blinka` | all 16 pulse | — | **blink** | — | no |
 | 0–15, `Släck` | all off | — | — | off | no |
 | 5, single | r1c6 | on | — | Note Off `80 05 7F` also extinguishes | no |
-| 7, velocity 3 and 127 | **nothing happens** — the "3–127 ignored" claim holds | ignored | ignored | — | no |
+| 7, velocity 3 and 127 | **nothing happens** — the "3–127 ignored" claim holds at both spot-checked ends; velocities 4–126 were not swept and remain factory claims | ignored (3) | ignored (127) | — | no |
 
 | Question | Answer |
 | --- | --- |
 | Which channel do LED messages have to be sent on? | **Channel 1** (the global channel, see E4). |
 | Does note 0–7 map to the upper or the lower button row? | **Upper row** (0–7 upper, 8–15 lower) — the factory RX table is right. |
 | Is velocity 2 = blink confirmed? | **Yes.** |
-| Does velocity 3–127 get ignored? | **Yes**, tried with 3 and 127: no reaction. |
+| Does velocity 3–127 get ignored? | **At the spot-checked ends, yes** (3 and 127: no reaction). The intermediate range 4–126 was not swept and remains a factory claim. |
 | **Does the device echo sent notes back on its input port?** | **No.** Zero `EKO?` rows during the entire session, including every LED send. |
 | If it echoes: same channel, or a different one? | Moot — there is no echo. |
 | Does LED state survive a preset (A/B) switch? | **No.** Pressing B extinguished lit buttons and the whole surface (buttons + rings) re-rendered to each layer's internal values. |
@@ -670,7 +670,7 @@ the 2026-08-18 provkörning, which explains their non-effect there.
 | Preset layer change | Program Change | 0 = layer A, 1 = layer B | **not exercised — factory claim** |
 | LED ring behaviour | Encoders 1–8: CC 1–8 | 0 Single / 1 Pan / 2 Fan / 3 Spread / 4 Trim | received on channel 1; **the effect is overridden by the device's own drawing at the next turn** |
 | LED ring value | Encoders 1–8: CC 9–16 | factory claim: 0 = all off, 1–13 = LED on, 14–26 = blinking, 27/28 = all (on/blinking), 29–127 ignored. **Only 1, 7 and 13 were exercised** — the other ranges remain factory claims | received on channel 1 for the tested values; **does not move the counter**, in any of the five modes (E4) — a pure overlay |
-| Button LEDs | Upper row: note 0–7. Lower row: note 8–15 | vel 0/off = off, 1 = on, 2 = blink, 3–127 ignored | **fully confirmed**, including the ignoring |
+| Button LEDs | Upper row: note 0–7. Lower row: note 8–15 | vel 0/off = off, 1 = on, 2 = blink, 3–127 ignored | vel 0/1/2 **measured**; 3 and 127 spot-checked as ignored; 4–126 remain factory claims |
 | Layer A/B LEDs | not drivable | follow the layer switch | confirmed; the whole surface re-renders on a layer change |
 
 ### MC mode — the trap

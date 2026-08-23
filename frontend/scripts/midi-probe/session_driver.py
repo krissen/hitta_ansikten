@@ -5,7 +5,8 @@ commands, so a hardware pass is not broken into per-step page loads. Driven
 by single-line JSON commands over a named pipe; results come back as JSON
 lines in an output log. Run it once per session:
 
-    mkdir -m 700 /tmp/xt   # private: the pipe executes arbitrary JS
+    set -e   # every setup step must succeed before the driver starts
+    rm -rf /tmp/xt && mkdir -m 700 /tmp/xt
     mkfifo -m 600 /tmp/xt/cmd
     conda run -n default --no-capture-output \
       python frontend/scripts/midi-probe/session_driver.py &
@@ -80,17 +81,21 @@ def main():
         empty_rows = page.locator("#portBody td.empty").count()
         ports = page.locator("#portBody tr").count() - empty_rows
         # Any MIDI endpoint (an IAC bus, a DAW's virtual ports) makes the
-        # row count nonzero; readiness requires the controller itself,
-        # present as both an input and an output.
-        xtouch_ports = page.evaluate(
-            "[...document.querySelectorAll('#portBody tr')]"
-            ".filter(tr => tr.textContent.includes('X-TOUCH MINI')"
-            " && !tr.querySelector('td.empty')).length"
+        # row count nonzero; readiness requires the controller itself, as
+        # one connected input AND one connected output. A disconnected
+        # device keeps its rows but reports state=disconnected.
+        pair = page.evaluate(
+            "(() => { const rows = [...document.querySelectorAll("
+            "'#portBody tr')].filter(tr => !tr.querySelector('td.empty')"
+            " && tr.textContent.includes('X-TOUCH MINI')"
+            " && tr.textContent.includes('connected'));"
+            " return {input: rows.some(tr => tr.textContent.includes('input')),"
+            " output: rows.some(tr => tr.textContent.includes('output'))}; })()"
         )
         if ("Ansluten" not in status or "ingen enhet" in status
-                or xtouch_ports < 2):
+                or not (pair["input"] and pair["output"])):
             emit({"ok": False, "phase": "ready", "status": status,
-                  "ports": ports, "xtouchPorts": xtouch_ports})
+                  "ports": ports, "pair": pair})
             browser.close()
             return 1
         # The probe leaves the first enumerated output selected; make sure
