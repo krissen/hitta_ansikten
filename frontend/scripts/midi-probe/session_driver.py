@@ -37,6 +37,7 @@ even when the page requests access without SysEx. Verified 2026-08-23.
 
 import json
 import os
+import stat
 import sys
 import traceback
 from urllib.parse import urlsplit
@@ -56,7 +57,24 @@ def emit(line):
         f.flush()
 
 
+def require_private_fifo(path):
+    """Refuse to read commands from anything but an owned, private FIFO.
+
+    The pipe executes arbitrary JS in the browser session; a regular file,
+    a symlink, or a group/world-readable replacement would let stale data
+    or another local user inject commands.
+    """
+    st = os.lstat(path)  # lstat: a symlink to a FIFO is still not ours
+    if not stat.S_ISFIFO(st.st_mode):
+        sys.exit(f"{path} är ingen FIFO (mkfifo -m 600 {path})")
+    if st.st_mode & 0o777 != 0o600:
+        sys.exit(f"{path} måste ha läge 600 (chmod 600 {path})")
+    if st.st_uid != os.getuid():
+        sys.exit(f"{path} ägs inte av den aktuella användaren")
+
+
 def main():
+    require_private_fifo(CMD_FIFO)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False, channel="chrome")
         context = browser.new_context()
@@ -82,15 +100,17 @@ def main():
         ports = page.locator("#portBody tr").count() - empty_rows
         # Any MIDI endpoint (an IAC bus, a DAW's virtual ports) makes the
         # row count nonzero; readiness requires the controller itself, as
-        # one connected input AND one connected output. A disconnected
-        # device keeps its rows but reports state=disconnected.
+        # one connected input AND one connected output. Cell-exact matches:
+        # a substring test would accept 'disconnected' as 'connected'.
         pair = page.evaluate(
-            "(() => { const rows = [...document.querySelectorAll("
-            "'#portBody tr')].filter(tr => !tr.querySelector('td.empty')"
-            " && tr.textContent.includes('X-TOUCH MINI')"
-            " && tr.textContent.includes('connected'));"
-            " return {input: rows.some(tr => tr.textContent.includes('input')),"
-            " output: rows.some(tr => tr.textContent.includes('output'))}; })()"
+            "(() => { const cells = tr => [...tr.cells]"
+            ".map(td => td.textContent.trim());"
+            " const rows = [...document.querySelectorAll('#portBody tr')]"
+            ".filter(tr => !tr.querySelector('td.empty'))"
+            ".map(cells).filter(c => c[1] === 'X-TOUCH MINI'"
+            " && c[4] === 'connected');"
+            " return {input: rows.some(c => c[0] === 'input'),"
+            " output: rows.some(c => c[0] === 'output')}; })()"
         )
         if ("Ansluten" not in status or "ingen enhet" in status
                 or not (pair["input"] and pair["output"])):
