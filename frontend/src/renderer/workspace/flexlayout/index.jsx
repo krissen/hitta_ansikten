@@ -15,6 +15,7 @@ import { ConfirmProvider } from '../../context/ConfirmContext.jsx';
 import { NotificationListener } from '../../components/NotificationListener.jsx';
 import { ConnectionStatus } from '../../components/ConnectionStatus.jsx';
 import { debug, debugError } from '../../shared/debug.js';
+import { createMidiClient } from '../../shared/midi/client.js';
 
 // Import theme system (must be first among CSS imports to define variables)
 import '../../theme.css';
@@ -65,6 +66,15 @@ function initFlexLayoutWorkspace() {
   );
 
   debug('FlexLayout', 'Workspace initialized');
+
+  // X-TOUCH MINI control surface: always-on Web MIDI. Quiet no-op when the
+  // device is absent; statechange drives hot-plug recovery, and the message
+  // consumer arrives with the MIDI input layer.
+  const midi = createMidiClient({
+    log: (msg) => debug('MIDI', msg),
+    onStatus: (status, detail) => debug('MIDI', `status ${status}`, detail),
+  });
+  midi.connect().catch((err) => debugError('MIDI', 'connect failed', err));
 }
 
 // Initialize when DOM is ready

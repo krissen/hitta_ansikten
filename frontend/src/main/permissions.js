@@ -34,6 +34,11 @@ const WORKSPACE_PERMISSIONS = Object.freeze([
   // navigator.clipboard.writeText() behind the "copy logs" button in
   // LogViewer; Chromium routes writeText through clipboard-sanitized-write.
   'clipboard-sanitized-write',
+  // navigator.requestMIDIAccess() behind shared/midi/client.js — the
+  // X-TOUCH MINI control surface. Chromium refuses the request unless BOTH
+  // names are allowed, even though nothing here sends SysEx yet.
+  'midi',
+  'midiSysex',
 ]);
 
 /**

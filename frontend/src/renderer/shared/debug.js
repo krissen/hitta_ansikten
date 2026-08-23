@@ -17,6 +17,7 @@ const DEFAULT_CATEGORIES = {
   'FlexLayout': false,
   'Backend': true,
   'WebSocket': true,
+  'MIDI': true,
   'ModuleAPI': false,
   'ModuleEvent': false,
   'FileQueue': false,
