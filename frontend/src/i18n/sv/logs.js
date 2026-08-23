@@ -21,6 +21,12 @@ module.exports = {
   "copyFailed": "Kunde inte kopiera loggarna",
   "clear": "Rensa",
 
+  "midi": {
+    "ready": "MIDI: X-TOUCH MINI",
+    "searching": "MIDI: sök",
+    "rescanTitle": "Sök efter styrenheten igen"
+  },
+
   "empty": {
     "waiting": "Väntar på loggposter…",
     "noMatch": "Inga loggposter matchar det aktuella filtret"

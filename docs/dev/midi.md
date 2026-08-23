@@ -657,6 +657,41 @@ afterthought. The browser will not do it.
 
 ---
 
+## Runtime verification in Electron — **PENDING** (code done, PRs #276/#277)
+
+Etapp 1–2 of the phase-6 plan are implemented and unit-tested (990/990), but
+the Electron runtime facts below are unobserved. Run `npx electron .` from
+`frontend/` with the device connected and work through this list; write the
+outcomes back into this document and the E1 table, then merge #276 → #277.
+
+1. **Boot lines.** DevTools console / LogViewer shows `requesting MIDI
+   access…`, then `bound "X-TOUCH MINI": 1 in / 1 out`, then
+   `status: connected`.
+2. **Knob deltas.** Turning encoder 1 logs `{ type: 'knob', layer: 'A',
+   index: 0, steps: ±1 }`; the very first detent after boot is the silent
+   baseline.
+3. **Button events.** Upper button 1 logs `{ type: 'button', phase:
+   'press'|'release', control: 'button-upper', index: 0 }`.
+4. **LogViewer affordance.** The toolbar shows `MIDI: X-TOUCH MINI` while
+   connected; clicking it runs rescan() without breaking the connection.
+5. **Focus gate inside Electron (settles the E6 caveat).** Click into
+   another application and turn a knob: the log must show `input dropped:
+   the workspace does not have focus`, and on return `focus regained:
+   input un-gated`. Also record what `document.hasFocus()` reports while
+   covered/minimised — under browser automation it stayed `true`, which made
+   the probe's own OFOKUSERAD flag untestable; Electron is where that
+   question is actually answered.
+6. **Hot-plug (E1 replug half).** With the app running: unplug USB, wait,
+   replug. Record whether statechange alone restores `status: connected`
+   (expected) or whether the LogViewer rescan button was needed; note any
+   id changes in the E1 table row C.
+
+The reboot half of E1 stays a separate step at the end of a working day:
+after a reboot, repeat the port enumeration and fill in the remaining E1
+stability answers before any preference remembers an id.
+
+---
+
 ## Device map — **MEASURED 2026-08-23, partially verified**
 
 The tables below were transcribed from the factory quick start guide

@@ -15,6 +15,7 @@ import { getLogBuffer, clearLogBuffer, debug } from '../shared/debug.js';
 import { Button } from './shared';
 import { useToast } from '../context/ToastContext.jsx';
 import { t } from '../../i18n/index.js';
+import { getWorkspaceMidi } from '../shared/midi/client.js';
 import './LogViewer.css';
 
 /**
@@ -44,6 +45,26 @@ export function LogViewer() {
   const autoScrollRef = useRef(true);
   const entriesRef = useRef(null);
   const lastBufferLengthRef = useRef(0);
+
+  // MIDI status for the rescan button. The client is the workspace-wide
+  // singleton; LogViewer only mirrors its state and can trigger a rescan.
+  const [midiConnected, setMidiConnected] = useState(
+    () => getWorkspaceMidi().connected,
+  );
+  useEffect(
+    () => getWorkspaceMidi().onStatusChange(() => {
+      setMidiConnected(getWorkspaceMidi().connected);
+    }),
+    [],
+  );
+
+  const rescanMidi = useCallback(async () => {
+    const found = await getWorkspaceMidi().rescan();
+    if (found) {
+      showToast(t('logs.midi.ready'));
+    }
+  }, [showToast]);
+
 
   /**
    * Add a log entry
@@ -195,6 +216,13 @@ export function LogViewer() {
             <option value="warn">{t('logs.level.warning')}</option>
             <option value="error">{t('logs.level.error')}</option>
           </select>
+          <Button
+            variant="secondary"
+            onClick={rescanMidi}
+            title={t('logs.midi.rescanTitle')}
+          >
+            {midiConnected ? t('logs.midi.ready') : t('logs.midi.searching')}
+          </Button>
           <Button variant="secondary" onClick={copyLogs}>
             {t('logs.copy')}
           </Button>
