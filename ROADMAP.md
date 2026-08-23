@@ -68,7 +68,10 @@ deliverables, DoD) för en prestandarelease.
     hot-plug-hanteringen är statechange-driven med en manuell rescan som
     försäkring (M2LR:s rescan-knapp-behov finns inte i Web MIDI).
   - [ ] **Fas 6-knappar, etapp 1 — Electron MIDI-enablement**
-    (`feat/midi-electron-enable`). `'midi'` + `'midiSysex'` tillbaka i
+    (**KOD KLAR — PR #276**, gren `feat/midi-electron-enable`, staplad under
+    sig av etapp 2:s #277; väntar live-verifiering innan merge, se
+    checklistan i [docs/dev/midi.md](docs/dev/midi.md) § *Runtime
+    verification in Electron*). `'midi'` + `'midiSysex'` tillbaka i
     `WORKSPACE_PERMISSIONS` i `frontend/src/main/permissions.js` — båda två,
     annars släpper Chrome ingen av dem; varje allowlistad behörighet ska ha
     sin caller i samma ändring. Ny
@@ -79,23 +82,29 @@ deliverables, DoD) för en prestandarelease.
     omstart av access) samt injicerbar navigator-mock för tester.
     Auto-connect anropas från workspace-root; portrader till loggen.
     Exakt-innehållstestet i `frontend/tests/permissions.test.js` uppdateras
-    (det förväntar idag endast clipboard). Verifiering: vitest + electron-
-    körning med enhet inkopplad; E6-caveaten (`document.hasFocus()` i
-    Electron — under automation höll den sig sann) avläses och dokumenteras
+    (det förväntade idag endast clipboard). Verifiering: vitest +
+    electron-körning med enhet inkopplad; E6-caveaten (`document.hasFocus()`
+    i Electron — under automation höll den sig sann) avläses och dokumenteras
     i [docs/dev/midi.md](docs/dev/midi.md).
-  - [ ] **Etapp 2 — ingångslager** (`feat/midi-input-layer`). Ny ren parser
+  - [ ] **Etapp 2 — ingångslager** (**KOD KLAR — PR #277**, gren
+    `feat/midi-input-layer`, staplad på #276; samma väntan på
+    live-verifiering). Ny ren parser
     `frontend/src/renderer/shared/midi/map.js` ur uppmätta kartan: trådnibble
     `0xA`, kanal 10 (0-indexerad), lageroffset A/B (vrid CC 1–8/11–18,
     rattryck not 0–7/24–31, övre rad 8–15/32–39, undre rad 16–23/40–47, fader
     CC 9/10); okända statusar/nummer → `null`. Ny
     `shared/midi/deltas.js`: beslut A:s tillståndsmaskin per ratt — baslinje
-    vid första beröring, re-baselinje efter tomgång, parkering vid 0/127 =
+    vid första beröring (även direkt på ett ändläge — parkerar då genast),
+    re-baselinje efter tomgång, parkering vid 0/127 =
     urkopplad tills ratten rört sig klart därifrån (tyst hemvirk) — emitterar
     signerade steg. Fokusgrind app-vid i lagret: `document.hasFocus()` bakom
-    injicerbar wrapper, meddelanden utan fokus släpps inte igenom. LogViewer
+    injicerbar wrapper, meddelanden utan fokus släpps inte igenom och
+    olästa serier loggas en gång, inte per meddelande. LogViewer
     får en MIDI-statusknapp i verktygsraden (klick = rescan) bredvid
-    kopia/rensa. Vitest: kartans alla rader rundtrippar, okänt avvisas,
-    delta-/rail-/tomgångssekvenser per fall. Live-verifiering mot enheten.
+    kopia/rensa; i18n under `logs.midi`. Vitest: kartans alla rader
+    rundtrippar, okänt avvisas,
+    delta-/rail-/tomgångssekvenser per fall (43 nya tester; sviten 990/990).
+    Live-verifiering mot enheten.
   - [ ] **Etapp 3 — knappåtgärder.** Rattryck (not 0–7, lager A) kopplas till
     åtgärder via `review/reviewActions.js` (`ignorerad` först — 42 % av alla
     etiketter), LED-feedback med de uppmätta velocity-semantikerna (0 av / 1
