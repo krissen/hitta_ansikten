@@ -60,7 +60,50 @@ deliverables, DoD) för en prestandarelease.
     riktningsfeedback. Ingen Windows-editor och ingen avskrivning av
     ratt-fasen; tangentbordet står kvar som utväg. Knapp-hälften av fas 6
     (16 namnknappar + åtgärder på rattryckens note 0–7) beror inte på E4 och
-    kan gå vidare oberoende.
+    kan gå vidare oberoende. Byggplanen nedan planerades 2026-08-23; låsta
+    designval från sessionen: alltid-på auto-connect utan preferens (tyst
+    no-op utan enhet — togglen kommer med mappnings-UI i etapp 4),
+    delta-avkodning med rail-parkering byggs i etapp 2 trots att knappar bara
+    behöver noter, fokusgrinden sitter app-vid i ingångslagret, och
+    hot-plug-hanteringen är statechange-driven med en manuell rescan som
+    försäkring (M2LR:s rescan-knapp-behov finns inte i Web MIDI).
+  - [ ] **Fas 6-knappar, etapp 1 — Electron MIDI-enablement**
+    (`feat/midi-electron-enable`). `'midi'` + `'midiSysex'` tillbaka i
+    `WORKSPACE_PERMISSIONS` i `frontend/src/main/permissions.js` — båda två,
+    annars släpper Chrome ingen av dem; varje allowlistad behörighet ska ha
+    sin caller i samma ändring. Ny
+    `frontend/src/renderer/shared/midi/client.js`:
+    `connectMidi({ name = 'X-TOUCH MINI' })` med `requestMIDIAccess({
+    sysex: true })`, portmatchning på namn, `statechange`-lyssnare som
+    återansluter vid hot-plug, `rescan()` (omenumerera, vid tom hand full
+    omstart av access) samt injicerbar navigator-mock för tester.
+    Auto-connect anropas från workspace-root; portrader till loggen.
+    Exakt-innehållstestet i `frontend/tests/permissions.test.js` uppdateras
+    (det förväntar idag endast clipboard). Verifiering: vitest + electron-
+    körning med enhet inkopplad; E6-caveaten (`document.hasFocus()` i
+    Electron — under automation höll den sig sann) avläses och dokumenteras
+    i [docs/dev/midi.md](docs/dev/midi.md).
+  - [ ] **Etapp 2 — ingångslager** (`feat/midi-input-layer`). Ny ren parser
+    `frontend/src/renderer/shared/midi/map.js` ur uppmätta kartan: trådnibble
+    `0xA`, kanal 10 (0-indexerad), lageroffset A/B (vrid CC 1–8/11–18,
+    rattryck not 0–7/24–31, övre rad 8–15/32–39, undre rad 16–23/40–47, fader
+    CC 9/10); okända statusar/nummer → `null`. Ny
+    `shared/midi/deltas.js`: beslut A:s tillståndsmaskin per ratt — baslinje
+    vid första beröring, re-baselinje efter tomgång, parkering vid 0/127 =
+    urkopplad tills ratten rört sig klart därifrån (tyst hemvirk) — emitterar
+    signerade steg. Fokusgrind app-vid i lagret: `document.hasFocus()` bakom
+    injicerbar wrapper, meddelanden utan fokus släpps inte igenom. LogViewer
+    får en MIDI-statusknapp i verktygsraden (klick = rescan) bredvid
+    kopia/rensa. Vitest: kartans alla rader rundtrippar, okänt avvisas,
+    delta-/rail-/tomgångssekvenser per fall. Live-verifiering mot enheten.
+  - [ ] **Etapp 3 — knappåtgärder.** Rattryck (not 0–7, lager A) kopplas till
+    åtgärder via `review/reviewActions.js` (`ignorerad` först — 42 % av alla
+    etiketter), LED-feedback med de uppmätta velocity-semantikerna (0 av / 1
+    på / 2 blink), allt bakom etapp 2:s fokusgrind.
+  - [ ] **Etapp 4 — namnknappar + preferenser.** Topp-16-namn för aktuell
+    arbetsmängd mot ankaret i `shared/workingFolder.js` (topp-16 inom shoot
+    täcker 97 % av namnsättningarna), mappnings-UI, preferenssektion med
+    MIDI-toggle — dit flyttas även ev. menypost för rescan.
   - [x] **Loggmätning av namnfördelningen** (`backend/benchmarks/label_usage.py`,
     körs med `python -m benchmarks.label_usage`). Mätt på
     `attempt_stats.jsonl` (7 785 bilder, 2025-06-07 → 2026-07-17): `ignorerad`
