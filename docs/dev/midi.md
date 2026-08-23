@@ -458,7 +458,8 @@ visibly — before the counter was read.)
 
 | Variant | Encoder | Channel used | Value written | Value `V` before | Raw value after one detent | Counter moved? (and to what) |
 | --- | --- | --- | --- | --- | --- | --- |
-| E4a plain ring value | 1 (layer B) | 1, after SysEx read; 11 = ignored | 7 | 38 (still V±1 on the channel-11 attempt: 39→40) | 40 | **No — V±1** |
+| E4a plain ring value, sent on the transmit channel | 1 (layer B) | 11 — **ignored** (ring unmoved) | 7 | 38 | 39 | **No — V±1**; the write never reached the device |
+| E4a plain ring value | 1 (layer B) | 1, after SysEx read | 7 | 39 | 40 | **No — V±1** |
 | E4a plain ring value | 1 (layer B), value 1 | 1 | 1 | 42 | 43 | **No — V±1** |
 | E4a plain ring value | 1 (layer B), value 13 | 1 | 13 | 43 | 44 | **No — V±1** |
 | E4b Pan mode first | 1 (layer B), LrC running | 1 | 7 | 40 | 41 | **No — V±1** |

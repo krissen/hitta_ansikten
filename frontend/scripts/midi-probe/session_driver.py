@@ -65,12 +65,14 @@ def main():
         page.bring_to_front()
         page.check("#sysex")
         page.click("#connect")
+        # requestMIDIAccess() is async; poll for a terminal status instead of
+        # sleeping past it (slow CoreMIDI init would read as a failed grant).
         status = ""
-        for _ in range(40):  # requestMIDIAccess is async; poll to a terminal
-            status = page.locator("#status").inner_text()  # state instead of
+        for _ in range(40):
+            status = page.locator("#status").inner_text()
             if ("Ansluten" in status or "nekades" in status
                     or "saknas" in status):
-                break  # sleeping past it (slow CoreMIDI init would fail)
+                break
             page.wait_for_timeout(250)
         ports = page.locator("#portBody tr").count()
         if "Ansluten" not in status:
