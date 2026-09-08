@@ -252,12 +252,21 @@ Config in `~/.local/share/faceid/config.json`:
 
 `.pre-commit-config.yaml` (run by [`prek`](https://github.com/j178/prek), not
 `pre-commit`) is the lint/format/secrets grind: ruff, eslint, actionlint,
-shellcheck, gitleaks, and the standard pre-commit-hooks set. It runs at
-commit time once the repo has opted in:
+shellcheck, gitleaks, and the standard pre-commit-hooks set. Nothing in this
+repo installs a git hook or sets `core.hooksPath` — running it locally at
+commit time depends on a **global** git-hook dispatcher that reads this
+repo-local setting and calls `prek` when it's on:
 
 ```bash
 git config prek.enabled true      # once per clone — git config isn't cloned
 ```
+
+**Without that global dispatcher already set up on the machine, this line
+is a no-op** — plain `git commit` runs no local hook at all, and nothing in
+the repo detects or warns about that. CI still enforces the same
+`.pre-commit-config.yaml` on every PR regardless (see below), so nothing
+merges unchecked — but a clone without the dispatcher gets zero local,
+pre-push feedback.
 
 - `SKIP_PREK=1 git commit ...` skips prek for one commit without disabling
   the separate AI-attribution commit-msg check.
