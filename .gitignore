@@ -6,3 +6,6 @@ node_modules/
 
 # Benchmark data — never committed (source index cache, reports, staging lists)
 backend/benchmarks/_data/
+
+# `make check` output (see Makefile)
+.check.log

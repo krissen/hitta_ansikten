@@ -1,0 +1,4 @@
+# Commits that are pure mechanical reformatting, excluded from `git blame`
+# (git config blame.ignoreRevsFile .git-blame-ignore-revs; see CLAUDE.md).
+c4f76c3143d4979d06407591c3e27137c6c8c80b style(repo): apply ruff format across the Python tree
+fc740882ad47bca66c64cfc686af0d75a84187fb style(repo): fix trailing whitespace and missing final newlines
