@@ -1,6 +1,7 @@
 # Continuous integration for Ansikten
 # Runs the backend (pytest) and frontend (Vitest + workspace build) test
-# suites on every pull request and on pushes to the long-lived branches.
+# suites, plus a shared lint/secrets gate, on every pull request and on
+# pushes to the long-lived branches.
 #
 # The release workflow (.github/workflows/release.yml) only runs on version
 # tags, so this is the gate that protects dev/master from broken changes.
@@ -22,11 +23,23 @@ concurrency:
 env:
   NODE_VERSION: '20'
   PYTHON_VERSION: '3.11'
+  PREK_VERSION: '0.5.2'
+  GITLEAKS_VERSION: '8.30.1'
+  # Outside the checkout tree on purpose: prek's hook environments (and the
+  # gitleaks binary the lint job downloads) must never be swept by the
+  # gitleaks full-tree scan below, or counted by check-added-large-files.
+  PREK_HOME: ${{ github.workspace }}-prek-home
 
 jobs:
-  backend:
-    name: Backend tests
+  # One shared gate for everything .pre-commit-config.yaml covers: ruff,
+  # eslint, actionlint, shellcheck, the pre-commit-hooks set, and a
+  # full-tree gitleaks sweep. Kept separate from the backend/frontend test
+  # jobs so each of those only sets up the one toolchain it actually tests;
+  # this job is the one place that needs both Python and Node.
+  lint:
+    name: Lint (prek)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,25 +48,66 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: backend/pyproject.toml
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Node dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # prek builds each hook's environment from scratch into $PREK_HOME on
+      # a cache miss (~90s for a Go-source gitleaks build); a hit brings the
+      # prek step itself to a few seconds. Keyed on the hook config plus
+      # both interpreter versions, since pre-commit-hooks (language: python)
+      # and the eslint system hook (language: system, frontend's own
+      # node_modules) both bake their interpreter into the cached env.
+      - name: Cache prek environments
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PREK_HOME }}
+          key: prek-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-node${{ env.NODE_VERSION }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            prek-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-node${{ env.NODE_VERSION }}-
+
+      - name: Run prek
+        run: pipx run --spec "prek==${{ env.PREK_VERSION }}" prek run --all-files --show-diff-on-failure
+
+      # The gitleaks pre-commit hook scans `--staged`, which is empty in a
+      # CI checkout and would silently report Passed on zero files. This
+      # step sweeps the whole tree instead, using the same pinned version
+      # as .pre-commit-config.yaml.
+      - name: Install gitleaks
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Scan whole tree for secrets (gitleaks)
+        run: gitleaks dir . --no-banner
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: 'backend/pyproject.toml'
 
       - name: Install Python dependencies
         working-directory: backend
-        run: |
-          pip install --upgrade pip
-          pip install -e ".[dev]"
-
-      - name: Run ruff
-        working-directory: backend
-        run: ruff check .
-
-      # Python outside backend/ (shared/, and anything added later). Runs from
-      # the repo root so the root ruff.toml is discovered; it inherits the same
-      # rule set from backend/pyproject.toml. `.` rather than an enumerated list
-      # of directories, so a new top-level directory cannot go unlinted unnoticed.
-      - name: Run ruff (repo root)
-        run: ruff check .
+        run: uv pip install --system -e ".[dev]"
 
       - name: Run pytest
         working-directory: backend
@@ -62,6 +116,7 @@ jobs:
   frontend:
     name: Frontend tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -76,10 +131,6 @@ jobs:
       - name: Install Node dependencies
         working-directory: frontend
         run: npm ci
-
-      - name: Run ESLint
-        working-directory: frontend
-        run: npm run lint
 
       - name: Run Vitest
         working-directory: frontend
