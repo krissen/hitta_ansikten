@@ -36,6 +36,7 @@ class DatabaseState(BaseModel):
 
 class RenamePersonRequest(BaseModel):
     """Request to rename person"""
+
     old_name: str
     new_name: str
 
@@ -142,12 +143,14 @@ class DistinctPairOperationResponse(BaseModel):
 
 class RecentFile(BaseModel):
     """Recently processed file"""
+
     name: str
     hash: str | None = None  # Some legacy entries may lack hash
 
 
 class StatsResponse(BaseModel):
     """Quick stats for UI display"""
+
     unique_persons: int
     total_encodings: int
     ignored_count: int
@@ -170,12 +173,12 @@ async def get_stats():
     """
     try:
         state = await management_service.get_database_state()
-        total_encodings = sum(p['encoding_count'] for p in state['people'])
+        total_encodings = sum(p["encoding_count"] for p in state["people"])
         return StatsResponse(
-            unique_persons=len(state['people']),
+            unique_persons=len(state["people"]),
             total_encodings=total_encodings,
-            ignored_count=state['ignored_count'],
-            processed_files_count=state['processed_files_count']
+            ignored_count=state["ignored_count"],
+            processed_files_count=state["processed_files_count"],
         )
 
     except Exception as e:
@@ -315,9 +318,7 @@ async def merge_people(request: MergePeopleRequest):
     try:
         logger.info(f"[Management] Merging {request.source_names} into '{request.target_name}'")
         result = await management_service.merge_people(
-            request.source_names,
-            request.target_name,
-            backend_filter=request.backend_filter
+            request.source_names, request.target_name, backend_filter=request.backend_filter
         )
         return OperationResponse(**result)
 
@@ -361,8 +362,7 @@ async def move_to_ignore(request: MoveToIgnoreRequest):
     try:
         logger.info(f"[Management] Moving '{request.name}' to ignored")
         result = await management_service.move_to_ignore(
-            request.name,
-            backend_filter=request.backend_filter
+            request.name, backend_filter=request.backend_filter
         )
         return OperationResponse(**result)
 
@@ -387,9 +387,7 @@ async def move_from_ignore(request: MoveFromIgnoreRequest):
     try:
         logger.info(f"[Management] Moving {request.count} from ignored to '{request.target_name}'")
         result = await management_service.move_from_ignore(
-            request.count,
-            request.target_name,
-            backend_filter=request.backend_filter
+            request.count, request.target_name, backend_filter=request.backend_filter
         )
         return OperationResponse(**result)
 
@@ -436,9 +434,7 @@ async def purge_encodings(request: PurgeEncodingsRequest):
     try:
         logger.info(f"[Management] Purging {request.count} encodings from '{request.name}'")
         result = await management_service.purge_encodings(
-            request.name,
-            request.count,
-            backend_filter=request.backend_filter
+            request.name, request.count, backend_filter=request.backend_filter
         )
         return OperationResponse(**result)
 

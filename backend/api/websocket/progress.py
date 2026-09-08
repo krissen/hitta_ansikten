@@ -27,29 +27,29 @@ _log_queue = queue.Queue(maxsize=1000)
 
 class WebSocketLogHandler(logging.Handler):
     """Logging handler that queues log entries for WebSocket broadcast"""
-    
+
     def __init__(self):
         super().__init__()
         self._loop = None
-    
+
     def emit(self, record: logging.LogRecord):
         try:
             category = self._extract_category(record)
-            
+
             if enabled_log_categories and category not in enabled_log_categories:
                 return
-            
+
             level = record.levelname.lower()
             message = self.format(record)
             timestamp = datetime.fromtimestamp(record.created).isoformat()
-            
+
             entry = {
                 "level": level,
                 "message": message,
                 "category": category,
-                "timestamp": timestamp
+                "timestamp": timestamp,
             }
-            
+
             try:
                 _log_queue.put_nowait(entry)
             except queue.Full:
@@ -58,11 +58,11 @@ class WebSocketLogHandler(logging.Handler):
         # including error paths. Broadcasting a log line is never worth that.
         except Exception:  # noqa: BLE001
             pass
-    
+
     def _extract_category(self, record: logging.LogRecord) -> str:
         msg = record.getMessage()
         if msg.startswith("[") and "]" in msg:
-            return msg[1:msg.index("]")]
+            return msg[1 : msg.index("]")]
         return record.name
 
 
@@ -84,6 +84,7 @@ def set_log_categories(categories: set[str]):
     enabled_log_categories = set(categories) if categories else set()
     logger.info(f"[WebSocket] Log categories updated: {enabled_log_categories or 'all'}")
 
+
 @router.websocket("/ws/progress")
 async def websocket_progress(websocket: WebSocket):
     """
@@ -101,18 +102,17 @@ async def websocket_progress(websocket: WebSocket):
     logger.info(f"[WebSocket] Client connected (total: {len(active_connections)})")
 
     try:
-        await websocket.send_text(json.dumps({
-            "event": "connected",
-            "data": {"message": "WebSocket connection established"}
-        }))
+        await websocket.send_text(
+            json.dumps(
+                {"event": "connected", "data": {"message": "WebSocket connection established"}}
+            )
+        )
 
         # Send current startup status immediately
         from ..services.startup_service import get_startup_state
+
         startup_status = get_startup_state().get_status()
-        await websocket.send_text(json.dumps({
-            "event": "startup-status",
-            "data": startup_status
-        }))
+        await websocket.send_text(json.dumps({"event": "startup-status", "data": startup_status}))
 
         while True:
             data = await websocket.receive_text()
@@ -121,6 +121,7 @@ async def websocket_progress(websocket: WebSocket):
     except WebSocketDisconnect:
         active_connections.remove(websocket)
         logger.info(f"[WebSocket] Client disconnected (total: {len(active_connections)})")
+
 
 async def broadcast_event(event_name: str, data: dict):
     """
@@ -133,10 +134,7 @@ async def broadcast_event(event_name: str, data: dict):
     if not active_connections:
         return
 
-    message = json.dumps({
-        "event": event_name,
-        "data": data
-    })
+    message = json.dumps({"event": event_name, "data": data})
 
     disconnected = set()
     for connection in active_connections:
@@ -150,13 +148,10 @@ async def broadcast_event(event_name: str, data: dict):
     for connection in disconnected:
         active_connections.remove(connection)
 
+
 async def send_log_entry(level: str, message: str):
     """Send log entry to all connected clients"""
-    await broadcast_event("log-entry", {
-        "level": level,
-        "message": message,
-        "timestamp": None
-    })
+    await broadcast_event("log-entry", {"level": level, "message": message, "timestamp": None})
 
 
 async def broadcast_startup_status(status: dict):
@@ -167,5 +162,6 @@ async def broadcast_startup_status(status: dict):
 def setup_startup_listener():
     """Hook up StartupState listener to broadcast WS events"""
     from ..services.startup_service import get_startup_state
+
     startup_state = get_startup_state()
     startup_state.add_listener(broadcast_startup_status)

@@ -16,7 +16,15 @@ const MATCH = {
   baseline: 2.8,
   baseline_method: 'median',
   players: [
-    { name: 'Anna', count: 5, pct: 27.8, delta_pct: 79, delta_n: 2.2, level: 'high', timestamps: [] },
+    {
+      name: 'Anna',
+      count: 5,
+      pct: 27.8,
+      delta_pct: 79,
+      delta_n: 2.2,
+      level: 'high',
+      timestamps: [],
+    },
   ],
   excluded: {
     tranare: [{ name: 'Coach', count: 4, pct: 22.2 }],
@@ -47,7 +55,12 @@ describe('MatchSections per-match parity', () => {
     const publikOnly = {
       ...MATCH,
       players: [],
-      excluded: { tranare: [], publik: [{ name: 'Klacken', count: 3, pct: 100 }], grupp: [], below_threshold: [] },
+      excluded: {
+        tranare: [],
+        publik: [{ name: 'Klacken', count: 3, pct: 100 }],
+        grupp: [],
+        below_threshold: [],
+      },
     };
     render(<MatchSections matches={[publikOnly]} />);
     expect(screen.getByText('Inga spelare över tröskeln.')).toBeTruthy();

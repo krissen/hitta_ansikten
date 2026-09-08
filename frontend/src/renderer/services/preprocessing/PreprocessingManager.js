@@ -18,7 +18,7 @@ export const PreprocessingStatus = {
   COMPLETED: 'completed',
   ERROR: 'error',
   CACHED: 'cached',
-  FILE_NOT_FOUND: 'file_not_found'
+  FILE_NOT_FOUND: 'file_not_found',
 };
 
 /**
@@ -35,22 +35,23 @@ export class PreprocessingManager {
     this.steps = {
       nefConversion: options.steps?.nefConversion ?? true,
       faceDetection: options.steps?.faceDetection ?? true,
-      thumbnails: options.steps?.thumbnails ?? true
+      thumbnails: options.steps?.thumbnails ?? true,
     };
 
     // Rolling window configuration
     this.rollingWindow = {
       maxReadyItems: options.rollingWindow?.maxReadyItems ?? 15,
       minQueueBuffer: options.rollingWindow?.minQueueBuffer ?? 10,
-      resumeThreshold: options.rollingWindow?.resumeThreshold ?? 5
+      resumeThreshold: options.rollingWindow?.resumeThreshold ?? 5,
     };
 
-    this.isHashAlreadyProcessed = options.isHashAlreadyProcessed || (() => false);
+    this.isHashAlreadyProcessed =
+      options.isHashAlreadyProcessed || (() => false);
 
     // State
-    this.queue = [];           // Files waiting to be processed
+    this.queue = []; // Files waiting to be processed
     this.processing = new Map(); // file_path -> { status, progress, hash }
-    this.completed = new Map();  // file_path -> { hash, cached_data }
+    this.completed = new Map(); // file_path -> { hash, cached_data }
     this.activeWorkers = 0;
 
     // Rolling window state
@@ -61,7 +62,10 @@ export class PreprocessingManager {
     // Event handlers
     this.handlers = new Map();
 
-    debug('Preprocessing', `Manager initialized: maxWorkers=${this.maxWorkers}, enabled=${this.enabled}, rollingWindow=${JSON.stringify(this.rollingWindow)}`);
+    debug(
+      'Preprocessing',
+      `Manager initialized: maxWorkers=${this.maxWorkers}, enabled=${this.enabled}, rollingWindow=${JSON.stringify(this.rollingWindow)}`,
+    );
   }
 
   /**
@@ -88,11 +92,15 @@ export class PreprocessingManager {
 
   emit(event, data) {
     if (this.handlers.has(event)) {
-      this.handlers.get(event).forEach(callback => {
+      this.handlers.get(event).forEach((callback) => {
         try {
           callback(data);
         } catch (err) {
-          debugError('Preprocessing', `Error in event handler for ${event}:`, err);
+          debugError(
+            'Preprocessing',
+            `Error in event handler for ${event}:`,
+            err,
+          );
         }
       });
     }
@@ -110,10 +118,16 @@ export class PreprocessingManager {
     }
 
     // Skip if already queued, processing, or completed
-    if (this.queue.includes(filePath) ||
-        this.processing.has(filePath) ||
-        this.completed.has(filePath)) {
-      debug('Preprocessing', 'File already in queue/processing/completed:', filePath);
+    if (
+      this.queue.includes(filePath) ||
+      this.processing.has(filePath) ||
+      this.completed.has(filePath)
+    ) {
+      debug(
+        'Preprocessing',
+        'File already in queue/processing/completed:',
+        filePath,
+      );
       return;
     }
 
@@ -124,7 +138,10 @@ export class PreprocessingManager {
       this.queue.push(filePath);
     }
 
-    debug('Preprocessing', `Added to queue: ${filePath} (queue size: ${this.queue.length})`);
+    debug(
+      'Preprocessing',
+      `Added to queue: ${filePath} (queue size: ${this.queue.length})`,
+    );
 
     // Force processing bypasses pause state (for user-requested items)
     if (options.force && this.isPaused) {
@@ -149,10 +166,13 @@ export class PreprocessingManager {
     this.activeWorkers++;
     this.processing.set(filePath, {
       status: PreprocessingStatus.HASHING,
-      startTime: Date.now()
+      startTime: Date.now(),
     });
 
-    this.emit('status-change', { filePath, status: PreprocessingStatus.HASHING });
+    this.emit('status-change', {
+      filePath,
+      status: PreprocessingStatus.HASHING,
+    });
 
     this._processFile(filePath)
       .catch((err) => {
@@ -160,7 +180,7 @@ export class PreprocessingManager {
         if (this.processing.has(filePath)) {
           this.processing.set(filePath, {
             status: PreprocessingStatus.ERROR,
-            error: err.message
+            error: err.message,
           });
           this.emit('error', { filePath, error: err.message });
         }
@@ -176,7 +196,7 @@ export class PreprocessingManager {
    * @param {string[]} filePaths - Array of file paths
    */
   addMultipleToQueue(filePaths) {
-    filePaths.forEach(path => this.addToQueue(path));
+    filePaths.forEach((path) => this.addToQueue(path));
   }
 
   /**
@@ -198,7 +218,10 @@ export class PreprocessingManager {
    */
   getStatus(filePath) {
     if (this.completed.has(filePath)) {
-      return { status: PreprocessingStatus.COMPLETED, ...this.completed.get(filePath) };
+      return {
+        status: PreprocessingStatus.COMPLETED,
+        ...this.completed.get(filePath),
+      };
     }
     if (this.processing.has(filePath)) {
       return this.processing.get(filePath);
@@ -262,14 +285,23 @@ export class PreprocessingManager {
     }
 
     if (hash) {
-      debug('Preprocessing', `Removed file from cache: ${filePath} (hash: ${hash.substring(0, 8)}...)`);
+      debug(
+        'Preprocessing',
+        `Removed file from cache: ${filePath} (hash: ${hash.substring(0, 8)}...)`,
+      );
       this.emit('file-removed', { filePath, hash });
     }
 
     // Check if we should resume after removing files
-    if (this.isPaused && this.getReadyCount() < this.rollingWindow.minQueueBuffer) {
+    if (
+      this.isPaused &&
+      this.getReadyCount() < this.rollingWindow.minQueueBuffer
+    ) {
       this.isPaused = false;
-      debug('Preprocessing', 'Auto-resumed after file removal (ready count below threshold)');
+      debug(
+        'Preprocessing',
+        'Auto-resumed after file removal (ready count below threshold)',
+      );
       this._processNext();
     }
 
@@ -305,7 +337,9 @@ export class PreprocessingManager {
    * @returns {boolean}
    */
   shouldResume() {
-    return this.isPaused && this.doneCount >= this.rollingWindow.resumeThreshold;
+    return (
+      this.isPaused && this.doneCount >= this.rollingWindow.resumeThreshold
+    );
   }
 
   /**
@@ -319,7 +353,10 @@ export class PreprocessingManager {
     this.doneItems.add(filePath);
     this.doneCount++;
 
-    debug('Preprocessing', `Marked done: ${filePath} (done count: ${this.doneCount})`);
+    debug(
+      'Preprocessing',
+      `Marked done: ${filePath} (done count: ${this.doneCount})`,
+    );
 
     if (this.shouldResume()) {
       this._resumeProcessing();
@@ -331,7 +368,10 @@ export class PreprocessingManager {
    * @private
    */
   _clearDoneItems() {
-    const toRemove = Math.min(this.doneCount, this.rollingWindow.resumeThreshold);
+    const toRemove = Math.min(
+      this.doneCount,
+      this.rollingWindow.resumeThreshold,
+    );
     let removed = 0;
     const removedHashes = [];
 
@@ -363,11 +403,14 @@ export class PreprocessingManager {
 
     this.isPaused = true;
     const readyCount = this.getReadyCount();
-    debug('Preprocessing', `Paused: ${readyCount} ready items, ${this.queue.length} in queue`);
+    debug(
+      'Preprocessing',
+      `Paused: ${readyCount} ready items, ${this.queue.length} in queue`,
+    );
 
     this.emit('paused', {
       readyCount,
-      queueLength: this.queue.length
+      queueLength: this.queue.length,
     });
   }
 
@@ -404,7 +447,10 @@ export class PreprocessingManager {
     }
 
     if (this.getReadyCount() >= this.rollingWindow.maxReadyItems) {
-      debug('Preprocessing', `At max ready items (${this.rollingWindow.maxReadyItems}), waiting...`);
+      debug(
+        'Preprocessing',
+        `At max ready items (${this.rollingWindow.maxReadyItems}), waiting...`,
+      );
       return;
     }
 
@@ -418,10 +464,13 @@ export class PreprocessingManager {
       this.activeWorkers++;
       this.processing.set(filePath, {
         status: PreprocessingStatus.HASHING,
-        startTime: Date.now()
+        startTime: Date.now(),
       });
 
-      this.emit('status-change', { filePath, status: PreprocessingStatus.HASHING });
+      this.emit('status-change', {
+        filePath,
+        status: PreprocessingStatus.HASHING,
+      });
 
       this._processFile(filePath)
         .catch((err) => {
@@ -429,7 +478,7 @@ export class PreprocessingManager {
           if (this.processing.has(filePath)) {
             this.processing.set(filePath, {
               status: PreprocessingStatus.ERROR,
-              error: err.message
+              error: err.message,
             });
             this.emit('error', { filePath, error: err.message });
           }
@@ -452,16 +501,22 @@ export class PreprocessingManager {
     this._updateStatus(filePath, PreprocessingStatus.HASHING);
     try {
       const hashResult = await apiClient.post('/api/v1/preprocessing/hash', {
-        file_path: filePath
+        file_path: filePath,
       });
       fileHash = hashResult.file_hash;
-      debug('Preprocessing', `Hash computed: ${filePath} -> ${fileHash.substring(0, 8)}...`);
+      debug(
+        'Preprocessing',
+        `Hash computed: ${filePath} -> ${fileHash.substring(0, 8)}...`,
+      );
       this.emit('hash-computed', { filePath, hash: fileHash });
-      
+
       if (this.isHashAlreadyProcessed(fileHash)) {
         debug('Preprocessing', `Hash already processed, skipping: ${filePath}`);
         this.emit('already-processed', { filePath, hash: fileHash });
-        this._completeFile(filePath, fileHash, { skipped: true, face_count: 0 });
+        this._completeFile(filePath, fileHash, {
+          skipped: true,
+          face_count: 0,
+        });
         return;
       }
     } catch (err) {
@@ -469,7 +524,7 @@ export class PreprocessingManager {
         debugWarn('Preprocessing', `File not found: ${filePath}`);
         this.processing.set(filePath, {
           status: PreprocessingStatus.FILE_NOT_FOUND,
-          error: 'File not found'
+          error: 'File not found',
         });
         this.emit('file-not-found', { filePath });
         return;
@@ -479,12 +534,19 @@ export class PreprocessingManager {
 
     // Step 2: Check what's already cached
     const cacheCheck = await apiClient.post('/api/v1/preprocessing/check', {
-      file_hash: fileHash
+      file_hash: fileHash,
     });
 
     // If everything is cached, we're done
-    if (cacheCheck.has_nef_conversion && cacheCheck.has_face_detection && cacheCheck.has_thumbnails) {
-      debug('Preprocessing', `All cached for: ${filePath} (${cacheCheck.face_count ?? 0} faces)`);
+    if (
+      cacheCheck.has_nef_conversion &&
+      cacheCheck.has_face_detection &&
+      cacheCheck.has_thumbnails
+    ) {
+      debug(
+        'Preprocessing',
+        `All cached for: ${filePath} (${cacheCheck.face_count ?? 0} faces)`,
+      );
       this._completeFile(filePath, fileHash, cacheCheck);
       return;
     }
@@ -495,17 +557,21 @@ export class PreprocessingManager {
       has_face_detection: cacheCheck.has_face_detection,
       has_thumbnails: cacheCheck.has_thumbnails,
       nef_jpg_path: cacheCheck.nef_jpg_path,
-      face_count: cacheCheck.face_count
+      face_count: cacheCheck.face_count,
     };
     let hasErrors = false;
 
     // Step 3: NEF conversion (if needed and enabled)
-    if (this.steps.nefConversion && this._isRawFile(filePath) && !cacheCheck.has_nef_conversion) {
+    if (
+      this.steps.nefConversion &&
+      this._isRawFile(filePath) &&
+      !cacheCheck.has_nef_conversion
+    ) {
       this._updateStatus(filePath, PreprocessingStatus.NEF_CONVERTING);
       try {
         const result = await apiClient.post('/api/v1/preprocessing/nef', {
           file_path: filePath,
-          file_hash: fileHash
+          file_hash: fileHash,
         });
         if (result.status === 'completed' || result.status === 'cached') {
           actualStatus.has_nef_conversion = true;
@@ -524,7 +590,7 @@ export class PreprocessingManager {
       try {
         const result = await apiClient.post('/api/v1/preprocessing/faces', {
           file_path: filePath,
-          file_hash: fileHash
+          file_hash: fileHash,
         });
         if (result.status === 'completed' || result.status === 'cached') {
           actualStatus.has_face_detection = true;
@@ -533,7 +599,10 @@ export class PreprocessingManager {
           hasErrors = true;
           debugError('Preprocessing', `Face detection error: ${result.error}`);
         }
-        debug('Preprocessing', `Faces detected: ${filePath} (${result.face_count ?? 0} faces)`);
+        debug(
+          'Preprocessing',
+          `Faces detected: ${filePath} (${result.face_count ?? 0} faces)`,
+        );
       } catch (err) {
         hasErrors = true;
         debugError('Preprocessing', `Face detection failed: ${err.message}`);
@@ -544,10 +613,13 @@ export class PreprocessingManager {
     if (this.steps.thumbnails && !cacheCheck.has_thumbnails) {
       this._updateStatus(filePath, PreprocessingStatus.GENERATING_THUMBNAILS);
       try {
-        const result = await apiClient.post('/api/v1/preprocessing/thumbnails', {
-          file_path: filePath,
-          file_hash: fileHash
-        });
+        const result = await apiClient.post(
+          '/api/v1/preprocessing/thumbnails',
+          {
+            file_path: filePath,
+            file_hash: fileHash,
+          },
+        );
         if (result.status === 'completed' || result.status === 'cached') {
           actualStatus.has_thumbnails = true;
         } else if (result.status === 'error') {
@@ -557,7 +629,10 @@ export class PreprocessingManager {
         debug('Preprocessing', `Thumbnails generated: ${filePath}`);
       } catch (err) {
         hasErrors = true;
-        debugError('Preprocessing', `Thumbnail generation failed: ${err.message}`);
+        debugError(
+          'Preprocessing',
+          `Thumbnail generation failed: ${err.message}`,
+        );
       }
     }
 
@@ -569,7 +644,7 @@ export class PreprocessingManager {
     if (hasErrors) {
       this.processing.set(filePath, {
         status: PreprocessingStatus.ERROR,
-        error: 'One or more preprocessing steps failed'
+        error: 'One or more preprocessing steps failed',
       });
       this.emit('error', { filePath, error: 'Preprocessing partially failed' });
     } else {
@@ -593,17 +668,27 @@ export class PreprocessingManager {
    */
   _completeFile(filePath, fileHash, cacheData) {
     if (!this.processing.has(filePath)) {
-      debug('Preprocessing', `Skipping completion - file was removed: ${filePath}`);
+      debug(
+        'Preprocessing',
+        `Skipping completion - file was removed: ${filePath}`,
+      );
       return;
     }
     this.processing.delete(filePath);
     this.completed.set(filePath, {
       hash: fileHash,
       ...cacheData,
-      completedAt: Date.now()
+      completedAt: Date.now(),
     });
-    this.emit('completed', { filePath, hash: fileHash, faceCount: cacheData.face_count });
-    debug('Preprocessing', `Completed: ${filePath} (${cacheData.face_count ?? 0} faces)`);
+    this.emit('completed', {
+      filePath,
+      hash: fileHash,
+      faceCount: cacheData.face_count,
+    });
+    debug(
+      'Preprocessing',
+      `Completed: ${filePath} (${cacheData.face_count ?? 0} faces)`,
+    );
   }
 
   /**
@@ -632,7 +717,12 @@ export class PreprocessingManager {
     if (config.rollingWindow) {
       this.rollingWindow = { ...this.rollingWindow, ...config.rollingWindow };
     }
-    debug('Preprocessing', 'Config updated:', { maxWorkers: this.maxWorkers, enabled: this.enabled, steps: this.steps, rollingWindow: this.rollingWindow });
+    debug('Preprocessing', 'Config updated:', {
+      maxWorkers: this.maxWorkers,
+      enabled: this.enabled,
+      steps: this.steps,
+      rollingWindow: this.rollingWindow,
+    });
   }
 
   /**
@@ -650,7 +740,7 @@ export class PreprocessingManager {
       isPaused: this.isPaused,
       readyCount: this.getReadyCount(),
       doneCount: this.doneCount,
-      rollingWindow: this.rollingWindow
+      rollingWindow: this.rollingWindow,
     };
   }
 

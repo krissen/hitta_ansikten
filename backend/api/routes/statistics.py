@@ -21,6 +21,7 @@ router = APIRouter()
 
 class AttemptStat(BaseModel):
     """Statistics for a specific detection attempt configuration"""
+
     backend: str
     upsample: int | None
     scale_label: str
@@ -34,6 +35,7 @@ class AttemptStat(BaseModel):
 
 class TopFace(BaseModel):
     """Person with face count"""
+
     name: str
     face_count: int
     percentage: int | None = None
@@ -41,6 +43,7 @@ class TopFace(BaseModel):
 
 class RecentImage(BaseModel):
     """Recently processed image with detected people"""
+
     filename: str
     timestamp: str
     person_names: list[str]
@@ -49,6 +52,7 @@ class RecentImage(BaseModel):
 
 class LogLine(BaseModel):
     """Log entry"""
+
     level: str  # 'info', 'warning', 'error'
     message: str
     timestamp: str
@@ -56,6 +60,7 @@ class LogLine(BaseModel):
 
 class StatisticsSummary(BaseModel):
     """Complete statistics summary for dashboard"""
+
     attempt_stats: list[AttemptStat]
     top_faces: list[TopFace]
     ignored_count: int
@@ -196,10 +201,7 @@ async def get_processed_files(n: int = 200, source: str | None = None):
         if source:
             images = [img for img in images if img.get("source") == source]
 
-        return {
-            "count": len(images),
-            "files": images
-        }
+        return {"count": len(images), "files": images}
 
     except Exception as e:
         logger.exception(f"[Statistics] Error getting processed files: {e}")
@@ -208,12 +210,14 @@ async def get_processed_files(n: int = 200, source: str | None = None):
 
 class FileStatsRequest(BaseModel):
     """Request body for file stats lookup"""
+
     filenames: list[str] | None = None
     filepaths: list[str] | None = None
 
 
 class FileStatInfo(BaseModel):
     """Stats for a single file"""
+
     face_count: int
     persons: list[str]
 
@@ -222,7 +226,7 @@ class FileStatInfo(BaseModel):
 async def get_file_stats(request: FileStatsRequest):
     """
     Get face detection stats for specific files.
-    
+
     Accepts either filenames or filepaths. Filepaths are preferred as they
     allow hash-based lookup which survives file renames.
     """

@@ -15,6 +15,7 @@ from faceid_db import LOGGING_PATH as LOG_FILE
 
 # ================== Laddning och grundstatistik ====================
 
+
 def load_stats(logfile: str | Path) -> list[dict[str, Any]]:
     stats = []
     with open(logfile, "r") as f:
@@ -24,6 +25,7 @@ def load_stats(logfile: str | Path) -> list[dict[str, Any]]:
             except Exception:
                 pass
     return stats
+
 
 def load_multiple_stats(files: list[str | Path]) -> list[dict[str, Any]]:
     stats = []
@@ -39,6 +41,7 @@ def load_multiple_stats(files: list[str | Path]) -> list[dict[str, Any]]:
                     pass
     return stats
 
+
 def find_all_stats_files() -> list[Path]:
     files = []
     if ATTEMPT_FILE.exists():
@@ -47,11 +50,14 @@ def find_all_stats_files() -> list[Path]:
         files += sorted(ARCHIVE_DIR.glob("attempt_stats*.jsonl"))
     return files
 
+
 # ================== Statistik- och hjälpfunktioner ====================
+
 
 def count_faces_per_name() -> dict[str, int]:
     known_faces, _, _, _ = load_database()
     return {name: len(entries) for name, entries in known_faces.items()}
+
 
 def calc_ignored_fraction(stats: list[dict[str, Any]]) -> tuple[int, int, float]:
     total = 0
@@ -68,6 +74,7 @@ def calc_ignored_fraction(stats: list[dict[str, Any]]) -> tuple[int, int, float]
                     ignored += 1
     frac = (ignored / total) if total else 0
     return ignored, total, frac
+
 
 def attempt_stats_table(stats: list[dict[str, Any]]) -> Any:
     attempt_info = defaultdict(lambda: {"used": 0, "faces": 0, "time": 0.0, "total": 0})
@@ -97,6 +104,7 @@ def attempt_stats_table(stats: list[dict[str, Any]]) -> Any:
             attempt_info[key]["faces"] += setting.get("face_count", 0)
             attempt_info[key]["time"] += setting.get("time_seconds", 0.0)
     from rich.table import Table
+
     table = Table(show_header=True, header_style="bold")
     table.add_column("Backend & inställningar", min_width=28)
     table.add_column("Använd", justify="right")
@@ -126,6 +134,7 @@ def attempt_stats_table(stats: list[dict[str, Any]]) -> Any:
         )
     return table
 
+
 def faces_grid_panel(stats: list[dict[str, Any]] | None = None) -> Any:
     from rich.panel import Panel
     from rich.table import Table
@@ -139,8 +148,8 @@ def faces_grid_panel(stats: list[dict[str, Any]] | None = None) -> Any:
     ignored_str = f"Ignored ({ignored}/{total}, {frac:.1%})" if total else "Ignored (0)"
 
     # Bygg lista av namn + count (sorterad fallande)
-    items = sorted(face_counts.items(), key=lambda x: -x[1])[:max_items-1]
-    while len(items) < max_items-1:
+    items = sorted(face_counts.items(), key=lambda x: -x[1])[: max_items - 1]
+    while len(items) < max_items - 1:
         items.append(("", ""))
     items.append(("Ignored", ignored_str))  # Sista rutan
     grid = []
@@ -149,7 +158,13 @@ def faces_grid_panel(stats: list[dict[str, Any]] | None = None) -> Any:
         for col in range(num_cols):
             idx = col * num_rows + row
             name, cnt = items[idx] if idx < len(items) else ("", "")
-            grid_row.append(f"{name} ({cnt})" if name and name != "Ignored" else cnt if name == "Ignored" else "")
+            grid_row.append(
+                f"{name} ({cnt})"
+                if name and name != "Ignored"
+                else cnt
+                if name == "Ignored"
+                else ""
+            )
         grid.append(grid_row)
     table = Table(show_header=False, box=None, pad_edge=False)
     for _ in range(num_cols):
@@ -157,10 +172,10 @@ def faces_grid_panel(stats: list[dict[str, Any]] | None = None) -> Any:
     for grid_row in grid:
         table.add_row(*grid_row)
     if not any(name for name, cnt in items):
-        table.add_row(*["–"]*num_cols)
+        table.add_row(*["–"] * num_cols)
     return Panel(
         table,
-        title=f"Vanligaste ansikten (topp {max_items-1} + Ignored)",
+        title=f"Vanligaste ansikten (topp {max_items - 1} + Ignored)",
         title_align="left",
         border_style=block_title_style,
     )
@@ -181,14 +196,16 @@ def latest_images_with_names(stats: list[dict[str, Any]], n: int = 5) -> str:
         lines.append(f"{fname:<35} {namestr}")
     return "\n".join(lines)
 
+
 def pie_chart_attempts(stats: list[dict[str, Any]]) -> str:
     from math import ceil
+
     attempt_use = Counter()
     total = 0
     for entry in stats:
         used = entry.get("used_attempt")
         if used is not None:
-            attempt_use[used+1] += 1  # +1 för mänsklig numrering
+            attempt_use[used + 1] += 1  # +1 för mänsklig numrering
             total += 1
     if total == 0:
         return "Inga attempts."
@@ -200,7 +217,7 @@ def pie_chart_attempts(stats: list[dict[str, Any]]) -> str:
         desc = ""
         for entry in stats:
             u = entry.get("used_attempt")
-            if u is not None and (u+1) == k:
+            if u is not None and (u + 1) == k:
                 attempts = entry.get("attempts", [])
                 if attempts and u < len(attempts):
                     att = attempts[u]
@@ -210,8 +227,9 @@ def pie_chart_attempts(stats: list[dict[str, Any]]) -> str:
                     else:
                         desc = f"{backend}, {att.get('scale_label')}({att.get('scale_px')})"
                     break
-        chart += f"#{k}: {chars[i%len(chars)]*length} {v} ({v/total:.1%}) {desc}\n"
+        chart += f"#{k}: {chars[i % len(chars)] * length} {v} ({v / total:.1%}) {desc}\n"
     return chart
+
 
 # ================== Rich Dashboard (Live) ====================
 def get_recent_log_lines(n: int = 3, logfile: str | Path = LOG_FILE) -> str:
@@ -222,6 +240,7 @@ def get_recent_log_lines(n: int = 3, logfile: str | Path = LOG_FILE) -> str:
         return "".join(lines[-n:]).strip()
     except Exception:
         return "(Kunde inte läsa loggfilen)"
+
 
 def render_dashboard(stats: list[dict[str, Any]]) -> Any:
     from rich.layout import Layout
@@ -249,17 +268,29 @@ def render_dashboard(stats: list[dict[str, Any]]) -> Any:
     outer.split_column(Layout(inner, ratio=1))
     inner.split(
         Layout(
-            Panel(table, title="Attempt-statistik", title_align="left", border_style=block_title_style),
-            name="upper", ratio=2
+            Panel(
+                table, title="Attempt-statistik", title_align="left", border_style=block_title_style
+            ),
+            name="upper",
+            ratio=2,
         ),
         Layout(
-            faces_panel if hasattr(faces_panel, 'border_style') else Panel(faces_panel.renderable, title=faces_panel.title, title_align="left", border_style=block_title_style),
-            name="faces", ratio=1
+            faces_panel
+            if hasattr(faces_panel, "border_style")
+            else Panel(
+                faces_panel.renderable,
+                title=faces_panel.title,
+                title_align="left",
+                border_style=block_title_style,
+            ),
+            name="faces",
+            ratio=1,
         ),
         Layout(latest_panel, name="latest", ratio=1),
         Layout(log_panel, name="log", ratio=1),
     )
     return outer
+
 
 def dashboard_mode(attempt_file: str | Path) -> None:
     try:
@@ -279,7 +310,9 @@ def dashboard_mode(attempt_file: str | Path) -> None:
         while True:
             try:
                 mtimes = {
-                    "attempt": os.path.getmtime(attempt_file) if os.path.exists(attempt_file) else None,
+                    "attempt": os.path.getmtime(attempt_file)
+                    if os.path.exists(attempt_file)
+                    else None,
                     "db": os.path.getmtime(ENCODING_PATH) if ENCODING_PATH.exists() else None,
                     "log": os.path.getmtime(LOGGING_PATH) if LOGGING_PATH.exists() else None,
                 }
@@ -295,7 +328,9 @@ def dashboard_mode(attempt_file: str | Path) -> None:
                 console.print(f"[röd]Fel i dashboard: {e}")
                 time.sleep(2)
 
+
 # ================== CLI Entry-point ====================
+
 
 def analyze(stats: list[dict[str, Any]], group_by_source: bool = False) -> None:
     if group_by_source:
@@ -307,6 +342,7 @@ def analyze(stats: list[dict[str, Any]], group_by_source: bool = False) -> None:
             _analyze_single(entries)
     else:
         _analyze_single(stats)
+
 
 def _analyze_single(stats: list[dict[str, Any]]) -> None:
     attempt_success = Counter()
@@ -392,12 +428,12 @@ def _analyze_single(stats: list[dict[str, Any]]) -> None:
         if backend == "dlib":
             print(
                 f"  {backend}, upsample={upsample}, scale={scale} ({px}px): "
-                f"{n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
+                f"{n_used} av {n_total} ({100 * n_used / n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
             )
         else:
             print(
                 f"  {backend}, scale={scale} ({px}px): "
-                f"{n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
+                f"{n_used} av {n_total} ({100 * n_used / n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
             )
 
     print("\n=== Outcomes (review_results) ===")
@@ -415,13 +451,13 @@ def _analyze_single(stats: list[dict[str, Any]]) -> None:
         mean_faces = info["faces"] / n_used if n_used else 0
         mean_time = info["time"] / n_used if n_used else 0
         print(
-            f"  {scale}: {n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
+            f"  {scale}: {n_used} av {n_total} ({100 * n_used / n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
         )
 
     print("\n=== Användning per upsample ===")
     for upsample, info in upsample_stats.items():
         print(
-            f"  upsample={upsample}: {info['used']} av {info['total']} ({100*info['used']/info['total']:.1f}%)"
+            f"  upsample={upsample}: {info['used']} av {info['total']} ({100 * info['used'] / info['total']:.1f}%)"
         )
 
     print("\n=== Användning per backend ===")
@@ -431,7 +467,7 @@ def _analyze_single(stats: list[dict[str, Any]]) -> None:
         mean_faces = info["faces"] / n_used if n_used else 0
         mean_time = info["time"] / n_used if n_used else 0
         print(
-            f"  {backend}: {n_used} av {n_total} ({100*n_used/n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
+            f"  {backend}: {n_used} av {n_total} ({100 * n_used / n_total:.1f}%) | snitt ansikten {mean_faces:.2f}, snitt tid {mean_time:.2f}s"
         )
 
     print("\n=== Vanligaste etikett per ansiktsposition ===")
@@ -439,9 +475,11 @@ def _analyze_single(stats: list[dict[str, Any]]) -> None:
         most_common = position_label_stats[pos].most_common(1)
         if most_common:
             label, count = most_common[0]
-            print(f"  Ansikte {pos+1}: {label} ({count} st)")
+            print(f"  Ansikte {pos + 1}: {label} ({count} st)")
+
 
 # ================== CLI Main ====================
+
 
 def main() -> None:
     if len(sys.argv) == 2 and sys.argv[1] in ["--dashboard", "dashboard"]:
@@ -477,6 +515,6 @@ def main() -> None:
         stats = load_multiple_stats(files)
         analyze(stats, group_by_source=True)
 
+
 if __name__ == "__main__":
     main()
-

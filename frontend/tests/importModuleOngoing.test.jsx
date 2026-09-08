@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  act,
+  cleanup,
+} from '@testing-library/react';
 import { NetworkError } from '../src/renderer/shared/api-client.js';
 
 // A lost connection during a card import is only "still running" (WS "done"
@@ -18,7 +24,9 @@ vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
   useBackend: () => ({ api: mocks.api }),
 }));
 vi.mock('../src/renderer/hooks/useWebSocket.js', () => ({
-  useWebSocket: (event, callback) => { if (event === 'import-progress') ws.cb = callback; },
+  useWebSocket: (event, callback) => {
+    if (event === 'import-progress') ws.cb = callback;
+  },
 }));
 vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
   useModuleEvent: () => {},
@@ -34,13 +42,19 @@ vi.mock('../src/renderer/shared/workingFolder.js', () => ({
   setWorkingFolder: () => {},
 }));
 
-import { ImportModule, STALL_TIMEOUT_MS } from '../src/renderer/components/ImportModule.jsx';
+import {
+  ImportModule,
+  STALL_TIMEOUT_MS,
+} from '../src/renderer/components/ImportModule.jsx';
 
-const OFFLINE = () => new NetworkError('Ingen nätverksanslutning', { isOffline: true });
+const OFFLINE = () =>
+  new NetworkError('Ingen nätverksanslutning', { isOffline: true });
 
 async function renderReady() {
   mocks.api.get.mockResolvedValue({
-    volumes: [{ mount: '/Volumes/CARD', name: 'CARD', nef_count: 2, total_bytes: 1024 }],
+    volumes: [
+      { mount: '/Volumes/CARD', name: 'CARD', nef_count: 2, total_bytes: 1024 },
+    ],
   });
   render(<ImportModule />);
   // The card <select> appears once volumes load.
@@ -78,7 +92,12 @@ describe('ImportModule — lost connection is ongoing only after server-side pro
 
   it('connection lost AFTER a transfer progress event → treated as ongoing (no error, stays running)', async () => {
     let rejectPost;
-    mocks.api.post.mockImplementationOnce(() => new Promise((_, rej) => { rejectPost = rej; }));
+    mocks.api.post.mockImplementationOnce(
+      () =>
+        new Promise((_, rej) => {
+          rejectPost = rej;
+        }),
+    );
     await renderReady();
 
     await act(async () => {
@@ -87,7 +106,13 @@ describe('ImportModule — lost connection is ongoing only after server-side pro
 
     // The backend streams a per-file event — the import is under way.
     act(() => {
-      ws.cb({ phase: 'transfer', current: 1, total: 2, file: 'DSC0001.NEF', percent: 50 });
+      ws.cb({
+        phase: 'transfer',
+        current: 1,
+        total: 2,
+        file: 'DSC0001.NEF',
+        percent: 50,
+      });
     });
 
     // Now the HTTP response is lost.
@@ -105,14 +130,25 @@ describe('ImportModule — lost connection is ongoing only after server-side pro
 
   it('ongoing then WS silence for the stall timeout → error state, running reset', async () => {
     let rejectPost;
-    mocks.api.post.mockImplementationOnce(() => new Promise((_, rej) => { rejectPost = rej; }));
+    mocks.api.post.mockImplementationOnce(
+      () =>
+        new Promise((_, rej) => {
+          rejectPost = rej;
+        }),
+    );
     await renderReady();
 
     await act(async () => {
       fireEvent.click(runButton());
     });
     act(() => {
-      ws.cb({ phase: 'transfer', current: 1, total: 2, file: 'DSC0001.NEF', percent: 50 });
+      ws.cb({
+        phase: 'transfer',
+        current: 1,
+        total: 2,
+        file: 'DSC0001.NEF',
+        percent: 50,
+      });
     });
 
     // Fake only the timer functions so the watchdog is controllable while promise
@@ -129,7 +165,9 @@ describe('ImportModule — lost connection is ongoing only after server-side pro
         vi.advanceTimersByTime(STALL_TIMEOUT_MS);
       });
 
-      expect(screen.getByText(/Kontakten med importen förlorades/)).toBeTruthy();
+      expect(
+        screen.getByText(/Kontakten med importen förlorades/),
+      ).toBeTruthy();
       const btn = runButton();
       expect(btn).toBeTruthy();
       expect(btn.disabled).toBe(false);

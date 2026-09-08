@@ -90,7 +90,8 @@ export function bottomBorderId(model) {
 function findTab(model, moduleId) {
   let node = null;
   model.visitNodes((n) => {
-    if (!node && n.getType() === 'tab' && n.getComponent?.() === moduleId) node = n;
+    if (!node && n.getType() === 'tab' && n.getComponent?.() === moduleId)
+      node = n;
   });
   return node;
 }
@@ -160,17 +161,21 @@ function anchorTabsetId(model, targetIds) {
 function parkTab(model, tab, borderId, backgroundName) {
   const id = tab.getId();
   if (!isInBorder(tab)) {
-    model.doAction(Actions.moveNode(id, borderId, DockLocation.CENTER, -1, false));
+    model.doAction(
+      Actions.moveNode(id, borderId, DockLocation.CENTER, -1, false),
+    );
   }
   // Label the parked tab "<background>: <module>" so several parked modules stay
   // distinguishable (e.g. "Bakgrund: Filkö", "Bakgrund: Granska ansikten").
   const label = backgroundName
     ? `${backgroundName}: ${tabName(tab.getComponent())}`
     : tabName(tab.getComponent());
-  model.doAction(Actions.updateNodeAttributes(id, {
-    enableRenderOnDemand: false,
-    name: label,
-  }));
+  model.doAction(
+    Actions.updateNodeAttributes(id, {
+      enableRenderOnDemand: false,
+      name: label,
+    }),
+  );
 }
 
 /**
@@ -183,7 +188,11 @@ function pinKeepMounted(model, targetIds) {
     if (!isKeepMountedModule(mid)) continue;
     const tab = findTab(model, mid);
     if (tab) {
-      model.doAction(Actions.updateNodeAttributes(tab.getId(), { enableRenderOnDemand: false }));
+      model.doAction(
+        Actions.updateNodeAttributes(tab.getId(), {
+          enableRenderOnDemand: false,
+        }),
+      );
     }
   }
 }
@@ -199,7 +208,9 @@ function alreadyMatches(model, spec) {
   if (tabsets.length !== spec.length) return false;
   for (let i = 0; i < spec.length; i++) {
     const ids = paneModuleIds(spec[i]);
-    const tabs = tabsets[i].getChildren().filter((c) => c.getType?.() === 'tab');
+    const tabs = tabsets[i]
+      .getChildren()
+      .filter((c) => c.getType?.() === 'tab');
     if (tabs.length !== ids.length) return false;
     for (let j = 0; j < ids.length; j++) {
       if (tabs[j].getComponent?.() !== ids[j]) return false;
@@ -226,7 +237,9 @@ function applyWeightsAndActive(model, spec) {
     if (tab && !isInBorder(tab)) {
       const tabsetId = tab.getParent().getId();
       paneTabsetIds.add(tabsetId);
-      model.doAction(Actions.updateNodeAttributes(tabsetId, { weight: pane.weight }));
+      model.doAction(
+        Actions.updateNodeAttributes(tabsetId, { weight: pane.weight }),
+      );
     }
   }
 
@@ -289,13 +302,15 @@ export function applyWorkspace(model, spec, options = {}) {
   const addBase = baseTabset(model);
   for (const mid of targetIds) {
     if (!hasTab(model, mid) && addBase) {
-      model.doAction(Actions.addNode(
-        { type: 'tab', name: mid, component: mid, config: { moduleId: mid } },
-        addBase.getId(),
-        DockLocation.CENTER,
-        -1,
-        false,
-      ));
+      model.doAction(
+        Actions.addNode(
+          { type: 'tab', name: mid, component: mid, config: { moduleId: mid } },
+          addBase.getId(),
+          DockLocation.CENTER,
+          -1,
+          false,
+        ),
+      );
     }
   }
 
@@ -321,10 +336,14 @@ export function applyWorkspace(model, spec, options = {}) {
     const tab = findTab(model, mid);
     if (!tab) continue;
     if (tab.getParent().getId() !== anchorId) {
-      model.doAction(Actions.moveNode(tab.getId(), anchorId, DockLocation.CENTER, -1, false));
+      model.doAction(
+        Actions.moveNode(tab.getId(), anchorId, DockLocation.CENTER, -1, false),
+      );
     }
     // Restore a real title in case this tab was parked/backgrounded before.
-    model.doAction(Actions.updateNodeAttributes(tab.getId(), { name: tabName(mid) }));
+    model.doAction(
+      Actions.updateNodeAttributes(tab.getId(), { name: tabName(mid) }),
+    );
   }
 
   // 4. Split the stacked modules out into ordered columns, left → right. Pane 0
@@ -338,13 +357,23 @@ export function applyWorkspace(model, spec, options = {}) {
     if (ids.length === 0) continue;
     const firstTab = findTab(model, ids[0]);
     if (!firstTab) continue;
-    model.doAction(Actions.moveNode(firstTab.getId(), prevTabsetId, DockLocation.RIGHT, -1, false));
+    model.doAction(
+      Actions.moveNode(
+        firstTab.getId(),
+        prevTabsetId,
+        DockLocation.RIGHT,
+        -1,
+        false,
+      ),
+    );
     const moved = findTab(model, ids[0]);
     const colId = moved ? moved.getParent().getId() : prevTabsetId;
     for (let j = 1; j < ids.length; j++) {
       const t = findTab(model, ids[j]);
       if (t && t.getParent().getId() !== colId) {
-        model.doAction(Actions.moveNode(t.getId(), colId, DockLocation.CENTER, -1, false));
+        model.doAction(
+          Actions.moveNode(t.getId(), colId, DockLocation.CENTER, -1, false),
+        );
       }
     }
     prevTabsetId = colId;

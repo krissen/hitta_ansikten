@@ -10,12 +10,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from faceid_db import get_file_hash, safe_pickle_load
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--mode", choices=["filnamn", "hash", "både"], default="både",
-                    help="Sök baserat på filnamn, hash, eller båda (default: båda)")
+parser.add_argument(
+    "--mode",
+    choices=["filnamn", "hash", "både"],
+    default="både",
+    help="Sök baserat på filnamn, hash, eller båda (default: båda)",
+)
 args = parser.parse_args()
 
 encodings_path = Path.home() / ".local/share/faceid/encodings.pkl"
-data_dir = Path("/Users/krisniem/Pictures/nerladdat/facerec/18")  # Ange sökväg till dina bilder här om du vill söka på hash!
+data_dir = Path(
+    "/Users/krisniem/Pictures/nerladdat/facerec/18"
+)  # Ange sökväg till dina bilder här om du vill söka på hash!
 
 target_files = [
     "250518_143900.NEF",
@@ -72,4 +78,3 @@ for tf in target_files:
             print(f"  - Person: {namn} (hash: {h}, file: {filf})")
     else:
         print(f"{tf}: INGEN encoding med denna fil/hash")
-

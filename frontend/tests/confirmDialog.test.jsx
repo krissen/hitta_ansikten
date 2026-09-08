@@ -29,7 +29,9 @@ describe('ConfirmDialog — name-mismatch branch', () => {
         onCancel={() => {}}
       />,
     );
-    expect(container.querySelector('.modal__title').textContent).toBe('Bekräfta namnändring');
+    expect(container.querySelector('.modal__title').textContent).toBe(
+      'Bekräfta namnändring',
+    );
     const matchInfo = container.querySelector('.match-info').textContent;
     expect(matchInfo).toContain('Anna Andersson');
     expect(matchInfo).toContain('82%');
@@ -85,11 +87,15 @@ describe('ConfirmDialog — high-confidence-ignore branch', () => {
         onCancel={() => {}}
       />,
     );
-    expect(container.querySelector('.modal__title').textContent).toBe('Bekräfta ignorering');
+    expect(container.querySelector('.modal__title').textContent).toBe(
+      'Bekräfta ignorering',
+    );
     expect(container.querySelector('.modal__message').textContent).toBe(
       'Du valde att ignorera det här ansiktet. Är du säker?',
     );
-    expect(container.querySelector('.match-info').textContent).toContain('Anna Andersson');
+    expect(container.querySelector('.match-info').textContent).toContain(
+      'Anna Andersson',
+    );
   });
 
   it('the buttons call onConfirm/onCancel; a backdrop click cancels', () => {

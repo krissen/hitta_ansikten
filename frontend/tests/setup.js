@@ -29,7 +29,7 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     addEventListener() {},
     removeEventListener() {},
     addListener() {},
-    removeListener() {}
+    removeListener() {},
   });
 }
 
@@ -59,7 +59,7 @@ if (typeof HTMLCanvasElement !== 'undefined') {
         stroke: noop,
         fill: noop,
         save: noop,
-        restore: noop
+        restore: noop,
       };
     }
     return this.__testCtx2d;

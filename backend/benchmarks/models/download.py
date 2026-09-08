@@ -224,8 +224,11 @@ def _download_via_https(spec: ModelSpec, dest: Path) -> None:
                 done += len(block)
                 if total:
                     pct = 100 * done / total
-                    print(f"\r  {spec.name}: {done >> 20}/{total >> 20} MiB "
-                          f"({pct:4.1f}%)", end="", file=sys.stderr)
+                    print(
+                        f"\r  {spec.name}: {done >> 20}/{total >> 20} MiB ({pct:4.1f}%)",
+                        end="",
+                        file=sys.stderr,
+                    )
         print("", file=sys.stderr)
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
@@ -326,8 +329,11 @@ def main(argv=None) -> int:
     ap.add_argument("--all", action="store_true", help="Download every known model.")
     ap.add_argument("--list", action="store_true", help="List known models and exit.")
     ap.add_argument("--force", action="store_true", help="Re-download even if present.")
-    ap.add_argument("--manifest-only", action="store_true",
-                    help="Only (re)write the manifest entries; do not download.")
+    ap.add_argument(
+        "--manifest-only",
+        action="store_true",
+        help="Only (re)write the manifest entries; do not download.",
+    )
     args = ap.parse_args(argv)
 
     if args.list:

@@ -9,8 +9,12 @@ import { CanvasImageView } from '../src/renderer/components/CanvasImageView.jsx'
 beforeAll(() => {
   if (!globalThis.ResizeObserver) {
     globalThis.ResizeObserver = class {
-      constructor(cb) { this.cb = cb; }
-      observe() { this.cb([]); }
+      constructor(cb) {
+        this.cb = cb;
+      }
+      observe() {
+        this.cb([]);
+      }
       unobserve() {}
       disconnect() {}
     };
@@ -23,7 +27,7 @@ beforeEach(() => {
   ctx = {
     setTransform: vi.fn(),
     clearRect: vi.fn(),
-    drawImage: vi.fn()
+    drawImage: vi.fn(),
   };
   HTMLCanvasElement.prototype.getContext = vi.fn(() => ctx);
 });
@@ -45,7 +49,9 @@ describe('CanvasImageView', () => {
     ctx.clearRect.mockClear();
     ctx.drawImage.mockClear();
 
-    act(() => { rerender(<CanvasImageView image={null} />); });
+    act(() => {
+      rerender(<CanvasImageView image={null} />);
+    });
 
     // The null-image render must still reset the transform and clear the
     // backing store so the previous frame cannot hide the host's overlays —
@@ -62,7 +68,7 @@ describe('CanvasImageView', () => {
 
   it('exposes role="img" + aria-label on the canvas when ariaLabel is given', () => {
     const { container } = render(
-      <CanvasImageView image={fakeImage} ariaLabel="250601_120000_anna.jpg" />
+      <CanvasImageView image={fakeImage} ariaLabel="250601_120000_anna.jpg" />,
     );
     const canvas = container.querySelector('canvas');
     expect(canvas.getAttribute('role')).toBe('img');

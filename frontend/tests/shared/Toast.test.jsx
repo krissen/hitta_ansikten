@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, act } from '@testing-library/react';
-import { ToastProvider, useToast } from '../../src/renderer/context/ToastContext.jsx';
+import {
+  ToastProvider,
+  useToast,
+} from '../../src/renderer/context/ToastContext.jsx';
 
 // StartupStatus pulls in BackendContext/api-client; stub it so the ToastProvider
 // can render in isolation.
@@ -22,7 +25,11 @@ function renderWithToast() {
   let showToast;
   const utils = render(
     <ToastProvider>
-      <Harness onReady={(fn) => { showToast = fn; }} />
+      <Harness
+        onReady={(fn) => {
+          showToast = fn;
+        }}
+      />
     </ToastProvider>,
   );
   return { ...utils, showToast };
@@ -31,7 +38,9 @@ function renderWithToast() {
 describe('Toast (ToastProvider)', () => {
   it('renders a toast with the variant class', () => {
     const { container, showToast } = renderWithToast();
-    act(() => { showToast('Klart', 'success'); });
+    act(() => {
+      showToast('Klart', 'success');
+    });
     const toast = container.querySelector('.global-toast');
     expect(toast).not.toBeNull();
     expect(toast.classList.contains('success')).toBe(true);
@@ -56,7 +65,9 @@ describe('Toast (ToastProvider)', () => {
 
   it('accepts the backwards-compatible positional signature (message, type, duration)', () => {
     const { container, showToast } = renderWithToast();
-    act(() => { showToast('Fel', 'error', 4000); });
+    act(() => {
+      showToast('Fel', 'error', 4000);
+    });
     const toast = container.querySelector('.global-toast');
     expect(toast.classList.contains('error')).toBe(true);
     expect(toast.textContent).toContain('Fel');
@@ -64,7 +75,9 @@ describe('Toast (ToastProvider)', () => {
 
   it('accepts the options-object signature (message, { type, duration })', () => {
     const { container, showToast } = renderWithToast();
-    act(() => { showToast('Info', { type: 'info', duration: 3500 }); });
+    act(() => {
+      showToast('Info', { type: 'info', duration: 3500 });
+    });
     const toast = container.querySelector('.global-toast');
     expect(toast.classList.contains('info')).toBe(true);
     expect(toast.textContent).toContain('Info');
@@ -72,8 +85,12 @@ describe('Toast (ToastProvider)', () => {
 
   it('defaults to the success variant when no type is given', () => {
     const { container, showToast } = renderWithToast();
-    act(() => { showToast('Standard'); });
-    expect(container.querySelector('.global-toast').classList.contains('success')).toBe(true);
+    act(() => {
+      showToast('Standard');
+    });
+    expect(
+      container.querySelector('.global-toast').classList.contains('success'),
+    ).toBe(true);
   });
 
   it('is a polite status region; error toasts announce as alert', () => {
@@ -96,12 +113,18 @@ describe('Toast (ToastProvider)', () => {
     vi.useFakeTimers();
     try {
       const { container, showToast } = renderWithToast();
-      act(() => { showToast('stäng mig', 'info'); });
+      act(() => {
+        showToast('stäng mig', 'info');
+      });
       const dismiss = container.querySelector('.global-toast__dismiss');
       expect(dismiss).not.toBeNull();
-      act(() => { fireEvent.click(dismiss); });
+      act(() => {
+        fireEvent.click(dismiss);
+      });
       // Exit animation delay (300ms) then removal.
-      act(() => { vi.advanceTimersByTime(300); });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
       expect(container.querySelector('.global-toast')).toBeNull();
     } finally {
       vi.useRealTimers();
@@ -112,10 +135,16 @@ describe('Toast (ToastProvider)', () => {
     vi.useFakeTimers();
     try {
       const { container, showToast } = renderWithToast();
-      act(() => { showToast('klicka mig', 'info'); });
+      act(() => {
+        showToast('klicka mig', 'info');
+      });
       const toast = container.querySelector('.global-toast');
-      act(() => { fireEvent.click(toast); });
-      act(() => { vi.advanceTimersByTime(300); });
+      act(() => {
+        fireEvent.click(toast);
+      });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
       expect(container.querySelector('.global-toast')).toBeNull();
     } finally {
       vi.useRealTimers();
@@ -134,22 +163,36 @@ describe('Toast (ToastProvider)', () => {
       const { container } = render(
         <div onClick={ancestorClick}>
           <ToastProvider>
-            <Harness onReady={(fn) => { showToast = fn; }} />
+            <Harness
+              onReady={(fn) => {
+                showToast = fn;
+              }}
+            />
           </ToastProvider>
         </div>,
       );
-      act(() => { showToast('en gång', 'info'); });
+      act(() => {
+        showToast('en gång', 'info');
+      });
 
-      act(() => { fireEvent.click(container.querySelector('.global-toast__dismiss')); });
+      act(() => {
+        fireEvent.click(container.querySelector('.global-toast__dismiss'));
+      });
       // stopPropagation on the button halts the synthetic bubble before the
       // pill's (and any ancestor's) React onClick.
       expect(ancestorClick).not.toHaveBeenCalled();
-      act(() => { vi.advanceTimersByTime(300); });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
       expect(container.querySelector('.global-toast')).toBeNull();
 
       // Sanity: a click on the pill itself does bubble (no stopPropagation).
-      act(() => { showToast('två', 'info'); });
-      act(() => { fireEvent.click(container.querySelector('.global-toast')); });
+      act(() => {
+        showToast('två', 'info');
+      });
+      act(() => {
+        fireEvent.click(container.querySelector('.global-toast'));
+      });
       expect(ancestorClick).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
@@ -160,11 +203,17 @@ describe('Toast (ToastProvider)', () => {
     vi.useFakeTimers();
     try {
       const { container, showToast } = renderWithToast();
-      act(() => { showToast('försvinn', 'info', 3000); });
+      act(() => {
+        showToast('försvinn', 'info', 3000);
+      });
       expect(container.querySelector('.global-toast')).not.toBeNull();
       // Duration (3000, min-clamped) + exit animation (300).
-      act(() => { vi.advanceTimersByTime(3000); });
-      act(() => { vi.advanceTimersByTime(300); });
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
       expect(container.querySelector('.global-toast')).toBeNull();
     } finally {
       vi.useRealTimers();
@@ -175,12 +224,20 @@ describe('Toast (ToastProvider)', () => {
     vi.useFakeTimers();
     try {
       const { container, showToast } = renderWithToast();
-      act(() => { showToast('kort', 'info', 500); });
+      act(() => {
+        showToast('kort', 'info', 500);
+      });
       // Not gone before the 3s minimum.
-      act(() => { vi.advanceTimersByTime(1000); });
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
       expect(container.querySelector('.global-toast')).not.toBeNull();
-      act(() => { vi.advanceTimersByTime(2000); });
-      act(() => { vi.advanceTimersByTime(300); });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
       expect(container.querySelector('.global-toast')).toBeNull();
     } finally {
       vi.useRealTimers();

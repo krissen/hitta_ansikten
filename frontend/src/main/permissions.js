@@ -57,13 +57,15 @@ function createPermissionDecider({ label, allowed = [], log = console.log }) {
   return function decide(permission, context = {}) {
     if (allowSet.has(permission)) return true;
 
-    const path = context.path || "request";
-    if (path === "check") {
+    const path = context.path || 'request';
+    if (path === 'check') {
       if (loggedChecks.has(permission)) return false;
       loggedChecks.add(permission);
     }
-    const origin = context.origin || "unknown origin";
-    log(`[Main] Permission policy: denied '${permission}' (${path}) for ${label} session, origin: ${origin}`);
+    const origin = context.origin || 'unknown origin';
+    log(
+      `[Main] Permission policy: denied '${permission}' (${path}) for ${label} session, origin: ${origin}`,
+    );
     return false;
   };
 }
@@ -95,15 +97,19 @@ function applyPermissionPolicy(targetSession, options) {
   const decide = createPermissionDecider(options);
   configured.add(targetSession);
 
-  targetSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    const origin = details?.requestingUrl || webContents?.getURL?.();
-    callback(decide(permission, { origin, path: "request" }));
-  });
+  targetSession.setPermissionRequestHandler(
+    (webContents, permission, callback, details) => {
+      const origin = details?.requestingUrl || webContents?.getURL?.();
+      callback(decide(permission, { origin, path: 'request' }));
+    },
+  );
 
-  targetSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
-    const origin = requestingOrigin || webContents?.getURL?.();
-    return decide(permission, { origin, path: "check" });
-  });
+  targetSession.setPermissionCheckHandler(
+    (webContents, permission, requestingOrigin) => {
+      const origin = requestingOrigin || webContents?.getURL?.();
+      return decide(permission, { origin, path: 'check' });
+    },
+  );
 
   return decide;
 }
@@ -126,10 +132,10 @@ function applyPermissionPolicy(targetSession, options) {
  * @param {(msg: string) => void} [log]
  */
 function installSessionPermissionDefaults(electronApp, log = console.log) {
-  electronApp.on("session-created", (created) => {
+  electronApp.on('session-created', (created) => {
     if (hasPermissionPolicy(created)) return;
-    applyPermissionPolicy(created, { label: "unnamed", allowed: [], log });
-    log("[Main] Permission policy: new session created, granted nothing");
+    applyPermissionPolicy(created, { label: 'unnamed', allowed: [], log });
+    log('[Main] Permission policy: new session created, granted nothing');
   });
 }
 

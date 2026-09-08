@@ -84,12 +84,18 @@ describe('preferences v1 -> v2 (external editor)', () => {
   });
 
   it('gives a stored v1 payload the new key, at the Classic default', () => {
-    const prefs = loadStored({ version: 1, paths: { rawRoot: '~/Pictures/nerladdat' } });
+    const prefs = loadStored({
+      version: 1,
+      paths: { rawRoot: '~/Pictures/nerladdat' },
+    });
     expect(prefs.get('paths.externalEditor')).toBe('Adobe Lightroom Classic');
   });
 
   it('writes the migrated payload back to storage, at the current version', () => {
-    const prefs = loadStored({ version: 1, paths: { rawRoot: '~/Bilder/raw' } });
+    const prefs = loadStored({
+      version: 1,
+      paths: { rawRoot: '~/Bilder/raw' },
+    });
     expect(prefs.get('version')).toBe(2);
 
     // On disk, not just in memory: a second manager must not re-migrate.
@@ -102,7 +108,10 @@ describe('preferences v1 -> v2 (external editor)', () => {
     // The write must not freeze today's defaults into this install: a value the
     // user never set stays absent from storage and keeps coming from the
     // defaults, so a later change to a default still reaches a migrated install.
-    const prefs = loadStored({ version: 1, paths: { rawRoot: '~/Bilder/raw' } });
+    const prefs = loadStored({
+      version: 1,
+      paths: { rawRoot: '~/Bilder/raw' },
+    });
 
     const onDisk = JSON.parse(localStorage.getItem(STORAGE_KEY));
     expect(onDisk.paths.externalEditor).toBeUndefined();
@@ -117,7 +126,11 @@ describe('preferences v1 -> v2 (external editor)', () => {
     // stored version down to 2 while the newer keys stay put would make the next
     // newer launch re-run its own 2 -> 3 step on already-migrated data — the
     // double application this write exists to prevent.
-    const newer = { version: 3, paths: { rawRoot: '~/Bilder/raw' }, futureSection: { keep: 'me' } };
+    const newer = {
+      version: 3,
+      paths: { rawRoot: '~/Bilder/raw' },
+      futureSection: { keep: 'me' },
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newer));
     storage.writes = 0;
 
@@ -179,14 +192,17 @@ describe('preferences v1 -> v2 (external editor)', () => {
     const prefs = loadStored({
       version: 1,
       paths: { rawRoot: '~/Bilder/raw' },
-      ui: { theme: 'dark' }
+      ui: { theme: 'dark' },
     });
     expect(prefs.get('paths.rawRoot')).toBe('~/Bilder/raw');
     expect(prefs.get('ui.theme')).toBe('dark');
   });
 
   it('never overwrites an editor the user has chosen', () => {
-    const prefs = loadStored({ version: 2, paths: { externalEditor: 'Capture One' } });
+    const prefs = loadStored({
+      version: 2,
+      paths: { externalEditor: 'Capture One' },
+    });
     expect(prefs.get('paths.externalEditor')).toBe('Capture One');
   });
 

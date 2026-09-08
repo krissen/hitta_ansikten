@@ -66,16 +66,20 @@ class RenameNefService:
         if not roots and not globs:
             raise ValueError("Ange minst en mapp eller ett glob-mönster.")
         return resolve_files(
-            roots=roots, globs=globs,
-            extensions=preset_extensions("nef"), recursive=recursive,
+            roots=roots,
+            globs=globs,
+            extensions=preset_extensions("nef"),
+            recursive=recursive,
         )
 
     @staticmethod
     def _request_key(roots, globs, recursive, include_named):
         """Order-invariant identity of a preview/execute request."""
         return (
-            tuple(sorted(roots or [])), tuple(sorted(globs or [])),
-            bool(recursive), bool(include_named),
+            tuple(sorted(roots or [])),
+            tuple(sorted(globs or [])),
+            bool(recursive),
+            bool(include_named),
         )
 
     @staticmethod
@@ -123,22 +127,32 @@ class RenameNefService:
         loop = asyncio.get_event_loop()
         entries: list[tuple[str, int, Path]] = []
 
-        await broadcast_event("rename-nef-progress", {
-            "phase": phase, "current": 0, "total": total,
-            "percent": 0 if total else 100,
-        })
+        await broadcast_event(
+            "rename-nef-progress",
+            {
+                "phase": phase,
+                "current": 0,
+                "total": total,
+                "percent": 0 if total else 100,
+            },
+        )
         for start in range(0, total, EXIF_CHUNK_SIZE):
-            chunk = [Path(f) for f in files[start:start + EXIF_CHUNK_SIZE]]
+            chunk = [Path(f) for f in files[start : start + EXIF_CHUNK_SIZE]]
             try:
                 chunk_entries = await loop.run_in_executor(None, get_exif_data, chunk)
             except FileNotFoundError:
                 raise ValueError("exiftool krävs men hittades inte i PATH.")
             entries.extend(chunk_entries)
             done = min(start + EXIF_CHUNK_SIZE, total)
-            await broadcast_event("rename-nef-progress", {
-                "phase": phase, "current": done, "total": total,
-                "percent": round(100 * done / total) if total else 100,
-            })
+            await broadcast_event(
+                "rename-nef-progress",
+                {
+                    "phase": phase,
+                    "current": done,
+                    "total": total,
+                    "percent": round(100 * done / total) if total else 100,
+                },
+            )
 
         entries.sort(key=lambda e: (e[0], e[1], str(e[2])))
         valid = [(ts, sub, p) for ts, sub, p in entries if _VALID_TS.match(ts or "")]
@@ -149,8 +163,7 @@ class RenameNefService:
         named_affected = sum(1 for src, _, _ in renames if str(src) in named_srcs)
         return renames, no_date, len(valid), named_affected
 
-    async def preview(self, roots=None, globs=None, recursive=False,
-                      include_named=False) -> dict:
+    async def preview(self, roots=None, globs=None, recursive=False, include_named=False) -> dict:
         files = self._resolve(roots, globs, recursive)
         # Drop any stale plan first, then capture the signature just before the
         # EXIF read so it reflects the state the plan is built from.
@@ -179,8 +192,7 @@ class RenameNefService:
             "no_date": no_date,
         }
 
-    async def execute(self, roots=None, globs=None, recursive=False,
-                      include_named=False) -> dict:
+    async def execute(self, roots=None, globs=None, recursive=False, include_named=False) -> dict:
         # Serialize the whole plan-then-rename body: overlapping executes must not
         # interleave at the await points (see _execute_lock in __init__).
         async with self._execute_lock:
@@ -195,22 +207,31 @@ class RenameNefService:
             if cache and cache["key"] == key and cache["signature"] == await self._signature(files):
                 renames, _no_date, _valid, _named = cache["plan"]
                 # Nothing to read — flip the UI straight to done instead of waiting.
-                await broadcast_event("rename-nef-progress", {
-                    "phase": "execute", "current": len(files), "total": len(files),
-                    "percent": 100,
-                })
+                await broadcast_event(
+                    "rename-nef-progress",
+                    {
+                        "phase": "execute",
+                        "current": len(files),
+                        "total": len(files),
+                        "percent": 100,
+                    },
+                )
             else:
                 renames, _no_date, _valid, _named = await self._plan(
-                    files, phase="execute", include_named=include_named)
+                    files, phase="execute", include_named=include_named
+                )
 
             # Two-pass src->temp->dst over the whole batch (temp indirection lets
             # burst-renumbering targets that clash with other sources resolve),
             # carrying .xmp sidecars and journalling each renamed NEF.
             result = fs_ops.two_pass_rename(
                 [(src, dst) for src, dst, _tmp in renames],
-                tool="rename-nef", journal_op="rename",
-                sidecar_exts=SIDECAR_EXTENSIONS, find_sidecars=find_sidecar_files,
-                tmp_prefix=".rename_tmp", log_prefix="RenameNef",
+                tool="rename-nef",
+                journal_op="rename",
+                sidecar_exts=SIDECAR_EXTENSIONS,
+                find_sidecars=find_sidecar_files,
+                tmp_prefix=".rename_tmp",
+                log_prefix="RenameNef",
             )
             renamed = result["renamed"]
             skipped = result["skipped"]
@@ -222,10 +243,15 @@ class RenameNefService:
 
             # The rename passes above are fast local moves; report a closing 100% so
             # the UI's progress bar completes rather than freezing at the EXIF total.
-            await broadcast_event("rename-nef-progress", {
-                "phase": "execute", "current": len(files), "total": len(files),
-                "percent": 100,
-            })
+            await broadcast_event(
+                "rename-nef-progress",
+                {
+                    "phase": "execute",
+                    "current": len(files),
+                    "total": len(files),
+                    "percent": 100,
+                },
+            )
             return {"renamed": renamed, "skipped": skipped, "errors": errors}
 
     # ----- batch re-apply confirmed names ---------------------------------
@@ -256,6 +282,7 @@ class RenameNefService:
     @staticmethod
     def _hash_chunk(files: list[str]) -> dict[str, str | None]:
         from faceid_db import get_file_hash
+
         return {f: get_file_hash(f) for f in files}
 
     @staticmethod
@@ -287,6 +314,7 @@ class RenameNefService:
         was already claimed by an earlier file in the same batch.
         """
         from collections import defaultdict
+
         by_dir = defaultdict(list)
         for src, h, stem, ext in desired:
             by_dir[src.parent].append((src, h, stem, ext))
@@ -315,19 +343,29 @@ class RenameNefService:
         loop = asyncio.get_event_loop()
         hash_to_name = self._read_hash_to_name()
 
-        await broadcast_event("restore-names-progress", {
-            "phase": phase, "current": 0, "total": total,
-            "percent": 0 if total else 100,
-        })
+        await broadcast_event(
+            "restore-names-progress",
+            {
+                "phase": phase,
+                "current": 0,
+                "total": total,
+                "percent": 0 if total else 100,
+            },
+        )
         hashes: dict[str, str | None] = {}
         for start in range(0, total, HASH_CHUNK_SIZE):
-            chunk = files[start:start + HASH_CHUNK_SIZE]
+            chunk = files[start : start + HASH_CHUNK_SIZE]
             hashes.update(await loop.run_in_executor(None, self._hash_chunk, chunk))
             done = min(start + HASH_CHUNK_SIZE, total)
-            await broadcast_event("restore-names-progress", {
-                "phase": phase, "current": done, "total": total,
-                "percent": round(100 * done / total) if total else 100,
-            })
+            await broadcast_event(
+                "restore-names-progress",
+                {
+                    "phase": phase,
+                    "current": done,
+                    "total": total,
+                    "percent": round(100 * done / total) if total else 100,
+                },
+            )
 
         desired = []
         already_correct = 0
@@ -348,11 +386,9 @@ class RenameNefService:
         renames = self._resolve_restore_targets(desired)
         return renames, already_correct, no_record
 
-    async def restore_names_preview(self, roots=None, globs=None,
-                                    recursive=False) -> dict:
+    async def restore_names_preview(self, roots=None, globs=None, recursive=False) -> dict:
         files = self._resolve(roots, globs, recursive)
-        renames, already_correct, no_record = await self._plan_restore(
-            files, phase="preview")
+        renames, already_correct, no_record = await self._plan_restore(files, phase="preview")
         return {
             "items": [
                 {"original_path": str(src), "original": src.name, "new_name": dst.name}
@@ -364,21 +400,22 @@ class RenameNefService:
             "no_record": no_record,
         }
 
-    async def restore_names_execute(self, roots=None, globs=None,
-                                    recursive=False) -> dict:
+    async def restore_names_execute(self, roots=None, globs=None, recursive=False) -> dict:
         async with self._execute_lock:
             files = self._resolve(roots, globs, recursive)
-            renames, _correct, _no_record = await self._plan_restore(
-                files, phase="execute")
+            renames, _correct, _no_record = await self._plan_restore(files, phase="execute")
 
             # Two-pass src->temp->dst over the whole batch, carrying .xmp
             # sidecars and journalling each restored NEF (op rename, tool
             # restore-names).
             result = fs_ops.two_pass_rename(
                 [(src, dst) for src, dst, _h in renames],
-                tool="restore-names", journal_op="rename",
-                sidecar_exts=SIDECAR_EXTENSIONS, find_sidecars=find_sidecar_files,
-                tmp_prefix=".restore_tmp", log_prefix="RestoreNames",
+                tool="restore-names",
+                journal_op="rename",
+                sidecar_exts=SIDECAR_EXTENSIONS,
+                find_sidecars=find_sidecar_files,
+                tmp_prefix=".restore_tmp",
+                log_prefix="RestoreNames",
             )
             renamed = result["renamed"]
             skipped = result["skipped"]
@@ -394,10 +431,15 @@ class RenameNefService:
                     final_by_hash[h] = dst.name
             self._sync_processed_names(final_by_hash)
 
-            await broadcast_event("restore-names-progress", {
-                "phase": "execute", "current": len(files), "total": len(files),
-                "percent": 100,
-            })
+            await broadcast_event(
+                "restore-names-progress",
+                {
+                    "phase": "execute",
+                    "current": len(files),
+                    "total": len(files),
+                    "percent": 100,
+                },
+            )
             return {"renamed": renamed, "skipped": skipped, "errors": errors}
 
     @staticmethod

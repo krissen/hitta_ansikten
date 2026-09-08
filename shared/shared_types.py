@@ -10,6 +10,7 @@ from enum import Enum
 
 class FaceDetectionStatus(Enum):
     """Status of face detection operation."""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -19,6 +20,7 @@ class FaceDetectionStatus(Enum):
 @dataclass
 class BoundingBox:
     """Face bounding box coordinates."""
+
     x: int
     y: int
     width: int
@@ -28,6 +30,7 @@ class BoundingBox:
 @dataclass
 class FaceAnnotation:
     """Manual face annotation from user."""
+
     image_path: str
     bbox: BoundingBox
     person_name: str | None = None
@@ -37,6 +40,7 @@ class FaceAnnotation:
 @dataclass
 class DetectedFace:
     """Face detected by ML backend."""
+
     image_path: str
     bbox: BoundingBox
     person_name: str | None
@@ -47,6 +51,7 @@ class DetectedFace:
 @dataclass
 class ImageStatus:
     """Status of image processing."""
+
     image_path: str
     status: FaceDetectionStatus
     faces_detected: int
@@ -57,6 +62,7 @@ class ImageStatus:
 @dataclass
 class MatchAlternative:
     """Alternative match candidate for a face."""
+
     name: str
     distance: float
     confidence: int
@@ -66,6 +72,7 @@ class MatchAlternative:
 @dataclass
 class DetectedFaceResult:
     """Detected face entry returned by the detection API."""
+
     face_id: str
     bounding_box: BoundingBox
     confidence: float
@@ -81,6 +88,7 @@ class DetectedFaceResult:
 @dataclass
 class DetectionResult:
     """Detection response payload for an image."""
+
     image_path: str
     faces: list[DetectedFaceResult]
     processing_time_ms: float
@@ -91,6 +99,7 @@ class DetectionResult:
 @dataclass
 class ReviewedFace:
     """Reviewed face payload for mark-review-complete."""
+
     face_index: int
     face_id: str
     encoding_hash: str | None = None
@@ -101,6 +110,7 @@ class ReviewedFace:
 @dataclass
 class MarkReviewCompleteRequest:
     """Request payload for marking a review complete."""
+
     image_path: str
     reviewed_faces: list[ReviewedFace]
     file_hash: str | None = None

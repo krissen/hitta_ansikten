@@ -8,7 +8,7 @@
 /* Filter-bar toggle buttons (Rutnät, Papperskorg) signal their on-state via
    aria-pressed — give the pressed state the accent look the legacy .btn-action
    carried, matching the old active-toggle appearance. */
-.culling-filterbar .btn[aria-pressed="true"] {
+.culling-filterbar .btn[aria-pressed='true'] {
   background: var(--accent-primary);
   color: var(--text-on-accent);
   border-color: transparent;
@@ -83,7 +83,7 @@
    the deviation-colored numbers; lighten the stats column to the light peach
    --bg-elevated so the status-text hues read clearly. (Row hover uses the shared
    --bg-row-hover; see below.) Dark theme keeps --bg-secondary. */
-:root[data-theme="light"] .culling-stats {
+:root[data-theme='light'] .culling-stats {
   background: var(--bg-elevated);
 }
 
@@ -204,13 +204,19 @@
   max-width: 12ch;
 }
 
-.culling-stat-row.clickable { cursor: pointer; }
+.culling-stat-row.clickable {
+  cursor: pointer;
+}
 /* The active row uses the shared .row-selected highlight (added in JSX); hover
    must not override its background, hence :not(.row-selected). */
-.culling-stat-row:hover:not(.row-selected) { background: var(--bg-row-hover); }
+.culling-stat-row:hover:not(.row-selected) {
+  background: var(--bg-row-hover);
+}
 
 /* Distribution bar + deviation colors mirror the player-count level thresholds. */
-.culling-stats-table .bar-col { width: 30%; }
+.culling-stats-table .bar-col {
+  width: 30%;
+}
 
 .culling-bar-track {
   width: 100%;
@@ -225,16 +231,28 @@
   border-radius: 4px;
 }
 
-.culling-bar-fill.level-ok { background: var(--color-success); }
-.culling-bar-fill.level-warn { background: var(--color-warning); }
-.culling-bar-fill.level-high { background: var(--color-error); }
+.culling-bar-fill.level-ok {
+  background: var(--color-success);
+}
+.culling-bar-fill.level-warn {
+  background: var(--color-warning);
+}
+.culling-bar-fill.level-high {
+  background: var(--color-error);
+}
 
 /* Δ text uses the dedicated deviation vars (darker than the bright semantic
    --color-* on the beige theme so small numbers stay legible; the bar fills
    above keep the bright --color-* since solid blocks read fine). */
-.culling-stats-table .delta.delta-ok { color: var(--color-success-text); }
-.culling-stats-table .delta.delta-warn { color: var(--color-warning-text); }
-.culling-stats-table .delta.delta-high { color: var(--color-error-text); }
+.culling-stats-table .delta.delta-ok {
+  color: var(--color-success-text);
+}
+.culling-stats-table .delta.delta-warn {
+  color: var(--color-warning-text);
+}
+.culling-stats-table .delta.delta-high {
+  color: var(--color-error-text);
+}
 
 /* Excluded groups (coaches / group photos / audience / below-threshold). */
 .culling-stats-excluded {
@@ -266,7 +284,9 @@
   background: var(--border-subtle);
 }
 
-.culling-stats-divider:hover { background: var(--accent-primary); }
+.culling-stats-divider:hover {
+  background: var(--accent-primary);
+}
 
 /* Wraps the list + divider + preview so the divider drag measures this area
    (excluding the fixed stats column). */
@@ -301,7 +321,9 @@
 
 /* The list is focusable (tabIndex=-1) so keyboard nav can be handed back to it
    after using a control; the active row already signals selection, so no ring. */
-.culling-files:focus { outline: none; }
+.culling-files:focus {
+  outline: none;
+}
 
 .culling-files li {
   padding: 4px 10px;
@@ -464,7 +486,10 @@
   user-select: none;
 }
 
-.culling-name-chip input { cursor: pointer; margin: 0; }
+.culling-name-chip input {
+  cursor: pointer;
+  margin: 0;
+}
 
 /* A toggled-off name is struck through and dimmed to read as "will be removed". */
 .culling-name-chip.removed {
@@ -534,7 +559,9 @@
   border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
-  transition: opacity 0.12s ease, border-color 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .culling-grid-cell:hover {

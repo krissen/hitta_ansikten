@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * Build backend with PyInstaller (--onedir mode)
- * 
+ *
  * Builds the Python backend into a standalone directory and copies it
  * to resources/backend/ for inclusion in the Electron app.
- * 
+ *
  * --onedir mode is MUCH faster to start than --onefile since no extraction needed.
  */
 
@@ -57,14 +57,16 @@ function main() {
     run('pyinstaller ansikten-backend.spec --noconfirm', { cwd: BACKEND_DIR });
   } catch (err) {
     console.error('\nPyInstaller build failed.');
-    console.error('Make sure you have activated your Python environment and installed dependencies:');
+    console.error(
+      'Make sure you have activated your Python environment and installed dependencies:',
+    );
     console.error('  pip install -e ".[build]"\n');
     process.exit(1);
   }
 
   const builtDir = path.join(BACKEND_DIR, 'dist', BUNDLE_NAME);
   const builtExec = path.join(builtDir, EXEC_NAME);
-  
+
   if (!fs.existsSync(builtDir) || !fs.existsSync(builtExec)) {
     console.error(`Error: Expected output not found: ${builtDir}`);
     console.error('Make sure the spec file uses COLLECT for --onedir mode.');

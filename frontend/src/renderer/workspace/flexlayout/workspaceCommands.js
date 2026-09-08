@@ -50,13 +50,13 @@ import { debug, debugWarn } from '../../shared/debug.js';
  *   load-image                      → review  (ensure an Image Viewer, then load)
  */
 export const HANDOFFS = {
-  'queue-files':       { step: 'review',  event: 'file-queue-load' },
-  'open-review-queue': { step: 'review',  event: 'file-queue-load' },
-  'open-culling':      { step: 'culling', event: 'culling-load' },
-  'open-count':        { step: 'count',   event: 'count-load', signalExternal: true },
-  'open-import':       { step: 'import',  event: 'import-load' },
-  'open-rename-nef':   { step: 'rename',  event: 'rename-nef-load' },
-  'load-image':        { step: 'review',  event: 'load-image' },
+  'queue-files': { step: 'review', event: 'file-queue-load' },
+  'open-review-queue': { step: 'review', event: 'file-queue-load' },
+  'open-culling': { step: 'culling', event: 'culling-load' },
+  'open-count': { step: 'count', event: 'count-load', signalExternal: true },
+  'open-import': { step: 'import', event: 'import-load' },
+  'open-rename-nef': { step: 'rename', event: 'rename-nef-load' },
+  'load-image': { step: 'review', event: 'load-image' },
 };
 
 /**
@@ -128,7 +128,11 @@ export function createWorkspaceRouter(options = {}) {
   function run(intent) {
     const h = handlers;
     if (!h) {
-      debugWarn('WorkspaceRouter', 'No handlers wired; dropping intent:', intent?.type);
+      debugWarn(
+        'WorkspaceRouter',
+        'No handlers wired; dropping intent:',
+        intent?.type,
+      );
       return undefined;
     }
     if (!intent || typeof intent.type !== 'string') {

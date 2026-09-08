@@ -66,7 +66,9 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg), 0 0 10px -4px var(--accent-primary);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 10px -4px var(--accent-primary);
   transition: transform 220ms ease;
   will-change: transform;
 }
@@ -88,13 +90,19 @@
 
 @keyframes workflow-bar-phosphor {
   0% {
-    box-shadow: var(--shadow-lg), 0 0 0 0 transparent;
+    box-shadow:
+      var(--shadow-lg),
+      0 0 0 0 transparent;
   }
   40% {
-    box-shadow: var(--shadow-lg), 0 3px 16px -2px var(--accent-primary);
+    box-shadow:
+      var(--shadow-lg),
+      0 3px 16px -2px var(--accent-primary);
   }
   100% {
-    box-shadow: var(--shadow-lg), 0 0 10px -4px var(--accent-primary);
+    box-shadow:
+      var(--shadow-lg),
+      0 0 10px -4px var(--accent-primary);
   }
 }
 

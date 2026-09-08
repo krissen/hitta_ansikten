@@ -14,7 +14,10 @@ vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
 }));
 
 import { WorkflowBar } from '../src/renderer/components/WorkflowBar.jsx';
-import { setWorkingFolder, clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
+import {
+  setWorkingFolder,
+  clearWorkingFolder,
+} from '../src/renderer/shared/workingFolder.js';
 
 function renderBar(props = {}) {
   return render(
@@ -23,7 +26,7 @@ function renderBar(props = {}) {
       onOpenStep={() => {}}
       onOpenTool={() => {}}
       {...props}
-    />
+    />,
   );
 }
 
@@ -35,9 +38,9 @@ describe('WorkflowBar', () => {
 
   it('renders the five pipeline steps in order', () => {
     renderBar();
-    const steps = screen.getAllByRole('button').filter((b) =>
-      b.className.includes('workflow-bar-step')
-    );
+    const steps = screen
+      .getAllByRole('button')
+      .filter((b) => b.className.includes('workflow-bar-step'));
     expect(steps.map((b) => b.textContent)).toEqual([
       '1Importera',
       '2Byt namn',
@@ -78,7 +81,9 @@ describe('WorkflowBar', () => {
     renderBar();
     const cont = screen.getByRole('button', { name: /Fortsätt: Byt namn/ });
     fireEvent.click(cont);
-    expect(mockEmit).toHaveBeenCalledWith('open-rename-nef', { roots: ['/events/cupen'] });
+    expect(mockEmit).toHaveBeenCalledWith('open-rename-nef', {
+      roots: ['/events/cupen'],
+    });
   });
 
   it('shows no Continue button when the anchor step has no next step', () => {
@@ -91,15 +96,21 @@ describe('WorkflowBar', () => {
   it('continues review → count with the anchor roots', () => {
     setWorkingFolder({ roots: ['/events/cupen'], step: 'review' });
     renderBar();
-    fireEvent.click(screen.getByRole('button', { name: /Fortsätt: Räkna spelare/ }));
-    expect(mockEmit).toHaveBeenCalledWith('open-count', { roots: ['/events/cupen'] });
+    fireEvent.click(
+      screen.getByRole('button', { name: /Fortsätt: Räkna spelare/ }),
+    );
+    expect(mockEmit).toHaveBeenCalledWith('open-count', {
+      roots: ['/events/cupen'],
+    });
   });
 
   it('opens the tools menu and routes a tool click to onOpenTool', () => {
     const onOpenTool = vi.fn();
     renderBar({ onOpenTool });
     // Menu closed initially.
-    expect(screen.queryByRole('menuitem', { name: /Databashantering/ })).toBeNull();
+    expect(
+      screen.queryByRole('menuitem', { name: /Databashantering/ }),
+    ).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Verktyg/ }));
     fireEvent.click(screen.getByRole('menuitem', { name: /Databashantering/ }));
     expect(onOpenTool).toHaveBeenCalledWith('database-management');
@@ -127,8 +138,10 @@ describe('WorkflowBar', () => {
       const original = window.matchMedia;
       window.matchMedia = (q) => ({
         matches: /prefers-reduced-motion/.test(q),
-        addEventListener() {}, removeEventListener() {},
-        addListener() {}, removeListener() {},
+        addEventListener() {},
+        removeEventListener() {},
+        addListener() {},
+        removeListener() {},
       });
       try {
         renderBar({ autoHide: true });
@@ -152,7 +165,11 @@ describe('WorkflowBar', () => {
         expect(bar().hasAttribute('inert')).toBe(true);
 
         // The top-edge catch-strip brings it back and clears inert.
-        act(() => fireEvent.mouseEnter(document.querySelector('.workflow-bar-hover-zone')));
+        act(() =>
+          fireEvent.mouseEnter(
+            document.querySelector('.workflow-bar-hover-zone'),
+          ),
+        );
         expect(bar().classList.contains('hidden')).toBe(false);
         expect(bar().hasAttribute('inert')).toBe(false);
       });

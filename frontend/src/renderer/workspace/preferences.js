@@ -25,17 +25,17 @@ export class PreferencesManager {
       backend: {
         autoStart: true,
         port: 5001, // Changed from 5000 to avoid macOS Control Center conflict
-        pythonPath: ''  // Empty = auto-detect (backend/.venv or ANSIKTEN_PYTHON)
+        pythonPath: '', // Empty = auto-detect (backend/.venv or ANSIKTEN_PYTHON)
       },
       ui: {
         theme: 'system', // 'dark' | 'light' | 'system'
         defaultLayout: 'standard', // 'standard' | 'compact' | 'review-focused'
         showWelcome: true, // Show welcome message on first launch
-        logLevel: 'info' // 'debug' | 'info' | 'warn' | 'error'
+        logLevel: 'info', // 'debug' | 'info' | 'warn' | 'error'
       },
       debug: {
         enabled: false, // Enable debug logging
-        logToFile: false // Also write logs to file (requires enabled=true)
+        logToFile: false, // Also write logs to file (requires enabled=true)
       },
       appearance: {
         // Sizes and spacing
@@ -44,7 +44,7 @@ export class PreferencesManager {
         tabPaddingLeft: 8, // Left padding in tab (0-20)
         tabPaddingRight: 6, // Right padding in tab (0-20)
         tabMinGap: 10, // Minimum gap between text and close button (0-30)
-        tabMinWidth: 0 // Minimum tab width override (0 = auto based on content)
+        tabMinWidth: 0, // Minimum tab width override (0 = auto based on content)
         // Note: Tab colors now follow theme (theme.css)
       },
       imageViewer: {
@@ -54,7 +54,7 @@ export class PreferencesManager {
         defaultZoomMode: 'auto-fit', // 'auto-fit' | '1:1'
         smoothPan: true, // Smooth panning animation
         showPixelGrid: false, // Show pixel grid at high zoom levels (future)
-        showFileInfo: true // Show filename and queue progress overlay
+        showFileInfo: true, // Show filename and queue progress overlay
       },
       reviewModule: {
         autoSaveOnComplete: true, // Auto-save when all faces reviewed
@@ -62,22 +62,22 @@ export class PreferencesManager {
         defaultAction: 'next', // 'next' | 'stay' after confirming face
         showConfidenceScores: true,
         saveMode: 'per-image', // 'per-face' | 'per-image' - how to write review results
-        maxAlternatives: 5 // Number of match alternatives to show (1-9)
+        maxAlternatives: 5, // Number of match alternatives to show (1-9)
       },
       fileQueue: {
         autoLoadOnStartup: true,
         autoRemoveMissing: true,
-        insertMode: 'alphabetical'  // 'bottom' | 'alphabetical' - how new files are inserted
+        insertMode: 'alphabetical', // 'bottom' | 'alphabetical' - how new files are inserted
       },
       rename: {
-        renameSidecars: true,       // Also rename associated sidecar files (XMP, etc)
-        sidecarExtensions: ['xmp']  // Extensions to look for (case insensitive)
+        renameSidecars: true, // Also rename associated sidecar files (XMP, etc)
+        sidecarExtensions: ['xmp'], // Extensions to look for (case insensitive)
       },
       renameNef: {
-        recursive: false            // EXIF rename: also descend into subfolders (default off)
+        recursive: false, // EXIF rename: also descend into subfolders (default off)
       },
       culling: {
-        autoAdvanceAfterRename: true // Move to the next file after a rename in Gallra spelare
+        autoAdvanceAfterRename: true, // Move to the next file after a rename in Gallra spelare
       },
       paths: {
         // Root searched recursively to resolve the original NEF for a developed
@@ -85,41 +85,41 @@ export class PreferencesManager {
         rawRoot: '~/Pictures/nerladdat',
         // App the resolved NEF is handed to (macOS `open -a`). An application
         // name or a path to an .app; ~/ is expanded in the main process.
-        externalEditor: DEFAULT_EXTERNAL_EDITOR
+        externalEditor: DEFAULT_EXTERNAL_EDITOR,
       },
       preprocessing: {
-        enabled: true,              // Master switch for background preprocessing
+        enabled: true, // Master switch for background preprocessing
         steps: {
-          nefConversion: true,      // Convert NEF to JPG in background
-          faceDetection: true,      // Detect faces in background
-          thumbnails: true          // Generate face thumbnails in background
+          nefConversion: true, // Convert NEF to JPG in background
+          faceDetection: true, // Detect faces in background
+          thumbnails: true, // Generate face thumbnails in background
         },
-        parallelWorkers: 2,         // Number of parallel preprocessing jobs (1-8)
+        parallelWorkers: 2, // Number of parallel preprocessing jobs (1-8)
         cache: {
-          maxSizeMB: 1024           // Max cache size in MB (default 1GB)
+          maxSizeMB: 1024, // Max cache size in MB (default 1GB)
         },
         // Rolling window settings - controls how many files stay preprocessed ahead
         rollingWindow: {
-          maxReadyItems: 15,        // Max preprocessed items to keep "ready"
-          minQueueBuffer: 10,       // Pause preprocessing when this many items are ready
-          resumeThreshold: 5        // Resume after this many items are "done" (reviewed)
+          maxReadyItems: 15, // Max preprocessed items to keep "ready"
+          minQueueBuffer: 10, // Pause preprocessing when this many items are ready
+          resumeThreshold: 5, // Resume after this many items are "done" (reviewed)
         },
         // Notification settings for preprocessing status
         notifications: {
-          showStatusIndicator: true,  // Show status indicator in File Queue footer
-          showToastOnPause: true,     // Show toast when preprocessing pauses
-          showToastOnResume: false    // Show toast when preprocessing resumes
-        }
+          showStatusIndicator: true, // Show status indicator in File Queue footer
+          showToastOnPause: true, // Show toast when preprocessing pauses
+          showToastOnResume: false, // Show toast when preprocessing resumes
+        },
       },
       workspace: {
         showWorkflowBar: true, // Show the persistent pipeline navigation row above the layout
-        workflowBarAutoHide: true // Slide the navigation row away when idle (reveal on hover/step change)
+        workflowBarAutoHide: true, // Slide the navigation row away when idle (reveal on hover/step change)
       },
       layout: {
         defaultGridPreset: '70-30', // Default grid split ratio: '50-50', '60-40', '70-30', '30-70', '40-60'
         defaultTemplate: 'review', // Default layout template: 'review', 'comparison', 'full-image', 'stats'
         autoSaveLayout: true, // Auto-save layout on changes
-        rememberPanelSizes: true // Remember panel sizes across sessions
+        rememberPanelSizes: true, // Remember panel sizes across sessions
       },
       // Preset-specific layout configurations
       // Each preset can override module positions and ratios
@@ -129,50 +129,67 @@ export class PreferencesManager {
             // Review mode: sidebar + main viewer
             modules: {
               'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 1.0 },
-              'image-viewer': { row: 1, col: 2, ratio: 0.85, rowRatio: 1.0 }
-            }
+              'image-viewer': { row: 1, col: 2, ratio: 0.85, rowRatio: 1.0 },
+            },
           },
           comparison: {
             // Comparison mode: three-column
             modules: {
               'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 1.0 },
-              'image-viewer': { row: 1, col: 2, ratio: 0.50, rowRatio: 1.0 },
-              'original-view': { row: 1, col: 3, ratio: 0.35, rowRatio: 1.0 }
-            }
+              'image-viewer': { row: 1, col: 2, ratio: 0.5, rowRatio: 1.0 },
+              'original-view': { row: 1, col: 3, ratio: 0.35, rowRatio: 1.0 },
+            },
           },
           'full-image': {
             // Full image mode: maximized viewer
             modules: {
-              'image-viewer': { row: 1, col: 1, ratio: 1.0, rowRatio: 1.0 }
-            }
+              'image-viewer': { row: 1, col: 1, ratio: 1.0, rowRatio: 1.0 },
+            },
           },
           stats: {
             // Stats mode: viewer + stats panels
             modules: {
               'image-viewer': { row: 1, col: 1, ratio: 0.6, rowRatio: 0.7 },
-              'statistics-dashboard': { row: 1, col: 2, ratio: 0.4, rowRatio: 0.7 },
-              'database-management': { row: 2, col: 1, colSpan: 'full', ratio: 1.0, rowRatio: 0.3 }
-            }
+              'statistics-dashboard': {
+                row: 1,
+                col: 2,
+                ratio: 0.4,
+                rowRatio: 0.7,
+              },
+              'database-management': {
+                row: 2,
+                col: 1,
+                colSpan: 'full',
+                ratio: 1.0,
+                rowRatio: 0.3,
+              },
+            },
           },
           'review-with-logs': {
             // Review mode with log viewer at bottom
             modules: {
               'review-module': { row: 1, col: 1, ratio: 0.15, rowRatio: 0.75 },
               'image-viewer': { row: 1, col: 2, ratio: 0.85, rowRatio: 0.75 },
-              'log-viewer': { row: 2, col: 1, colSpan: 'full', ratio: 1.0, rowRatio: 0.25 }
-            }
-          }
-        }
+              'log-viewer': {
+                row: 2,
+                col: 1,
+                colSpan: 'full',
+                ratio: 1.0,
+                rowRatio: 0.25,
+              },
+            },
+          },
+        },
       },
       dashboard: {
-        showAttemptStats: true,       // Show detection statistics table
-        showTopFaces: true,           // Show top faces grid
-        showRecentImages: true,       // Show recent processed images
-        showRecentLogs: false,        // Show recent log lines (disabled by default - use LogViewer)
-        logLineCount: 5,              // Number of log lines to show (3-10)
-        refreshInterval: 5000,        // Auto-refresh interval in ms (2000/5000/10000/30000)
-        autoRefresh: true             // Auto-refresh on startup
-      }
+        showAttemptStats: true, // Show detection statistics table
+        showTopFaces: true, // Show top faces grid
+        showRecentImages: true, // Show recent processed images
+        showRecentLogs: false, // Show recent log lines (disabled by default - use LogViewer)
+        logLineCount: 5, // Number of log lines to show (3-10)
+        refreshInterval: 5000, // Auto-refresh interval in ms (2000/5000/10000/30000)
+        autoRefresh: true, // Auto-refresh on startup
+      },
     };
 
     // Current preferences (loaded from localStorage or defaults)
@@ -199,7 +216,9 @@ export class PreferencesManager {
       const parsed = JSON.parse(stored);
       // A payload with no version at all predates versioning: treat it as older
       // than anything, so it migrates rather than counting as "newer".
-      const storedVersion = Number.isFinite(parsed.version) ? parsed.version : 0;
+      const storedVersion = Number.isFinite(parsed.version)
+        ? parsed.version
+        : 0;
 
       // Version migration — only FORWARDS. A payload from a newer build (the
       // user ran a later version and rolled back) must be left alone: stamping
@@ -207,7 +226,10 @@ export class PreferencesManager {
       // next newer build re-run its own migration step on already-migrated
       // data, which is the double-application this write exists to prevent.
       if (storedVersion < this.version) {
-        debug('Preferences', `Migrating from v${parsed.version} to v${this.version}`);
+        debug(
+          'Preferences',
+          `Migrating from v${parsed.version} to v${this.version}`,
+        );
         const migrated = this.migrate(parsed);
         this.preferences = this.mergeWithDefaults(migrated);
         // Persist the migrated STORED payload — not the merged tree. Writing
@@ -227,7 +249,11 @@ export class PreferencesManager {
 
       debug('Preferences', 'Loaded preferences from localStorage');
     } catch (err) {
-      debugError('Preferences', 'Failed to load preferences, using defaults:', err);
+      debugError(
+        'Preferences',
+        'Failed to load preferences, using defaults:',
+        err,
+      );
       this.preferences = JSON.parse(JSON.stringify(this.defaults));
     }
   }
@@ -358,7 +384,11 @@ export class PreferencesManager {
 
     const merge = (target, source) => {
       for (const key in source) {
-        if (source[key] !== null && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+        if (
+          source[key] !== null &&
+          typeof source[key] === 'object' &&
+          !Array.isArray(source[key])
+        ) {
           if (!target[key]) target[key] = {};
           merge(target[key], source[key]);
         } else {
@@ -392,7 +422,10 @@ export class PreferencesManager {
     // rather than on every launch. It should still be idempotent: if the write
     // fails (read-only or full storage) the install stays at its old version and
     // the step is repeated on the next start.
-    debug('Preferences', 'No per-version step needed, stamping the new version');
+    debug(
+      'Preferences',
+      'No per-version step needed, stamping the new version',
+    );
     return { ...old, version: this.version };
   }
 

@@ -152,9 +152,7 @@ def decode_raw(
     channels = arr.shape[0]
     nc = channels - 4 - 3 * num_kpts
     if nc < 1:
-        raise ValueError(
-            f"raw head has {channels} channels; expected >= {4 + 1 + 3 * num_kpts}"
-        )
+        raise ValueError(f"raw head has {channels} channels; expected >= {4 + 1 + 3 * num_kpts}")
     p = arr.T  # (N, channels)
     boxes = p[:, 0:4]
     scores = p[:, 4 : 4 + nc].max(axis=1)
@@ -287,9 +285,7 @@ class YoloFaceDetector:
                     f"YOLO-face model not found at {self.model_path}. "
                     f"Run: python -m benchmarks.models.download {self.name}"
                 )
-            self._session = ort.InferenceSession(
-                str(self.model_path), providers=self._providers
-            )
+            self._session = ort.InferenceSession(str(self.model_path), providers=self._providers)
             self._input_name = self._session.get_inputs()[0].name
         return self._session
 

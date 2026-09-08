@@ -25,7 +25,7 @@ export function useAutoRefresh(refreshFn, options = {}) {
   const {
     interval = 5000,
     initialEnabled = true,
-    refreshOnMount = true
+    refreshOnMount = true,
   } = options;
 
   const [isEnabled, setEnabled] = useState(initialEnabled);
@@ -85,7 +85,10 @@ export function useAutoRefresh(refreshFn, options = {}) {
 
   // Auto-refresh interval
   useEffect(() => {
-    debug('AutoRefresh', `Interval effect running: isEnabled=${isEnabled}, interval=${interval}`);
+    debug(
+      'AutoRefresh',
+      `Interval effect running: isEnabled=${isEnabled}, interval=${interval}`,
+    );
 
     if (!isEnabled) {
       if (intervalRef.current) {
@@ -118,7 +121,7 @@ export function useAutoRefresh(refreshFn, options = {}) {
 
   // Toggle function
   const toggleEnabled = useCallback(() => {
-    setEnabled(prev => !prev);
+    setEnabled((prev) => !prev);
   }, []);
 
   return {
@@ -127,7 +130,7 @@ export function useAutoRefresh(refreshFn, options = {}) {
     toggleEnabled,
     refresh,
     isRefreshing,
-    lastRefresh
+    lastRefresh,
   };
 }
 
@@ -161,7 +164,7 @@ export function usePolledData(fetchFn, options = {}) {
   return {
     data,
     error,
-    ...refreshState
+    ...refreshState,
   };
 }
 

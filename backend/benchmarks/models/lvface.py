@@ -82,10 +82,7 @@ class LVFaceRecognition(RecognitionModelBase):
             self.name = name or Path(model_path).stem
         else:
             if variant not in KNOWN_MODELS:
-                raise ValueError(
-                    f"Unknown LVFace variant {variant!r}; "
-                    f"known: {list(KNOWN_MODELS)}"
-                )
+                raise ValueError(f"Unknown LVFace variant {variant!r}; known: {list(KNOWN_MODELS)}")
             spec = KNOWN_MODELS[variant]
             self.dim = spec.dim
             self.name = name or variant
@@ -163,7 +160,7 @@ class LVFaceRecognition(RecognitionModelBase):
         if self._static_batch and self._static_batch > 0:
             rows = []
             for start in range(0, len(tensors), self._static_batch):
-                chunk = tensors[start:start + self._static_batch]
+                chunk = tensors[start : start + self._static_batch]
                 if len(chunk) < self._static_batch:
                     pad = self._static_batch - len(chunk)
                     chunk = np.concatenate(

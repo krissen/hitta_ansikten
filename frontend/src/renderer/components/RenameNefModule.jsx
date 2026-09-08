@@ -39,7 +39,9 @@ export function RenameNefModule() {
   });
   const [glob, setGlob] = useState('');
   // Persisted (default off): whether to descend into subfolders.
-  const [recursive, setRecursive] = useState(() => preferences.get('renameNef.recursive') === true);
+  const [recursive, setRecursive] = useState(
+    () => preferences.get('renameNef.recursive') === true,
+  );
   // NOT persisted — always starts off each session, so a destructive strip of
   // already-named files can never be armed silently.
   const [includeNamed, setIncludeNamed] = useState(false);
@@ -68,12 +70,15 @@ export function RenameNefModule() {
   useWebSocket('rename-nef-progress', onProgress);
   useWebSocket('restore-names-progress', onProgress);
 
-  const params = useCallback(() => ({
-    roots,
-    globs: glob.trim() ? [glob.trim()] : [],
-    recursive,
-    include_named: includeNamed,
-  }), [roots, glob, recursive, includeNamed]);
+  const params = useCallback(
+    () => ({
+      roots,
+      globs: glob.trim() ? [glob.trim()] : [],
+      recursive,
+      include_named: includeNamed,
+    }),
+    [roots, glob, recursive, includeNamed],
+  );
 
   // Drop pending previews (scope changed) but KEEP any result panel — the last
   // run's result stays visible (and its frozen resultRoots hand-off usable) even
@@ -98,20 +103,24 @@ export function RenameNefModule() {
   // import). Also CLEAR any leftover glob: params() forwards it and the backend
   // resolver unions glob matches with the root scan, so a stale pattern like
   // /old/*.NEF would pull in files outside the just-imported folder.
-  useModuleEvent('rename-nef-load', (data) => {
-    const incoming = data?.roots || [];
-    if (incoming.length) {
-      setRoots(Array.from(new Set(incoming)));
-      setGlob('');
-      // The import hand-off is authoritative about the event folder; keep the
-      // anchor in step with it (still tagged 'import' — rename hasn't run yet).
-      setWorkingFolder({ roots: incoming, step: 'import' });
-    }
-    // Re-arming a new working set must not carry a live strip opt-in.
-    setIncludeNamed(false);
-    clearAll();
-    setError(null);
-  }, [clearAll]);
+  useModuleEvent(
+    'rename-nef-load',
+    (data) => {
+      const incoming = data?.roots || [];
+      if (incoming.length) {
+        setRoots(Array.from(new Set(incoming)));
+        setGlob('');
+        // The import hand-off is authoritative about the event folder; keep the
+        // anchor in step with it (still tagged 'import' — rename hasn't run yet).
+        setWorkingFolder({ roots: incoming, step: 'import' });
+      }
+      // Re-arming a new working set must not carry a live strip opt-in.
+      setIncludeNamed(false);
+      clearAll();
+      setError(null);
+    },
+    [clearAll],
+  );
 
   const addFolder = useCallback(async () => {
     try {
@@ -155,7 +164,8 @@ export function RenameNefModule() {
       setIncludeNamed(false);
       // Rename finished on these folders — advance the anchor to 'rename' so the
       // next step (review/count) can pre-fill from the same event folder.
-      if (usedRoots.length) setWorkingFolder({ roots: usedRoots, step: 'rename' });
+      if (usedRoots.length)
+        setWorkingFolder({ roots: usedRoots, step: 'rename' });
       // Transient receipt; the result panel keeps the persistent breakdown.
       const count = data.renamed?.length ?? 0;
       showToast(t('renameNef.doneToast', { count }), {
@@ -168,11 +178,14 @@ export function RenameNefModule() {
     }
   }, [api, params, roots, showToast]);
 
-  const restoreParams = useCallback(() => ({
-    roots,
-    globs: glob.trim() ? [glob.trim()] : [],
-    recursive,
-  }), [roots, glob, recursive]);
+  const restoreParams = useCallback(
+    () => ({
+      roots,
+      globs: glob.trim() ? [glob.trim()] : [],
+      recursive,
+    }),
+    [roots, glob, recursive],
+  );
 
   const doRestorePreview = useCallback(async () => {
     setBusy(true);
@@ -180,7 +193,10 @@ export function RenameNefModule() {
     clearAll();
     setProgress(null);
     try {
-      const data = await api.post('/api/v1/rename-nef/restore-names/preview', restoreParams());
+      const data = await api.post(
+        '/api/v1/rename-nef/restore-names/preview',
+        restoreParams(),
+      );
       setRestorePreview(data);
     } catch (err) {
       setError(err.message || String(err));
@@ -194,7 +210,10 @@ export function RenameNefModule() {
     setError(null);
     setProgress(null);
     try {
-      const data = await api.post('/api/v1/rename-nef/restore-names/execute', restoreParams());
+      const data = await api.post(
+        '/api/v1/rename-nef/restore-names/execute',
+        restoreParams(),
+      );
       setRestoreResult(data);
       setRestorePreview(null);
       const count = data.renamed?.length ?? 0;
@@ -209,14 +228,17 @@ export function RenameNefModule() {
   }, [api, restoreParams, showToast]);
 
   // Preview undoing a specific batch (dry-run: shows from → to, skip marks).
-  const previewUndoBatch = useCallback(async (batchId) => {
-    const data = await api.post('/api/v1/rename-journal/undo', {
-      batch_id: batchId,
-      execute: false,
-    });
-    setUndoPreview(data);
-    setUndoBatchId(batchId);
-  }, [api]);
+  const previewUndoBatch = useCallback(
+    async (batchId) => {
+      const data = await api.post('/api/v1/rename-journal/undo', {
+        batch_id: batchId,
+        execute: false,
+      });
+      setUndoPreview(data);
+      setUndoBatchId(batchId);
+    },
+    [api],
+  );
 
   // "Ångra senaste namnbyte…": fetch undoable batches, default to the newest.
   const doUndoPreview = useCallback(async () => {
@@ -241,18 +263,21 @@ export function RenameNefModule() {
   }, [api, clearAll, previewUndoBatch, showToast]);
 
   // Re-preview when the user picks a different batch from the selector.
-  const onSelectUndoBatch = useCallback(async (batchId) => {
-    setBusy(true);
-    setError(null);
-    setUndoResult(null);
-    try {
-      await previewUndoBatch(batchId);
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [previewUndoBatch]);
+  const onSelectUndoBatch = useCallback(
+    async (batchId) => {
+      setBusy(true);
+      setError(null);
+      setUndoResult(null);
+      try {
+        await previewUndoBatch(batchId);
+      } catch (err) {
+        setError(err.message || String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [previewUndoBatch],
+  );
 
   const doUndoExecute = useCallback(async () => {
     if (!undoBatchId) return;
@@ -286,15 +311,22 @@ export function RenameNefModule() {
   return (
     <div className="module-container rename-nef" data-keyboard-scope="isolated">
       <div className="rename-nef-bar">
-        <Button variant="secondary" onClick={addFolder} disabled={busy}>{t('renameNef.addFolder')}</Button>
+        <Button variant="secondary" onClick={addFolder} disabled={busy}>
+          {t('renameNef.addFolder')}
+        </Button>
         <input
           className="form-input rename-nef-glob"
           type="text"
           aria-label={t('renameNef.globLabel')}
           placeholder={t('renameNef.globPlaceholder')}
           value={glob}
-          onChange={(e) => { setGlob(e.target.value); clearAll(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') canPreview && doPreview(); }}
+          onChange={(e) => {
+            setGlob(e.target.value);
+            clearAll();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') canPreview && doPreview();
+          }}
           disabled={busy}
         />
         <Button variant="secondary" onClick={doPreview} disabled={!canPreview}>
@@ -303,7 +335,11 @@ export function RenameNefModule() {
         <Button variant="primary" onClick={doExecute} disabled={!canExecute}>
           {t('renameNef.execute')}
         </Button>
-        <Button variant="secondary" onClick={doRestorePreview} disabled={!canPreview}>
+        <Button
+          variant="secondary"
+          onClick={doRestorePreview}
+          disabled={!canPreview}
+        >
           {t('renameNef.restore')}
         </Button>
         <Button variant="secondary" onClick={doUndoPreview} disabled={busy}>
@@ -330,7 +366,11 @@ export function RenameNefModule() {
           <input
             type="checkbox"
             checked={includeNamed}
-            onChange={(e) => { setIncludeNamed(e.target.checked); setPreview(null); setResult(null); }}
+            onChange={(e) => {
+              setIncludeNamed(e.target.checked);
+              setPreview(null);
+              setResult(null);
+            }}
             disabled={busy}
           />
           {t('renameNef.includeNamedLabel')}
@@ -348,7 +388,10 @@ export function RenameNefModule() {
                 variant="ghost"
                 size="sm"
                 className="rename-nef-chip-x"
-                onClick={() => { setRoots((rs) => rs.filter((x) => x !== r)); clearPreviews(); }}
+                onClick={() => {
+                  setRoots((rs) => rs.filter((x) => x !== r));
+                  clearPreviews();
+                }}
                 disabled={busy}
               />
             </span>
@@ -365,45 +408,69 @@ export function RenameNefModule() {
           />
           <span className="rename-nef-progress-label">
             {progress
-              ? t('renameNef.progressLabel', { current: progress.current, total: progress.total })
+              ? t('renameNef.progressLabel', {
+                  current: progress.current,
+                  total: progress.total,
+                })
               : t('renameNef.progressPreparing')}
           </span>
         </div>
       )}
 
       <div className="module-body rename-nef-body">
-        {error && <Alert variant="error">{t('renameNef.errorPrefix', { message: error })}</Alert>}
-
-        {!preview && !restorePreview && !result && !restoreResult
-          && !undoPreview && !undoResult && !error && (
-          <EmptyState
-            title={
-              <>
-                {t('renameNef.emptyPromptPrefix')}
-                <strong>{t('renameNef.emptyPromptAction')}</strong>
-                {t('renameNef.emptyPromptSuffix')}
-              </>
-            }
-          />
+        {error && (
+          <Alert variant="error">
+            {t('renameNef.errorPrefix', { message: error })}
+          </Alert>
         )}
+
+        {!preview &&
+          !restorePreview &&
+          !result &&
+          !restoreResult &&
+          !undoPreview &&
+          !undoResult &&
+          !error && (
+            <EmptyState
+              title={
+                <>
+                  {t('renameNef.emptyPromptPrefix')}
+                  <strong>{t('renameNef.emptyPromptAction')}</strong>
+                  {t('renameNef.emptyPromptSuffix')}
+                </>
+              }
+            />
+          )}
 
         {preview && (
           <>
             <div className="rename-nef-summary">
               <strong>{preview.to_rename}</strong> {t('renameNef.summaryCount')}
-              {preview.already_named > 0 && t('renameNef.alreadyNamedSuffix', { count: preview.already_named })}
-              {preview.no_date.length > 0 && t('renameNef.noDateSuffix', { count: preview.no_date.length })}
+              {preview.already_named > 0 &&
+                t('renameNef.alreadyNamedSuffix', {
+                  count: preview.already_named,
+                })}
+              {preview.no_date.length > 0 &&
+                t('renameNef.noDateSuffix', { count: preview.no_date.length })}
             </div>
             {preview.named_affected > 0 && (
               <Alert variant="warning">
-                {t('renameNef.namedAffectedWarning', { count: preview.named_affected })}
+                {t('renameNef.namedAffectedWarning', {
+                  count: preview.named_affected,
+                })}
               </Alert>
             )}
             {preview.to_rename === 0 ? (
               <EmptyState title={t('renameNef.nothingToRename')} />
             ) : (
               <table className="rename-nef-table">
-                <thead><tr><th>{t('renameNef.tableOriginal')}</th><th></th><th>{t('renameNef.tableNewName')}</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>{t('renameNef.tableOriginal')}</th>
+                    <th></th>
+                    <th>{t('renameNef.tableNewName')}</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {preview.items.map((it) => (
                     <tr key={it.original_path}>
@@ -417,8 +484,16 @@ export function RenameNefModule() {
             )}
             {preview.no_date.length > 0 && (
               <details className="rename-nef-nodate">
-                <summary>{t('renameNef.noDateSummary', { count: preview.no_date.length })}</summary>
-                <ul>{preview.no_date.map((n) => <li key={n}>{n}</li>)}</ul>
+                <summary>
+                  {t('renameNef.noDateSummary', {
+                    count: preview.no_date.length,
+                  })}
+                </summary>
+                <ul>
+                  {preview.no_date.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
               </details>
             )}
           </>
@@ -427,16 +502,35 @@ export function RenameNefModule() {
         {restorePreview && (
           <>
             <div className="rename-nef-summary">
-              <strong>{restorePreview.to_restore}</strong> {t('renameNef.restoreSummaryCount')}
-              {restorePreview.already_correct > 0 && t('renameNef.restoreCorrectSuffix', { count: restorePreview.already_correct })}
-              {restorePreview.no_record.length > 0 && t('renameNef.restoreNoRecordSuffix', { count: restorePreview.no_record.length })}
+              <strong>{restorePreview.to_restore}</strong>{' '}
+              {t('renameNef.restoreSummaryCount')}
+              {restorePreview.already_correct > 0 &&
+                t('renameNef.restoreCorrectSuffix', {
+                  count: restorePreview.already_correct,
+                })}
+              {restorePreview.no_record.length > 0 &&
+                t('renameNef.restoreNoRecordSuffix', {
+                  count: restorePreview.no_record.length,
+                })}
             </div>
             {restorePreview.to_restore === 0 ? (
-              <EmptyState title={restorePreview.total_files > 0 ? t('renameNef.restoreNothing') : t('renameNef.restoreEmptyPrompt')} />
+              <EmptyState
+                title={
+                  restorePreview.total_files > 0
+                    ? t('renameNef.restoreNothing')
+                    : t('renameNef.restoreEmptyPrompt')
+                }
+              />
             ) : (
               <>
                 <table className="rename-nef-table">
-                  <thead><tr><th>{t('renameNef.tableOriginal')}</th><th></th><th>{t('renameNef.tableNewName')}</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>{t('renameNef.tableOriginal')}</th>
+                      <th></th>
+                      <th>{t('renameNef.tableNewName')}</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {restorePreview.items.map((it) => (
                       <tr key={it.original_path}>
@@ -448,7 +542,11 @@ export function RenameNefModule() {
                   </tbody>
                 </table>
                 <div className="rename-nef-result-actions">
-                  <Button variant="primary" onClick={doRestoreExecute} disabled={!canRestore}>
+                  <Button
+                    variant="primary"
+                    onClick={doRestoreExecute}
+                    disabled={!canRestore}
+                  >
                     {t('renameNef.restoreExecute')}
                   </Button>
                 </div>
@@ -456,8 +554,16 @@ export function RenameNefModule() {
             )}
             {restorePreview.no_record.length > 0 && (
               <details className="rename-nef-nodate">
-                <summary>{t('renameNef.restoreNoRecordSummary', { count: restorePreview.no_record.length })}</summary>
-                <ul>{restorePreview.no_record.map((n) => <li key={n}>{n}</li>)}</ul>
+                <summary>
+                  {t('renameNef.restoreNoRecordSummary', {
+                    count: restorePreview.no_record.length,
+                  })}
+                </summary>
+                <ul>
+                  {restorePreview.no_record.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
               </details>
             )}
           </>
@@ -467,23 +573,44 @@ export function RenameNefModule() {
           <div className="rename-nef-result">
             <div>
               <strong>{result.renamed.length}</strong> {t('renameNef.renamed')}
-              {result.skipped.length > 0 && t('renameNef.skippedSuffix', { count: result.skipped.length })}
+              {result.skipped.length > 0 &&
+                t('renameNef.skippedSuffix', { count: result.skipped.length })}
             </div>
             {result.skipped.length > 0 && (
-              <details><summary>{t('renameNef.skippedDetails')}</summary>
-                <ul>{result.skipped.map((s, i) => <li key={i}>{basename(s.path)}: {s.reason}</li>)}</ul>
+              <details>
+                <summary>{t('renameNef.skippedDetails')}</summary>
+                <ul>
+                  {result.skipped.map((s, i) => (
+                    <li key={i}>
+                      {basename(s.path)}: {s.reason}
+                    </li>
+                  ))}
+                </ul>
               </details>
             )}
             {result.errors.length > 0 && (
-              <details className="rename-nef-errors"><summary>{t('renameNef.errorsSummary', { count: result.errors.length })}</summary>
-                <ul>{result.errors.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
+              <details className="rename-nef-errors">
+                <summary>
+                  {t('renameNef.errorsSummary', {
+                    count: result.errors.length,
+                  })}
+                </summary>
+                <ul>
+                  {result.errors.map((e, i) => (
+                    <li key={i}>
+                      {e.path}: {e.error}
+                    </li>
+                  ))}
+                </ul>
               </details>
             )}
             {resultRoots.length > 0 && (
               <div className="rename-nef-result-actions handoff-next">
                 <Button
                   variant="primary"
-                  onClick={() => emit('open-review-queue', { roots: resultRoots })}
+                  onClick={() =>
+                    emit('open-review-queue', { roots: resultRoots })
+                  }
                 >
                   {t('renameNef.reviewFaces')}
                 </Button>
@@ -495,17 +622,39 @@ export function RenameNefModule() {
         {restoreResult && (
           <div className="rename-nef-result">
             <div>
-              <strong>{restoreResult.renamed.length}</strong> {t('renameNef.restored')}
-              {restoreResult.skipped.length > 0 && t('renameNef.skippedSuffix', { count: restoreResult.skipped.length })}
+              <strong>{restoreResult.renamed.length}</strong>{' '}
+              {t('renameNef.restored')}
+              {restoreResult.skipped.length > 0 &&
+                t('renameNef.skippedSuffix', {
+                  count: restoreResult.skipped.length,
+                })}
             </div>
             {restoreResult.skipped.length > 0 && (
-              <details><summary>{t('renameNef.skippedDetails')}</summary>
-                <ul>{restoreResult.skipped.map((s, i) => <li key={i}>{basename(s.path)}: {s.reason}</li>)}</ul>
+              <details>
+                <summary>{t('renameNef.skippedDetails')}</summary>
+                <ul>
+                  {restoreResult.skipped.map((s, i) => (
+                    <li key={i}>
+                      {basename(s.path)}: {s.reason}
+                    </li>
+                  ))}
+                </ul>
               </details>
             )}
             {restoreResult.errors.length > 0 && (
-              <details className="rename-nef-errors"><summary>{t('renameNef.errorsSummary', { count: restoreResult.errors.length })}</summary>
-                <ul>{restoreResult.errors.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
+              <details className="rename-nef-errors">
+                <summary>
+                  {t('renameNef.errorsSummary', {
+                    count: restoreResult.errors.length,
+                  })}
+                </summary>
+                <ul>
+                  {restoreResult.errors.map((e, i) => (
+                    <li key={i}>
+                      {e.path}: {e.error}
+                    </li>
+                  ))}
+                </ul>
               </details>
             )}
           </div>
@@ -525,7 +674,9 @@ export function RenameNefModule() {
                   {undoBatches.map((b) => (
                     <option key={b.batch_id} value={b.batch_id}>
                       {t('renameNef.undoBatchOption', {
-                        label: undoLabel(b.tool), count: b.count, time: formatTime(b.ts),
+                        label: undoLabel(b.tool),
+                        count: b.count,
+                        time: formatTime(b.ts),
                       })}
                     </option>
                   ))}
@@ -540,28 +691,52 @@ export function RenameNefModule() {
               })}
             </div>
             <div className="rename-nef-summary">
-              <strong>{undoPreview.to_revert}</strong> {t('renameNef.undoSummaryPrefix')}
-              {undoPreview.to_skip > 0 && t('renameNef.undoSkipSuffix', { count: undoPreview.to_skip })}
+              <strong>{undoPreview.to_revert}</strong>{' '}
+              {t('renameNef.undoSummaryPrefix')}
+              {undoPreview.to_skip > 0 &&
+                t('renameNef.undoSkipSuffix', { count: undoPreview.to_skip })}
             </div>
             {undoPreview.to_revert === 0 ? (
               <EmptyState title={t('renameNef.undoNothing')} />
             ) : (
               <>
                 <table className="rename-nef-table">
-                  <thead><tr><th>{t('renameNef.tableOriginal')}</th><th></th><th>{t('renameNef.tableNewName')}</th><th>{t('renameNef.undoSkipReasonColumn')}</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>{t('renameNef.tableOriginal')}</th>
+                      <th></th>
+                      <th>{t('renameNef.tableNewName')}</th>
+                      <th>{t('renameNef.undoSkipReasonColumn')}</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {undoPreview.items.map((it) => (
-                      <tr key={it.from} className={it.status === 'skip' ? 'rename-nef-row-skip' : undefined}>
+                      <tr
+                        key={it.from}
+                        className={
+                          it.status === 'skip'
+                            ? 'rename-nef-row-skip'
+                            : undefined
+                        }
+                      >
                         <td>{it.from_name}</td>
                         <td className="rename-nef-arrow">→</td>
                         <td>{it.to_name}</td>
-                        <td>{it.status === 'skip' ? (it.reason || t('renameNef.undoWillSkip')) : ''}</td>
+                        <td>
+                          {it.status === 'skip'
+                            ? it.reason || t('renameNef.undoWillSkip')
+                            : ''}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 <div className="rename-nef-result-actions">
-                  <Button variant="primary" onClick={doUndoExecute} disabled={!canUndo}>
+                  <Button
+                    variant="primary"
+                    onClick={doUndoExecute}
+                    disabled={!canUndo}
+                  >
                     {t('renameNef.undoExecute')}
                   </Button>
                 </div>
@@ -574,14 +749,20 @@ export function RenameNefModule() {
           <div className="rename-nef-result">
             <div>
               <strong>{undoResult.reverted}</strong> {t('renameNef.undone')}
-              {undoResult.skipped > 0 && t('renameNef.skippedSuffix', { count: undoResult.skipped })}
+              {undoResult.skipped > 0 &&
+                t('renameNef.skippedSuffix', { count: undoResult.skipped })}
             </div>
             {undoResult.results.some((r) => r.status !== 'reverted') && (
-              <details><summary>{t('renameNef.skippedDetails')}</summary>
+              <details>
+                <summary>{t('renameNef.skippedDetails')}</summary>
                 <ul>
-                  {undoResult.results.filter((r) => r.status !== 'reverted').map((r, i) => (
-                    <li key={i}>{basename(r.path)}: {r.reason || r.status}</li>
-                  ))}
+                  {undoResult.results
+                    .filter((r) => r.status !== 'reverted')
+                    .map((r, i) => (
+                      <li key={i}>
+                        {basename(r.path)}: {r.reason || r.status}
+                      </li>
+                    ))}
                 </ul>
               </details>
             )}
@@ -601,7 +782,9 @@ function basename(p) {
 // if the timestamp can't be parsed.
 function formatTime(ts) {
   const d = new Date(ts);
-  return Number.isNaN(d.getTime()) ? String(ts || '') : d.toLocaleString('sv-SE');
+  return Number.isNaN(d.getTime())
+    ? String(ts || '')
+    : d.toLocaleString('sv-SE');
 }
 
 // Swedish label for an undo batch so the header/selector name the action being
@@ -609,14 +792,16 @@ function formatTime(ts) {
 // batches are undoable (import moves/copies and trash are excluded), so every
 // undoable batch's op is "rename" — the tool alone names it.
 function undoLabel(tool) {
-  return {
-    'rename': t('renameNef.undoToolRename'),
-    'rename-nef': t('renameNef.undoToolRenameNef'),
-    'restore-names': t('renameNef.undoToolRestoreNames'),
-    'culling': t('renameNef.undoToolCulling'),
-    'undo': t('renameNef.undoToolUndo'),
-    'mixed': t('renameNef.undoToolMixed'),
-  }[tool] || t('renameNef.undoToolUnknown');
+  return (
+    {
+      rename: t('renameNef.undoToolRename'),
+      'rename-nef': t('renameNef.undoToolRenameNef'),
+      'restore-names': t('renameNef.undoToolRestoreNames'),
+      culling: t('renameNef.undoToolCulling'),
+      undo: t('renameNef.undoToolUndo'),
+      mixed: t('renameNef.undoToolMixed'),
+    }[tool] || t('renameNef.undoToolUnknown')
+  );
 }
 
 export default RenameNefModule;

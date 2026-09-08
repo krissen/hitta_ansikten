@@ -21,8 +21,12 @@ describe('EmptyState', () => {
       />,
     );
     expect(container.querySelector('.empty-state__icon')).not.toBeNull();
-    expect(container.querySelector('.empty-state__description').textContent).toBe('Öppna en fil för att börja');
-    expect(container.querySelector('.empty-state__action button')).not.toBeNull();
+    expect(
+      container.querySelector('.empty-state__description').textContent,
+    ).toBe('Öppna en fil för att börja');
+    expect(
+      container.querySelector('.empty-state__action button'),
+    ).not.toBeNull();
   });
 
   it('omits optional parts when not provided', () => {

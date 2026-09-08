@@ -1,5 +1,19 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
-import { render, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterEach,
+} from 'vitest';
+import {
+  render,
+  act,
+  cleanup,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { gridThumbnailCache } from '../src/renderer/shared/grid-thumbnail-cache.js';
 import { settle } from './helpers/settle.js';
 
@@ -86,7 +100,9 @@ beforeAll(() => {
 // isTabsetActive gate the module installs: both the capture-phase Enter/Esc
 // gate and (since I1) the main keydown handler.
 function makeNode({ visible = true, active = true } = {}) {
-  const model = { getActiveTabset: () => ({ getId: () => (active ? 'TS1' : 'OTHER') }) };
+  const model = {
+    getActiveTabset: () => ({ getId: () => (active ? 'TS1' : 'OTHER') }),
+  };
   return {
     isVisible: () => visible,
     getModel: () => model,
@@ -95,9 +111,24 @@ function makeNode({ visible = true, active = true } = {}) {
 }
 
 const FILES = [
-  { path: '/p/260601_120000_Alice.jpg', basename: '260601_120000_Alice.jpg', mtime_ms: 100, size: 10 },
-  { path: '/p/260601_120100_Bob.jpg', basename: '260601_120100_Bob.jpg', mtime_ms: 200, size: 20 },
-  { path: '/p/260601_120200_Carol.jpg', basename: '260601_120200_Carol.jpg', mtime_ms: 300, size: 30 },
+  {
+    path: '/p/260601_120000_Alice.jpg',
+    basename: '260601_120000_Alice.jpg',
+    mtime_ms: 100,
+    size: 10,
+  },
+  {
+    path: '/p/260601_120100_Bob.jpg',
+    basename: '260601_120100_Bob.jpg',
+    mtime_ms: 200,
+    size: 20,
+  },
+  {
+    path: '/p/260601_120200_Carol.jpg',
+    basename: '260601_120200_Carol.jpg',
+    mtime_ms: 300,
+    size: 30,
+  },
 ];
 
 const STATS = {
@@ -124,11 +155,17 @@ beforeEach(() => {
     if (path.includes('/culling/files')) return Promise.resolve(h.nextFiles);
     if (path.includes('/players/count')) return Promise.resolve(h.nextStats);
     if (path.includes('/culling/trash')) return Promise.resolve(h.trashResp);
-    if (path.includes('/culling/restore')) return Promise.resolve(h.restoreResp);
-    if (path.includes('/culling/rename')) return Promise.resolve({ path: '/p/renamed.jpg' });
+    if (path.includes('/culling/restore'))
+      return Promise.resolve(h.restoreResp);
+    if (path.includes('/culling/rename'))
+      return Promise.resolve({ path: '/p/renamed.jpg' });
     return Promise.resolve({});
   });
-  try { localStorage.clear(); } catch { /* ignore */ }
+  try {
+    localStorage.clear();
+  } catch {
+    /* ignore */
+  }
   // Never-resolving fetch so grid thumbnails don't fire async state updates
   // after assertions (would warn about updates outside act()).
   originalFetch = global.fetch;
@@ -175,7 +212,10 @@ async function mountCulling(node = null) {
 
 // Drive the file list the way the CLI hand-off does: fire the 'culling-load'
 // module event the component subscribed to. Resolves the mocked list + stats.
-async function loadFiles({ files = FILES, players = ['Alice', 'Bob', 'Carol'] } = {}) {
+async function loadFiles({
+  files = FILES,
+  players = ['Alice', 'Bob', 'Carol'],
+} = {}) {
   h.nextFiles = { files, players };
   const handler = h.registry.get('culling-load');
   await act(async () => {
@@ -203,28 +243,43 @@ describe('CullingModule — filter/query flow (characterization)', () => {
     const rows = container.querySelectorAll('.culling-files li');
     expect(rows).toHaveLength(3);
     expect(container.querySelector('.culling-files li.active')).toBe(rows[0]);
-    expect(container.querySelector('.culling-list-header').textContent).toContain('3 bilder');
-    expect(lastPost('/culling/files')).toMatchObject({ roots: ['/p'], extension_preset: 'jpg' });
+    expect(
+      container.querySelector('.culling-list-header').textContent,
+    ).toContain('3 bilder');
+    expect(lastPost('/culling/files')).toMatchObject({
+      roots: ['/p'],
+      extension_preset: 'jpg',
+    });
   });
 
   it('changing the file-type preset re-runs the query with the new preset', async () => {
     const { container } = await mountCulling();
     await loadFiles();
     const before = countPost('/culling/files');
-    const select = container.querySelector('.culling-filterbar select.form-select');
+    const select = container.querySelector(
+      '.culling-filterbar select.form-select',
+    );
     fireEvent.change(select, { target: { value: 'nef' } });
     await waitFor(() => expect(countPost('/culling/files')).toBe(before + 1));
-    expect(lastPost('/culling/files')).toMatchObject({ extension_preset: 'nef' });
+    expect(lastPost('/culling/files')).toMatchObject({
+      extension_preset: 'nef',
+    });
   });
 
   it('picking a player auto-applies an exact player filter plus a *name* glob', async () => {
     const { container } = await mountCulling();
     await loadFiles();
-    const selects = container.querySelectorAll('.culling-filterbar select.form-select');
+    const selects = container.querySelectorAll(
+      '.culling-filterbar select.form-select',
+    );
     const playerSelect = selects[1]; // [0] = preset, [1] = player
     fireEvent.change(playerSelect, { target: { value: 'Bob' } });
-    await waitFor(() => expect(lastPost('/culling/files'))
-      .toMatchObject({ player: 'Bob', name_glob: '*Bob*' }));
+    await waitFor(() =>
+      expect(lastPost('/culling/files')).toMatchObject({
+        player: 'Bob',
+        name_glob: '*Bob*',
+      }),
+    );
   });
 
   it('typing a glob and pressing Enter runs it as a name_glob refinement', async () => {
@@ -233,8 +288,12 @@ describe('CullingModule — filter/query flow (characterization)', () => {
     const glob = container.querySelector('input.culling-glob');
     fireEvent.change(glob, { target: { value: '*Arvid*' } });
     fireEvent.keyDown(glob, { key: 'Enter' });
-    await waitFor(() => expect(lastPost('/culling/files'))
-      .toMatchObject({ name_glob: '*Arvid*', player: null }));
+    await waitFor(() =>
+      expect(lastPost('/culling/files')).toMatchObject({
+        name_glob: '*Arvid*',
+        player: null,
+      }),
+    );
   });
 });
 
@@ -243,9 +302,12 @@ describe('CullingModule — view mode switching (characterization)', () => {
     const { container } = await mountCulling();
     await loadFiles();
     expect(container.querySelector('.culling-main')).toBeTruthy(); // loupe by default
-    const toggle = [...container.querySelectorAll('.culling-filterbar button')]
-      .find((b) => b.textContent === 'Rutnät');
-    await act(async () => { fireEvent.click(toggle); });
+    const toggle = [
+      ...container.querySelectorAll('.culling-filterbar button'),
+    ].find((b) => b.textContent === 'Rutnät');
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
     expect(container.querySelector('.culling-grid')).toBeTruthy();
     expect(container.querySelector('.culling-main')).toBeNull();
     expect(localStorage.getItem('ansikten.culling.viewMode')).toBe('grid');
@@ -261,7 +323,9 @@ describe('CullingModule — view mode switching (characterization)', () => {
   it('Esc in the loupe returns to the grid overview', async () => {
     const { container } = await mountCulling();
     await loadFiles();
-    await act(async () => { fireEvent.keyDown(document, { key: 'Escape' }); });
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' });
+    });
     expect(container.querySelector('.culling-grid')).toBeTruthy();
   });
 
@@ -270,7 +334,9 @@ describe('CullingModule — view mode switching (characterization)', () => {
     const { container } = await mountCulling();
     await loadFiles();
     expect(container.querySelector('.culling-grid')).toBeTruthy();
-    await act(async () => { fireEvent.keyDown(document, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Enter' });
+    });
     expect(container.querySelector('.culling-main')).toBeTruthy();
     expect(container.querySelector('.culling-grid')).toBeNull();
   });
@@ -283,14 +349,18 @@ describe('CullingModule — cull / undo sequencing (characterization)', () => {
     fireEvent.keyDown(document, { key: 'x' });
     await waitFor(() => expect(countPost('/culling/trash')).toBe(1));
     expect(lastPost('/culling/trash')).toEqual({ paths: [FILES[0].path] });
-    await waitFor(() => expect(container.querySelectorAll('.culling-files li')).toHaveLength(2));
+    await waitFor(() =>
+      expect(container.querySelectorAll('.culling-files li')).toHaveLength(2),
+    );
   });
 
   it('Delete trashes the current file (same path as x)', async () => {
     await mountCulling();
     await loadFiles();
     fireEvent.keyDown(document, { key: 'Delete' });
-    await waitFor(() => expect(lastPost('/culling/trash')).toEqual({ paths: [FILES[0].path] }));
+    await waitFor(() =>
+      expect(lastPost('/culling/trash')).toEqual({ paths: [FILES[0].path] }),
+    );
   });
 
   it('x is ignored when another tabset is active (visible but inactive — double-trash guard)', async () => {
@@ -313,7 +383,9 @@ describe('CullingModule — cull / undo sequencing (characterization)', () => {
     // The undo needs the trash id, so wait for the trash to land before undoing.
     await waitFor(() => expect(countPost('/culling/trash')).toBe(1));
     fireEvent.keyDown(document, { key: 'z', metaKey: true });
-    await waitFor(() => expect(lastPost('/culling/restore')).toEqual({ ids: ['t1'] }));
+    await waitFor(() =>
+      expect(lastPost('/culling/restore')).toEqual({ ids: ['t1'] }),
+    );
     // The restore *response* re-renders the list (and re-runs the preview effect
     // for the restored file). Drain it inside the test: a render left pending at
     // teardown commits after the mocks are restored and throws there instead.
@@ -339,7 +411,9 @@ describe('CullingModule — context-menu Enter/Esc gate (#106)', () => {
     // registered AFTER the module's own — stopImmediatePropagation must block it.
     const other = vi.fn();
     document.addEventListener('keydown', other, true);
-    await act(async () => { fireEvent.keyDown(document, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Enter' });
+    });
     document.removeEventListener('keydown', other, true);
     // No rename started (Enter would beginEdit if it were not gated by the menu).
     expect(container.querySelector('.culling-rename-input')).toBeNull();
@@ -353,7 +427,9 @@ describe('CullingModule — context-menu Enter/Esc gate (#106)', () => {
     await openMenu(container);
     const other = vi.fn();
     document.addEventListener('keydown', other, true);
-    await act(async () => { fireEvent.keyDown(document, { key: 'Escape' }); });
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' });
+    });
     document.removeEventListener('keydown', other, true);
     expect(container.querySelector('.culling-context-menu')).toBeNull();
     expect(other).not.toHaveBeenCalled();
@@ -367,14 +443,18 @@ describe('CullingModule — Enter/Esc active-tabset gate (characterization)', ()
   it('Enter begins an inline rename when culling is the active tabset', async () => {
     const { container } = await mountCulling(makeNode({ active: true }));
     await loadFiles();
-    await act(async () => { fireEvent.keyDown(document, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Enter' });
+    });
     expect(container.querySelector('.culling-rename-input')).toBeTruthy();
   });
 
   it('Enter is ignored when another tabset is active', async () => {
     const { container } = await mountCulling(makeNode({ active: false }));
     await loadFiles();
-    await act(async () => { fireEvent.keyDown(document, { key: 'Enter' }); });
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Enter' });
+    });
     expect(container.querySelector('.culling-rename-input')).toBeNull();
   });
 });
@@ -385,7 +465,9 @@ describe('CullingModule — gridThumbnailCache.clear() wiring (#114)', () => {
     const utils = await mountCulling();
     await loadFiles();
     clearSpy.mockClear();
-    await act(async () => { utils.unmount(); });
+    await act(async () => {
+      utils.unmount();
+    });
     expect(clearSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -418,9 +500,11 @@ describe('CullingModule — stats spinner vs bare --clear', () => {
     await act(async () => {
       await handler({ roots: ['/p'], clear: true, recursive: false });
     });
-    await waitFor(() => expect(
-      container.querySelector('.culling-stats-loading .loading-spinner')
-    ).toBeTruthy());
+    await waitFor(() =>
+      expect(
+        container.querySelector('.culling-stats-loading .loading-spinner'),
+      ).toBeTruthy(),
+    );
     // Bare --clear while that request is in flight: the seq bump discards the
     // response, so its finally can never clear the flag — the clear path must
     // reset it itself or the spinner sticks forever in the emptied workspace.
@@ -430,7 +514,9 @@ describe('CullingModule — stats spinner vs bare --clear', () => {
     // The assertion is an absence (the spinner was reset), so drain rather than
     // wait for an anchor: "reset" and "never ran" look identical otherwise.
     await settle();
-    expect(container.querySelector('.culling-stats-loading .loading-spinner')).toBeNull();
+    expect(
+      container.querySelector('.culling-stats-loading .loading-spinner'),
+    ).toBeNull();
   });
 });
 
@@ -440,16 +526,23 @@ describe('CullingModule — stats panel interaction (characterization)', () => {
     await loadFiles();
     const rows = container.querySelectorAll('.culling-stat-row');
     expect(rows).toHaveLength(2);
-    expect(rows[0].querySelector('.culling-stat-name').textContent).toBe('Alice');
+    expect(rows[0].querySelector('.culling-stat-name').textContent).toBe(
+      'Alice',
+    );
   });
 
   it('clicking a stats row in the loupe filters the list to that player', async () => {
     const { container } = await mountCulling();
     await loadFiles();
-    const aliceRow = [...container.querySelectorAll('.culling-stat-row')]
-      .find((r) => r.textContent.includes('Alice'));
+    const aliceRow = [...container.querySelectorAll('.culling-stat-row')].find(
+      (r) => r.textContent.includes('Alice'),
+    );
     fireEvent.click(aliceRow);
-    await waitFor(() => expect(lastPost('/culling/files'))
-      .toMatchObject({ player: 'Alice', name_glob: '*Alice*' }));
+    await waitFor(() =>
+      expect(lastPost('/culling/files')).toMatchObject({
+        player: 'Alice',
+        name_glob: '*Alice*',
+      }),
+    );
   });
 });

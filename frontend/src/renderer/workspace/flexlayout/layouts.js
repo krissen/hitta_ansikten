@@ -21,7 +21,7 @@ export const reviewLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
+    tabEnableRenderOnDemand: true, // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -36,9 +36,9 @@ export const reviewLayout = {
             name: t('modules.review-module'),
             component: 'review-module',
             enableRenderOnDemand: false,
-            config: { moduleId: 'review-module' }
-          }
-        ]
+            config: { moduleId: 'review-module' },
+          },
+        ],
       },
       {
         type: 'tabset',
@@ -48,12 +48,12 @@ export const reviewLayout = {
             type: 'tab',
             name: t('modules.image-viewer'),
             component: 'image-viewer',
-            config: { moduleId: 'image-viewer' }
-          }
-        ]
-      }
-    ]
-  }
+            config: { moduleId: 'image-viewer' },
+          },
+        ],
+      },
+    ],
+  },
 };
 
 /**
@@ -76,7 +76,7 @@ export const reviewWithLogsLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
+    tabEnableRenderOnDemand: true, // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -94,9 +94,9 @@ export const reviewWithLogsLayout = {
                 type: 'tab',
                 name: t('modules.review-module'),
                 component: 'review-module',
-                config: { moduleId: 'review-module' }
-              }
-            ]
+                config: { moduleId: 'review-module' },
+              },
+            ],
           },
           {
             type: 'tabset',
@@ -106,11 +106,11 @@ export const reviewWithLogsLayout = {
                 type: 'tab',
                 name: t('modules.image-viewer'),
                 component: 'image-viewer',
-                config: { moduleId: 'image-viewer' }
-              }
-            ]
-          }
-        ]
+                config: { moduleId: 'image-viewer' },
+              },
+            ],
+          },
+        ],
       },
       {
         type: 'tabset',
@@ -120,12 +120,12 @@ export const reviewWithLogsLayout = {
             type: 'tab',
             name: t('modules.log-viewer'),
             component: 'log-viewer',
-            config: { moduleId: 'log-viewer' }
-          }
-        ]
-      }
-    ]
-  }
+            config: { moduleId: 'log-viewer' },
+          },
+        ],
+      },
+    ],
+  },
 };
 
 /**
@@ -142,7 +142,7 @@ export const comparisonLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
+    tabEnableRenderOnDemand: true, // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -156,9 +156,9 @@ export const comparisonLayout = {
             type: 'tab',
             name: t('modules.image-viewer'),
             component: 'image-viewer',
-            config: { moduleId: 'image-viewer' }
-          }
-        ]
+            config: { moduleId: 'image-viewer' },
+          },
+        ],
       },
       {
         type: 'tabset',
@@ -168,12 +168,12 @@ export const comparisonLayout = {
             type: 'tab',
             name: t('modules.original-view'),
             component: 'original-view',
-            config: { moduleId: 'original-view' }
-          }
-        ]
-      }
-    ]
-  }
+            config: { moduleId: 'original-view' },
+          },
+        ],
+      },
+    ],
+  },
 };
 
 /**
@@ -196,7 +196,7 @@ export const fullReviewLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
+    tabEnableRenderOnDemand: true, // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -214,9 +214,9 @@ export const fullReviewLayout = {
                 type: 'tab',
                 name: t('modules.review-module'),
                 component: 'review-module',
-                config: { moduleId: 'review-module' }
-              }
-            ]
+                config: { moduleId: 'review-module' },
+              },
+            ],
           },
           {
             type: 'tabset',
@@ -226,11 +226,11 @@ export const fullReviewLayout = {
                 type: 'tab',
                 name: t('modules.image-viewer'),
                 component: 'image-viewer',
-                config: { moduleId: 'image-viewer' }
-              }
-            ]
-          }
-        ]
+                config: { moduleId: 'image-viewer' },
+              },
+            ],
+          },
+        ],
       },
       {
         type: 'row',
@@ -244,9 +244,9 @@ export const fullReviewLayout = {
                 type: 'tab',
                 name: t('modules.original-view'),
                 component: 'original-view',
-                config: { moduleId: 'original-view' }
-              }
-            ]
+                config: { moduleId: 'original-view' },
+              },
+            ],
           },
           {
             type: 'tabset',
@@ -256,14 +256,14 @@ export const fullReviewLayout = {
                 type: 'tab',
                 name: t('modules.log-viewer'),
                 component: 'log-viewer',
-                config: { moduleId: 'log-viewer' }
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
+                config: { moduleId: 'log-viewer' },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 };
 
 /**
@@ -285,7 +285,7 @@ export const queueReviewLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
+    tabEnableRenderOnDemand: true, // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -300,9 +300,9 @@ export const queueReviewLayout = {
             name: t('modules.file-queue'),
             component: 'file-queue',
             enableRenderOnDemand: false,
-            config: { moduleId: 'file-queue' }
-          }
-        ]
+            config: { moduleId: 'file-queue' },
+          },
+        ],
       },
       {
         type: 'tabset',
@@ -313,9 +313,9 @@ export const queueReviewLayout = {
             name: t('modules.review-module'),
             component: 'review-module',
             enableRenderOnDemand: false,
-            config: { moduleId: 'review-module' }
-          }
-        ]
+            config: { moduleId: 'review-module' },
+          },
+        ],
       },
       {
         type: 'tabset',
@@ -325,12 +325,12 @@ export const queueReviewLayout = {
             type: 'tab',
             name: t('modules.image-viewer'),
             component: 'image-viewer',
-            config: { moduleId: 'image-viewer' }
-          }
-        ]
-      }
-    ]
-  }
+            config: { moduleId: 'image-viewer' },
+          },
+        ],
+      },
+    ],
+  },
 };
 
 /**
@@ -347,7 +347,7 @@ export const databaseLayout = {
     borderMinSize: 100,
     splitterSize: 4,
     enableEdgeDock: true,
-    tabEnableRenderOnDemand: true  // Unmount hidden tabs to save CPU
+    tabEnableRenderOnDemand: true, // Unmount hidden tabs to save CPU
   },
   layout: {
     type: 'row',
@@ -361,9 +361,9 @@ export const databaseLayout = {
             type: 'tab',
             name: t('modules.database-management'),
             component: 'database-management',
-            config: { moduleId: 'database-management' }
-          }
-        ]
+            config: { moduleId: 'database-management' },
+          },
+        ],
       },
       {
         type: 'tabset',
@@ -373,14 +373,13 @@ export const databaseLayout = {
             type: 'tab',
             name: t('modules.statistics-dashboard'),
             component: 'statistics-dashboard',
-            config: { moduleId: 'statistics-dashboard' }
-          }
-        ]
-      }
-    ]
-  }
+            config: { moduleId: 'statistics-dashboard' },
+          },
+        ],
+      },
+    ],
+  },
 };
-
 
 /**
  * Ensure a layout config carries an empty bottom border.
@@ -411,12 +410,12 @@ export function ensureBottomBorder(config) {
  */
 export function getLayoutByName(name) {
   const layouts = {
-    'review': reviewLayout,
+    review: reviewLayout,
     'review-with-logs': reviewWithLogsLayout,
-    'comparison': comparisonLayout,
+    comparison: comparisonLayout,
     'full-review': fullReviewLayout,
     'queue-review': queueReviewLayout,
-    'database': databaseLayout
+    database: databaseLayout,
   };
 
   return layouts[name] || reviewLayout;
@@ -431,7 +430,7 @@ export const layoutNames = [
   'comparison',
   'full-review',
   'queue-review',
-  'database'
+  'database',
 ];
 
 export default {
@@ -442,5 +441,5 @@ export default {
   queueReviewLayout,
   databaseLayout,
   getLayoutByName,
-  layoutNames
+  layoutNames,
 };

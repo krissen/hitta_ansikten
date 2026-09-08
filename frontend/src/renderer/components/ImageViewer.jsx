@@ -17,7 +17,10 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useModuleEvent, useEmitEvent } from '../hooks/useModuleEvent.js';
-import { useKeyboardShortcuts, useKeyHold } from '../hooks/useKeyboardShortcuts.js';
+import {
+  useKeyboardShortcuts,
+  useKeyHold,
+} from '../hooks/useKeyboardShortcuts.js';
 import { debug, debugError } from '../shared/debug.js';
 import { toFileUrl } from '../shared/fileUrl.js';
 import { ZOOM_STEP } from '../shared/canvasViewport.js';
@@ -81,7 +84,9 @@ export function ImageViewer() {
   const [loadingMessage, setLoadingMessage] = useState('');
 
   // File info overlay state
-  const [showFileInfo, setShowFileInfo] = useState(() => preferences.get('imageViewer.showFileInfo') ?? true);
+  const [showFileInfo, setShowFileInfo] = useState(
+    () => preferences.get('imageViewer.showFileInfo') ?? true,
+  );
   const [queueStatus, setQueueStatus] = useState(null);
 
   // Cached face-box theme colors (read from CSS vars). Invalidated on theme
@@ -103,7 +108,9 @@ export function ImageViewer() {
     const generation = ++loadGenerationRef.current;
     const isStale = () => generation !== loadGenerationRef.current;
     const supersededError = () => {
-      const err = new Error(`Image load superseded by a newer load: ${filepath}`);
+      const err = new Error(
+        `Image load superseded by a newer load: ${filepath}`,
+      );
       err.superseded = true;
       return err;
     };
@@ -120,14 +127,20 @@ export function ImageViewer() {
 
       try {
         // Call preprocessing API - handles cache check and conversion in one call
-        const result = await apiClient.post('/api/v1/preprocessing/nef', { file_path: filepath });
+        const result = await apiClient.post('/api/v1/preprocessing/nef', {
+          file_path: filepath,
+        });
         if (isStale()) throw supersededError();
 
         if (result.status === 'cached') {
           debug('ImageViewer', 'Using cached JPG:', result.nef_jpg_path);
           setLoadingMessage(t('imageViewer.loadingFromCache'));
         } else if (result.status === 'completed') {
-          debug('ImageViewer', 'NEF converted and cached:', result.nef_jpg_path);
+          debug(
+            'ImageViewer',
+            'NEF converted and cached:',
+            result.nef_jpg_path,
+          );
           setLoadingMessage(t('imageViewer.convertingNef'));
         } else if (result.status === 'error') {
           throw new Error(result.error || 'NEF conversion failed');
@@ -155,21 +168,31 @@ export function ImageViewer() {
             // draws an HTMLImageElement (CSS image-orientation: from-image
             // default). The backend bakes EXIF orientation into face-box
             // coordinates, so both drawable types must be EXIF-oriented.
-            drawable = await createImageBitmap(img, { imageOrientation: 'from-image' });
+            drawable = await createImageBitmap(img, {
+              imageOrientation: 'from-image',
+            });
           }
         } catch (e) {
-          debug('ImageViewer', 'createImageBitmap failed, using HTMLImageElement:', e);
+          debug(
+            'ImageViewer',
+            'createImageBitmap failed, using HTMLImageElement:',
+            e,
+          );
           drawable = img;
         }
 
         if (isStale()) {
           // A newer load overtook this one while decoding: discard silently.
-          if (drawable !== img && typeof drawable.close === 'function') drawable.close();
+          if (drawable !== img && typeof drawable.close === 'function')
+            drawable.close();
           reject(supersededError());
           return;
         }
 
-        debug('ImageViewer', `Image decoded: ${img.width}x${img.height} (${(img.width * img.height / 1e6).toFixed(1)}MP)`);
+        debug(
+          'ImageViewer',
+          `Image decoded: ${img.width}x${img.height} (${((img.width * img.height) / 1e6).toFixed(1)}MP)`,
+        );
         setImage(drawable);
         setImagePath(loadPath);
         setOriginalImagePath(originalPath);
@@ -183,7 +206,8 @@ export function ImageViewer() {
       img.onload = () => {
         // onload already guarantees the image is usable; decode() just moves the
         // decode off the first-paint critical path, so ignore its errors.
-        const decoded = typeof img.decode === 'function' ? img.decode() : Promise.resolve();
+        const decoded =
+          typeof img.decode === 'function' ? img.decode() : Promise.resolve();
         decoded.catch(() => {}).then(finalize);
       };
 
@@ -194,7 +218,13 @@ export function ImageViewer() {
         }
         setIsLoading(false);
         const errorDetails = err?.type || err?.message || 'Unknown error';
-        debugError('ImageViewer', 'Failed to load image:', loadPath, '- Error:', errorDetails);
+        debugError(
+          'ImageViewer',
+          'Failed to load image:',
+          loadPath,
+          '- Error:',
+          errorDetails,
+        );
         reject(new Error(`Failed to load image: ${loadPath}`));
       };
 
@@ -211,196 +241,274 @@ export function ImageViewer() {
   // Face Box Overlay
   // ============================================
 
-  const drawFaceBoxes = useCallback((ctx, canvasWidth, canvasHeight, imageScale, imageX, imageY) => {
-    if (faceBoxMode === 'none' || !faces || faces.length === 0 || !image) return;
+  const drawFaceBoxes = useCallback(
+    (ctx, canvasWidth, canvasHeight, imageScale, imageX, imageY) => {
+      if (faceBoxMode === 'none' || !faces || faces.length === 0 || !image)
+        return;
 
-    // Determine which faces to draw (with original index for numbering)
-    let facesToDraw = faces.map((face, idx) => ({ face, originalIndex: idx }));
-    if (faceBoxMode === 'single') {
-      const activeFace = faces[activeFaceIndex];
-      facesToDraw = activeFace ? [{ face: activeFace, originalIndex: activeFaceIndex }] : [];
-    }
-
-    // Font for labels
-    ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.lineWidth = 3;
-
-    // Face-box colors are read from CSS vars once and cached; the cache is
-    // invalidated on theme change (see the theme-invalidation effect below),
-    // keeping getComputedStyle out of the render hot path.
-    if (!themeColorsRef.current) {
-      const styles = getComputedStyle(document.documentElement);
-      themeColorsRef.current = {
-        activeHighlightColor: styles.getPropertyValue('--face-active-highlight').trim() || '#00bcd4',
-        confirmedColor: styles.getPropertyValue('--face-confirmed-color').trim() || '#4caf50',
-        confirmedBg: styles.getPropertyValue('--face-confirmed-bg').trim() || 'rgba(76, 175, 80, 0.9)',
-        ignoredColor: styles.getPropertyValue('--face-ignored-color').trim() || '#9e9e9e',
-        ignoredBg: styles.getPropertyValue('--face-ignored-bg').trim() || 'rgba(158, 158, 158, 0.9)',
-        uncertainColor: styles.getPropertyValue('--face-uncertain-color').trim() || '#ffc107',
-        uncertainBg: styles.getPropertyValue('--face-uncertain-bg').trim() || 'rgba(255, 193, 7, 0.9)',
-        confidenceMediumColor: styles.getPropertyValue('--face-confidence-medium-color').trim() || '#2196f3',
-        confidenceMediumBg: styles.getPropertyValue('--face-confidence-medium-bg').trim() || 'rgba(33, 150, 243, 0.9)',
-        confidenceLowColor: styles.getPropertyValue('--face-confidence-low-color').trim() || '#ff9800',
-        confidenceLowBg: styles.getPropertyValue('--face-confidence-low-bg').trim() || 'rgba(255, 152, 0, 0.9)',
-        confidenceNoneColor: styles.getPropertyValue('--face-confidence-none-color').trim() || '#f44336',
-        confidenceNoneBg: styles.getPropertyValue('--face-confidence-none-bg').trim() || 'rgba(244, 67, 54, 0.9)'
-      };
-    }
-    const {
-      activeHighlightColor, confirmedColor, confirmedBg, ignoredColor, ignoredBg,
-      uncertainColor, uncertainBg,
-      confidenceMediumColor, confidenceMediumBg,
-      confidenceLowColor, confidenceLowBg,
-      confidenceNoneColor, confidenceNoneBg
-    } = themeColorsRef.current;
-
-    // Calculate placements with collision avoidance
-    const placedBoxes = [];
-    const placements = [];
-
-    facesToDraw.forEach(({ face, originalIndex }) => {
-      const bbox = face.bounding_box;
-      if (!bbox) return;
-
-      const faceNumber = originalIndex + 1;
-
-      const faceBox = {
-        x: imageX + bbox.x * imageScale,
-        y: imageY + bbox.y * imageScale,
-        width: bbox.width * imageScale,
-        height: bbox.height * imageScale
-      };
-
-      placedBoxes.push(faceBox);
-
-      let labelPos = null;
-      let labelWidth = 0;
-      let labelHeight = 0;
-
-      const labelText = buildFaceLabel(face, faceNumber, t);
-
-      if (labelText) {
-        const metrics = ctx.measureText(labelText);
-        labelWidth = metrics.width + 8;
-        labelHeight = 24;
-
-        labelPos = findLabelPosition(
-          faceBox, labelWidth, labelHeight, placedBoxes,
-          canvasWidth, canvasHeight, image.width, image.height,
-          imageX, imageY, imageScale
-        );
-
-        placedBoxes.push({
-          x: labelPos.x,
-          y: labelPos.y,
-          width: labelWidth,
-          height: labelHeight
-        });
-      }
-
-      placements.push({
+      // Determine which faces to draw (with original index for numbering)
+      let facesToDraw = faces.map((face, idx) => ({
         face,
-        faceBox,
-        label: labelText,
-        labelPos,
-        labelWidth,
-        labelHeight,
-        originalIndex
-      });
-    });
-
-    // Draw everything
-    placements.forEach(({ face, faceBox, label, labelPos, labelWidth, labelHeight, originalIndex }) => {
-      const confidence = face.confidence || 0;
-      const matchCase = face.match_case;
-      const isActiveFace = originalIndex === activeFaceIndex;
-      let strokeColor, textBgColor;
-
-      // Prioritize confirmed status over match_case/confidence
-      if (face.is_confirmed && face.is_rejected) {
-        // Confirmed as ignored
-        strokeColor = ignoredColor;
-        textBgColor = ignoredBg;
-      } else if (face.is_confirmed && !face.is_rejected) {
-        // Confirmed with a name
-        strokeColor = confirmedColor;
-        textBgColor = confirmedBg;
-      } else if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
-        strokeColor = ignoredColor;
-        textBgColor = ignoredBg;
-      } else if (matchCase === 'uncertain_name') {
-        strokeColor = uncertainColor;
-        textBgColor = uncertainBg;
-      } else if (confidence >= 0.65) {
-        strokeColor = confirmedColor;
-        textBgColor = confirmedBg;
-      } else if (confidence >= 0.50) {
-        strokeColor = confidenceMediumColor;
-        textBgColor = confidenceMediumBg;
-      } else if (confidence >= 0.35) {
-        strokeColor = confidenceLowColor;
-        textBgColor = confidenceLowBg;
-      } else {
-        strokeColor = confidenceNoneColor;
-        textBgColor = confidenceNoneBg;
+        originalIndex: idx,
+      }));
+      if (faceBoxMode === 'single') {
+        const activeFace = faces[activeFaceIndex];
+        facesToDraw = activeFace
+          ? [{ face: activeFace, originalIndex: activeFaceIndex }]
+          : [];
       }
 
-      // Draw active face highlight (outer glow)
-      if (isActiveFace) {
-        ctx.save();
-        ctx.strokeStyle = activeHighlightColor;
-        ctx.lineWidth = 2;
-        ctx.shadowColor = activeHighlightColor;
-        ctx.shadowBlur = 6;
-        ctx.strokeRect(faceBox.x - 2, faceBox.y - 2, faceBox.width + 4, faceBox.height + 4);
-        ctx.restore();
+      // Font for labels
+      ctx.font =
+        '16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.lineWidth = 3;
+
+      // Face-box colors are read from CSS vars once and cached; the cache is
+      // invalidated on theme change (see the theme-invalidation effect below),
+      // keeping getComputedStyle out of the render hot path.
+      if (!themeColorsRef.current) {
+        const styles = getComputedStyle(document.documentElement);
+        themeColorsRef.current = {
+          activeHighlightColor:
+            styles.getPropertyValue('--face-active-highlight').trim() ||
+            '#00bcd4',
+          confirmedColor:
+            styles.getPropertyValue('--face-confirmed-color').trim() ||
+            '#4caf50',
+          confirmedBg:
+            styles.getPropertyValue('--face-confirmed-bg').trim() ||
+            'rgba(76, 175, 80, 0.9)',
+          ignoredColor:
+            styles.getPropertyValue('--face-ignored-color').trim() || '#9e9e9e',
+          ignoredBg:
+            styles.getPropertyValue('--face-ignored-bg').trim() ||
+            'rgba(158, 158, 158, 0.9)',
+          uncertainColor:
+            styles.getPropertyValue('--face-uncertain-color').trim() ||
+            '#ffc107',
+          uncertainBg:
+            styles.getPropertyValue('--face-uncertain-bg').trim() ||
+            'rgba(255, 193, 7, 0.9)',
+          confidenceMediumColor:
+            styles.getPropertyValue('--face-confidence-medium-color').trim() ||
+            '#2196f3',
+          confidenceMediumBg:
+            styles.getPropertyValue('--face-confidence-medium-bg').trim() ||
+            'rgba(33, 150, 243, 0.9)',
+          confidenceLowColor:
+            styles.getPropertyValue('--face-confidence-low-color').trim() ||
+            '#ff9800',
+          confidenceLowBg:
+            styles.getPropertyValue('--face-confidence-low-bg').trim() ||
+            'rgba(255, 152, 0, 0.9)',
+          confidenceNoneColor:
+            styles.getPropertyValue('--face-confidence-none-color').trim() ||
+            '#f44336',
+          confidenceNoneBg:
+            styles.getPropertyValue('--face-confidence-none-bg').trim() ||
+            'rgba(244, 67, 54, 0.9)',
+        };
       }
+      const {
+        activeHighlightColor,
+        confirmedColor,
+        confirmedBg,
+        ignoredColor,
+        ignoredBg,
+        uncertainColor,
+        uncertainBg,
+        confidenceMediumColor,
+        confidenceMediumBg,
+        confidenceLowColor,
+        confidenceLowBg,
+        confidenceNoneColor,
+        confidenceNoneBg,
+      } = themeColorsRef.current;
 
-      // Draw bounding box
-      ctx.strokeStyle = strokeColor;
-      ctx.strokeRect(faceBox.x, faceBox.y, faceBox.width, faceBox.height);
+      // Calculate placements with collision avoidance
+      const placedBoxes = [];
+      const placements = [];
 
-      // Draw label
-      if (label && labelPos) {
-        const labelCenterX = labelPos.x + labelWidth / 2;
-        const labelCenterY = labelPos.y + labelHeight / 2;
-        const edgePoint = getBoxEdgeIntersection(faceBox, labelCenterX, labelCenterY);
+      facesToDraw.forEach(({ face, originalIndex }) => {
+        const bbox = face.bounding_box;
+        if (!bbox) return;
 
-        // Connecting line (same color as bounding box)
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(edgePoint.x, edgePoint.y);
-        ctx.lineTo(labelCenterX, labelCenterY);
-        ctx.stroke();
+        const faceNumber = originalIndex + 1;
 
-        // Label background with active highlight
-        if (isActiveFace) {
-          ctx.save();
-          ctx.strokeStyle = activeHighlightColor;
-          ctx.lineWidth = 2;
-          ctx.shadowColor = activeHighlightColor;
-          ctx.shadowBlur = 6;
-          ctx.strokeRect(labelPos.x - 1, labelPos.y - 1, labelWidth + 2, labelHeight + 2);
-          ctx.restore();
+        const faceBox = {
+          x: imageX + bbox.x * imageScale,
+          y: imageY + bbox.y * imageScale,
+          width: bbox.width * imageScale,
+          height: bbox.height * imageScale,
+        };
+
+        placedBoxes.push(faceBox);
+
+        let labelPos = null;
+        let labelWidth = 0;
+        let labelHeight = 0;
+
+        const labelText = buildFaceLabel(face, faceNumber, t);
+
+        if (labelText) {
+          const metrics = ctx.measureText(labelText);
+          labelWidth = metrics.width + 8;
+          labelHeight = 24;
+
+          labelPos = findLabelPosition(
+            faceBox,
+            labelWidth,
+            labelHeight,
+            placedBoxes,
+            canvasWidth,
+            canvasHeight,
+            image.width,
+            image.height,
+            imageX,
+            imageY,
+            imageScale,
+          );
+
+          placedBoxes.push({
+            x: labelPos.x,
+            y: labelPos.y,
+            width: labelWidth,
+            height: labelHeight,
+          });
         }
 
-        ctx.fillStyle = textBgColor;
-        ctx.fillRect(labelPos.x, labelPos.y, labelWidth, labelHeight);
+        placements.push({
+          face,
+          faceBox,
+          label: labelText,
+          labelPos,
+          labelWidth,
+          labelHeight,
+          originalIndex,
+        });
+      });
 
-        // Label text
-        ctx.fillStyle = 'white';
-        ctx.fillText(label, labelPos.x + 4, labelPos.y + 17);
+      // Draw everything
+      placements.forEach(
+        ({
+          face,
+          faceBox,
+          label,
+          labelPos,
+          labelWidth,
+          labelHeight,
+          originalIndex,
+        }) => {
+          const confidence = face.confidence || 0;
+          const matchCase = face.match_case;
+          const isActiveFace = originalIndex === activeFaceIndex;
+          let strokeColor, textBgColor;
 
-        ctx.lineWidth = 3;
-      }
-    });
-  }, [image, faces, faceBoxMode, activeFaceIndex, themeVersion]);
+          // Prioritize confirmed status over match_case/confidence
+          if (face.is_confirmed && face.is_rejected) {
+            // Confirmed as ignored
+            strokeColor = ignoredColor;
+            textBgColor = ignoredBg;
+          } else if (face.is_confirmed && !face.is_rejected) {
+            // Confirmed with a name
+            strokeColor = confirmedColor;
+            textBgColor = confirmedBg;
+          } else if (matchCase === 'ign' || matchCase === 'uncertain_ign') {
+            strokeColor = ignoredColor;
+            textBgColor = ignoredBg;
+          } else if (matchCase === 'uncertain_name') {
+            strokeColor = uncertainColor;
+            textBgColor = uncertainBg;
+          } else if (confidence >= 0.65) {
+            strokeColor = confirmedColor;
+            textBgColor = confirmedBg;
+          } else if (confidence >= 0.5) {
+            strokeColor = confidenceMediumColor;
+            textBgColor = confidenceMediumBg;
+          } else if (confidence >= 0.35) {
+            strokeColor = confidenceLowColor;
+            textBgColor = confidenceLowBg;
+          } else {
+            strokeColor = confidenceNoneColor;
+            textBgColor = confidenceNoneBg;
+          }
+
+          // Draw active face highlight (outer glow)
+          if (isActiveFace) {
+            ctx.save();
+            ctx.strokeStyle = activeHighlightColor;
+            ctx.lineWidth = 2;
+            ctx.shadowColor = activeHighlightColor;
+            ctx.shadowBlur = 6;
+            ctx.strokeRect(
+              faceBox.x - 2,
+              faceBox.y - 2,
+              faceBox.width + 4,
+              faceBox.height + 4,
+            );
+            ctx.restore();
+          }
+
+          // Draw bounding box
+          ctx.strokeStyle = strokeColor;
+          ctx.strokeRect(faceBox.x, faceBox.y, faceBox.width, faceBox.height);
+
+          // Draw label
+          if (label && labelPos) {
+            const labelCenterX = labelPos.x + labelWidth / 2;
+            const labelCenterY = labelPos.y + labelHeight / 2;
+            const edgePoint = getBoxEdgeIntersection(
+              faceBox,
+              labelCenterX,
+              labelCenterY,
+            );
+
+            // Connecting line (same color as bounding box)
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(edgePoint.x, edgePoint.y);
+            ctx.lineTo(labelCenterX, labelCenterY);
+            ctx.stroke();
+
+            // Label background with active highlight
+            if (isActiveFace) {
+              ctx.save();
+              ctx.strokeStyle = activeHighlightColor;
+              ctx.lineWidth = 2;
+              ctx.shadowColor = activeHighlightColor;
+              ctx.shadowBlur = 6;
+              ctx.strokeRect(
+                labelPos.x - 1,
+                labelPos.y - 1,
+                labelWidth + 2,
+                labelHeight + 2,
+              );
+              ctx.restore();
+            }
+
+            ctx.fillStyle = textBgColor;
+            ctx.fillRect(labelPos.x, labelPos.y, labelWidth, labelHeight);
+
+            // Label text
+            ctx.fillStyle = 'white';
+            ctx.fillText(label, labelPos.x + 4, labelPos.y + 17);
+
+            ctx.lineWidth = 3;
+          }
+        },
+      );
+    },
+    [image, faces, faceBoxMode, activeFaceIndex, themeVersion],
+  );
 
   // Overlay callback handed to CanvasImageView; drawn after the image each frame.
-  const drawOverlay = useCallback((ctx, { scale, x, y, canvasWidth, canvasHeight }) => {
-    drawFaceBoxes(ctx, canvasWidth, canvasHeight, scale, x, y);
-  }, [drawFaceBoxes]);
+  const drawOverlay = useCallback(
+    (ctx, { scale, x, y, canvasWidth, canvasHeight }) => {
+      drawFaceBoxes(ctx, canvasWidth, canvasHeight, scale, x, y);
+    },
+    [drawFaceBoxes],
+  );
 
   // ============================================
   // Menu State Sync Helper
@@ -416,16 +524,20 @@ export function ImageViewer() {
   // Face Box Toggle Functions
   // ============================================
 
-  const setBoxMode = useCallback((mode) => {
-    setFaceBoxMode(mode);
-    // Sync menu states
-    updateMenuState('boxes-visible', mode !== 'none');
-    updateMenuState('boxes-all-faces', mode === 'all');
-  }, [updateMenuState]);
+  const setBoxMode = useCallback(
+    (mode) => {
+      setFaceBoxMode(mode);
+      // Sync menu states
+      updateMenuState('boxes-visible', mode !== 'none');
+      updateMenuState('boxes-all-faces', mode === 'all');
+    },
+    [updateMenuState],
+  );
 
   const toggleSingleAll = useCallback(() => {
-    setFaceBoxMode(mode => {
-      const newMode = mode === 'single' ? 'all' : (mode === 'all' ? 'single' : 'all');
+    setFaceBoxMode((mode) => {
+      const newMode =
+        mode === 'single' ? 'all' : mode === 'all' ? 'single' : 'all';
       // Sync menu state
       updateMenuState('boxes-all-faces', newMode === 'all');
       return newMode;
@@ -433,7 +545,7 @@ export function ImageViewer() {
   }, [updateMenuState]);
 
   const toggleOnOff = useCallback(() => {
-    setFaceBoxMode(mode => {
+    setFaceBoxMode((mode) => {
       if (mode === 'none') {
         const newMode = previousFaceBoxModeRef.current || 'all';
         // Sync menu states
@@ -464,17 +576,21 @@ export function ImageViewer() {
   const resetViewRef = useRef(resetView);
   resetViewRef.current = resetView;
 
-  const toggleAutoCenterOnFace = useCallback((enable) => {
-    const newValue = enable === undefined ? !autoCenterOnFace : enable;
-    debug('ImageViewer', `Auto-center ${newValue ? 'ENABLED' : 'DISABLED'}`);
-    setAutoCenterOnFace(newValue);
-    // Sync menu state
-    updateMenuState('auto-center', newValue);
-    if (newValue) {
-      const face = faces[activeFaceIndex];
-      if (face?.bounding_box) viewRef.current?.centerOnRect(face.bounding_box);
-    }
-  }, [autoCenterOnFace, updateMenuState, faces, activeFaceIndex]);
+  const toggleAutoCenterOnFace = useCallback(
+    (enable) => {
+      const newValue = enable === undefined ? !autoCenterOnFace : enable;
+      debug('ImageViewer', `Auto-center ${newValue ? 'ENABLED' : 'DISABLED'}`);
+      setAutoCenterOnFace(newValue);
+      // Sync menu state
+      updateMenuState('auto-center', newValue);
+      if (newValue) {
+        const face = faces[activeFaceIndex];
+        if (face?.bounding_box)
+          viewRef.current?.centerOnRect(face.bounding_box);
+      }
+    },
+    [autoCenterOnFace, updateMenuState, faces, activeFaceIndex],
+  );
 
   // ============================================
   // Keyboard Shortcuts
@@ -482,44 +598,55 @@ export function ImageViewer() {
 
   // Hold detection for continuous zoom with double-tap support
   // Single tap: zoom step, Hold: continuous zoom, Double-tap +: 100% zoom
-  useKeyHold('+', {
-    onStart: () => {},
-    onHold: () => viewRef.current?.zoom(CONTINUOUS_ZOOM_FACTOR),
-    onEnd: (_, wasHolding) => {
-      if (!wasHolding) {
-        viewRef.current?.zoom(ZOOM_STEP);
-      }
+  useKeyHold(
+    '+',
+    {
+      onStart: () => {},
+      onHold: () => viewRef.current?.zoom(CONTINUOUS_ZOOM_FACTOR),
+      onEnd: (_, wasHolding) => {
+        if (!wasHolding) {
+          viewRef.current?.zoom(ZOOM_STEP);
+        }
+      },
+      onDoubleTap: () => resetView(), // Double-tap + → 100% (1:1) zoom
     },
-    onDoubleTap: () => resetView() // Double-tap + → 100% (1:1) zoom
-  }, { holdDelay: ZOOM_HOLD_DELAY });
+    { holdDelay: ZOOM_HOLD_DELAY },
+  );
 
   // Single tap: zoom step, Hold: continuous zoom, Double-tap -: fit-to-window
-  useKeyHold('-', {
-    onStart: () => {},
-    onHold: () => viewRef.current?.zoom(1 / CONTINUOUS_ZOOM_FACTOR),
-    onEnd: (_, wasHolding) => {
-      if (!wasHolding) {
-        viewRef.current?.zoom(1 / ZOOM_STEP);
-      }
+  useKeyHold(
+    '-',
+    {
+      onStart: () => {},
+      onHold: () => viewRef.current?.zoom(1 / CONTINUOUS_ZOOM_FACTOR),
+      onEnd: (_, wasHolding) => {
+        if (!wasHolding) {
+          viewRef.current?.zoom(1 / ZOOM_STEP);
+        }
+      },
+      onDoubleTap: () => viewRef.current?.autoFit(), // Double-tap - → fit-to-window
     },
-    onDoubleTap: () => viewRef.current?.autoFit() // Double-tap - → fit-to-window
-  }, { holdDelay: ZOOM_HOLD_DELAY });
+    { holdDelay: ZOOM_HOLD_DELAY },
+  );
 
-  const toggleFileInfo = useCallback((enable) => {
-    const newValue = enable === undefined ? !showFileInfo : enable;
-    setShowFileInfo(newValue);
-    preferences.set('imageViewer.showFileInfo', newValue);
-    updateMenuState('show-file-info', newValue);
-  }, [showFileInfo, updateMenuState]);
+  const toggleFileInfo = useCallback(
+    (enable) => {
+      const newValue = enable === undefined ? !showFileInfo : enable;
+      setShowFileInfo(newValue);
+      preferences.set('imageViewer.showFileInfo', newValue);
+      updateMenuState('show-file-info', newValue);
+    },
+    [showFileInfo, updateMenuState],
+  );
 
   useKeyboardShortcuts({
     '=': resetView,
-    '0': () => viewRef.current?.autoFit(),
-    'b': toggleSingleAll,
-    'B': toggleOnOff,
-    'c': () => toggleAutoCenterOnFace(true),
-    'C': () => toggleAutoCenterOnFace(false),
-    'I': () => toggleFileInfo()
+    0: () => viewRef.current?.autoFit(),
+    b: toggleSingleAll,
+    B: toggleOnOff,
+    c: () => toggleAutoCenterOnFace(true),
+    C: () => toggleAutoCenterOnFace(false),
+    I: () => toggleFileInfo(),
   });
 
   // ============================================
@@ -534,7 +661,7 @@ export function ImageViewer() {
       emit('image-loaded', {
         imagePath: originalPath,
         dimensions: { width: img.width, height: img.height },
-        skipAutoDetect
+        skipAutoDetect,
       });
     } catch (err) {
       if (err.superseded) {
@@ -544,7 +671,12 @@ export function ImageViewer() {
       }
       debugError('ImageViewer', 'Failed to load image:', err);
       // Surface the failure instead of leaving the viewer silently blank.
-      showToast(t('imageViewer.loadFailed', { fileName: path?.split('/').pop() || path }), 'error');
+      showToast(
+        t('imageViewer.loadFailed', {
+          fileName: path?.split('/').pop() || path,
+        }),
+        'error',
+      );
     }
   });
 
@@ -578,19 +710,34 @@ export function ImageViewer() {
   }, []);
 
   // Listen for faces-detected events - sync overlay boxes with ReviewModule.
-  useModuleEvent('faces-detected', ({ faces: newFaces, imagePath: facesImagePath }) => {
-    // Path mismatch means these faces are for an image that is still decoding
-    // (originalImagePath not yet updated). Don't drop them: buffer so the
-    // load-completion effect can replay them once the path matches — otherwise
-    // faces detected during the decode window are lost until something re-emits.
-    if (facesImagePath && originalImagePath && facesImagePath !== originalImagePath) {
-      debug('ImageViewer', 'Buffering faces-detected for still-loading image:', facesImagePath);
-      pendingFacesRef.current = { faces: newFaces || [], imagePath: facesImagePath };
-      return;
-    }
-    pendingFacesRef.current = null;
-    applyFaces(newFaces, facesImagePath);
-  }, [originalImagePath, applyFaces]);
+  useModuleEvent(
+    'faces-detected',
+    ({ faces: newFaces, imagePath: facesImagePath }) => {
+      // Path mismatch means these faces are for an image that is still decoding
+      // (originalImagePath not yet updated). Don't drop them: buffer so the
+      // load-completion effect can replay them once the path matches — otherwise
+      // faces detected during the decode window are lost until something re-emits.
+      if (
+        facesImagePath &&
+        originalImagePath &&
+        facesImagePath !== originalImagePath
+      ) {
+        debug(
+          'ImageViewer',
+          'Buffering faces-detected for still-loading image:',
+          facesImagePath,
+        );
+        pendingFacesRef.current = {
+          faces: newFaces || [],
+          imagePath: facesImagePath,
+        };
+        return;
+      }
+      pendingFacesRef.current = null;
+      applyFaces(newFaces, facesImagePath);
+    },
+    [originalImagePath, applyFaces],
+  );
 
   // Replay a buffered faces batch once its image finishes loading (Fix C). The
   // decode window can land faces-detected before originalImagePath is updated;
@@ -598,29 +745,40 @@ export function ImageViewer() {
   useEffect(() => {
     const buffered = pendingFacesRef.current;
     if (buffered && buffered.imagePath === originalImagePath) {
-      debug('ImageViewer', 'Replaying buffered faces for now-loaded image:', originalImagePath);
+      debug(
+        'ImageViewer',
+        'Replaying buffered faces for now-loaded image:',
+        originalImagePath,
+      );
       pendingFacesRef.current = null;
       applyFaces(buffered.faces, buffered.imagePath);
     }
   }, [originalImagePath, applyFaces]);
 
   // Listen for active-face-changed events
-  useModuleEvent('active-face-changed', ({ index, center }) => {
-    debug('ImageViewer', `active-face-changed: index=${index}, center=${center}, autoCenterOnFace=${autoCenterOnFace}`);
-    // Always track Review's active index so the single-box highlight/label
-    // matches the face the keystroke acted on. Centering is separate: skip it
-    // only when the emitter explicitly set center:false (e.g. an all-done
-    // confirm, where centering would jump to an already-reviewed face). An
-    // omitted `center` keeps the previous behavior (center when enabled).
-    setActiveFaceIndex(index);
-    if (center !== false && autoCenterOnFace) {
-      const face = faces[index];
-      if (face?.bounding_box) {
-        debug('ImageViewer', 'Centering on face', index);
-        viewRef.current?.centerOnRect(face.bounding_box);
+  useModuleEvent(
+    'active-face-changed',
+    ({ index, center }) => {
+      debug(
+        'ImageViewer',
+        `active-face-changed: index=${index}, center=${center}, autoCenterOnFace=${autoCenterOnFace}`,
+      );
+      // Always track Review's active index so the single-box highlight/label
+      // matches the face the keystroke acted on. Centering is separate: skip it
+      // only when the emitter explicitly set center:false (e.g. an all-done
+      // confirm, where centering would jump to an already-reviewed face). An
+      // omitted `center` keeps the previous behavior (center when enabled).
+      setActiveFaceIndex(index);
+      if (center !== false && autoCenterOnFace) {
+        const face = faces[index];
+        if (face?.bounding_box) {
+          debug('ImageViewer', 'Centering on face', index);
+          viewRef.current?.centerOnRect(face.bounding_box);
+        }
       }
-    }
-  }, [autoCenterOnFace, faces]);
+    },
+    [autoCenterOnFace, faces],
+  );
 
   // Listen for sync-zoom events
   useModuleEvent('sync-zoom', ({ zoomFactor: newZoom, pan: newPan }) => {
@@ -632,20 +790,26 @@ export function ImageViewer() {
   // at mount and the handler keeps the mount closure (imagePath = null), so a
   // later-loaded image would never be re-emitted. Re-subscribe when the loaded
   // image changes so the handler always sees the current one.
-  useModuleEvent('request-current-image', () => {
-    if (imagePath) {
-      emit('image-loaded', {
-        imagePath: originalImagePath || imagePath,
-        dimensions: { width: image?.width, height: image?.height },
-        skipAutoDetect: lastSkipAutoDetectRef.current
-      });
-    }
-  }, [imagePath, originalImagePath, image]);
+  useModuleEvent(
+    'request-current-image',
+    () => {
+      if (imagePath) {
+        emit('image-loaded', {
+          imagePath: originalImagePath || imagePath,
+          dimensions: { width: image?.width, height: image?.height },
+          skipAutoDetect: lastSkipAutoDetectRef.current,
+        });
+      }
+    },
+    [imagePath, originalImagePath, image],
+  );
 
   // Menu command events
   useModuleEvent('toggle-single-all-boxes', toggleSingleAll); // Legacy support
   useModuleEvent('toggle-boxes-on-off', toggleOnOff); // Legacy support
-  useModuleEvent('boxes-show', () => setBoxMode(previousFaceBoxModeRef.current || 'all'));
+  useModuleEvent('boxes-show', () =>
+    setBoxMode(previousFaceBoxModeRef.current || 'all'),
+  );
   useModuleEvent('boxes-hide', () => setBoxMode('none'));
   useModuleEvent('boxes-all', () => setBoxMode('all'));
   useModuleEvent('boxes-single', () => setBoxMode('single'));
@@ -686,13 +850,13 @@ export function ImageViewer() {
   useEffect(() => {
     const invalidate = () => {
       themeColorsRef.current = null;
-      setThemeVersion(v => v + 1);
+      setThemeVersion((v) => v + 1);
     };
     window.addEventListener('theme-changed', invalidate);
     const observer = new MutationObserver(invalidate);
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['data-theme', 'style']
+      attributeFilter: ['data-theme', 'style'],
     });
     return () => {
       window.removeEventListener('theme-changed', invalidate);
@@ -733,12 +897,17 @@ export function ImageViewer() {
           {queueStatus && (
             <div className="file-info-queue">
               <span className="file-info-progress-text">
-                {t('imageViewer.queueProgress', { done: queueStatus.done, remaining: queueStatus.remaining })}
+                {t('imageViewer.queueProgress', {
+                  done: queueStatus.done,
+                  remaining: queueStatus.remaining,
+                })}
               </span>
               <div className="file-info-progress-bar">
                 <div
                   className="file-info-progress-fill"
-                  style={{ width: `${((queueStatus.done + 1) / queueStatus.total) * 100}%` }}
+                  style={{
+                    width: `${((queueStatus.done + 1) / queueStatus.total) * 100}%`,
+                  }}
                 />
               </div>
             </div>
@@ -824,9 +993,24 @@ function getBoxEdgeIntersection(box, externalX, externalY) {
   return { x: centerX, y: centerY };
 }
 
-function findLabelPosition(faceBox, labelWidth, labelHeight, placedBoxes, canvasWidth, canvasHeight, imageWidth, imageHeight, imageX, imageY, imageScale) {
+function findLabelPosition(
+  faceBox,
+  labelWidth,
+  labelHeight,
+  placedBoxes,
+  canvasWidth,
+  canvasHeight,
+  imageWidth,
+  imageHeight,
+  imageX,
+  imageY,
+  imageScale,
+) {
   const displayedWidth = imageWidth * imageScale;
-  const buffer = Math.max(LABEL_MIN_BUFFER, Math.floor(displayedWidth * LABEL_BUFFER_RATIO));
+  const buffer = Math.max(
+    LABEL_MIN_BUFFER,
+    Math.floor(displayedWidth * LABEL_BUFFER_RATIO),
+  );
 
   const faceCenterX = faceBox.x + faceBox.width / 2;
   const faceCenterY = faceBox.y + faceBox.height / 2;
@@ -835,7 +1019,7 @@ function findLabelPosition(faceBox, labelWidth, labelHeight, placedBoxes, canvas
     left: imageX,
     top: imageY,
     right: imageX + imageWidth * imageScale,
-    bottom: imageY + imageHeight * imageScale
+    bottom: imageY + imageHeight * imageScale,
   };
 
   const maxRadius = Math.max(canvasWidth, canvasHeight) * 2;
@@ -846,10 +1030,19 @@ function findLabelPosition(faceBox, labelWidth, labelHeight, placedBoxes, canvas
   for (let radius = startRadius; radius < maxRadius; radius += 25) {
     for (let angle = 0; angle < 360; angle += 15) {
       const radians = (angle * Math.PI) / 180;
-      const labelX = Math.floor(faceCenterX + radius * Math.cos(radians) - labelWidth / 2);
-      const labelY = Math.floor(faceCenterY + radius * Math.sin(radians) - labelHeight / 2);
+      const labelX = Math.floor(
+        faceCenterX + radius * Math.cos(radians) - labelWidth / 2,
+      );
+      const labelY = Math.floor(
+        faceCenterY + radius * Math.sin(radians) - labelHeight / 2,
+      );
 
-      const labelBox = { x: labelX, y: labelY, width: labelWidth, height: labelHeight };
+      const labelBox = {
+        x: labelX,
+        y: labelY,
+        width: labelWidth,
+        height: labelHeight,
+      };
 
       let collision = false;
       for (const box of placedBoxes) {
@@ -860,12 +1053,11 @@ function findLabelPosition(faceBox, labelWidth, labelHeight, placedBoxes, canvas
       }
 
       if (!collision) {
-        const withinBounds = (
+        const withinBounds =
           labelX >= imageBounds.left &&
           labelY >= imageBounds.top &&
           labelX + labelWidth <= imageBounds.right &&
-          labelY + labelHeight <= imageBounds.bottom
-        );
+          labelY + labelHeight <= imageBounds.bottom;
 
         if (withinBounds) {
           return { x: labelX, y: labelY, outsideImage: false };
@@ -883,7 +1075,7 @@ function findLabelPosition(faceBox, labelWidth, labelHeight, placedBoxes, canvas
   return {
     x: faceBox.x,
     y: faceBox.y - labelHeight - 10,
-    outsideImage: true
+    outsideImage: true,
   };
 }
 

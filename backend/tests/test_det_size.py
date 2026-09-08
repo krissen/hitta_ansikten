@@ -17,6 +17,7 @@ from face_backends import create_backend, normalize_det_size
 # normalize_det_size
 # --------------------------------------------------------------------------
 
+
 def test_normalize_single_int_is_square():
     assert normalize_det_size(1280) == (1280, 1280)
 
@@ -44,6 +45,7 @@ def test_normalize_rejects_bad_shapes(bad):
 # DEFAULT_CONFIG
 # --------------------------------------------------------------------------
 
+
 def test_default_config_det_size_is_640_square():
     # 640 pending benchmark-track (B3) ground truth: local measurement of
     # 640 vs 1280 was recall-neutral at 1.2-1.75x wall time, so the default
@@ -56,6 +58,7 @@ def test_default_config_det_size_is_640_square():
 # --------------------------------------------------------------------------
 # Backend factory plumbing
 # --------------------------------------------------------------------------
+
 
 class _RecordingBackend:
     """Lightweight stand-in that records the det_size it was constructed with."""

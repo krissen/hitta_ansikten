@@ -8,7 +8,10 @@ vi.mock('../src/renderer/theme-manager.js', () => ({
   themeManager: { setPreference: vi.fn() },
 }));
 
-import { applyWorkspace, bottomBorderId } from '../src/renderer/workspace/flexlayout/workspaceMorph.js';
+import {
+  applyWorkspace,
+  bottomBorderId,
+} from '../src/renderer/workspace/flexlayout/workspaceMorph.js';
 import { getWorkspaceSpec } from '../src/renderer/workspace/flexlayout/workflows.js';
 import { ensureBottomBorder } from '../src/renderer/workspace/flexlayout/layouts.js';
 
@@ -17,7 +20,13 @@ import { ensureBottomBorder } from '../src/renderer/workspace/flexlayout/layouts
 const GLOBAL = { tabEnableRenderOnDemand: true, splitterSize: 4 };
 
 function tab(id, component) {
-  return { type: 'tab', id, name: component, component, config: { moduleId: component } };
+  return {
+    type: 'tab',
+    id,
+    name: component,
+    component,
+    config: { moduleId: component },
+  };
 }
 
 function makeModel(layout) {
@@ -29,10 +38,14 @@ function soloModel(...components) {
   return makeModel({
     type: 'row',
     weight: 100,
-    children: [{
-      type: 'tabset', id: 'ts-main', weight: 100,
-      children: components.map((c, i) => tab(`t-${c}-${i}`, c)),
-    }],
+    children: [
+      {
+        type: 'tabset',
+        id: 'ts-main',
+        weight: 100,
+        children: components.map((c, i) => tab(`t-${c}-${i}`, c)),
+      },
+    ],
   });
 }
 
@@ -40,11 +53,27 @@ function soloModel(...components) {
 // used as an INPUT the morph must reshape — not the target shape any more.
 function trioModel() {
   return makeModel({
-    type: 'row', weight: 100,
+    type: 'row',
+    weight: 100,
     children: [
-      { type: 'tabset', id: 'ts-q', weight: 15, children: [tab('t-q', 'file-queue')] },
-      { type: 'tabset', id: 'ts-r', weight: 15, children: [tab('t-r', 'review-module')] },
-      { type: 'tabset', id: 'ts-v', weight: 70, children: [tab('t-v', 'image-viewer')] },
+      {
+        type: 'tabset',
+        id: 'ts-q',
+        weight: 15,
+        children: [tab('t-q', 'file-queue')],
+      },
+      {
+        type: 'tabset',
+        id: 'ts-r',
+        weight: 15,
+        children: [tab('t-r', 'review-module')],
+      },
+      {
+        type: 'tabset',
+        id: 'ts-v',
+        weight: 70,
+        children: [tab('t-v', 'image-viewer')],
+      },
     ],
   });
 }
@@ -53,11 +82,20 @@ function trioModel() {
 // The group tabset holds both viewer and queue as stacked tabs, viewer selected.
 function reviewGroupModel() {
   return makeModel({
-    type: 'row', weight: 100,
+    type: 'row',
+    weight: 100,
     children: [
-      { type: 'tabset', id: 'ts-r', weight: 15, children: [tab('t-r', 'review-module')] },
       {
-        type: 'tabset', id: 'ts-g', weight: 85, selected: 0,
+        type: 'tabset',
+        id: 'ts-r',
+        weight: 15,
+        children: [tab('t-r', 'review-module')],
+      },
+      {
+        type: 'tabset',
+        id: 'ts-g',
+        weight: 85,
+        selected: 0,
         children: [
           tab('t-v', 'image-viewer'),
           { ...tab('t-q', 'file-queue'), enableRenderOnDemand: false },
@@ -98,7 +136,8 @@ function realComponents(model) {
 function parkedComponents(model) {
   const out = [];
   model.visitNodes((n) => {
-    if (n.getType() === 'tab' && n.getParent()?.getType() === 'border') out.push(n.getComponent());
+    if (n.getType() === 'tab' && n.getParent()?.getType() === 'border')
+      out.push(n.getComponent());
   });
   return out;
 }
@@ -148,15 +187,23 @@ describe('applyWorkspace — review companion-tab shape', () => {
     const model = soloModel('culling');
     applyWorkspace(model, reviewSpec);
     // Two columns: review-module, then the viewer+queue group.
-    expect(realComponents(model)).toEqual(['review-module', 'image-viewer', 'file-queue']);
+    expect(realComponents(model)).toEqual([
+      'review-module',
+      'image-viewer',
+      'file-queue',
+    ]);
     expect(tabsetWeightOf(model, 'review-module')).toBe(15);
     expect(tabsetWeightOf(model, 'image-viewer')).toBe(85);
     // Image Viewer and File Queue share ONE tabset (the group column).
-    expect(tabsetIdOf(model, 'image-viewer')).toBe(tabsetIdOf(model, 'file-queue'));
-    expect(tabsetIdOf(model, 'review-module')).not.toBe(tabsetIdOf(model, 'image-viewer'));
+    expect(tabsetIdOf(model, 'image-viewer')).toBe(
+      tabsetIdOf(model, 'file-queue'),
+    );
+    expect(tabsetIdOf(model, 'review-module')).not.toBe(
+      tabsetIdOf(model, 'image-viewer'),
+    );
   });
 
-  it('reveals the Image Viewer as the group\'s active tab (File Queue hidden behind it)', () => {
+  it("reveals the Image Viewer as the group's active tab (File Queue hidden behind it)", () => {
     const model = soloModel('culling');
     applyWorkspace(model, reviewSpec);
     expect(selectedInTabsetOf(model, 'image-viewer')).toBe('image-viewer');
@@ -165,7 +212,9 @@ describe('applyWorkspace — review companion-tab shape', () => {
   it('pins the hidden File Queue to enableRenderOnDemand:false so it stays mounted', () => {
     const model = soloModel('culling');
     applyWorkspace(model, reviewSpec);
-    const queue = realTabs(model).find((t) => t.getComponent() === 'file-queue');
+    const queue = realTabs(model).find(
+      (t) => t.getComponent() === 'file-queue',
+    );
     expect(queue.isEnableRenderOnDemand()).toBe(false);
   });
 
@@ -180,8 +229,14 @@ describe('applyWorkspace — review companion-tab shape', () => {
     expect(nodeId(model, 'file-queue')).toBe(ids.q);
     expect(nodeId(model, 'review-module')).toBe(ids.r);
     expect(nodeId(model, 'image-viewer')).toBe(ids.v);
-    expect(realComponents(model)).toEqual(['review-module', 'image-viewer', 'file-queue']);
-    expect(tabsetIdOf(model, 'image-viewer')).toBe(tabsetIdOf(model, 'file-queue'));
+    expect(realComponents(model)).toEqual([
+      'review-module',
+      'image-viewer',
+      'file-queue',
+    ]);
+    expect(tabsetIdOf(model, 'image-viewer')).toBe(
+      tabsetIdOf(model, 'file-queue'),
+    );
   });
 
   it('sets the group (image-viewer, weight 85) as the active tabset when arriving from another step', () => {
@@ -189,14 +244,18 @@ describe('applyWorkspace — review companion-tab shape', () => {
     applyWorkspace(model, reviewSpec);
     const active = model.getActiveTabset();
     expect(active).toBeTruthy();
-    const activeComponents = active.getChildren().map((c) => c.getComponent?.());
+    const activeComponents = active
+      .getChildren()
+      .map((c) => c.getComponent?.());
     expect(activeComponents).toContain('image-viewer');
   });
 
-  it('preserves the user\'s active pane on idempotent re-entry (does not steal focus to the primary)', () => {
+  it("preserves the user's active pane on idempotent re-entry (does not steal focus to the primary)", () => {
     const model = reviewGroupModel();
     // Simulate the user working in Review: make its tabset active.
-    const reviewTab = realTabs(model).find((t) => t.getComponent() === 'review-module');
+    const reviewTab = realTabs(model).find(
+      (t) => t.getComponent() === 'review-module',
+    );
     model.doAction(Actions.setActiveTabset(reviewTab.getParent().getId()));
     const activeBefore = model.getActiveTabset().getId();
 
@@ -209,7 +268,9 @@ describe('applyWorkspace — review companion-tab shape', () => {
   it('does not re-select the group active tab on the idempotent fast path (keeps the queue visible if the user opened it)', () => {
     const model = reviewGroupModel();
     // User opened the File Queue companion tab (Cmd+Shift+U).
-    const queueTab = realTabs(model).find((t) => t.getComponent() === 'file-queue');
+    const queueTab = realTabs(model).find(
+      (t) => t.getComponent() === 'file-queue',
+    );
     model.doAction(Actions.selectTab(queueTab.getId()));
     expect(selectedInTabsetOf(model, 'file-queue')).toBe('file-queue');
     // A file-load re-entry must not yank the visible tab back to the viewer.
@@ -234,15 +295,23 @@ describe('applyWorkspace — keepMounted parking', () => {
   it('un-parks the File Queue when morphing back to the review step (node id preserved)', () => {
     const model = trioModel();
     const queueIdBefore = nodeId(model, 'file-queue');
-    applyWorkspace(model, cullingSpec);   // park the queue
+    applyWorkspace(model, cullingSpec); // park the queue
     expect(parkedComponents(model)).toContain('file-queue');
 
-    applyWorkspace(model, reviewSpec);    // bring it back
+    applyWorkspace(model, reviewSpec); // bring it back
     expect(parkedComponents(model)).not.toContain('file-queue');
-    expect(realComponents(model)).toEqual(['review-module', 'image-viewer', 'file-queue']);
+    expect(realComponents(model)).toEqual([
+      'review-module',
+      'image-viewer',
+      'file-queue',
+    ]);
     // Un-parked into the group column, hidden behind the viewer, still mounted.
-    expect(tabsetIdOf(model, 'file-queue')).toBe(tabsetIdOf(model, 'image-viewer'));
-    const queue = realTabs(model).find((t) => t.getComponent() === 'file-queue');
+    expect(tabsetIdOf(model, 'file-queue')).toBe(
+      tabsetIdOf(model, 'image-viewer'),
+    );
+    const queue = realTabs(model).find(
+      (t) => t.getComponent() === 'file-queue',
+    );
     expect(queue.isEnableRenderOnDemand()).toBe(false);
     expect(nodeId(model, 'file-queue')).toBe(queueIdBefore);
   });
@@ -259,10 +328,14 @@ describe('applyWorkspace — keepDirty parking', () => {
   it('parks a dirty review-module across a solo morph and preserves its node id', () => {
     const model = trioModel();
     const reviewIdBefore = nodeId(model, 'review-module');
-    applyWorkspace(model, cullingSpec, { keepDirty: new Set(['review-module']) });
+    applyWorkspace(model, cullingSpec, {
+      keepDirty: new Set(['review-module']),
+    });
 
     expect(realComponents(model)).toEqual(['culling']);
-    expect(parkedComponents(model)).toEqual(expect.arrayContaining(['review-module', 'file-queue']));
+    expect(parkedComponents(model)).toEqual(
+      expect.arrayContaining(['review-module', 'file-queue']),
+    );
     expect(nodeId(model, 'review-module')).toBe(reviewIdBefore);
   });
 
@@ -277,16 +350,33 @@ describe('applyWorkspace — keepDirty parking', () => {
 describe('applyWorkspace — from an empty / non-target starting layout', () => {
   it('builds the review trio from a database layout (all non-target, clean)', () => {
     const model = makeModel({
-      type: 'row', weight: 100,
+      type: 'row',
+      weight: 100,
       children: [
-        { type: 'tabset', id: 'ts-db', weight: 30, children: [tab('t-db', 'database-management')] },
-        { type: 'tabset', id: 'ts-st', weight: 70, children: [tab('t-st', 'statistics-dashboard')] },
+        {
+          type: 'tabset',
+          id: 'ts-db',
+          weight: 30,
+          children: [tab('t-db', 'database-management')],
+        },
+        {
+          type: 'tabset',
+          id: 'ts-st',
+          weight: 70,
+          children: [tab('t-st', 'statistics-dashboard')],
+        },
       ],
     });
     applyWorkspace(model, reviewSpec);
-    expect(realComponents(model)).toEqual(['review-module', 'image-viewer', 'file-queue']);
+    expect(realComponents(model)).toEqual([
+      'review-module',
+      'image-viewer',
+      'file-queue',
+    ]);
     expect(parkedComponents(model)).toEqual([]);
-    expect(tabsetIdOf(model, 'file-queue')).toBe(tabsetIdOf(model, 'image-viewer'));
+    expect(tabsetIdOf(model, 'file-queue')).toBe(
+      tabsetIdOf(model, 'image-viewer'),
+    );
   });
 });
 

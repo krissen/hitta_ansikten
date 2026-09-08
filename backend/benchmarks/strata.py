@@ -130,9 +130,7 @@ def stratify(
         s = surname(r.identity)
         if s in sibling_surnames:
             surname_buckets[s].append(r)
-    strata["sibling_surname"] = {
-        k: _count(v, resolved) for k, v in sorted(surname_buckets.items())
-    }
+    strata["sibling_surname"] = {k: _count(v, resolved) for k, v in sorted(surname_buckets.items())}
 
     # -- confirmed twin pairs (distinct_pairs.json) -----------------------
     twin_strata: dict[str, GroupCount] = {}
@@ -154,9 +152,7 @@ def stratify(
     return strata
 
 
-def gallery_probe_viability(
-    records: list[FaceRecord], resolved: set[str]
-) -> dict[str, int]:
+def gallery_probe_viability(records: list[FaceRecord], resolved: set[str]) -> dict[str, int]:
     """Count identities with >=2 recovered *distinct source images*.
 
     An identity needs at least a gallery image and a probe image drawn from

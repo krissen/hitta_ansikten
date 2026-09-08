@@ -23,7 +23,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEmitEvent } from '../hooks/useModuleEvent.js';
 import { useAnchoredDropdown } from '../hooks/useAnchoredDropdown.js';
-import { getWorkingFolder, setWorkingFolder, subscribeWorkingFolder } from '../shared/workingFolder.js';
+import {
+  getWorkingFolder,
+  setWorkingFolder,
+  subscribeWorkingFolder,
+} from '../shared/workingFolder.js';
 import { getScanScope, subscribeScanScope } from '../shared/scanScope.js';
 import { getQueueStatus, subscribeQueueStatus } from '../shared/queueStatus.js';
 import { prefersReducedMotion } from '../shared/motion.js';
@@ -53,7 +57,13 @@ import './WorkflowBar.css';
  * @param {boolean} [props.autoHide=false] - Slide the row away when idle (opt-out preference).
  * @param {boolean} [props.hasContent=true] - A view is open behind the bar; when false autohide is suspended.
  */
-export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = false, hasContent = true }) {
+export function WorkflowBar({
+  activeStep,
+  onOpenStep,
+  onOpenTool,
+  autoHide = false,
+  hasContent = true,
+}) {
   const emit = useEmitEvent();
 
   // The three working sets drive the chip + its dropdown. All three are shared
@@ -74,7 +84,8 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = fal
   const chipTitle = hasFolder ? roots.join('\n') : undefined;
 
   const summary = useMemo(
-    () => buildWorkingSetSummary(t, { queue, scan, anchor, steps: WORKFLOW_STEPS }),
+    () =>
+      buildWorkingSetSummary(t, { queue, scan, anchor, steps: WORKFLOW_STEPS }),
     [queue, scan, anchor],
   );
 
@@ -114,12 +125,17 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = fal
     autoHide ? 'autohide' : '',
     hidden ? 'hidden' : '',
     reducedMotion ? 'reduced-motion' : '',
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-  const openTool = useCallback((moduleId) => {
-    tools.close();
-    onOpenTool(moduleId);
-  }, [tools, onOpenTool]);
+  const openTool = useCallback(
+    (moduleId) => {
+      tools.close();
+      onOpenTool(moduleId);
+    },
+    [tools, onOpenTool],
+  );
 
   // "Byt mapp…" — pick a folder and set ONLY the anchor (no step, so it offers no
   // continuation until the user explicitly hands it off). Never auto-loads.
@@ -171,112 +187,148 @@ export function WorkflowBar({ activeStep, onOpenStep, onOpenTool, autoHide = fal
         onFocus={autoHide ? handleFocus : undefined}
         onBlur={autoHide ? handleBlur : undefined}
       >
-      <div className="workflow-bar-steps">
-        {WORKFLOW_STEPS.map((step, i) => {
-          const active = activeStep === step.step;
-          return (
-            <button
-              key={step.moduleId}
-              type="button"
-              className={`workflow-bar-step${active ? ' active' : ''}`}
-              aria-pressed={active}
-              onClick={() => onOpenStep(step.moduleId)}
+        <div className="workflow-bar-steps">
+          {WORKFLOW_STEPS.map((step, i) => {
+            const active = activeStep === step.step;
+            return (
+              <button
+                key={step.moduleId}
+                type="button"
+                className={`workflow-bar-step${active ? ' active' : ''}`}
+                aria-pressed={active}
+                onClick={() => onOpenStep(step.moduleId)}
+              >
+                <span className="workflow-bar-step-ordinal" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <Icon name={step.icon} size={15} />
+                <span className="workflow-bar-step-label">
+                  {t(`modules.${step.moduleId}`)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="workflow-bar-spacer" />
+
+        <div className="workflow-bar-chip-wrap" ref={chip.ref}>
+          <button
+            type="button"
+            className={`workflow-bar-chip${hasFolder ? '' : ' empty'}${chip.open ? ' active' : ''}`}
+            title={chipTitle}
+            aria-haspopup="true"
+            aria-expanded={chip.open}
+            onClick={chip.toggle}
+          >
+            <Icon name="folder" size={14} />
+            <span className="workflow-bar-chip-name">
+              {hasFolder ? folderName : t('workflowBar.noFolder')}
+            </span>
+            <Icon name="chevron-down" size={13} />
+          </button>
+          {chip.open && (
+            // A status popover (headings, status lines, action buttons), not a menu
+            // of menuitems — role=group, not role=menu (which would mislabel the
+            // mixed content to AT). The Verktyg menu below IS a real menu.
+            <div
+              className="workflow-bar-chip-menu"
+              role="group"
+              aria-label={t('workflowBar.chipMenuLabel')}
             >
-              <span className="workflow-bar-step-ordinal" aria-hidden="true">{i + 1}</span>
-              <Icon name={step.icon} size={15} />
-              <span className="workflow-bar-step-label">{t(`modules.${step.moduleId}`)}</span>
-            </button>
-          );
-        })}
-      </div>
+              <div className="workflow-bar-chip-section-title">
+                {t('workflowBar.summaryTitle')}
+              </div>
+              <ul className="workflow-bar-chip-sets">
+                {summary.map((line) => (
+                  <li
+                    key={line.key}
+                    className={`workflow-bar-chip-set${line.empty ? ' empty' : ''}`}
+                  >
+                    <span className="workflow-bar-chip-set-label">
+                      {line.label}
+                    </span>
+                    <span className="workflow-bar-chip-set-value">
+                      {line.value}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="workflow-bar-chip-section-title">
+                {t('workflowBar.actionsLabel')}
+              </div>
+              <div className="workflow-bar-chip-actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={changeFolder}
+                  title={t('workflowBar.changeFolderTitle')}
+                >
+                  {t('workflowBar.changeFolder')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={useInReview}
+                  disabled={!hasFolder}
+                  title={t('workflowBar.useInReviewTitle')}
+                >
+                  {t('workflowBar.useInReview')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={useInCount}
+                  disabled={!hasFolder}
+                  title={t('workflowBar.useInCountTitle')}
+                >
+                  {t('workflowBar.useInCount')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
 
-      <div className="workflow-bar-spacer" />
+        {cont && (
+          <button
+            type="button"
+            className="workflow-bar-continue"
+            onClick={() => emit(cont.event, { roots: cont.roots })}
+          >
+            <span>{t(cont.labelKey)}</span>
+            <Icon name="skip-next" size={15} />
+          </button>
+        )}
 
-      <div className="workflow-bar-chip-wrap" ref={chip.ref}>
-        <button
-          type="button"
-          className={`workflow-bar-chip${hasFolder ? '' : ' empty'}${chip.open ? ' active' : ''}`}
-          title={chipTitle}
-          aria-haspopup="true"
-          aria-expanded={chip.open}
-          onClick={chip.toggle}
-        >
-          <Icon name="folder" size={14} />
-          <span className="workflow-bar-chip-name">
-            {hasFolder ? folderName : t('workflowBar.noFolder')}
-          </span>
-          <Icon name="chevron-down" size={13} />
-        </button>
-        {chip.open && (
-          // A status popover (headings, status lines, action buttons), not a menu
-          // of menuitems — role=group, not role=menu (which would mislabel the
-          // mixed content to AT). The Verktyg menu below IS a real menu.
-          <div className="workflow-bar-chip-menu" role="group" aria-label={t('workflowBar.chipMenuLabel')}>
-            <div className="workflow-bar-chip-section-title">{t('workflowBar.summaryTitle')}</div>
-            <ul className="workflow-bar-chip-sets">
-              {summary.map((line) => (
-                <li key={line.key} className={`workflow-bar-chip-set${line.empty ? ' empty' : ''}`}>
-                  <span className="workflow-bar-chip-set-label">{line.label}</span>
-                  <span className="workflow-bar-chip-set-value">{line.value}</span>
+        <div className="workflow-bar-tools" ref={tools.ref}>
+          <button
+            type="button"
+            className={`workflow-bar-tools-toggle${tools.open ? ' active' : ''}`}
+            aria-haspopup="menu"
+            aria-expanded={tools.open}
+            onClick={tools.toggle}
+          >
+            <span>{t('workflowBar.tools')}</span>
+            <Icon name="chevron-down" size={14} />
+          </button>
+          {tools.open && (
+            <ul className="workflow-bar-tools-menu" role="menu">
+              {WORKFLOW_TOOLS.map((tool) => (
+                <li key={tool.moduleId} role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="workflow-bar-tools-item"
+                    onClick={() => openTool(tool.moduleId)}
+                  >
+                    <Icon name={tool.icon} size={15} />
+                    <span>{t(`modules.${tool.moduleId}`)}</span>
+                  </button>
                 </li>
               ))}
             </ul>
-            <div className="workflow-bar-chip-section-title">{t('workflowBar.actionsLabel')}</div>
-            <div className="workflow-bar-chip-actions">
-              <Button variant="ghost" size="sm" onClick={changeFolder} title={t('workflowBar.changeFolderTitle')}>
-                {t('workflowBar.changeFolder')}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={useInReview} disabled={!hasFolder} title={t('workflowBar.useInReviewTitle')}>
-                {t('workflowBar.useInReview')}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={useInCount} disabled={!hasFolder} title={t('workflowBar.useInCountTitle')}>
-                {t('workflowBar.useInCount')}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {cont && (
-        <button
-          type="button"
-          className="workflow-bar-continue"
-          onClick={() => emit(cont.event, { roots: cont.roots })}
-        >
-          <span>{t(cont.labelKey)}</span>
-          <Icon name="skip-next" size={15} />
-        </button>
-      )}
-
-      <div className="workflow-bar-tools" ref={tools.ref}>
-        <button
-          type="button"
-          className={`workflow-bar-tools-toggle${tools.open ? ' active' : ''}`}
-          aria-haspopup="menu"
-          aria-expanded={tools.open}
-          onClick={tools.toggle}
-        >
-          <span>{t('workflowBar.tools')}</span>
-          <Icon name="chevron-down" size={14} />
-        </button>
-        {tools.open && (
-          <ul className="workflow-bar-tools-menu" role="menu">
-            {WORKFLOW_TOOLS.map((tool) => (
-              <li key={tool.moduleId} role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="workflow-bar-tools-item"
-                  onClick={() => openTool(tool.moduleId)}
-                >
-                  <Icon name={tool.icon} size={15} />
-                  <span>{t(`modules.${tool.moduleId}`)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          )}
+        </div>
       </div>
     </>
   );

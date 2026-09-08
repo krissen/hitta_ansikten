@@ -143,9 +143,7 @@ class StatisticsService:
         if stats is None:
             stats = load_attempt_log(all_files=False)
 
-        attempt_info = defaultdict(
-            lambda: {"used": 0, "faces": 0, "time": 0.0, "total": 0}
-        )
+        attempt_info = defaultdict(lambda: {"used": 0, "faces": 0, "time": 0.0, "total": 0})
 
         for entry in stats:
             attempts = entry.get("attempts", [])
@@ -194,24 +192,28 @@ class StatisticsService:
             mean_time = info["time"] / n_used if n_used else 0
             hit_rate = 100 * n_used / n_total if n_total else 0
 
-            result.append({
-                "backend": backend,
-                "upsample": upsample,
-                "scale_label": scale_label or "unknown",
-                "scale_px": scale_px or 0,
-                "used_count": n_used,
-                "total_count": n_total,
-                "hit_rate": round(hit_rate, 1),
-                "avg_faces": round(mean_faces, 2),
-                "avg_time": round(mean_time, 2),
-            })
+            result.append(
+                {
+                    "backend": backend,
+                    "upsample": upsample,
+                    "scale_label": scale_label or "unknown",
+                    "scale_px": scale_px or 0,
+                    "used_count": n_used,
+                    "total_count": n_total,
+                    "hit_rate": round(hit_rate, 1),
+                    "avg_faces": round(mean_faces, 2),
+                    "avg_time": round(mean_time, 2),
+                }
+            )
 
         # Sort by total_count descending
         result.sort(key=lambda x: x["total_count"], reverse=True)
 
         return result
 
-    async def get_top_faces(self, stats: list[dict] = None, face_counts: dict[str, int] = None) -> dict[str, Any]:
+    async def get_top_faces(
+        self, stats: list[dict] = None, face_counts: dict[str, int] = None
+    ) -> dict[str, Any]:
         """
         Get top 19 faces plus ignored count
 
@@ -247,7 +249,7 @@ class StatisticsService:
                 {
                     "name": name,
                     "face_count": count,
-                    "percentage": round(100 * count / total_faces) if total_faces > 0 else 0
+                    "percentage": round(100 * count / total_faces) if total_faces > 0 else 0,
                 }
                 for name, count in top_faces
             ],
@@ -285,7 +287,10 @@ class StatisticsService:
             if used is not None and attempts and used < len(attempts):
                 att = attempts[used]
                 # "bildvisare" kept for backward compatibility with legacy data
-                if att.get("source") in ("ansikten", "bildvisare") or att.get("resolution") == "api":
+                if (
+                    att.get("source") in ("ansikten", "bildvisare")
+                    or att.get("resolution") == "api"
+                ):
                     source = "ansikten"
 
             if used is not None and labels_per_attempt and used < len(labels_per_attempt):
@@ -293,12 +298,14 @@ class StatisticsService:
             else:
                 names = []
 
-            result.append({
-                "filename": fname,
-                "timestamp": timestamp,
-                "person_names": names,
-                "source": source,
-            })
+            result.append(
+                {
+                    "filename": fname,
+                    "timestamp": timestamp,
+                    "person_names": names,
+                    "source": source,
+                }
+            )
 
         return result
 
@@ -336,11 +343,13 @@ class StatisticsService:
                 else:
                     message = line
 
-                result.append({
-                    "level": level,
-                    "message": message,
-                    "timestamp": timestamp,
-                })
+                result.append(
+                    {
+                        "level": level,
+                        "message": message,
+                        "timestamp": timestamp,
+                    }
+                )
 
             return result
 
@@ -348,10 +357,12 @@ class StatisticsService:
             logger.error(f"[StatisticsService] Failed to read log file: {e}")
             return [{"level": "error", "message": f"Could not read log file: {e}", "timestamp": ""}]
 
-    async def get_file_stats(self, filenames: list[str] = None, filepaths: list[str] = None) -> dict[str, dict[str, Any]]:
+    async def get_file_stats(
+        self, filenames: list[str] = None, filepaths: list[str] = None
+    ) -> dict[str, dict[str, Any]]:
         """
         Get face detection stats for specific files.
-        
+
         Supports two lookup methods:
         - filepaths: Computes hash from file content (survives renames)
         - filenames: Falls back to name-based lookup
@@ -365,12 +376,12 @@ class StatisticsService:
         """
         filenames = filenames or []
         filepaths = filepaths or []
-        
+
         if not filenames and not filepaths:
             return {}
 
         stats = load_attempt_log(all_files=False)
-        
+
         result = {}
 
         hash_to_entry = {}
@@ -477,8 +488,8 @@ class StatisticsService:
                 self.store.version,
             )
 
-        face_counts, total_files_processed, version_at_read = (
-            await asyncio.to_thread(self.store.read, _collect)
+        face_counts, total_files_processed, version_at_read = await asyncio.to_thread(
+            self.store.read, _collect
         )
         stats = load_attempt_log(all_files=False)
 

@@ -1,0 +1,111 @@
+# Every hook below sets its own explicit `stages: [pre-commit]`. A hook
+# without one runs in every stage prek knows about, including pre-push --
+# verified empirically (design.md, Fas 0 sec. 0.6/mall step 3) against
+# prek 0.5.2, where `default_stages:` at the top level does not constrain
+# hooks that omit their own `stages:` key.
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      # `--staged` (gitleaks' default in the hook) only sees the index, which
+      # is correct for a local commit but scans zero files in a CI run where
+      # nothing is staged -- see the CI lint job, which runs `gitleaks dir .`
+      # as a separate tree-wide sweep rather than relying on this hook.
+      - id: gitleaks
+        stages: [pre-commit]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.5
+    hooks:
+      # Rule set lives in backend/pyproject.toml (extended by the root
+      # ruff.toml for shared/ and frontend/scripts/*.py) -- not repeated
+      # here. ruff resolves each file against its nearest configuration, so
+      # this hook needs no repo-specific args.
+      - id: ruff-check
+        args: [--fix]
+        stages: [pre-commit]
+      - id: ruff-format
+        stages: [pre-commit]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+        stages: [pre-commit]
+      - id: check-json
+        stages: [pre-commit]
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+        stages: [pre-commit]
+      - id: end-of-file-fixer
+        stages: [pre-commit]
+      - id: trailing-whitespace
+        stages: [pre-commit]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      # Portable (pip wheel with a bundled binary), matching the version
+      # already verified clean locally (ShellCheck 0.11.0) instead of
+      # `language: system`, so a clone with no shellcheck on PATH still
+      # gets the same check. Only bin/ansikten is a shell script in this
+      # repo (extensionless, so restricted with `files:` rather than
+      # relying on shellcheck-py's default `\.(bash|sh)$` glob).
+      - id: shellcheck
+        args: [--severity=warning]
+        files: '^bin/ansikten$'
+        stages: [pre-commit]
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+        stages: [pre-commit]
+
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.6
+    hooks:
+      # rbubley/mirrors-prettier, not the official pre-commit/mirrors-prettier:
+      # the official mirror stopped tagging releases after v3.1.0 (checked
+      # 2026-09-08), a `language: node` hook with its own pinned
+      # `additional_dependencies: ["prettier@X"]` -- unlike the eslint hook
+      # above, prettier carries no project-specific plugins, so a portable
+      # mirror works cleanly here. `frontend/.prettierrc.json` (singleQuote)
+      # keeps the diff to line-wrapping only; the codebase already used
+      # single quotes throughout, and eslint-config-prettier (see
+      # eslint.config.mjs) turns off any eslint stylistic rule that could
+      # fight this formatting.
+      - id: prettier
+        files: '^frontend/.*\.(js|jsx|mjs|css|html|json)$'
+        exclude: '^frontend/package-lock\.json$'
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      # `language: system`, not a portable mirror: the repo's flat eslint
+      # config (frontend/eslint.config.mjs) depends on eslint-plugin-react
+      # and eslint-plugin-react-hooks from frontend/node_modules. The
+      # generic eslint pre-commit mirrors bundle their own eslint install
+      # and do not carry a project's plugins, so they would silently lint
+      # with fewer rules than `npm run lint` already enforces in CI.
+      # `language: system` instead means: whatever `npm ci` in frontend/
+      # already installed (locally, and as the first step of the CI lint
+      # job below) is exactly what runs here -- one dependency tree, not two.
+      - id: eslint
+        name: eslint (frontend)
+        # prek passes repo-root-relative paths (e.g. frontend/src/x.jsx); the
+        # `frontend/` prefix is stripped before the `cd`, otherwise eslint
+        # resolves them against frontend/frontend/... and fails outright.
+        entry: >-
+          bash -c 'cd frontend &&
+          exec npx eslint --fix "${@/#frontend\//}"' --
+        language: system
+        # Whole frontend tree, not just src/scripts: eslint.config.mjs
+        # defines rules for frontend/tests/, main.js and *.config.{js,mjs}
+        # too (.mjs included -- eslint.config.mjs itself is one), and CI no
+        # longer has a separate `npm run lint` step running `eslint .` to
+        # cover them now that this hook is the only ESLint invocation in CI.
+        files: '^frontend/.*\.(js|jsx|mjs)$'
+        stages: [pre-commit]

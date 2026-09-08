@@ -66,7 +66,8 @@ function isValidPane(p) {
     return (
       p.tabs.length > 0 &&
       p.tabs.every(isModuleId) &&
-      (p.active === undefined || (isModuleId(p.active) && p.tabs.includes(p.active)))
+      (p.active === undefined ||
+        (isModuleId(p.active) && p.tabs.includes(p.active)))
     );
   }
   return isModuleId(p.moduleId);
@@ -242,7 +243,11 @@ export function migrateReviewMemoryShape() {
   for (const pane of saved) {
     if (pane.moduleId === 'file-queue') continue; // folded into the group
     if (pane.moduleId === 'image-viewer') {
-      rebuilt.push({ tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: groupWeight });
+      rebuilt.push({
+        tabs: ['image-viewer', 'file-queue'],
+        active: 'image-viewer',
+        weight: groupWeight,
+      });
     } else {
       rebuilt.push({ ...pane });
     }

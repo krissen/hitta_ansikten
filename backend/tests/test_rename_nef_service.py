@@ -74,7 +74,10 @@ async def test_plan_broadcasts_progress_per_chunk(monkeypatch):
     assert all(e[0] == "rename-nef-progress" for e in events)
     assert all(e[1]["phase"] == "preview" for e in events)
     assert events[-1][1] == {
-        "phase": "preview", "current": 4, "total": 4, "percent": 100,
+        "phase": "preview",
+        "current": 4,
+        "total": 4,
+        "percent": 100,
     }
 
 
@@ -100,10 +103,12 @@ def _counting_exif(calls):
         calls.append(len(chunk))
         entries = [
             (_CACHE_EXIF[p.name][0], _CACHE_EXIF[p.name][1], Path(p))
-            for p in chunk if p.name in _CACHE_EXIF
+            for p in chunk
+            if p.name in _CACHE_EXIF
         ]
         entries.sort(key=lambda e: (e[0], e[1], str(e[2])))
         return entries
+
     return _fake
 
 
@@ -225,22 +230,25 @@ from rename_nef import (  # noqa: E402
 )
 
 
-@pytest.mark.parametrize("name,ts,expected", [
-    ("260713_110145.NEF", "260713_110145", True),           # bare timestamp
-    ("260713_110145_ArvidW,_Elis.NEF", "260713_110145", True),  # _names suffix
-    ("260713_112041-1.NEF", "260713_112041", True),         # -N burst
-    ("260713_112041-1_Elis.NEF", "260713_112041", True),    # -N_Name
-    ("260713_110145en.NEF", "260713_110145", True),         # photographer suffix (bare)
-    ("260713_110145en_Anna.NEF", "260713_110145", True),    # photographer + _Name
-    ("260713_112041-1en_Anna.NEF", "260713_112041", True),  # -N + photographer + _Name
-    ("DSC_0001.NEF", "260713_110145", False),               # unrelated name
-    ("260713_110146.NEF", "260713_110145", False),          # different timestamp
-    # Negative: photographer suffix is bounded to 1-3 letters, and bare
-    # digits/text without `-` must stay unprotected (renamable) as before.
-    ("260713_110145abcd.NEF", "260713_110145", False),      # 4+ letters
-    ("260713_110145en1.NEF", "260713_110145", False),       # letters then digit
-    ("260713_1101453.NEF", "260713_110145", False),         # trailing digit, no `-`
-])
+@pytest.mark.parametrize(
+    "name,ts,expected",
+    [
+        ("260713_110145.NEF", "260713_110145", True),  # bare timestamp
+        ("260713_110145_ArvidW,_Elis.NEF", "260713_110145", True),  # _names suffix
+        ("260713_112041-1.NEF", "260713_112041", True),  # -N burst
+        ("260713_112041-1_Elis.NEF", "260713_112041", True),  # -N_Name
+        ("260713_110145en.NEF", "260713_110145", True),  # photographer suffix (bare)
+        ("260713_110145en_Anna.NEF", "260713_110145", True),  # photographer + _Name
+        ("260713_112041-1en_Anna.NEF", "260713_112041", True),  # -N + photographer + _Name
+        ("DSC_0001.NEF", "260713_110145", False),  # unrelated name
+        ("260713_110146.NEF", "260713_110145", False),  # different timestamp
+        # Negative: photographer suffix is bounded to 1-3 letters, and bare
+        # digits/text without `-` must stay unprotected (renamable) as before.
+        ("260713_110145abcd.NEF", "260713_110145", False),  # 4+ letters
+        ("260713_110145en1.NEF", "260713_110145", False),  # letters then digit
+        ("260713_1101453.NEF", "260713_110145", False),  # trailing digit, no `-`
+    ],
+)
 def test_is_already_named(name, ts, expected):
     assert is_already_named(name, ts) is expected
 
@@ -276,16 +284,19 @@ def test_compute_renames_include_named_strips_suffix():
 TS = "260713_112041"
 
 
-@pytest.mark.parametrize("name,expected", [
-    (f"{TS}.NEF", _BARE_SLOT),          # bare
-    (f"{TS}_Elis.NEF", _BARE_SLOT),     # _Name → still the bare slot
-    (f"{TS}en.NEF", _BARE_SLOT),        # photographer suffix → still bare
-    (f"{TS}en_Anna.NEF", _BARE_SLOT),   # photographer + _Name → bare
-    (f"{TS}-0.NEF", 0),                 # burst index
-    (f"{TS}-3.NEF", 3),
-    (f"{TS}-2_Elis.NEF", 2),            # -N_Name → index N
-    (f"{TS}-1en_Anna.NEF", 1),          # -N + photographer suffix → index N
-])
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        (f"{TS}.NEF", _BARE_SLOT),  # bare
+        (f"{TS}_Elis.NEF", _BARE_SLOT),  # _Name → still the bare slot
+        (f"{TS}en.NEF", _BARE_SLOT),  # photographer suffix → still bare
+        (f"{TS}en_Anna.NEF", _BARE_SLOT),  # photographer + _Name → bare
+        (f"{TS}-0.NEF", 0),  # burst index
+        (f"{TS}-3.NEF", 3),
+        (f"{TS}-2_Elis.NEF", 2),  # -N_Name → index N
+        (f"{TS}-1en_Anna.NEF", 1),  # -N + photographer suffix → index N
+    ],
+)
 def test_timestamp_slot(name, expected):
     assert timestamp_slot(name, TS) == expected
 
@@ -299,8 +310,8 @@ def _plan(*entries):
 def test_reserve_protected_bare_ts_pushes_unnamed_to_free_burst():
     # Protected bare `ts.NEF` holds the bare slot → unnamed gets the lowest free -N.
     dsts = _plan(
-        (TS, 0, Path(f"/p/{TS}.NEF")),      # protected (bare)
-        (TS, 1, Path("/p/DSC_9.NEF")),      # unnamed, same second
+        (TS, 0, Path(f"/p/{TS}.NEF")),  # protected (bare)
+        (TS, 1, Path("/p/DSC_9.NEF")),  # unnamed, same second
     )
     assert dsts == {"DSC_9.NEF": f"{TS}-0.NEF"}
 
@@ -308,8 +319,8 @@ def test_reserve_protected_bare_ts_pushes_unnamed_to_free_burst():
 def test_reserve_protected_burst_leaves_bare_free_for_unnamed():
     # Protected `ts-1.NEF` holds index 1, not the bare slot → unnamed takes bare.
     dsts = _plan(
-        (TS, 0, Path(f"/p/{TS}-1.NEF")),    # protected (burst)
-        (TS, 1, Path("/p/DSC_9.NEF")),      # unnamed
+        (TS, 0, Path(f"/p/{TS}-1.NEF")),  # protected (burst)
+        (TS, 1, Path("/p/DSC_9.NEF")),  # unnamed
     )
     assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
 
@@ -318,8 +329,8 @@ def test_reserve_protected_named_holds_bare_slot():
     # `ts_Name.NEF` holds the BARE slot (slot semantics) → unnamed gets -0, NOT
     # bare `ts`, so it can never be named into a clash with `ts_Name.NEF` later.
     dsts = _plan(
-        (TS, 0, Path(f"/p/{TS}_Elis.NEF")),   # protected (_Name → bare slot)
-        (TS, 1, Path("/p/DSC_9.NEF")),        # unnamed
+        (TS, 0, Path(f"/p/{TS}_Elis.NEF")),  # protected (_Name → bare slot)
+        (TS, 1, Path("/p/DSC_9.NEF")),  # unnamed
     )
     assert dsts == {"DSC_9.NEF": f"{TS}-0.NEF"}
 
@@ -328,7 +339,7 @@ def test_reserve_protected_burst_named_holds_index_leaves_bare_free():
     # `ts-1_Name.NEF` holds index 1, not the bare slot → unnamed takes bare `ts`.
     dsts = _plan(
         (TS, 0, Path(f"/p/{TS}-1_Elis.NEF")),  # protected (-N_Name → index 1)
-        (TS, 1, Path("/p/DSC_9.NEF")),         # unnamed
+        (TS, 1, Path("/p/DSC_9.NEF")),  # unnamed
     )
     assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
 
@@ -337,7 +348,7 @@ def test_reserve_photographer_named_holds_bare_slot():
     # `ts<xx>_Name.NEF` (photographer suffix) holds the BARE slot → unnamed -0.
     dsts = _plan(
         (TS, 0, Path(f"/p/{TS}en_Anna.NEF")),  # protected (photographer + _Name)
-        (TS, 1, Path("/p/DSC_9.NEF")),         # unnamed
+        (TS, 1, Path("/p/DSC_9.NEF")),  # unnamed
     )
     assert dsts == {"DSC_9.NEF": f"{TS}-0.NEF"}
 
@@ -346,7 +357,7 @@ def test_reserve_photographer_burst_named_holds_index():
     # `ts-N<xx>_Name.NEF` holds index N, not the bare slot → unnamed takes bare.
     dsts = _plan(
         (TS, 0, Path(f"/p/{TS}-1en_Anna.NEF")),  # protected (-N + photographer)
-        (TS, 1, Path("/p/DSC_9.NEF")),           # unnamed
+        (TS, 1, Path("/p/DSC_9.NEF")),  # unnamed
     )
     assert dsts == {"DSC_9.NEF": f"{TS}.NEF"}
 
@@ -354,9 +365,9 @@ def test_reserve_photographer_burst_named_holds_index():
 def test_reserve_mixed_named_slots_push_unnamed_to_lowest_free():
     # Bare slot held by `ts_Elis`, index 1 held by `ts-1_Alva` → lowest free is 0.
     dsts = _plan(
-        (TS, 0, Path(f"/p/{TS}_Elis.NEF")),     # bare slot
-        (TS, 1, Path(f"/p/{TS}-1_Alva.NEF")),   # index 1
-        (TS, 2, Path("/p/DSC_9.NEF")),          # unnamed
+        (TS, 0, Path(f"/p/{TS}_Elis.NEF")),  # bare slot
+        (TS, 1, Path(f"/p/{TS}-1_Alva.NEF")),  # index 1
+        (TS, 2, Path("/p/DSC_9.NEF")),  # unnamed
     )
     assert dsts == {"DSC_9.NEF": f"{TS}-0.NEF"}
 
@@ -364,10 +375,10 @@ def test_reserve_mixed_named_slots_push_unnamed_to_lowest_free():
 def test_reserve_multiple_unnamed_skip_occupied_burst_slots():
     # Two protected burst files + two unnamed: unnamed get the next free indices.
     dsts = _plan(
-        (TS, 0, Path(f"/p/{TS}-0.NEF")),   # protected
-        (TS, 1, Path(f"/p/{TS}-1.NEF")),   # protected
-        (TS, 2, Path("/p/DSC_A.NEF")),     # unnamed
-        (TS, 3, Path("/p/DSC_B.NEF")),     # unnamed
+        (TS, 0, Path(f"/p/{TS}-0.NEF")),  # protected
+        (TS, 1, Path(f"/p/{TS}-1.NEF")),  # protected
+        (TS, 2, Path("/p/DSC_A.NEF")),  # unnamed
+        (TS, 3, Path("/p/DSC_B.NEF")),  # unnamed
     )
     assert dsts == {"DSC_A.NEF": f"{TS}-2.NEF", "DSC_B.NEF": f"{TS}-3.NEF"}
 
@@ -375,9 +386,9 @@ def test_reserve_multiple_unnamed_skip_occupied_burst_slots():
 def test_reserve_bare_protected_with_two_unnamed():
     # Protected bare `ts.NEF` + two unnamed → both go to burst, distinct & free.
     dsts = _plan(
-        (TS, 0, Path(f"/p/{TS}.NEF")),     # protected (bare)
-        (TS, 1, Path("/p/DSC_A.NEF")),     # unnamed
-        (TS, 2, Path("/p/DSC_B.NEF")),     # unnamed
+        (TS, 0, Path(f"/p/{TS}.NEF")),  # protected (bare)
+        (TS, 1, Path("/p/DSC_A.NEF")),  # unnamed
+        (TS, 2, Path("/p/DSC_B.NEF")),  # unnamed
     )
     assert dsts == {"DSC_A.NEF": f"{TS}-0.NEF", "DSC_B.NEF": f"{TS}-1.NEF"}
 
@@ -385,10 +396,13 @@ def test_reserve_bare_protected_with_two_unnamed():
 def test_include_named_true_ignores_reservation():
     # With include_named the protected file is renamed too (old behavior): both
     # share the timestamp, so both are burst-numbered, no reservation carve-out.
-    renames = compute_renames([
-        (TS, 0, Path(f"/p/{TS}-0.NEF")),
-        (TS, 1, Path("/p/DSC_9.NEF")),
-    ], include_named=True)
+    renames = compute_renames(
+        [
+            (TS, 0, Path(f"/p/{TS}-0.NEF")),
+            (TS, 1, Path("/p/DSC_9.NEF")),
+        ],
+        include_named=True,
+    )
     dsts = {src.name: dst.name for src, dst, _ in renames}
     assert dsts == {"DSC_9.NEF": f"{TS}-1.NEF"}  # ts-0 is the existing file's no-op target
 
@@ -478,7 +492,8 @@ async def test_restore_names_basic(tmp_path):
     res = await svc.restore_names_execute(roots=[str(tmp_path)])
     # Both the NEF and its .xmp sidecar are moved to the confirmed stem.
     assert {r["to"] for r in res["renamed"]} == {
-        "260713_110145_ArvidW,_Elis.NEF", "260713_110145_ArvidW,_Elis.xmp",
+        "260713_110145_ArvidW,_Elis.NEF",
+        "260713_110145_ArvidW,_Elis.xmp",
     }
     assert (tmp_path / "260713_110145_ArvidW,_Elis.NEF").exists()
     assert (tmp_path / "260713_110145_ArvidW,_Elis.xmp").exists()
@@ -492,10 +507,13 @@ async def test_restore_names_twin_disambiguation(tmp_path):
     ha, hb = _sha1_bytes(b"TWIN-A"), _sha1_bytes(b"TWIN-B")
 
     svc = RenameNefService()
-    synced = _stub_db(svc, {
-        ha: "260713_112041_Elis.NEF",
-        hb: "260713_112041_Elis.NEF",
-    })
+    synced = _stub_db(
+        svc,
+        {
+            ha: "260713_112041_Elis.NEF",
+            hb: "260713_112041_Elis.NEF",
+        },
+    )
 
     res = await svc.restore_names_execute(roots=[str(tmp_path)])
     assert res["errors"] == []
@@ -510,8 +528,8 @@ async def test_restore_names_twin_disambiguation(tmp_path):
 
 @pytest.mark.asyncio
 async def test_restore_names_already_correct_and_no_record(tmp_path):
-    (tmp_path / "260713_110145_Elis.NEF").write_bytes(b"OK")   # already correct
-    (tmp_path / "random.NEF").write_bytes(b"NR")               # no DB record
+    (tmp_path / "260713_110145_Elis.NEF").write_bytes(b"OK")  # already correct
+    (tmp_path / "random.NEF").write_bytes(b"NR")  # no DB record
     h_ok = _sha1_bytes(b"OK")
 
     svc = RenameNefService()

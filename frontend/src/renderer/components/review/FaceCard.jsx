@@ -23,22 +23,39 @@ import { t } from '../../../i18n/index.js';
  * @returns {string}
  */
 function prefillName(face) {
-  if (face.match_case !== 'name' && face.match_case !== 'uncertain_name') return '';
+  if (face.match_case !== 'name' && face.match_case !== 'uncertain_name')
+    return '';
   const suggestion = resolveSuggestion(face);
   if (!suggestion || suggestion.isIgnore) return '';
   return suggestion.name;
 }
 
-export function FaceCard({ face, index, isActive, imagePath, people, cardRef, inputRef, onSelect, onConfirm, onIgnore, onUnconfirm, maxAlternatives, onSelectAlternative, clearInputTrigger }) {
+export function FaceCard({
+  face,
+  index,
+  isActive,
+  imagePath,
+  people,
+  cardRef,
+  inputRef,
+  onSelect,
+  onConfirm,
+  onIgnore,
+  onUnconfirm,
+  maxAlternatives,
+  onSelectAlternative,
+  clearInputTrigger,
+}) {
   const initialValue = prefillName(face);
   const [inputValue, setInputValue] = useState(initialValue);
   const [typedValue, setTypedValue] = useState(initialValue);
 
   // Use cached thumbnail
-  const { url: thumbnailUrl, loading: thumbnailLoading, error: thumbnailError } = useThumbnail(
-    imagePath,
-    face.bounding_box
-  );
+  const {
+    url: thumbnailUrl,
+    loading: thumbnailLoading,
+    error: thumbnailError,
+  } = useThumbnail(imagePath, face.bounding_box);
 
   const topAlternativeName = face.match_alternatives?.[0]?.name;
   React.useEffect(() => {
@@ -47,7 +64,7 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
     setTypedValue(newValue);
     // topAlternativeName drives prefillName alongside match_case; listed so a
     // changed suggestion re-syncs the input.
-  }, [face.face_id, face.match_case, topAlternativeName]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [face.face_id, face.match_case, topAlternativeName]);
 
   React.useEffect(() => {
     if (clearInputTrigger > 0) {
@@ -58,11 +75,12 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
 
   const filteredPeople = React.useMemo(
     () => rank(typedValue, people),
-    [typedValue, people]
+    [typedValue, people],
   );
 
   // Determine if this is a probable-ignore case
-  const isProbableIgnore = face.match_case === 'ign' || face.match_case === 'uncertain_ign';
+  const isProbableIgnore =
+    face.match_case === 'ign' || face.match_case === 'uncertain_ign';
 
   // Name shown in the uncertain badges — from the shared resolver so it
   // matches what an accept would apply (badges only render for unconfirmed).
@@ -74,8 +92,10 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
     face.is_rejected ? 'rejected' : '',
     face.is_manual ? 'manual' : '',
     isProbableIgnore && !face.is_confirmed ? 'probable-ignore' : '',
-    isActive ? 'active' : ''
-  ].filter(Boolean).join(' ');
+    isActive ? 'active' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const handleDoubleClick = (e) => {
     if (face.is_confirmed && onUnconfirm) {
@@ -85,7 +105,12 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
   };
 
   return (
-    <div ref={cardRef} className={cardClass} onClick={onSelect} onDoubleClick={handleDoubleClick}>
+    <div
+      ref={cardRef}
+      className={cardClass}
+      onClick={onSelect}
+      onDoubleClick={handleDoubleClick}
+    >
       <div className="face-number">{index + 1}</div>
 
       <div className="face-thumbnail">
@@ -107,7 +132,9 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
           <div className="match-case manual">{t('review.badges.manual')}</div>
         )}
         {face.match_case === 'ign' && !face.is_confirmed && (
-          <div className="match-case probable-ignore">{t('review.badges.probableIgnore')}</div>
+          <div className="match-case probable-ignore">
+            {t('review.badges.probableIgnore')}
+          </div>
         )}
         {face.match_case === 'uncertain_ign' && !face.is_confirmed && (
           <div className="match-case uncertain">
@@ -128,32 +155,40 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
         {face.disambiguated && !face.is_confirmed && (
           <div
             className="match-case twin-disambig"
-            title={t('review.twinDisambig.title', { between: face.disambiguated.between.join(' / ') })}
+            title={t('review.twinDisambig.title', {
+              between: face.disambiguated.between.join(' / '),
+            })}
           >
-            {t('review.twinDisambig.label', { chosen: face.disambiguated.chosen })}
+            {t('review.twinDisambig.label', {
+              chosen: face.disambiguated.chosen,
+            })}
           </div>
         )}
       </div>
 
       {/* Match alternatives - only shown on active unconfirmed face */}
-      {isActive && !face.is_confirmed && face.match_alternatives?.length > 0 && (
-        <div className="face-alternatives">
-          {face.match_alternatives.slice(0, maxAlternatives || 5).map((alt, idx) => (
-            <div
-              key={idx}
-              className={`alt-chip ${idx === 0 ? 'recommended' : ''} ${alt.is_ignored ? 'ignored' : ''}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelectAlternative?.(alt.name);
-              }}
-            >
-              <span className="kbd">{idx + 1}</span>
-              <span className="alt-name">{alt.name}</span>
-              <span className="alt-conf">{alt.confidence}%</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {isActive &&
+        !face.is_confirmed &&
+        face.match_alternatives?.length > 0 && (
+          <div className="face-alternatives">
+            {face.match_alternatives
+              .slice(0, maxAlternatives || 5)
+              .map((alt, idx) => (
+                <div
+                  key={idx}
+                  className={`alt-chip ${idx === 0 ? 'recommended' : ''} ${alt.is_ignored ? 'ignored' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectAlternative?.(alt.name);
+                  }}
+                >
+                  <span className="kbd">{idx + 1}</span>
+                  <span className="alt-name">{alt.name}</span>
+                  <span className="alt-conf">{alt.confidence}%</span>
+                </div>
+              ))}
+          </div>
+        )}
 
       <div className="face-actions">
         {!face.is_confirmed ? (
@@ -184,9 +219,13 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
             title={t('review.undoTitle')}
           >
             {face.is_rejected ? (
-              <><Icon name="block" size={12} /> {t('review.ignoredBadge')}</>
+              <>
+                <Icon name="block" size={12} /> {t('review.ignoredBadge')}
+              </>
             ) : (
-              <><Icon name="check" size={12} /> {face.person_name}</>
+              <>
+                <Icon name="check" size={12} /> {face.person_name}
+              </>
             )}
           </div>
         )}

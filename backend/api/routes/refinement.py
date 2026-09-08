@@ -24,6 +24,7 @@ router = APIRouter()
 
 class DistanceStats(BaseModel):
     """Statistics for distances in a preview."""
+
     min_dist: float
     max_dist: float
     mean_dist: float
@@ -32,6 +33,7 @@ class DistanceStats(BaseModel):
 
 class PreviewEntry(BaseModel):
     """Preview result for one person."""
+
     person: str
     total: int
     keep: int
@@ -43,6 +45,7 @@ class PreviewEntry(BaseModel):
 
 class PreviewSummary(BaseModel):
     """Summary of preview results."""
+
     total_people: int
     affected_people: int
     total_remove: int
@@ -50,12 +53,14 @@ class PreviewSummary(BaseModel):
 
 class PreviewResponse(BaseModel):
     """Response for preview endpoint."""
+
     preview: list[PreviewEntry]
     summary: PreviewSummary
 
 
 class ApplyRequest(BaseModel):
     """Request to apply filtering."""
+
     mode: str = "std"
     persons: list[str] | None = None
     std_threshold: float = 2.0
@@ -68,6 +73,7 @@ class ApplyRequest(BaseModel):
 
 class ApplyResponse(BaseModel):
     """Response for apply endpoint."""
+
     status: str
     dry_run: bool
     removed: int
@@ -76,12 +82,14 @@ class ApplyResponse(BaseModel):
 
 class RepairShapesRequest(BaseModel):
     """Request to repair shapes."""
+
     persons: list[str] | None = None
     dry_run: bool = False
 
 
 class RepairedEntry(BaseModel):
     """Details of shape repair for one person."""
+
     person: str
     removed: int
     total: int
@@ -91,6 +99,7 @@ class RepairedEntry(BaseModel):
 
 class RepairShapesResponse(BaseModel):
     """Response for repair-shapes endpoint."""
+
     status: str
     dry_run: bool
     total_removed: int
@@ -99,11 +108,13 @@ class RepairShapesResponse(BaseModel):
 
 class RemoveDlibRequest(BaseModel):
     """Request to remove dlib encodings."""
+
     dry_run: bool = False
 
 
 class RemoveDlibResponse(BaseModel):
     """Response for remove-dlib endpoint."""
+
     status: str
     dry_run: bool
     total_removed: int
@@ -122,7 +133,7 @@ async def preview_refinement(
     cluster_dist: float = Query(0.35, description="Max cosine distance from centroid"),
     cluster_min: int = Query(6, description="Minimum cluster size"),
     mahalanobis_threshold: float = Query(3.0, description="Mahalanobis distance threshold"),
-    min_encodings: int = Query(8, description="Skip filtering if fewer encodings")
+    min_encodings: int = Query(8, description="Skip filtering if fewer encodings"),
 ):
     """
     Preview what encodings would be removed.
@@ -145,7 +156,7 @@ async def preview_refinement(
             cluster_dist=cluster_dist,
             cluster_min=cluster_min,
             mahalanobis_threshold=mahalanobis_threshold,
-            min_encodings=min_encodings
+            min_encodings=min_encodings,
         )
 
         # Convert preview entries
@@ -158,14 +169,11 @@ async def preview_refinement(
                 remove=p["remove"],
                 remove_indices=p["remove_indices"],
                 reason=p["reason"],
-                stats=DistanceStats(**p["stats"]) if p.get("stats") else None
+                stats=DistanceStats(**p["stats"]) if p.get("stats") else None,
             )
             preview_entries.append(entry)
 
-        return PreviewResponse(
-            preview=preview_entries,
-            summary=PreviewSummary(**result["summary"])
-        )
+        return PreviewResponse(preview=preview_entries, summary=PreviewSummary(**result["summary"]))
 
     except Exception as e:
         logger.exception(f"[Refinement] Error in preview: {e}")
@@ -195,7 +203,7 @@ async def apply_refinement(request: ApplyRequest):
             cluster_min=request.cluster_min,
             mahalanobis_threshold=request.mahalanobis_threshold,
             min_encodings=request.min_encodings,
-            dry_run=request.dry_run
+            dry_run=request.dry_run,
         )
         return ApplyResponse(**result)
 
@@ -218,14 +226,13 @@ async def repair_shapes(request: RepairShapesRequest):
     try:
         logger.info(f"[Refinement] Repair shapes: dry_run={request.dry_run}")
         result = await refinement_service.repair_shapes(
-            persons=request.persons,
-            dry_run=request.dry_run
+            persons=request.persons, dry_run=request.dry_run
         )
         return RepairShapesResponse(
             status=result["status"],
             dry_run=result["dry_run"],
             total_removed=result["total_removed"],
-            repaired=[RepairedEntry(**r) for r in result["repaired"]]
+            repaired=[RepairedEntry(**r) for r in result["repaired"]],
         )
 
     except ValueError as e:
@@ -248,9 +255,7 @@ async def remove_dlib_encodings(request: RemoveDlibRequest):
     """
     try:
         logger.info(f"[Refinement] Remove dlib: dry_run={request.dry_run}")
-        result = await refinement_service.remove_dlib_encodings(
-            dry_run=request.dry_run
-        )
+        result = await refinement_service.remove_dlib_encodings(dry_run=request.dry_run)
         return RemoveDlibResponse(**result)
 
     except Exception as e:

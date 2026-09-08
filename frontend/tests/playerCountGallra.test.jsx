@@ -8,20 +8,22 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 // still held in lastParamsRef. (The per-player row click keeps last-count params
 // because a row belongs to that result; only the unfiltered button follows input.)
 
-const { postMock, getMock, emitMock, waitForListenersMock } = vi.hoisted(() => ({
-  postMock: vi.fn().mockResolvedValue({
-    total_images: 0,
-    files_resolved: 0,
-    players: [],
-    excluded: null,
-    baseline: 0,
-    baseline_method: 'median',
-    time_range: null,
+const { postMock, getMock, emitMock, waitForListenersMock } = vi.hoisted(
+  () => ({
+    postMock: vi.fn().mockResolvedValue({
+      total_images: 0,
+      files_resolved: 0,
+      players: [],
+      excluded: null,
+      baseline: 0,
+      baseline_method: 'median',
+      time_range: null,
+    }),
+    getMock: vi.fn().mockResolvedValue({}),
+    emitMock: vi.fn(),
+    waitForListenersMock: vi.fn().mockResolvedValue(true),
   }),
-  getMock: vi.fn().mockResolvedValue({}),
-  emitMock: vi.fn(),
-  waitForListenersMock: vi.fn().mockResolvedValue(true),
-}));
+);
 
 vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
   useBackend: () => ({ api: { post: postMock, get: getMock } }),
@@ -38,7 +40,11 @@ vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
 }));
 
 import { PlayerCountModule } from '../src/renderer/components/PlayerCountModule.jsx';
-import { setScanScope, signalExternalLoad, takeExternalLoad } from '../src/renderer/shared/scanScope.js';
+import {
+  setScanScope,
+  signalExternalLoad,
+  takeExternalLoad,
+} from '../src/renderer/shared/scanScope.js';
 import { clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
 const countCalls = () =>

@@ -20,18 +20,34 @@ import { namesInBasename } from './culling-names.js';
 // thumbnails stay crisp; the CSS min column width is smaller (see CullingModule.css).
 const THUMB_FETCH_SIZE = 256;
 
-function GridCell({ file, index, selected, highlighted, dimmed, onSelect, onOpen, onContextMenu }) {
+function GridCell({
+  file,
+  index,
+  selected,
+  highlighted,
+  dimmed,
+  onSelect,
+  onOpen,
+  onContextMenu,
+}) {
   // Fingerprint (mtime+size, from the backend list payload) so an in-place
   // re-export busts this cell's cached thumbnail — mirrors the loupe's
   // `${mtimeMs}-${size}`. Absent field → no fingerprint (prior behavior).
-  const fingerprint = file.mtime_ms != null ? `${file.mtime_ms}-${file.size}` : undefined;
-  const { url, error } = useGridThumbnail(file.path, THUMB_FETCH_SIZE, fingerprint);
+  const fingerprint =
+    file.mtime_ms != null ? `${file.mtime_ms}-${file.size}` : undefined;
+  const { url, error } = useGridThumbnail(
+    file.path,
+    THUMB_FETCH_SIZE,
+    fingerprint,
+  );
   const cls = [
     'culling-grid-cell',
     selected ? 'selected' : '',
     highlighted ? 'highlight' : '',
     dimmed ? 'dimmed' : '',
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div
@@ -47,7 +63,13 @@ function GridCell({ file, index, selected, highlighted, dimmed, onSelect, onOpen
       title={file.basename}
     >
       {url ? (
-        <img className="culling-grid-img" src={url} alt={file.basename} loading="lazy" draggable={false} />
+        <img
+          className="culling-grid-img"
+          src={url}
+          alt={file.basename}
+          loading="lazy"
+          draggable={false}
+        />
       ) : (
         <div className="culling-grid-placeholder">{error ? '⚠' : ''}</div>
       )}
@@ -87,7 +109,9 @@ export function CullingGrid({
       tabIndex={0}
       role="listbox"
       aria-label={t('culling.grid.overviewLabel')}
-      aria-activedescendant={currentIndex >= 0 ? `culling-grid-cell-${currentIndex}` : undefined}
+      aria-activedescendant={
+        currentIndex >= 0 ? `culling-grid-cell-${currentIndex}` : undefined
+      }
     >
       {files.map((f, i) => {
         // Prefer the backend-parsed names (kept in sync with the stats column);

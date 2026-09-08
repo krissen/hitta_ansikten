@@ -40,7 +40,9 @@ export function SuffixDialog({ initialValue, originalName, onSave, onCancel }) {
   const dotIdx = originalName.lastIndexOf('.');
   const stem = dotIdx > 0 ? originalName.slice(0, dotIdx) : originalName;
   const ext = dotIdx > 0 ? originalName.slice(dotIdx) : '';
-  const previewName = normalized ? `${stem}_${normalized}${ext}` : `${stem}${ext}`;
+  const previewName = normalized
+    ? `${stem}_${normalized}${ext}`
+    : `${stem}${ext}`;
 
   const footer = (
     <>
@@ -76,7 +78,9 @@ export function SuffixDialog({ initialValue, originalName, onSave, onCancel }) {
         {t('review.manualSuffix.previewLabel')} <strong>{previewName}</strong>
       </div>
       <div className="modal__hint">
-        {t('review.manualSuffix.hint')} · <Kbd>Enter</Kbd> {t('review.dialog.hintConfirms')} · <Kbd>Esc</Kbd> {t('review.dialog.hintCancels')}
+        {t('review.manualSuffix.hint')} · <Kbd>Enter</Kbd>{' '}
+        {t('review.dialog.hintConfirms')} · <Kbd>Esc</Kbd>{' '}
+        {t('review.dialog.hintCancels')}
       </div>
     </Modal>
   );

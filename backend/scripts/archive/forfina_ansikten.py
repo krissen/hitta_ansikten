@@ -52,9 +52,7 @@ def cluster_filter(
         return np.ones_like(inlier_mask, dtype=bool), dists
 
 
-def shape_repair(
-    known_faces: dict[str, list[dict | np.ndarray]], simulate: bool = False
-) -> bool:
+def shape_repair(known_faces: dict[str, list[dict | np.ndarray]], simulate: bool = False) -> bool:
     changed = False
     print("--- Shape-reparation ---")
     for name, entries in list(known_faces.items()):
@@ -81,9 +79,7 @@ def shape_repair(
             )
             print(msg)
             if not simulate:
-                known_faces[name] = [
-                    e for i, e in enumerate(entries) if i not in bad_idxs
-                ]
+                known_faces[name] = [e for i, e in enumerate(entries) if i not in bad_idxs]
                 changed = True
     return changed
 
@@ -161,11 +157,7 @@ def main() -> None:
         encs = [
             e["encoding"] if isinstance(e, dict) and "encoding" in e else e
             for e in entries
-            if (
-                isinstance(e, dict)
-                and "encoding" in e
-                and isinstance(e["encoding"], np.ndarray)
-            )
+            if (isinstance(e, dict) and "encoding" in e and isinstance(e["encoding"], np.ndarray))
             or isinstance(e, np.ndarray)
         ]
         if len(encs) < args.min_encodings:

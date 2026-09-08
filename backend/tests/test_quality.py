@@ -36,6 +36,7 @@ def _flat_crop(size=112, value=127):
 # Sharpness (variance of Laplacian)
 # --------------------------------------------------------------------------
 
+
 def test_sharp_crop_has_higher_sharpness_than_blurred():
     sharp = _sharp_crop()
     blurred = cv2.GaussianBlur(sharp, (0, 0), sigmaX=6)
@@ -62,6 +63,7 @@ def test_crop_sharpness_none_for_degenerate_crops():
 # --------------------------------------------------------------------------
 # Gate decision (all-must-pass)
 # --------------------------------------------------------------------------
+
 
 def _cfg(**kw):
     base = dict(enabled=True, min_confidence=0.60, min_crop_px=60, min_sharpness=15.0)
@@ -110,14 +112,14 @@ def test_none_confidence_does_not_gate_but_other_signals_still_apply():
 
 
 def test_disabled_gate_passes_everything():
-    r = evaluate(QualitySignals(det_score=0.0, crop_px=1, sharpness=0.0),
-                 _cfg(enabled=False))
+    r = evaluate(QualitySignals(det_score=0.0, crop_px=1, sharpness=0.0), _cfg(enabled=False))
     assert r.passed and r.failures == []
 
 
 # --------------------------------------------------------------------------
 # Config plumbing
 # --------------------------------------------------------------------------
+
 
 def test_gateconfig_defaults_when_key_absent():
     cfg = GateConfig.from_config({})
@@ -128,12 +130,16 @@ def test_gateconfig_defaults_when_key_absent():
 
 
 def test_gateconfig_reads_overrides():
-    cfg = GateConfig.from_config({
-        "enrollment_quality": {
-            "enabled": False, "min_confidence": 0.7,
-            "min_crop_px": 100, "min_sharpness": 25,
+    cfg = GateConfig.from_config(
+        {
+            "enrollment_quality": {
+                "enabled": False,
+                "min_confidence": 0.7,
+                "min_crop_px": 100,
+                "min_sharpness": 25,
+            }
         }
-    })
+    )
     assert cfg.enabled is False
     assert cfg.min_confidence == 0.7
     assert cfg.min_crop_px == 100

@@ -46,12 +46,13 @@ def service(tmp_path, monkeypatch):
 
 # ----- separability metric -------------------------------------------------
 
+
 def test_separability_high_for_separable_sets():
     base = _unit(0)
     a = _norm_list(range(1, 6), base=base, jitter=0.02, jseed=1)
     b = _norm_list(range(1, 6), base=base + 0.1 * _unit(99), jitter=0.02, jseed=50)
     acc, margin = _pair_separability(a, b)
-    assert acc >= 0.9          # cleanly separable → different people
+    assert acc >= 0.9  # cleanly separable → different people
     assert margin > 0
 
 
@@ -60,7 +61,7 @@ def test_separability_low_for_overlapping_sets():
     a = _norm_list(range(1, 6), base=base, jitter=0.02, jseed=1)
     b = _norm_list(range(1, 6), base=base, jitter=0.02, jseed=30)
     acc, _ = _pair_separability(a, b)
-    assert acc < 0.75          # indistinguishable → likely the same person
+    assert acc < 0.75  # indistinguishable → likely the same person
 
 
 def test_separability_none_when_too_few_samples():
@@ -97,6 +98,7 @@ def test_separability_bounded_for_many_encodings(monkeypatch):
 
 
 # ----- registry + find_duplicate_people ------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_registry_add_remove_list_roundtrip(service):
@@ -181,7 +183,9 @@ async def test_find_duplicates_excludes_registered_pair(service):
     base = _unit(0)
     service.known_faces = {
         "Wilmer": [_entry(v) for v in _norm_list(range(1, 6), base=base, jitter=0.02, jseed=1)],
-        "Maximilian": [_entry(v) for v in _norm_list(range(1, 6), base=base, jitter=0.02, jseed=30)],
+        "Maximilian": [
+            _entry(v) for v in _norm_list(range(1, 6), base=base, jitter=0.02, jseed=30)
+        ],
     }
     before = await service.find_duplicate_people(0.35)
     assert any({p["name_a"], p["name_b"]} == {"Wilmer", "Maximilian"} for p in before["pairs"])
@@ -219,6 +223,7 @@ async def test_find_duplicates_flags_likely_distinct_and_sorts_last(service):
 
 
 # ----- registry stays in sync with name changes ----------------------------
+
 
 @pytest.mark.asyncio
 async def test_rename_rewrites_distinct_pair(service):
@@ -306,9 +311,7 @@ async def test_merge_transfers_distinct_pair_to_target(service):
     }
     await service.add_distinct_pair("A", "C")
     await service.merge_people(["A"], "B")  # A vanishes into B
-    assert (await service.list_distinct_pairs())["pairs"] == [
-        {"name_a": "B", "name_b": "C"}
-    ]
+    assert (await service.list_distinct_pairs())["pairs"] == [{"name_a": "B", "name_b": "C"}]
 
 
 @pytest.mark.asyncio

@@ -161,8 +161,8 @@ class MatchingIndex:
 
             return version, known_lenient, known_strict, ignored_matrix, known_hardneg
 
-        version, known_lenient, known_strict, ignored_matrix, known_hardneg = (
-            self._store.read(build)
+        version, known_lenient, known_strict, ignored_matrix, known_hardneg = self._store.read(
+            build
         )
         self._known_lenient = known_lenient
         self._known_strict = known_strict

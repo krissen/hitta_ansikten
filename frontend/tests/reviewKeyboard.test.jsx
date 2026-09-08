@@ -38,7 +38,12 @@ function makeHandlers() {
 
 /** Dispatch a keydown on document and report whether default was prevented. */
 function press(key, init = {}) {
-  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+  const event = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true,
+    ...init,
+  });
   document.dispatchEvent(event);
   return event;
 }

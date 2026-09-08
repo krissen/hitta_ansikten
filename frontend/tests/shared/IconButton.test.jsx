@@ -54,7 +54,12 @@ describe('IconButton', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
 
     rerender(
-      <IconButton icon="refresh" label="Uppdatera" onClick={onClick} disabled />,
+      <IconButton
+        icon="refresh"
+        label="Uppdatera"
+        onClick={onClick}
+        disabled
+      />,
     );
     const btn = getByRole('button');
     expect(btn.disabled).toBe(true);

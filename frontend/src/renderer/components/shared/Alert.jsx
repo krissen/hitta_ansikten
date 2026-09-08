@@ -32,11 +32,9 @@ export function Alert({
   children,
   ...rest
 }) {
-  const classes = [
-    'alert',
-    `alert--${variant}`,
-    className,
-  ].filter(Boolean).join(' ');
+  const classes = ['alert', `alert--${variant}`, className]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div
@@ -44,7 +42,11 @@ export function Alert({
       role={variant === 'error' ? 'alert' : 'status'}
       {...rest}
     >
-      {icon && <span className="alert__icon" aria-hidden="true">{icon}</span>}
+      {icon && (
+        <span className="alert__icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
       <span className="alert__body">{children}</span>
       {onDismiss && (
         <IconButton

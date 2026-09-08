@@ -32,6 +32,7 @@ def _service(config=None):
     svc.processed_files = []
     svc.store = InMemoryDBStore(svc)
     from collections import OrderedDict
+
     svc.encoding_cache = OrderedDict()
     svc._gate_config = GateConfig.from_config(svc.config)
     return svc
@@ -43,14 +44,17 @@ _BAD = {"det_score": 0.40, "crop_px": 200, "sharpness": 400.0}
 
 def _cache(svc, face_id, quality):
     svc.encoding_cache[face_id] = (
-        np.array([1.0, 2.0, 3.0]), {"x": 0, "y": 0, "width": 200, "height": 200},
-        "hash123", quality,
+        np.array([1.0, 2.0, 3.0]),
+        {"x": 0, "y": 0, "width": 200, "height": 200},
+        "hash123",
+        quality,
     )
 
 
 # --------------------------------------------------------------------------
 # Single confirm
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_good_face_is_enrolled():
@@ -98,18 +102,17 @@ async def test_gated_correction_still_records_hard_negative():
     svc = _service()
     _cache(svc, "face_0", _BAD)
 
-    out = await svc.confirm_identity(
-        "face_0", "Bob", "/x.NEF", suggested_name="Alice"
-    )
+    out = await svc.confirm_identity("face_0", "Bob", "/x.NEF", suggested_name="Alice")
 
     assert out["enrolled"] is False
-    assert "Bob" not in svc.known_faces           # positive enrollment withheld
+    assert "Bob" not in svc.known_faces  # positive enrollment withheld
     assert len(svc.hard_negatives["Alice"]) == 1  # match-side curation untouched
 
 
 # --------------------------------------------------------------------------
 # Batch confirm (_confirm_identity_nosave)
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_batch_confirm_gates_bad_enrolls_good():
@@ -127,12 +130,13 @@ async def test_batch_confirm_gates_bad_enrolls_good():
 
     assert result["confirmed_count"] == 2  # both confirmations succeed
     assert len(svc.known_faces["Alice"]) == 1  # good enrolled
-    assert "Bob" not in svc.known_faces        # bad gated
+    assert "Bob" not in svc.known_faces  # bad gated
 
 
 # --------------------------------------------------------------------------
 # Manual faces bypass the gate (no encoding, no crop signals)
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_manual_face_bypasses_gate(tmp_path):

@@ -27,6 +27,7 @@ from core import db as faceid_db
 # Fixtures / helpers
 # --------------------------------------------------------------------------
 
+
 @pytest.fixture
 def db_dir(tmp_path, monkeypatch):
     """Redirect every core.db path constant into a temp dir."""
@@ -116,6 +117,7 @@ def _wait_for(predicate, timeout=2.0, interval=0.01):
 # 1. Initial load
 # --------------------------------------------------------------------------
 
+
 def test_initial_snapshot_loads_from_disk(db_dir, make_store):
     _seed(known={"Alice": [_entry([1.0, 2.0])]}, processed=[{"name": "a.NEF", "hash": "h1"}])
     store = make_store()
@@ -137,6 +139,7 @@ def test_snapshot_empty_db(db_dir, make_store):
 # --------------------------------------------------------------------------
 # 2. Snapshot stability — no reload when mtimes unchanged
 # --------------------------------------------------------------------------
+
 
 def test_repeated_snapshot_does_not_reload(db_dir, monkeypatch, make_store):
     _seed(known={"Alice": [_entry([1.0, 2.0])]})
@@ -165,6 +168,7 @@ def test_repeated_snapshot_does_not_reload(db_dir, monkeypatch, make_store):
 # --------------------------------------------------------------------------
 # 3. External-write invalidation
 # --------------------------------------------------------------------------
+
 
 def test_external_write_triggers_reload(db_dir, make_store):
     _seed(known={"Alice": [_entry([1.0, 2.0])]})
@@ -210,6 +214,7 @@ def test_newly_created_file_invalidates(db_dir, make_store):
     v = store.snapshot().version
     # An external writer now creates ignored.pkl (mtime None -> int).
     import pickle
+
     with open(faceid_db.IGNORED_PATH, "wb") as f:
         pickle.dump([_entry([0.5])], f)
     snap = store.snapshot()
@@ -227,9 +232,7 @@ def test_same_mtime_different_size_invalidates(db_dir, make_store):
     recorded = faceid_db.ENCODING_PATH.stat()
 
     # External rewrite with different content (different size), mtime restored.
-    faceid_db.save_database(
-        {"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]}, [], {}, []
-    )
+    faceid_db.save_database({"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]}, [], {}, [])
     os.utime(
         faceid_db.ENCODING_PATH,
         ns=(recorded.st_atime_ns, recorded.st_mtime_ns),
@@ -244,6 +247,7 @@ def test_same_mtime_different_size_invalidates(db_dir, make_store):
 # --------------------------------------------------------------------------
 # 4. mutate: bumps version, schedules save
 # --------------------------------------------------------------------------
+
 
 def test_mutate_bumps_version_and_saves(db_dir, fast_debounce, make_store):
     _seed(known={"Alice": [_entry([1.0])]})
@@ -289,6 +293,7 @@ def test_mutate_on_fresh_store_loads_first(db_dir, fast_debounce, make_store):
 # --------------------------------------------------------------------------
 # 5. Leading coalesce (matches detection_service's _schedule_save)
 # --------------------------------------------------------------------------
+
 
 def test_leading_coalesce_single_save_after_first_mutation(db_dir, monkeypatch, make_store):
     """Two mutates within the window -> ONE save, ~window after the FIRST."""
@@ -350,14 +355,13 @@ def test_sustained_mutation_still_saves_periodically(db_dir, monkeypatch, make_s
         store.mutate(lambda k, i, h, p: p.append(1))
         time.sleep(0.01)
 
-    assert saves["n"] >= 2, (
-        f"expected periodic saves during sustained mutation, got {saves['n']}"
-    )
+    assert saves["n"] >= 2, f"expected periodic saves during sustained mutation, got {saves['n']}"
 
 
 # --------------------------------------------------------------------------
 # 6. flush: cancels timer, saves immediately
 # --------------------------------------------------------------------------
+
 
 def test_flush_saves_immediately(db_dir, monkeypatch, make_store):
     # Long debounce so the timer would NOT have fired yet.
@@ -392,7 +396,8 @@ def test_flush_noop_when_clean(db_dir, monkeypatch, make_store):
 
     saves = {"n": 0}
     monkeypatch.setattr(
-        db_store_mod.db, "save_database",
+        db_store_mod.db,
+        "save_database",
         lambda *a, **kw: saves.__setitem__("n", saves["n"] + 1),
     )
     store.flush()
@@ -402,6 +407,7 @@ def test_flush_noop_when_clean(db_dir, monkeypatch, make_store):
 # --------------------------------------------------------------------------
 # 7. Own save does NOT trigger a false external reload
 # --------------------------------------------------------------------------
+
 
 def test_own_save_does_not_trigger_reload(db_dir, monkeypatch, make_store):
     monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 0.05)
@@ -430,6 +436,7 @@ def test_own_save_does_not_trigger_reload(db_dir, monkeypatch, make_store):
 # --------------------------------------------------------------------------
 # 8. Concurrency: no lost updates
 # --------------------------------------------------------------------------
+
 
 def test_concurrent_mutations_no_lost_updates(db_dir, monkeypatch, make_store):
     monkeypatch.setattr(db_store_mod, "SAVE_DEBOUNCE_SECONDS", 0.05)
@@ -467,6 +474,7 @@ def test_concurrent_mutations_no_lost_updates(db_dir, monkeypatch, make_store):
 # 9. RLock reentrancy: mutate may call snapshot internally
 # --------------------------------------------------------------------------
 
+
 def test_mutate_can_call_snapshot_reentrantly(db_dir, fast_debounce, make_store):
     _seed(known={"Alice": [_entry([1.0])]})
     store = make_store()
@@ -486,6 +494,7 @@ def test_mutate_can_call_snapshot_reentrantly(db_dir, fast_debounce, make_store)
 # --------------------------------------------------------------------------
 # 10. read(): locked iteration/aggregation over the live collections
 # --------------------------------------------------------------------------
+
 
 def test_read_returns_fn_result(db_dir, make_store):
     _seed(known={"Alice": [_entry([1.0])], "Bob": [_entry([2.0])]})
@@ -541,6 +550,7 @@ def test_read_blocks_concurrent_mutate(db_dir, fast_debounce, make_store):
 # 11. Singleton getter
 # --------------------------------------------------------------------------
 
+
 def test_get_db_store_is_singleton(db_dir, monkeypatch):
     # Reset any store constructed by an earlier test.
     monkeypatch.setattr(db_store_mod, "_store", None)
@@ -553,6 +563,7 @@ def test_get_db_store_is_singleton(db_dir, monkeypatch):
 # --------------------------------------------------------------------------
 # 12. Per-collection dirty-flag saves (E1)
 # --------------------------------------------------------------------------
+
 
 def _spy_only_saves(monkeypatch):
     """Record the ``only`` set passed to each save_database call."""
@@ -577,8 +588,7 @@ def test_dirty_union_coalesced_save_writes_only_touched(db_dir, monkeypatch, mak
     onlys = _spy_only_saves(monkeypatch)
 
     store.mutate(lambda k, i, h, p: k.__setitem__("A", [_entry([1.0])]), touches={"known"})
-    store.mutate(lambda k, i, h, p: p.append({"name": "x.NEF", "hash": "h"}),
-                 touches={"processed"})
+    store.mutate(lambda k, i, h, p: p.append({"name": "x.NEF", "hash": "h"}), touches={"processed"})
 
     assert _wait_for(lambda: len(onlys) >= 1, timeout=2.0)
     time.sleep(0.3)  # ensure no second save for the same burst
@@ -657,12 +667,17 @@ def test_confirm_like_mutation_does_not_touch_ignored(db_dir, monkeypatch, make_
 
     # confirm (no correction): appends an encoding + records processed.
     store.mutate(lambda k, i, h, p: k["Alice"].append(_entry([1.1])), touches={"known"})
-    store.mutate(lambda k, i, h, p: p.append({"name": "b.NEF", "hash": "h2"}),
-                 touches={"processed"})
+    store.mutate(
+        lambda k, i, h, p: p.append({"name": "b.NEF", "hash": "h2"}), touches={"processed"}
+    )
     store.flush()
 
-    assert faceid_db.IGNORED_PATH.stat().st_mtime_ns == ign_before, "ignored.pkl rewritten by confirm"
-    assert faceid_db.HARDNEG_PATH.stat().st_mtime_ns == hn_before, "hardneg.pkl rewritten by confirm"
+    assert faceid_db.IGNORED_PATH.stat().st_mtime_ns == ign_before, (
+        "ignored.pkl rewritten by confirm"
+    )
+    assert faceid_db.HARDNEG_PATH.stat().st_mtime_ns == hn_before, (
+        "hardneg.pkl rewritten by confirm"
+    )
 
 
 def test_partial_save_preserves_external_change_detection(db_dir, monkeypatch, make_store):

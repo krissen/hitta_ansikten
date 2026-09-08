@@ -40,7 +40,9 @@ export function CullingFilterBar({
 }) {
   return (
     <div className="culling-filterbar">
-      <Button variant="secondary" onClick={addFolders}>{t('culling.filterBar.addFolder')}</Button>
+      <Button variant="secondary" onClick={addFolders}>
+        {t('culling.filterBar.addFolder')}
+      </Button>
       <Button variant="secondary" onClick={clearWorkspace} disabled={!canClear}>
         {t('culling.filterBar.clear')}
       </Button>
@@ -79,7 +81,9 @@ export function CullingFilterBar({
       >
         <option value="">{t('culling.filterBar.allPlayers')}</option>
         {players.map((p) => (
-          <option key={p} value={p}>{p}</option>
+          <option key={p} value={p}>
+            {p}
+          </option>
         ))}
       </select>
       <input
@@ -87,17 +91,32 @@ export function CullingFilterBar({
         type="text"
         placeholder={t('culling.filterBar.globPlaceholder')}
         value={glob}
-        onChange={(e) => { setGlob(e.target.value); setPlayer(''); }}
-        onKeyDown={(e) => { if (e.key === 'Enter') runFilter(); }}
+        onChange={(e) => {
+          setGlob(e.target.value);
+          setPlayer('');
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') runFilter();
+        }}
       />
-      <Button variant="primary" onClick={() => runFilter()} disabled={!canFilter || isLoading}>
-        {isLoading ? t('culling.filterBar.loading') : t('culling.filterBar.show')}
+      <Button
+        variant="primary"
+        onClick={() => runFilter()}
+        disabled={!canFilter || isLoading}
+      >
+        {isLoading
+          ? t('culling.filterBar.loading')
+          : t('culling.filterBar.show')}
       </Button>
       <Button
         variant="secondary"
         aria-pressed={viewMode === 'grid'}
         onClick={() => setViewMode((m) => (m === 'grid' ? 'single' : 'grid'))}
-        title={viewMode === 'grid' ? t('culling.filterBar.gridToggleTitle.toSingle') : t('culling.filterBar.gridToggleTitle.toGrid')}
+        title={
+          viewMode === 'grid'
+            ? t('culling.filterBar.gridToggleTitle.toSingle')
+            : t('culling.filterBar.gridToggleTitle.toGrid')
+        }
       >
         {t('culling.filterBar.grid')}
       </Button>

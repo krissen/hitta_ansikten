@@ -26,14 +26,14 @@ describe('usePersistedValue', () => {
   it('reads a stored value through parse on mount', () => {
     localStorage.setItem('k.num', '7');
     const { result } = renderHook(() =>
-      usePersistedValue('k.num', 42, { parse: (raw) => parseInt(raw, 10) })
+      usePersistedValue('k.num', 42, { parse: (raw) => parseInt(raw, 10) }),
     );
     expect(result.current[0]).toBe(7);
   });
 
   it('persists updates via serialize (functional updater supported)', () => {
     const { result } = renderHook(() =>
-      usePersistedValue('k.str', 'a', { serialize: (v) => v.toUpperCase() })
+      usePersistedValue('k.str', 'a', { serialize: (v) => v.toUpperCase() }),
     );
     act(() => result.current[1]((prev) => prev + 'b'));
     expect(result.current[0]).toBe('ab');
@@ -48,7 +48,7 @@ describe('usePersistedValue', () => {
           const v = parseFloat(raw);
           return Number.isFinite(v) ? v : fb;
         },
-      })
+      }),
     );
     expect(result.current[0]).toBe(5);
   });

@@ -128,9 +128,7 @@ def _centroid_from_vecs(vecs: list[np.ndarray]) -> np.ndarray | None:
     return centroid / cnorm
 
 
-def _person_centroid(
-    encodings: list, backend_filter: str | None
-) -> tuple[np.ndarray, int] | None:
+def _person_centroid(encodings: list, backend_filter: str | None) -> tuple[np.ndarray, int] | None:
     """Unit-sphere centroid of a person's encodings + the count used, or None.
 
     Mirrors RefinementService's centroid. See `_usable_unit_vectors` for which
@@ -338,17 +336,20 @@ class ManagementService:
         - processed_files_count: Number of processed files
         - backends_in_use: List of backend names with data
         """
+
         def build(known, ignored, hardneg, processed):
             all_backends = set()
             people = []
             for name, encodings in sorted(known.items()):
                 by_backend = _count_encodings_by_backend(encodings)
                 all_backends.update(by_backend.keys())
-                people.append({
-                    "name": name,
-                    "encoding_count": len(encodings),
-                    "encodings_by_backend": by_backend
-                })
+                people.append(
+                    {
+                        "name": name,
+                        "encoding_count": len(encodings),
+                        "encodings_by_backend": by_backend,
+                    }
+                )
 
             ignored_by_backend = _count_encodings_by_backend(ignored)
             all_backends.update(ignored_by_backend.keys())
@@ -375,6 +376,7 @@ class ManagementService:
         Raises:
         - ValueError if old_name doesn't exist or new_name already exists
         """
+
         def do(known, ignored, hardneg, processed):
             if old_name not in known:
                 raise ValueError(f"Person '{old_name}' not found")
@@ -396,10 +398,7 @@ class ManagementService:
         }
 
     async def merge_people(
-        self,
-        source_names: list[str],
-        target_name: str,
-        backend_filter: str | None = None
+        self, source_names: list[str], target_name: str, backend_filter: str | None = None
     ) -> dict[str, Any]:
         """
         Merge multiple people into target name.
@@ -411,6 +410,7 @@ class ManagementService:
 
         Source people are deleted after merge. Deduplicates by encoding_hash.
         """
+
         def do(known, ignored, hardneg, processed):
             for name in source_names:
                 if name not in known:
@@ -422,7 +422,9 @@ class ManagementService:
             if target_name in known:
                 target_encodings = known[target_name]
                 if backend_filter:
-                    target_encodings = _filter_encodings_by_backend(target_encodings, backend_filter)
+                    target_encodings = _filter_encodings_by_backend(
+                        target_encodings, backend_filter
+                    )
                 encodings.extend(target_encodings)
                 backends_involved.update(_count_encodings_by_backend(target_encodings).keys())
 
@@ -430,7 +432,9 @@ class ManagementService:
                 if name in known:
                     source_encodings = known[name]
                     if backend_filter:
-                        source_encodings = _filter_encodings_by_backend(source_encodings, backend_filter)
+                        source_encodings = _filter_encodings_by_backend(
+                            source_encodings, backend_filter
+                        )
                     encodings.extend(source_encodings)
                     backends_involved.update(_count_encodings_by_backend(source_encodings).keys())
 
@@ -440,12 +444,12 @@ class ManagementService:
             for enc in encodings:
                 enc_hash = None
                 if isinstance(enc, dict):
-                    enc_hash = enc.get('encoding_hash')
+                    enc_hash = enc.get("encoding_hash")
                     # If encoding_hash missing, compute from encoding array
-                    if not enc_hash and 'encoding' in enc:
+                    if not enc_hash and "encoding" in enc:
                         try:
-                            encoding_arr = enc['encoding']
-                            if hasattr(encoding_arr, 'tobytes'):
+                            encoding_arr = enc["encoding"]
+                            if hasattr(encoding_arr, "tobytes"):
                                 enc_hash = hashlib.sha1(encoding_arr.tobytes()).hexdigest()
                         except (AttributeError, ValueError):
                             pass
@@ -464,12 +468,13 @@ class ManagementService:
 
             if backend_filter:
                 existing_other_backend = _filter_encodings_by_backend(
-                    known.get(target_name, []),
-                    None
+                    known.get(target_name, []), None
                 )
                 existing_other_backend = [
-                    e for e in existing_other_backend
-                    if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib") != backend_filter
+                    e
+                    for e in existing_other_backend
+                    if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib")
+                    != backend_filter
                 ]
                 encodings_unique = existing_other_backend + encodings_unique
 
@@ -493,9 +498,13 @@ class ManagementService:
         final_by_backend = _count_encodings_by_backend(encodings_unique)
         warning = None
         if len(backends_involved) > 1:
-            warning = f"Merged encodings from multiple backends: {', '.join(sorted(backends_involved))}"
+            warning = (
+                f"Merged encodings from multiple backends: {', '.join(sorted(backends_involved))}"
+            )
 
-        logger.info(f"[ManagementService] Merged {source_names} into '{target_name}' ({len(encodings_unique)} unique encodings)")
+        logger.info(
+            f"[ManagementService] Merged {source_names} into '{target_name}' ({len(encodings_unique)} unique encodings)"
+        )
 
         return {
             "status": "success",
@@ -516,6 +525,7 @@ class ManagementService:
         usable encoding (e.g. only manual faces) are skipped. Pairs are sorted
         closest-first.
         """
+
         # The store reloads on any external file change, so a read() already
         # sees ground truth (no stale TTL cache). reconcile persists a pruned
         # registry against those live names. Iterating/aggregating under the
@@ -557,20 +567,25 @@ class ManagementService:
                     sep = _pair_separability(vecs_by_name[a], vecs_by_name[b])
                     separability = sep[0] if sep else None
                     margin = sep[1] if sep else None
-                    pairs.append({
-                        "name_a": a,
-                        "name_b": b,
-                        "distance": round(distance, 4),
-                        "count_a": counts[a],
-                        "count_b": counts[b],
-                        "separability": separability,
-                        "margin": margin,
-                        "likely_distinct": separability is not None and separability >= SEPARABILITY_CUTOFF,
-                    })
+                    pairs.append(
+                        {
+                            "name_a": a,
+                            "name_b": b,
+                            "distance": round(distance, 4),
+                            "count_a": counts[a],
+                            "count_b": counts[b],
+                            "separability": separability,
+                            "margin": margin,
+                            "likely_distinct": separability is not None
+                            and separability >= SEPARABILITY_CUTOFF,
+                        }
+                    )
 
             # True merge candidates first (closest first); separable "look-alike"
             # pairs sink to the bottom.
-            pairs.sort(key=lambda p: (p["likely_distinct"], p["distance"], p["name_a"], p["name_b"]))
+            pairs.sort(
+                key=lambda p: (p["likely_distinct"], p["distance"], p["name_a"], p["name_b"])
+            )
 
             logger.info(
                 f"[ManagementService] Duplicate scan: {len(pairs)} pair(s) "
@@ -614,9 +629,7 @@ class ManagementService:
     async def list_distinct_pairs(self) -> dict[str, Any]:
         """List the confirmed-distinct name-pairs, sorted (stale names pruned)."""
         # prune persists → reconcile against the store's live (ground-truth) names.
-        valid_names = self.store.read(
-            lambda known, ignored, hardneg, processed: set(known.keys())
-        )
+        valid_names = self.store.read(lambda known, ignored, hardneg, processed: set(known.keys()))
         pairs = sorted(_reconcile_distinct_pairs(valid_names))
         return {
             "pairs": [{"name_a": a, "name_b": b} for a, b in pairs],
@@ -632,18 +645,21 @@ class ManagementService:
         `0.0` removes only exact (byte-identical) duplicates. Manual faces are
         never counted. This is the preview for `dedup_people`.
         """
+
         def scan(known, ignored, hardneg, processed):
             people = []
             total_redundant = 0
             for name, encodings in sorted(known.items()):
                 redundant = len(_redundant_indices(encodings, threshold, backend_filter))
                 if redundant:
-                    people.append({
-                        "name": name,
-                        "total": len(encodings),
-                        "redundant": redundant,
-                        "kept": len(encodings) - redundant,
-                    })
+                    people.append(
+                        {
+                            "name": name,
+                            "total": len(encodings),
+                            "redundant": redundant,
+                            "kept": len(encodings) - redundant,
+                        }
+                    )
                     total_redundant += redundant
             return {"people": people, "threshold": threshold, "total_redundant": total_redundant}
 
@@ -657,6 +673,7 @@ class ManagementService:
         dry_run: bool = False,
     ) -> dict[str, Any]:
         """Remove redundant encodings from the named people, keeping one per group."""
+
         def plan(known, apply_changes):
             removed_per_person: dict[str, int] = {}
             total = 0
@@ -708,6 +725,7 @@ class ManagementService:
         Raises:
         - ValueError if person doesn't exist
         """
+
         def do(known, ignored, hardneg, processed):
             if name not in known:
                 raise ValueError(f"Person '{name}' not found")
@@ -727,11 +745,7 @@ class ManagementService:
             "new_state": await self.get_database_state(),
         }
 
-    async def move_to_ignore(
-        self,
-        name: str,
-        backend_filter: str | None = None
-    ) -> dict[str, Any]:
+    async def move_to_ignore(self, name: str, backend_filter: str | None = None) -> dict[str, Any]:
         """
         Move person's encodings to ignored list.
 
@@ -739,6 +753,7 @@ class ManagementService:
         - name: Person name to move to ignored
         - backend_filter: If set, only move encodings from this backend
         """
+
         def do(known, ignored, hardneg, processed):
             if name not in known:
                 raise ValueError(f"Person '{name}' not found")
@@ -785,10 +800,7 @@ class ManagementService:
         }
 
     async def move_from_ignore(
-        self,
-        count: int,
-        target_name: str,
-        backend_filter: str | None = None
+        self, count: int, target_name: str, backend_filter: str | None = None
     ) -> dict[str, Any]:
         """
         Move encodings from ignored list to person.
@@ -798,6 +810,7 @@ class ManagementService:
         - target_name: Person name to receive encodings
         - backend_filter: If set, only move encodings from this backend
         """
+
         def do(known, ignored, hardneg, processed):
             available = _filter_encodings_by_backend(ignored, backend_filter)
 
@@ -808,7 +821,9 @@ class ManagementService:
 
             if n > len(available):
                 backend_desc = backend_filter or "any backend"
-                raise ValueError(f"Only {len(available)} ignored encodings available from {backend_desc}")
+                raise ValueError(
+                    f"Only {len(available)} ignored encodings available from {backend_desc}"
+                )
 
             to_move = available[:n]
             to_move_set = set(id(e) for e in to_move)
@@ -847,6 +862,7 @@ class ManagementService:
         Uses file hash to identify and remove exact encodings added by the file,
         avoiding issues with list ordering.
         """
+
         def _matches(processed):
             return [
                 pf
@@ -894,7 +910,8 @@ class ManagementService:
                 for kf_name in list(known.keys()):
                     original_count = len(known[kf_name])
                     known[kf_name] = [
-                        enc for enc in known[kf_name]
+                        enc
+                        for enc in known[kf_name]
                         if not (isinstance(enc, dict) and enc.get("hash") in file_hashes_to_remove)
                     ]
                     removed_total += original_count - len(known[kf_name])
@@ -906,7 +923,8 @@ class ManagementService:
                 # Remove from ignored_faces (in-place)
                 original_ignored = len(ignored)
                 ignored[:] = [
-                    enc for enc in ignored
+                    enc
+                    for enc in ignored
                     if not (isinstance(enc, dict) and enc.get("hash") in file_hashes_to_remove)
                 ]
                 removed_total += original_ignored - len(ignored)
@@ -920,7 +938,9 @@ class ManagementService:
         if emptied:
             _drop_from_distinct_pairs(*emptied)
 
-        logger.info(f"[ManagementService] Undid {len(matched_files)} files, removed {removed_total} encodings")
+        logger.info(
+            f"[ManagementService] Undid {len(matched_files)} files, removed {removed_total} encodings"
+        )
 
         return {
             "status": "success",
@@ -930,10 +950,7 @@ class ManagementService:
         }
 
     async def purge_encodings(
-        self,
-        name: str,
-        count: int,
-        backend_filter: str | None = None
+        self, name: str, count: int, backend_filter: str | None = None
     ) -> dict[str, Any]:
         """
         Remove last X encodings from person or ignore list.
@@ -943,6 +960,7 @@ class ManagementService:
         - count: Number of encodings to remove from end
         - backend_filter: If set, only purge encodings from this backend
         """
+
         def do(known, ignored, hardneg, processed):
             if count < 1:
                 raise ValueError("Count must be at least 1")
@@ -950,11 +968,15 @@ class ManagementService:
             if name == "ignore":
                 if backend_filter:
                     matching_indices = [
-                        i for i, e in enumerate(ignored)
-                        if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib") == backend_filter
+                        i
+                        for i, e in enumerate(ignored)
+                        if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib")
+                        == backend_filter
                     ]
                     if count > len(matching_indices):
-                        raise ValueError(f"Only {len(matching_indices)} ignored encodings from {backend_filter}")
+                        raise ValueError(
+                            f"Only {len(matching_indices)} ignored encodings from {backend_filter}"
+                        )
                     to_remove = set(matching_indices[-count:])
                     purged_by_backend = {backend_filter: count}
                 else:
@@ -971,11 +993,15 @@ class ManagementService:
 
                 if backend_filter:
                     matching_indices = [
-                        i for i, e in enumerate(encodings)
-                        if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib") == backend_filter
+                        i
+                        for i, e in enumerate(encodings)
+                        if (e.get("backend", "dlib") if isinstance(e, dict) else "dlib")
+                        == backend_filter
                     ]
                     if count > len(matching_indices):
-                        raise ValueError(f"Only {len(matching_indices)} encodings from {backend_filter} for '{name}'")
+                        raise ValueError(
+                            f"Only {len(matching_indices)} encodings from {backend_filter} for '{name}'"
+                        )
                     to_remove = set(matching_indices[-count:])
                     purged_by_backend = {backend_filter: count}
                 else:
@@ -1047,6 +1073,7 @@ class ManagementService:
 _management_service = None
 _management_service_lock = threading.Lock()
 
+
 def get_management_service():
     global _management_service
     if _management_service is None:
@@ -1055,8 +1082,10 @@ def get_management_service():
                 _management_service = ManagementService()
     return _management_service
 
+
 class _ManagementServiceProxy:
     def __getattr__(self, name):
         return getattr(get_management_service(), name)
+
 
 management_service = _ManagementServiceProxy()

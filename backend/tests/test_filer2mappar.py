@@ -22,10 +22,12 @@ def test_exact_match_mirrors_nested_source_folder(tmp_path):
 
     safe, guessed, unresolved = filer2mappar.compute_matched_moves(source, target, 30)
 
-    assert safe == [(
-        developed,
-        target / "260801" / "utflykt" / developed.name,
-    )]
+    assert safe == [
+        (
+            developed,
+            target / "260801" / "utflykt" / developed.name,
+        )
+    ]
     assert guessed == []
     assert unresolved == []
 
@@ -147,9 +149,7 @@ def test_match_command_moves_safe_and_journals_sidecar(tmp_path, capsys):
     developed = _write(target / "260801_120000_name.jpg")
     sidecar = _write(target / "260801_120000_name.xmp", b"sidecar")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target)
-    ])
+    result = filer2mappar.main(["matcha-kalla", "--kallrot", str(source), "--malrot", str(target)])
 
     assert result == 0
     assert not developed.exists()
@@ -160,10 +160,12 @@ def test_match_command_moves_safe_and_journals_sidecar(tmp_path, capsys):
     row = json.loads(journal.read_text().strip())
     assert row["op"] == "move"
     assert row["tool"] == "filer2mappar-matcha-kalla"
-    assert row["sidecars"] == [{
-        "src": str(sidecar),
-        "dst": str(target / "shoot" / sidecar.name),
-    }]
+    assert row["sidecars"] == [
+        {
+            "src": str(sidecar),
+            "dst": str(target / "shoot" / sidecar.name),
+        }
+    ]
     assert "Flyttade 1 bilder." in capsys.readouterr().out
 
 
@@ -177,10 +179,16 @@ def test_match_command_reports_guess_and_requires_opt_in(tmp_path, capsys):
     uncertain = _write(target / "260801_121100.jpg")
     _write(target / "260801_122000.jpg")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--dry-run", "--kallrot", str(source),
-        "--malrot", str(target),
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--dry-run",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+        ]
+    )
 
     output = capsys.readouterr().out
     assert result == 0
@@ -202,9 +210,7 @@ def test_match_command_moves_guess_only_after_opt_in_on_second_run(tmp_path):
 
     assert filer2mappar.main(["matcha-kalla", *common_args]) == 0
     assert uncertain.exists()
-    assert filer2mappar.main([
-        "matcha-kalla", "--flytta-osakra", *common_args
-    ]) == 0
+    assert filer2mappar.main(["matcha-kalla", "--flytta-osakra", *common_args]) == 0
     assert not uncertain.exists()
     assert (target / "shoot" / uncertain.name).exists()
 
@@ -216,9 +222,7 @@ def test_match_command_never_overwrites_existing_target(tmp_path):
     developed = _write(target / "260801_120000.jpg", b"new")
     occupied = _write(target / "shoot" / developed.name, b"old")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target)
-    ])
+    result = filer2mappar.main(["matcha-kalla", "--kallrot", str(source), "--malrot", str(target)])
 
     assert result == 1
     assert developed.read_bytes() == b"new"
@@ -233,10 +237,16 @@ def test_match_dry_run_reports_occupied_sidecar_target(tmp_path, capsys):
     sidecar = _write(target / "260801_120000.xmp", b"new sidecar")
     occupied = _write(target / "shoot" / sidecar.name, b"old sidecar")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--dry-run", "--kallrot", str(source),
-        "--malrot", str(target),
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--dry-run",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+        ]
+    )
 
     output = capsys.readouterr()
     assert result == 1
@@ -256,10 +266,16 @@ def test_match_dry_run_reports_dangling_symlink_target(tmp_path, capsys):
     occupied.parent.mkdir()
     occupied.symlink_to(target / "missing.jpg")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--dry-run", "--kallrot", str(source),
-        "--malrot", str(target),
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--dry-run",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+        ]
+    )
 
     output = capsys.readouterr()
     assert result == 1
@@ -269,18 +285,14 @@ def test_match_dry_run_reports_dangling_symlink_target(tmp_path, capsys):
     assert f"(dry) {developed.name}" not in output.out
 
 
-def test_match_command_reports_destination_directory_creation_failure(
-    tmp_path, capsys
-):
+def test_match_command_reports_destination_directory_creation_failure(tmp_path, capsys):
     source = tmp_path / "nerladdat"
     target = tmp_path / "framkallat"
     _write(source / "shoot" / "260801_120000.NEF")
     developed = _write(target / "260801_120000.jpg")
     blocker = _write(target / "shoot", b"not a directory")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target)
-    ])
+    result = filer2mappar.main(["matcha-kalla", "--kallrot", str(source), "--malrot", str(target)])
 
     assert result == 1
     assert developed.exists()
@@ -295,10 +307,16 @@ def test_match_dry_run_reports_blocked_destination_parent(tmp_path, capsys):
     developed = _write(target / "260801_120000.jpg")
     blocker = _write(target / "shoot", b"not a directory")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--dry-run", "--kallrot", str(source),
-        "--malrot", str(target),
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--dry-run",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+        ]
+    )
 
     output = capsys.readouterr()
     assert result == 1
@@ -308,9 +326,7 @@ def test_match_dry_run_reports_blocked_destination_parent(tmp_path, capsys):
     assert f"(dry) {developed.name}" not in output.out
 
 
-def test_match_dry_run_reports_unwritable_destination_parent(
-    tmp_path, monkeypatch, capsys
-):
+def test_match_dry_run_reports_unwritable_destination_parent(tmp_path, monkeypatch, capsys):
     source = tmp_path / "nerladdat"
     target = tmp_path / "framkallat"
     _write(source / "shoot" / "260801_120000.NEF")
@@ -322,10 +338,16 @@ def test_match_dry_run_reports_unwritable_destination_parent(
         lambda path, mode: False if path == target else real_access(path, mode),
     )
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--dry-run", "--kallrot", str(source),
-        "--malrot", str(target),
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--dry-run",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+        ]
+    )
 
     output = capsys.readouterr()
     assert result == 1
@@ -340,9 +362,7 @@ def test_unresolved_suggests_sixty_minute_window(tmp_path, capsys):
     source.mkdir()
     unresolved = _write(target / "260801_120000.jpg")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target)
-    ])
+    result = filer2mappar.main(["matcha-kalla", "--kallrot", str(source), "--malrot", str(target)])
 
     assert result == 1
     assert unresolved.exists()
@@ -354,9 +374,7 @@ def test_match_command_rejects_overlapping_source_and_target_roots(tmp_path, cap
     target = source / "framkallat"
     original = _write(target / "260801_120000.jpg")
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target)
-    ])
+    result = filer2mappar.main(["matcha-kalla", "--kallrot", str(source), "--malrot", str(target)])
 
     assert result == 1
     assert original.exists()
@@ -390,9 +408,7 @@ def test_legacy_date_folder_mode_still_moves_and_journals(tmp_path, monkeypatch)
     assert row["tool"] == "filer2mappar"
 
 
-def test_legacy_date_mode_keeps_main_and_sidecar_atomic_on_collision(
-    tmp_path, monkeypatch
-):
+def test_legacy_date_mode_keeps_main_and_sidecar_atomic_on_collision(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     original = _write(tmp_path / "260801_120000.NEF", b"new")
     sidecar = _write(tmp_path / "260801_120000.xmp", b"sidecar")
@@ -422,8 +438,7 @@ def test_legacy_date_mode_assigns_shared_stem_sidecar_once(tmp_path, monkeypatch
     assert (target / jpeg.name).exists()
     assert (target / sidecar.name).exists()
     rows = [
-        json.loads(line)
-        for line in (tmp_path / "rename_journal.jsonl").read_text().splitlines()
+        json.loads(line) for line in (tmp_path / "rename_journal.jsonl").read_text().splitlines()
     ]
     assert len(rows) == 2
     assert sum(len(row["sidecars"]) for row in rows) == 1
@@ -465,10 +480,16 @@ def test_selection_moves_only_the_named_files(tmp_path, monkeypatch, capsys):
     untouched = _write(target / "260802_090000-0_Ellen.jpg")
     monkeypatch.chdir(target)
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target),
-        chosen.name,
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+            chosen.name,
+        ]
+    )
 
     capsys.readouterr()
     assert result == 0
@@ -489,10 +510,17 @@ def test_selection_keeps_full_evidence_for_guesses(tmp_path, monkeypatch, capsys
     _write(target / "260801_122000.jpg")
     monkeypatch.chdir(target)
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target),
-        "--flytta-osakra", uncertain.name,
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+            "--flytta-osakra",
+            uncertain.name,
+        ]
+    )
 
     output = capsys.readouterr().out
     assert result == 0
@@ -509,10 +537,16 @@ def test_selection_rejects_files_outside_the_target_root(tmp_path, monkeypatch, 
     outside = _write(tmp_path / "annat" / "260801_120000-1_Elis.jpg")
     monkeypatch.chdir(tmp_path)
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target),
-        str(outside),
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+            str(outside),
+        ]
+    )
 
     output = capsys.readouterr()
     assert result == 1
@@ -528,10 +562,16 @@ def test_selection_without_matches_reports_the_pattern(tmp_path, monkeypatch, ca
     developed = _write(target / "260801_120000-0_Elis.jpg")
     monkeypatch.chdir(target)
 
-    result = filer2mappar.main([
-        "matcha-kalla", "--kallrot", str(source), "--malrot", str(target),
-        "*.tif",
-    ])
+    result = filer2mappar.main(
+        [
+            "matcha-kalla",
+            "--kallrot",
+            str(source),
+            "--malrot",
+            str(target),
+            "*.tif",
+        ]
+    )
 
     output = capsys.readouterr()
     assert result == 1

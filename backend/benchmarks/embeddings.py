@@ -120,9 +120,7 @@ def compute_embeddings(
             def _compute_emb():
                 return recognition.embed(_aligned())
 
-            emb = cache.get_or_compute_emb(
-                recognition.name, r.face_id, _compute_emb, force=force
-            )
+            emb = cache.get_or_compute_emb(recognition.name, r.face_id, _compute_emb, force=force)
 
             blur = blur_store.get(r.face_id)
             if blur is None or force:

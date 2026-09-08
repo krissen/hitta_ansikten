@@ -71,13 +71,15 @@ export function useModuleEvents(eventHandlers, deps = []) {
     if (!eventHandlers) return;
 
     // Subscribe to all events, collect unsubscribe functions
-    const unsubscribes = Object.entries(eventHandlers).map(([event, handler]) => {
-      return on(event, handler);
-    });
+    const unsubscribes = Object.entries(eventHandlers).map(
+      ([event, handler]) => {
+        return on(event, handler);
+      },
+    );
 
     // Cleanup: unsubscribe all
     return () => {
-      unsubscribes.forEach(unsub => unsub());
+      unsubscribes.forEach((unsub) => unsub());
     };
   }, [on, ...deps]);
 }

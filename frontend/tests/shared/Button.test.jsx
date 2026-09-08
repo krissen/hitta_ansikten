@@ -19,7 +19,9 @@ describe('Button', () => {
 
   it('applies the requested variant and size classes', () => {
     const { getByRole } = render(
-      <Button variant="danger" size="sm">Radera</Button>,
+      <Button variant="danger" size="sm">
+        Radera
+      </Button>,
     );
     const btn = getByRole('button');
     expect(btn.classList.contains('btn--danger')).toBe(true);
@@ -30,7 +32,9 @@ describe('Button', () => {
     'renders the %s variant class',
     (variant) => {
       const { getByRole } = render(<Button variant={variant}>x</Button>);
-      expect(getByRole('button').classList.contains(`btn--${variant}`)).toBe(true);
+      expect(getByRole('button').classList.contains(`btn--${variant}`)).toBe(
+        true,
+      );
     },
   );
 
@@ -44,7 +48,9 @@ describe('Button', () => {
   it('is disabled and does not fire onClick when disabled', () => {
     const onClick = vi.fn();
     const { getByRole } = render(
-      <Button disabled onClick={onClick}>Klicka</Button>,
+      <Button disabled onClick={onClick}>
+        Klicka
+      </Button>,
     );
     const btn = getByRole('button');
     expect(btn.disabled).toBe(true);
@@ -55,7 +61,9 @@ describe('Button', () => {
   it('loading implies disabled + aria-busy, renders a spinner, and blocks onClick', () => {
     const onClick = vi.fn();
     const { getByRole, container } = render(
-      <Button loading onClick={onClick}>Laddar</Button>,
+      <Button loading onClick={onClick}>
+        Laddar
+      </Button>,
     );
     const btn = getByRole('button');
     expect(btn.disabled).toBe(true);
@@ -72,7 +80,9 @@ describe('Button', () => {
 
   it('forwards native type and extra props', () => {
     const { getByRole } = render(
-      <Button type="submit" data-testid="save">Spara</Button>,
+      <Button type="submit" data-testid="save">
+        Spara
+      </Button>,
     );
     const btn = getByRole('button');
     expect(btn.getAttribute('type')).toBe('submit');

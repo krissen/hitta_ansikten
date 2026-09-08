@@ -1,0 +1,12 @@
+# Commits that are pure mechanical reformatting, excluded from `git blame`
+# (git config blame.ignoreRevsFile .git-blame-ignore-revs; see CLAUDE.md).
+# One hash per line -- a trailing description on the same line makes git
+# treat "<hash> <message>" as a single (unresolvable) revision spec and
+# `git blame` fails outright: `fatal: invalid object name: <hash> <message>`.
+
+# style(repo): apply ruff format across the Python tree
+c4f76c3143d4979d06407591c3e27137c6c8c80b
+# style(repo): fix trailing whitespace and missing final newlines
+fc740882ad47bca66c64cfc686af0d75a84187fb
+# style(frontend): apply prettier
+4fce06934eb9d6acb3a332550476d9286bfb6590

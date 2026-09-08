@@ -59,6 +59,7 @@ DEFAULT_RENAME_CONFIG = {
 # EXIF and date extraction
 # ============================================================================
 
+
 def extract_exif_datetime(file_path: Path) -> datetime | None:
     """
     Extract DateTimeOriginal from image EXIF data.
@@ -78,13 +79,13 @@ def extract_exif_datetime(file_path: Path) -> datetime | None:
         from PIL import Image
         from PIL.ExifTags import TAGS
 
-        if ext in ['.jpg', '.jpeg', '.tiff', '.tif']:
+        if ext in [".jpg", ".jpeg", ".tiff", ".tif"]:
             with Image.open(file_path) as img:
-                exif_data = getattr(img, '_getexif', lambda: None)()
+                exif_data = getattr(img, "_getexif", lambda: None)()
                 if exif_data:
                     for tag_id, value in exif_data.items():
                         tag = TAGS.get(tag_id, tag_id)
-                        if tag == 'DateTimeOriginal':
+                        if tag == "DateTimeOriginal":
                             # Format: "2025:06:12 15:30:40"
                             return datetime.strptime(value, "%Y:%m:%d %H:%M:%S")
     # PIL raises OSError for unreadable/unrecognized images; strptime raises
@@ -94,14 +95,15 @@ def extract_exif_datetime(file_path: Path) -> datetime | None:
         logger.debug(f"[EXIF] PIL extraction failed for {file_path.name}: {e}")
 
     # Try rawpy for RAW formats (NEF, CR2, ARW)
-    if ext in ['.nef', '.cr2', '.arw', '.dng', '.raw']:
+    if ext in [".nef", ".cr2", ".arw", ".dng", ".raw"]:
         # Try exifread if available (better for RAW files)
         try:
             import exifread
-            with open(file_path, 'rb') as f:
-                tags = exifread.process_file(f, stop_tag='EXIF DateTimeOriginal')
-                if 'EXIF DateTimeOriginal' in tags:
-                    dt_str = str(tags['EXIF DateTimeOriginal'])
+
+            with open(file_path, "rb") as f:
+                tags = exifread.process_file(f, stop_tag="EXIF DateTimeOriginal")
+                if "EXIF DateTimeOriginal" in tags:
+                    dt_str = str(tags["EXIF DateTimeOriginal"])
                     return datetime.strptime(dt_str, "%Y:%m:%d %H:%M:%S")
         except ImportError:
             logger.debug("[EXIF] exifread not installed, trying alternative")
@@ -110,10 +112,13 @@ def extract_exif_datetime(file_path: Path) -> datetime | None:
 
         # Fallback: try to extract from NEF using subprocess (exiftool)
         import subprocess
+
         try:
             result = subprocess.run(
-                [find_exiftool(), '-DateTimeOriginal', '-s', '-s', '-s', str(file_path)],
-                capture_output=True, text=True, timeout=5
+                [find_exiftool(), "-DateTimeOriginal", "-s", "-s", "-s", str(file_path)],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0 and result.stdout.strip():
                 dt_str = result.stdout.strip()
@@ -228,6 +233,7 @@ _EXT_PATTERN = "|".join(re.escape(ext) for ext in SUPPORTED_EXTENSIONS)
 # Sidecar file handling
 # ============================================================================
 
+
 def find_sidecar_files(file_path: Path, extensions: list[str]) -> list[Path]:
     """
     Find sidecar files for a given image file.
@@ -257,7 +263,7 @@ def find_sidecar_files(file_path: Path, extensions: list[str]) -> list[Path]:
                 continue
             # Check if stem matches and extension is in our list (case insensitive)
             if candidate.stem == stem:
-                candidate_ext = candidate.suffix.lstrip('.').lower()
+                candidate_ext = candidate.suffix.lstrip(".").lower()
                 if candidate_ext in ext_lower:
                     sidecars.append(candidate)
     except PermissionError:
@@ -271,6 +277,7 @@ def find_sidecar_files(file_path: Path, extensions: list[str]) -> list[Path]:
 # ============================================================================
 # Utility functions (ported from hitta_ansikten.py)
 # ============================================================================
+
 
 def extract_prefix_suffix(fname: str) -> tuple[str | None, str | None]:
     """
@@ -327,8 +334,7 @@ def split_fornamn_efternamn(namn: str) -> tuple[str, str]:
 
 
 def resolve_fornamn_dubletter(
-    all_persons: list[str],
-    config: dict[str, Any] | None = None
+    all_persons: list[str], config: dict[str, Any] | None = None
 ) -> dict[str, str]:
     """
     Resolve first name collisions by adding surname initials.
@@ -392,9 +398,7 @@ def resolve_fornamn_dubletter(
             andra_efternamn = sorted(efternamnset - {efternamn})
             prefixlen = 1
             while efternamn and any(
-                efternamn[:prefixlen] == andra[:prefixlen]
-                for andra in andra_efternamn
-                if andra
+                efternamn[:prefixlen] == andra[:prefixlen] for andra in andra_efternamn if andra
             ):
                 prefixlen += 1
             kortnamn[namn] = fornamn + (efternamn[:prefixlen] if efternamn else "")
@@ -415,7 +419,7 @@ def build_new_filename_with_config(
     namnmap: dict[str, str],
     file_path: Path | None,
     config: dict[str, Any] | None,
-    manual_suffix: str | None = None
+    manual_suffix: str | None = None,
 ) -> str | None:
     """
     Build new filename with person names using configuration.
@@ -454,7 +458,7 @@ def build_new_filename_with_config(
                 kort = normalize_name(kort)
             else:
                 # Still sanitize for filesystem safety
-                kort = kort.replace('/', '_').replace('\\', '_').replace('\0', '_')
+                kort = kort.replace("/", "_").replace("\\", "_").replace("\0", "_")
             name_list.append(kort)
 
     # Append the free-text manual suffix (if any) AFTER the person names, so a
@@ -462,6 +466,7 @@ def build_new_filename_with_config(
     # dependency (manual_suffix_service imports normalize_name from here).
     if manual_suffix:
         from api.services.manual_suffix_service import normalize_suffix
+
         normalized_suffix = normalize_suffix(manual_suffix)
         if normalized_suffix:
             name_list.append(normalized_suffix)
@@ -518,7 +523,7 @@ def build_new_filename_with_config(
             ext=ext,
             original=original_stem,
             date=date_str,
-            time=time_str
+            time=time_str,
         )
     except KeyError as e:
         logger.error(f"[Rename] Invalid filename pattern variable: {e}")
@@ -526,7 +531,7 @@ def build_new_filename_with_config(
         new_name = f"{prefix}_{names_str}{ext}"
 
     # Security: Validate no path traversal attempts
-    if '..' in new_name or '/' in new_name or '\\' in new_name or '\0' in new_name:
+    if ".." in new_name or "/" in new_name or "\\" in new_name or "\0" in new_name:
         logger.error(f"[SECURITY] Rejected unsafe filename: {new_name}")
         return None
 
@@ -537,7 +542,7 @@ def collect_persons_for_files(
     filelist: list[str],
     known_faces: dict[str, list],
     processed_files: list | None = None,
-    attempt_log: list | None = None
+    attempt_log: list | None = None,
 ) -> dict[str, list[str]]:
     """
     Collect person names for each file from database and attempt log.
@@ -589,9 +594,9 @@ def collect_persons_for_files(
     if processed_files is None:
         processed_files = []
     processed_name_to_hash = {
-        Path(x['name']).name: x.get('hash')
+        Path(x["name"]).name: x.get("hash")
         for x in processed_files
-        if isinstance(x, dict) and x.get('name')
+        if isinstance(x, dict) and x.get("name")
     }
 
     if attempt_log is None:
@@ -669,6 +674,7 @@ def collect_persons_for_files(
 # Path validation
 # ============================================================================
 
+
 def validate_path_security(file_path: str) -> tuple[bool, str]:
     """
     Validate a file path for security concerns.
@@ -685,12 +691,12 @@ def validate_path_security(file_path: str) -> tuple[bool, str]:
         Tuple of (is_valid, error_message)
     """
     # Check for path traversal attempts in the string
-    if '..' in file_path:
+    if ".." in file_path:
         logger.warning(f"[SECURITY] Path traversal attempt detected: {file_path}")
         return False, "Path traversal not allowed"
 
     # Check for null bytes
-    if '\0' in file_path:
+    if "\0" in file_path:
         logger.warning(f"[SECURITY] Null byte in path: {file_path}")
         return False, "Invalid path characters"
 
@@ -720,6 +726,7 @@ def validate_path_security(file_path: str) -> tuple[bool, str]:
 # Rename Service
 # ============================================================================
 
+
 class RenameService:
     """Service for renaming files based on detected faces."""
 
@@ -734,7 +741,7 @@ class RenameService:
         self,
         file_paths: list[str],
         allow_renamed: bool = False,
-        config: dict[str, Any] | None = None
+        config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Generate preview of proposed renames without executing.
@@ -767,14 +774,16 @@ class RenameService:
             if is_valid:
                 validated_paths.append(fp)
             else:
-                security_rejected.append({
-                    "original_path": fp,
-                    "original_name": Path(fp).name,
-                    "new_name": None,
-                    "persons": [],
-                    "status": "security_rejected",
-                    "conflict_with": error
-                })
+                security_rejected.append(
+                    {
+                        "original_path": fp,
+                        "original_name": Path(fp).name,
+                        "new_name": None,
+                        "persons": [],
+                        "status": "security_rejected",
+                        "conflict_with": error,
+                    }
+                )
 
         # Read known_faces + processed_files from the shared store (single
         # authority; no per-request pickle load). collect_persons_for_files
@@ -784,15 +793,12 @@ class RenameService:
         )
 
         # Collect persons for validated files only
-        persons_map = collect_persons_for_files(
-            validated_paths,
-            known_faces,
-            processed_files
-        )
+        persons_map = collect_persons_for_files(validated_paths, known_faces, processed_files)
 
         # Build a manual-suffix map keyed by full path (content-hash lookup).
         # A free-text suffix is NOT a person name and never touches the DB.
         from api.services.manual_suffix_service import get_manual_suffix
+
         suffix_map: dict[str, str] = {}
         for fp in validated_paths:
             p = Path(fp)
@@ -825,28 +831,32 @@ class RenameService:
 
             # Check if file exists
             if not path.exists():
-                items.append({
-                    "original_path": file_path,
-                    "original_name": fname,
-                    "new_name": None,
-                    "persons": [],
-                    "status": "file_not_found",
-                    "conflict_with": None,
-                    "sidecars": []
-                })
+                items.append(
+                    {
+                        "original_path": file_path,
+                        "original_name": fname,
+                        "new_name": None,
+                        "persons": [],
+                        "status": "file_not_found",
+                        "conflict_with": None,
+                        "sidecars": [],
+                    }
+                )
                 continue
 
             # Check if already renamed (unless allow_renamed)
             if not allow_renamed and not is_unrenamed(fname):
-                items.append({
-                    "original_path": file_path,
-                    "original_name": fname,
-                    "new_name": None,
-                    "persons": [],
-                    "status": "already_renamed",
-                    "conflict_with": None,
-                    "sidecars": []
-                })
+                items.append(
+                    {
+                        "original_path": file_path,
+                        "original_name": fname,
+                        "new_name": None,
+                        "persons": [],
+                        "status": "already_renamed",
+                        "conflict_with": None,
+                        "sidecars": [],
+                    }
+                )
                 continue
 
             # Get persons for this file (keyed by full path to avoid basename collisions)
@@ -856,15 +866,17 @@ class RenameService:
             # Skip only when there are neither faces nor a manual suffix — a
             # faceless photo with a suffix must still rename.
             if not persons and not raw_suffix:
-                items.append({
-                    "original_path": file_path,
-                    "original_name": fname,
-                    "new_name": None,
-                    "persons": [],
-                    "status": "no_persons",
-                    "conflict_with": None,
-                    "sidecars": []
-                })
+                items.append(
+                    {
+                        "original_path": file_path,
+                        "original_name": fname,
+                        "new_name": None,
+                        "persons": [],
+                        "status": "no_persons",
+                        "conflict_with": None,
+                        "sidecars": [],
+                    }
+                )
                 continue
 
             # Build new filename using config (suffix appended after any names)
@@ -873,29 +885,33 @@ class RenameService:
             )
             logger.debug(f"[RenameService] {fname} -> {new_name}")
             if not new_name:
-                items.append({
-                    "original_path": file_path,
-                    "original_name": fname,
-                    "new_name": None,
-                    "persons": persons,
-                    "status": "build_failed",
-                    "conflict_with": None,
-                    "sidecars": []
-                })
+                items.append(
+                    {
+                        "original_path": file_path,
+                        "original_name": fname,
+                        "new_name": None,
+                        "persons": persons,
+                        "status": "build_failed",
+                        "conflict_with": None,
+                        "sidecars": [],
+                    }
+                )
                 continue
 
             # Check for conflicts
             new_path = path.parent / new_name
             if new_path.exists() and new_path != path:
-                items.append({
-                    "original_path": file_path,
-                    "original_name": fname,
-                    "new_name": new_name,
-                    "persons": persons,
-                    "status": "conflict",
-                    "conflict_with": str(new_path),
-                    "sidecars": []
-                })
+                items.append(
+                    {
+                        "original_path": file_path,
+                        "original_name": fname,
+                        "new_name": new_name,
+                        "persons": persons,
+                        "status": "conflict",
+                        "conflict_with": str(new_path),
+                        "sidecars": [],
+                    }
+                )
                 continue
 
             # Find sidecar files if enabled
@@ -904,26 +920,25 @@ class RenameService:
                 sidecars = [str(s) for s in find_sidecar_files(path, sidecar_extensions)]
 
             # All good
-            items.append({
-                "original_path": file_path,
-                "original_name": fname,
-                "new_name": new_name,
-                "persons": persons,
-                "status": "ok",
-                "conflict_with": None,
-                "sidecars": sidecars
-            })
+            items.append(
+                {
+                    "original_path": file_path,
+                    "original_name": fname,
+                    "new_name": new_name,
+                    "persons": persons,
+                    "status": "ok",
+                    "conflict_with": None,
+                    "sidecars": sidecars,
+                }
+            )
 
-        return {
-            "items": items,
-            "name_map": name_map
-        }
+        return {"items": items, "name_map": name_map}
 
     def execute_rename(
         self,
         file_paths: list[str],
         allow_renamed: bool = False,
-        config: dict[str, Any] | None = None
+        config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Execute file renames.
@@ -948,10 +963,7 @@ class RenameService:
 
         for item in preview["items"]:
             if item["status"] != "ok":
-                skipped.append({
-                    "path": item["original_path"],
-                    "reason": item["status"]
-                })
+                skipped.append({"path": item["original_path"], "reason": item["status"]})
                 continue
 
             # Execute rename
@@ -971,23 +983,26 @@ class RenameService:
 
             try:
                 fs_ops.rename_with_sidecars(
-                    old_path, new_path, sidecar_pairs,
-                    tool="rename", journal_op="rename", batch_id=batch_id,
+                    old_path,
+                    new_path,
+                    sidecar_pairs,
+                    tool="rename",
+                    journal_op="rename",
+                    batch_id=batch_id,
                 )
-                renamed.append({
-                    "original": str(old_path),
-                    "new": str(new_path),
-                    "sidecars": [
-                        {"original": str(sc), "new": str(sc_dst)}
-                        for sc, sc_dst in sidecar_pairs
-                    ],
-                })
+                renamed.append(
+                    {
+                        "original": str(old_path),
+                        "new": str(new_path),
+                        "sidecars": [
+                            {"original": str(sc), "new": str(sc_dst)}
+                            for sc, sc_dst in sidecar_pairs
+                        ],
+                    }
+                )
                 logger.info(f"[RenameService] Renamed: {old_path.name} -> {new_path.name}")
             except Exception as e:  # noqa: BLE001 - per-file isolation: fs_ops has already rolled this rename back, so the remaining files in the batch still get renamed
-                errors.append({
-                    "path": str(old_path),
-                    "error": str(e)
-                })
+                errors.append({"path": str(old_path), "error": str(e)})
                 logger.error(f"[RenameService] Error renaming {old_path}: {e}")
 
         # Update database entries to reflect new filenames
@@ -997,12 +1012,12 @@ class RenameService:
             "renamed": renamed,
             "skipped": skipped,
             "errors": errors,
-            "db_entries_updated": db_updated
+            "db_entries_updated": db_updated,
         }
 
-
-    def _update_database_paths(self, renamed_files: list[dict[str, str]],
-                               match: str = "basename") -> int:
+    def _update_database_paths(
+        self, renamed_files: list[dict[str, str]], match: str = "basename"
+    ) -> int:
         """
         Update database entries to reflect renamed files.
 
@@ -1073,7 +1088,9 @@ class RenameService:
                         if matched:
                             updated_count += 1
                             if apply_changes:
-                                logger.debug(f"[RenameService] Updated encoding entry: {entry['file']} -> {new_value}")
+                                logger.debug(
+                                    f"[RenameService] Updated encoding entry: {entry['file']} -> {new_value}"
+                                )
                                 entry["file"] = new_value
 
             # Update processed_files entries
@@ -1085,7 +1102,9 @@ class RenameService:
                         if apply_changes:
                             old_name = pf["name"]
                             if new_value != old_name:
-                                logger.debug(f"[RenameService] Updated processed entry: {old_name} -> {new_value}")
+                                logger.debug(
+                                    f"[RenameService] Updated processed entry: {old_name} -> {new_value}"
+                                )
                                 record_previous_name(pf, old_name)
                                 pf["name"] = new_value
 
@@ -1111,14 +1130,17 @@ class RenameService:
 
 _rename_service = None
 
+
 def get_rename_service():
     global _rename_service
     if _rename_service is None:
         _rename_service = RenameService()
     return _rename_service
 
+
 class _RenameServiceProxy:
     def __getattr__(self, name):
         return getattr(get_rename_service(), name)
+
 
 rename_service = _RenameServiceProxy()

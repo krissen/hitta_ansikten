@@ -35,7 +35,7 @@ export function ProgressBar({
   ariaLabel,
   size = 'md',
   showPercent = false,
-  className = ''
+  className = '',
 }) {
   const isIndeterminate = value === undefined || value === null;
   const percent = isIndeterminate ? 0 : Math.min(100, Math.max(0, value));
@@ -44,12 +44,16 @@ export function ProgressBar({
     'progress-bar',
     `progress-bar--${size}`,
     isIndeterminate ? 'progress-bar--indeterminate' : '',
-    className
-  ].filter(Boolean).join(' ');
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   // Prefer an explicit ariaLabel; otherwise a string label; otherwise a default.
   const resolvedAriaLabel =
-    ariaLabel || (typeof label === 'string' ? label : undefined) || t('common.progress');
+    ariaLabel ||
+    (typeof label === 'string' ? label : undefined) ||
+    t('common.progress');
 
   return (
     <div className={classes}>
@@ -83,11 +87,9 @@ export function ProgressBar({
  * @param {string} [props.className] - Additional CSS classes.
  */
 export function LoadingSpinner({ size = 'md', className = '' }) {
-  const classes = [
-    'loading-spinner',
-    `loading-spinner--${size}`,
-    className
-  ].filter(Boolean).join(' ');
+  const classes = ['loading-spinner', `loading-spinner--${size}`, className]
+    .filter(Boolean)
+    .join(' ');
 
   return <div className={classes} />;
 }

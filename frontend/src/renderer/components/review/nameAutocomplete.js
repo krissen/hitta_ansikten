@@ -23,9 +23,12 @@ const DEFAULT_LIMIT = 8;
 export function rank(query, names, limit = DEFAULT_LIMIT) {
   if (!query?.trim()) return [];
   const typed = query.toLowerCase();
-  const startsWithMatch = names.filter(p => p.toLowerCase().startsWith(typed));
-  const containsMatch = names.filter(p =>
-    !p.toLowerCase().startsWith(typed) && p.toLowerCase().includes(typed)
+  const startsWithMatch = names.filter((p) =>
+    p.toLowerCase().startsWith(typed),
+  );
+  const containsMatch = names.filter(
+    (p) =>
+      !p.toLowerCase().startsWith(typed) && p.toLowerCase().includes(typed),
   );
   return [...startsWithMatch, ...containsMatch].slice(0, limit);
 }

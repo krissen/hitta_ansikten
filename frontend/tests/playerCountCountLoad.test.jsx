@@ -9,16 +9,22 @@ import { render, waitFor } from '@testing-library/react';
 // without its scope. count-load fires on every open-count, so it's the reliable
 // consumption point.
 
-const { postMock, getMock, emitMock, waitForListenersMock, handlers } = vi.hoisted(() => ({
-  postMock: vi.fn().mockResolvedValue({
-    total_images: 0, files_resolved: 0, players: [], excluded: null,
-    baseline: 0, baseline_method: 'median', time_range: null,
-  }),
-  getMock: vi.fn().mockResolvedValue({}),
-  emitMock: vi.fn(),
-  waitForListenersMock: vi.fn().mockResolvedValue(true),
-  handlers: {},
-}));
+const { postMock, getMock, emitMock, waitForListenersMock, handlers } =
+  vi.hoisted(() => ({
+    postMock: vi.fn().mockResolvedValue({
+      total_images: 0,
+      files_resolved: 0,
+      players: [],
+      excluded: null,
+      baseline: 0,
+      baseline_method: 'median',
+      time_range: null,
+    }),
+    getMock: vi.fn().mockResolvedValue({}),
+    emitMock: vi.fn(),
+    waitForListenersMock: vi.fn().mockResolvedValue(true),
+    handlers: {},
+  }));
 
 vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
   useBackend: () => ({ api: { post: postMock, get: getMock } }),
@@ -27,7 +33,9 @@ vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
 // Capture module-event handlers so the test can invoke count-load directly,
 // simulating the emit that handleOpenCount fires after the morph.
 vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
-  useModuleEvent: (name, handler) => { handlers[name] = handler; },
+  useModuleEvent: (name, handler) => {
+    handlers[name] = handler;
+  },
   useModuleAPI: () => ({
     emit: emitMock,
     on: () => () => {},
@@ -37,7 +45,11 @@ vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
 }));
 
 import { PlayerCountModule } from '../src/renderer/components/PlayerCountModule.jsx';
-import { setScanScope, signalExternalLoad, takeExternalLoad } from '../src/renderer/shared/scanScope.js';
+import {
+  setScanScope,
+  signalExternalLoad,
+  takeExternalLoad,
+} from '../src/renderer/shared/scanScope.js';
 import { clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
 const countCalls = () =>

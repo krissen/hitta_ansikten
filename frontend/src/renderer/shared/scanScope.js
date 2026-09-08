@@ -85,9 +85,10 @@ export function subscribeScanScope(cb) {
 
 /** True if the scope actually selects something (a folder or a path-glob). */
 export function scanScopeHasSelection(scope) {
-  return !!scope && (
-    (Array.isArray(scope.roots) && scope.roots.length > 0) ||
-    (Array.isArray(scope.globs) && scope.globs.length > 0)
+  return (
+    !!scope &&
+    ((Array.isArray(scope.roots) && scope.roots.length > 0) ||
+      (Array.isArray(scope.globs) && scope.globs.length > 0))
   );
 }
 

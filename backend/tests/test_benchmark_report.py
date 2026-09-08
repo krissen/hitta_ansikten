@@ -20,9 +20,15 @@ def _face(fid, ident, *, area=1000, blur=100.0, manual=False, det=0.9):
     v = np.zeros(4)
     v[hash(ident) % 4] = 1.0
     return EmbeddedFace(
-        face_id=fid, identity=ident, image_hash="h" + fid,
-        embedding=v, is_manual=manual, det_score=det,
-        bbox_area=area, blur=blur, path="/x/" + fid + ".jpg",
+        face_id=fid,
+        identity=ident,
+        image_hash="h" + fid,
+        embedding=v,
+        is_manual=manual,
+        det_score=det,
+        bbox_area=area,
+        blur=blur,
+        path="/x/" + fid + ".jpg",
     )
 
 
@@ -48,8 +54,11 @@ def test_assign_face_strata_quartiles_and_siblings():
 def test_rank1_by_stratum_aggregates():
     # 4 probes, indices 0..3; flags T,T,F,T on a 2-bucket dimension
     res = M.ClosedSetResult(
-        mode="max_sim", n_probes=4, ranks=(1,),
-        rank_rates={1: 0.75}, probe_indices=[0, 1, 2, 3],
+        mode="max_sim",
+        n_probes=4,
+        ranks=(1,),
+        rank_rates={1: 0.75},
+        probe_indices=[0, 1, 2, 3],
         rank_flags={1: [True, True, False, True]},
     )
     strata = [
@@ -101,17 +110,24 @@ def test_render_markdown_smoke():
     cm = M.closed_set_identification(E, labels, mode=M.MAX_SIM)
     pairs = M.build_pairs(E, labels)
     result = R.ModelResult(
-        model_name="fake", n_faces=len(labels), n_identities=len(set(labels)),
-        closed_centroid=cc, closed_maxsim=cm,
+        model_name="fake",
+        n_faces=len(labels),
+        n_identities=len(set(labels)),
+        closed_centroid=cc,
+        closed_maxsim=cm,
         roc={"all-comers": M.verification_roc(pairs.genuine, pairs.impostor_all)},
         sweep=M.threshold_sweep(pairs.genuine, pairs.impostor_all),
         sweep_opt=M.sweep_optimum(M.threshold_sweep(pairs.genuine, pairs.impostor_all)),
-        twin=None, openset=None,
+        twin=None,
+        openset=None,
         det_recall_overall={"matched": 6, "detector_missed": 1, "unresolved": 0, "recall": 6 / 7},
-        det_recall_by={}, rank1_by_stratum={}, timings={"embeddings": 1.2},
+        det_recall_by={},
+        rank1_by_stratum={},
+        timings={"embeddings": 1.2},
     )
-    md = R.render_markdown([result], {"generated": "now", "models": "fake",
-                                      "seed": 1, "partial": True})
+    md = R.render_markdown(
+        [result], {"generated": "now", "models": "fake", "seed": 1, "partial": True}
+    )
     assert "metrics report" in md
     assert "PARTIAL DATA" in md
     assert "Threshold sweep" in md

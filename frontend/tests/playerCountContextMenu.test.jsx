@@ -87,25 +87,42 @@ describe('playerSession store', () => {
 describe('contextMenuItemsFor', () => {
   it('offers session moves + permanent publik on player rows', () => {
     expect(contextMenuItemsFor('players')).toEqual([
-      'toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent',
+      'toPublikSession',
+      'toTranareSession',
+      'toGruppSession',
+      'sep',
+      'publikPermanent',
     ]);
   });
 
   it('offers the player pin on below-threshold rows (bypasses min_images)', () => {
     expect(contextMenuItemsFor('below_threshold')).toEqual([
-      'toPlayerSession', 'toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent',
+      'toPlayerSession',
+      'toPublikSession',
+      'toTranareSession',
+      'toGruppSession',
+      'sep',
+      'publikPermanent',
     ]);
   });
 
   it('offers back-to-player + other buckets on excluded names', () => {
     expect(contextMenuItemsFor('publik')).toEqual([
-      'toPlayerSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent',
+      'toPlayerSession',
+      'toTranareSession',
+      'toGruppSession',
+      'sep',
+      'publikPermanent',
     ]);
     expect(contextMenuItemsFor('tranare')).toEqual([
-      'toPlayerSession', 'toPublikSession', 'toGruppSession',
+      'toPlayerSession',
+      'toPublikSession',
+      'toGruppSession',
     ]);
     expect(contextMenuItemsFor('grupp')).toEqual([
-      'toPlayerSession', 'toPublikSession', 'toTranareSession',
+      'toPlayerSession',
+      'toPublikSession',
+      'toTranareSession',
     ]);
   });
 
@@ -122,13 +139,15 @@ describe('ContextMenu (shared)', () => {
   ];
 
   it('renders nothing when menu is null', () => {
-    const { container } = render(<ContextMenu menu={null} items={items} onClose={() => {}} />);
+    const { container } = render(
+      <ContextMenu menu={null} items={items} onClose={() => {}} />,
+    );
     expect(container.firstChild).toBeNull();
   });
 
   it('renders items at the cursor position', () => {
     const { container } = render(
-      <ContextMenu menu={{ x: 12, y: 34 }} items={items} onClose={() => {}} />
+      <ContextMenu menu={{ x: 12, y: 34 }} items={items} onClose={() => {}} />,
     );
     const ul = container.querySelector('.ctx-menu');
     expect(ul.style.left).toBe('12px');

@@ -77,20 +77,37 @@ def build_report(records, index, distinct_pairs) -> tuple[str, list[dict]]:
     L.append("")
     L.append("| Level | Recovered | Total | Rate |")
     L.append("|---|---:|---:|---:|")
-    L.append(f"| Source images (unique SHA1) | {recovered_images} | {unique_images} | {_pct(recovered_images, unique_images)} |")
-    L.append(f"| Faces (encodings) | {recovered_faces} | {total_faces} | {_pct(recovered_faces, total_faces)} |")
+    L.append(
+        f"| Source images (unique SHA1) | {recovered_images} | {unique_images} | {_pct(recovered_images, unique_images)} |"
+    )
+    L.append(
+        f"| Faces (encodings) | {recovered_faces} | {total_faces} | {_pct(recovered_faces, total_faces)} |"
+    )
     L.append("")
     L.append("## Gallery + probe viability")
     L.append("")
     L.append(f"- Identities total: **{viability['total_identities']}**")
-    L.append(f"- Identities with >=1 recovered source image: **{viability['identities_with_any_recovered']}**")
-    L.append(f"- Identities with >=2 recovered *distinct* source images (gallery+probe viable): **{viability['identities_gallery_probe_viable']}**")
+    L.append(
+        f"- Identities with >=1 recovered source image: **{viability['identities_with_any_recovered']}**"
+    )
+    L.append(
+        f"- Identities with >=2 recovered *distinct* source images (gallery+probe viable): **{viability['identities_gallery_probe_viable']}**"
+    )
     L.append("")
     L.append("## Strata")
     L.append("")
     L.extend(_group_table("By manual vs detected", strata.get("is_manual", {})))
-    L.extend(_group_table("By bounding-box area quartile (Q1 = smallest)", strata.get("bbox_quartile", {})))
-    L.extend(_group_table("Sibling surname groups (shared surname, >=2 identities)", strata.get("sibling_surname", {})))
+    L.extend(
+        _group_table(
+            "By bounding-box area quartile (Q1 = smallest)", strata.get("bbox_quartile", {})
+        )
+    )
+    L.extend(
+        _group_table(
+            "Sibling surname groups (shared surname, >=2 identities)",
+            strata.get("sibling_surname", {}),
+        )
+    )
     if "twin_pairs" in strata:
         L.extend(_group_table("Confirmed twin pairs (distinct_pairs.json)", strata["twin_pairs"]))
     L.extend(_group_table("Per event (YYMMDD prefix)", strata.get("event", {})))
@@ -106,13 +123,20 @@ def build_report(records, index, distinct_pairs) -> tuple[str, list[dict]]:
                     "face_count": counts[h],
                 }
             )
-    unresolved.sort(key=lambda d: (-d["face_count"], d["recorded_basenames"][0] if d["recorded_basenames"] else ""))
+    unresolved.sort(
+        key=lambda d: (
+            -d["face_count"],
+            d["recorded_basenames"][0] if d["recorded_basenames"] else "",
+        )
+    )
 
     L.append("## Unresolved source images")
     L.append("")
-    L.append(f"{len(unresolved)} unique source images are not present locally. "
-             f"Full list (with recorded basenames) written to `unresolved_hashes.json` "
-             f"as input for backup recovery.")
+    L.append(
+        f"{len(unresolved)} unique source images are not present locally. "
+        f"Full list (with recorded basenames) written to `unresolved_hashes.json` "
+        f"as input for backup recovery."
+    )
     L.append("")
     L.append("Sample (top 20 by face count):")
     L.append("")

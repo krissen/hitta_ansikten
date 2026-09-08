@@ -55,7 +55,9 @@ class FaceBackend(ABC):
         pass
 
     @abstractmethod
-    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> tuple[list, list[np.ndarray]]:
+    def detect_faces(
+        self, rgb_image: np.ndarray, model: str, upsample: int
+    ) -> tuple[list, list[np.ndarray]]:
         """
         Detect faces in image.
 
@@ -130,6 +132,7 @@ class DlibBackend(FaceBackend):
         """Initialize dlib backend."""
         try:
             import face_recognition
+
             self._fr = face_recognition
             logger.info("[DlibBackend] Initialized successfully")
         except ImportError as e:
@@ -148,7 +151,9 @@ class DlibBackend(FaceBackend):
     def distance_metric(self) -> str:
         return "euclidean"
 
-    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> tuple[list, list[np.ndarray]]:
+    def detect_faces(
+        self, rgb_image: np.ndarray, model: str, upsample: int
+    ) -> tuple[list, list[np.ndarray]]:
         """
         Detect faces using dlib's HOG or CNN detector.
 
@@ -162,9 +167,7 @@ class DlibBackend(FaceBackend):
         """
         # Detect face locations
         face_locations = self._fr.face_locations(
-            rgb_image,
-            model=model,
-            number_of_times_to_upsample=upsample
+            rgb_image, model=model, number_of_times_to_upsample=upsample
         )
 
         # Sort by left edge (x-coordinate) for consistency
@@ -189,14 +192,19 @@ class DlibBackend(FaceBackend):
             "backend": "dlib",
             "encoding_dim": 128,
             "distance_metric": "euclidean",
-            "model": "dlib_face_recognition_resnet_model_v1"
+            "model": "dlib_face_recognition_resnet_model_v1",
         }
 
 
 class InsightFaceBackend(FaceBackend):
     """Backend using InsightFace library."""
 
-    def __init__(self, model_name: str = 'buffalo_l', ctx_id: int = -1, det_size: tuple[int, int] = (640, 640)) -> None:
+    def __init__(
+        self,
+        model_name: str = "buffalo_l",
+        ctx_id: int = -1,
+        det_size: tuple[int, int] = (640, 640),
+    ) -> None:
         """
         Initialize InsightFace backend.
 
@@ -226,30 +234,36 @@ class InsightFaceBackend(FaceBackend):
         try:
             # Suppress verbose ONNX runtime messages (must be set before importing)
             # Only set if not already configured by user
-            os.environ.setdefault('ORT_LOGGING_LEVEL', '3')  # 3 = ERROR, 2 = WARNING, 1 = INFO, 0 = VERBOSE
+            os.environ.setdefault(
+                "ORT_LOGGING_LEVEL", "3"
+            )  # 3 = ERROR, 2 = WARNING, 1 = INFO, 0 = VERBOSE
 
             # Suppress Python logging from onnxruntime (without overriding user configuration)
             import logging as base_logging
-            ort_logger = base_logging.getLogger('onnxruntime')
+
+            ort_logger = base_logging.getLogger("onnxruntime")
             # Only adjust level if logger has not been explicitly configured
             if not ort_logger.handlers and ort_logger.level == base_logging.NOTSET:
                 ort_logger.setLevel(base_logging.ERROR)
 
             # Suppress FutureWarning from skimage (used by InsightFace)
-            warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
+            warnings.filterwarnings("ignore", category=FutureWarning, module="insightface")
 
             # Suppress CUDA provider warning on systems without GPU
-            warnings.filterwarnings('ignore', message='.*CUDAExecutionProvider.*')
+            warnings.filterwarnings("ignore", message=".*CUDAExecutionProvider.*")
 
-            logger.info(f"[InsightFaceBackend] Initializing with model={model_name}, ctx_id={ctx_id}, det_size={det_size}")
+            logger.info(
+                f"[InsightFaceBackend] Initializing with model={model_name}, ctx_id={ctx_id}, det_size={det_size}"
+            )
 
             # Determine optimal providers for this platform
             # On macOS: CoreML > CPU, on others: CPU only (CUDA handled by ctx_id)
             import platform
-            if platform.system() == 'Darwin':  # macOS
-                providers = ['CoreMLExecutionProvider', 'CPUExecutionProvider']
+
+            if platform.system() == "Darwin":  # macOS
+                providers = ["CoreMLExecutionProvider", "CPUExecutionProvider"]
             else:
-                providers = ['CPUExecutionProvider']
+                providers = ["CPUExecutionProvider"]
 
             # Suppress verbose output during InsightFace initialization
             # ONNX prints directly to stdout/stderr from C++ layer
@@ -258,8 +272,8 @@ class InsightFaceBackend(FaceBackend):
 
                 self.app = FaceAnalysis(
                     name=model_name,
-                    allowed_modules=['detection', 'recognition'],
-                    providers=providers
+                    allowed_modules=["detection", "recognition"],
+                    providers=providers,
                 )
                 self.app.prepare(ctx_id=ctx_id, det_size=det_size)
 
@@ -267,7 +281,9 @@ class InsightFaceBackend(FaceBackend):
             self.ctx_id = ctx_id
             self.det_size = det_size
 
-            logger.info(f"[InsightFaceBackend] Initialized successfully with requested providers: {providers}")
+            logger.info(
+                f"[InsightFaceBackend] Initialized successfully with requested providers: {providers}"
+            )
 
             # Log the providers ACTUALLY bound to each ONNX session. This can
             # differ from the requested list: insightface's own prepare(ctx_id<0)
@@ -307,7 +323,9 @@ class InsightFaceBackend(FaceBackend):
     def distance_metric(self) -> str:
         return "cosine"
 
-    def detect_faces(self, rgb_image: np.ndarray, model: str, upsample: int) -> tuple[list, list[np.ndarray]]:
+    def detect_faces(
+        self, rgb_image: np.ndarray, model: str, upsample: int
+    ) -> tuple[list, list[np.ndarray]]:
         """
         Detect faces using InsightFace's RetinaFace detector.
 
@@ -368,9 +386,7 @@ class InsightFaceBackend(FaceBackend):
 
         # Sort by left edge for consistency (keep scores aligned with faces)
         if locations:
-            sorted_triples = sorted(
-                zip(locations, encodings, det_scores), key=lambda p: p[0][3]
-            )
+            sorted_triples = sorted(zip(locations, encodings, det_scores), key=lambda p: p[0][3])
             locations, encodings, det_scores = (list(t) for t in zip(*sorted_triples))
 
         return locations, encodings, det_scores
@@ -434,7 +450,9 @@ class InsightFaceBackend(FaceBackend):
         for task_name, model in models.items():
             session = getattr(model, "session", None)
             try:
-                actual[task_name] = list(session.get_providers()) if session is not None else ["unknown"]
+                actual[task_name] = (
+                    list(session.get_providers()) if session is not None else ["unknown"]
+                )
             except Exception:  # noqa: BLE001  # pragma: no cover - defensive, never fail init on this
                 actual[task_name] = ["unknown"]
         return actual
@@ -457,15 +475,12 @@ class InsightFaceBackend(FaceBackend):
             "encoding_dim": 512,
             "distance_metric": "cosine",
             "ctx_id": self.ctx_id,
-            "det_size": self.det_size
+            "det_size": self.det_size,
         }
 
 
 # Backend registry for factory pattern
-_backend_registry = {
-    'dlib': DlibBackend,
-    'insightface': InsightFaceBackend
-}
+_backend_registry = {"dlib": DlibBackend, "insightface": InsightFaceBackend}
 
 
 def create_backend(config: dict) -> FaceBackend:
@@ -482,38 +497,35 @@ def create_backend(config: dict) -> FaceBackend:
         ValueError: If backend type is unknown
         ImportError: If backend dependencies are missing
     """
-    backend_config = config.get('backend', {})
-    backend_type = backend_config.get('type', 'insightface')
+    backend_config = config.get("backend", {})
+    backend_type = backend_config.get("type", "insightface")
 
     # dlib is deprecated - force insightface
-    if backend_type == 'dlib':
+    if backend_type == "dlib":
         logger.warning(
             "[DEPRECATED] dlib backend is no longer supported. "
             "Using insightface instead. Please update your config.json."
         )
-        backend_type = 'insightface'
+        backend_type = "insightface"
 
     if backend_type not in _backend_registry:
         available = list(_backend_registry.keys())
-        raise ValueError(
-            f"Unknown backend: '{backend_type}'. "
-            f"Available backends: {available}"
-        )
+        raise ValueError(f"Unknown backend: '{backend_type}'. Available backends: {available}")
 
     backend_class = _backend_registry[backend_type]
 
     # Pass backend-specific configuration
     try:
-        if backend_type == 'dlib':
+        if backend_type == "dlib":
             return backend_class()
 
-        elif backend_type == 'insightface':
-            settings = backend_config.get('insightface', {})
-            det_size = normalize_det_size(settings.get('det_size', [640, 640]))
+        elif backend_type == "insightface":
+            settings = backend_config.get("insightface", {})
+            det_size = normalize_det_size(settings.get("det_size", [640, 640]))
             return backend_class(
-                model_name=settings.get('model_name', 'buffalo_l'),
-                ctx_id=settings.get('ctx_id', -1),
-                det_size=det_size
+                model_name=settings.get("model_name", "buffalo_l"),
+                ctx_id=settings.get("ctx_id", -1),
+                det_size=det_size,
             )
 
         # Default: try to instantiate with no args
@@ -522,9 +534,9 @@ def create_backend(config: dict) -> FaceBackend:
     except ImportError as e:
         logger.error(f"Failed to create {backend_type} backend: {e}")
         logger.error("Make sure required dependencies are installed:")
-        if backend_type == 'dlib':
+        if backend_type == "dlib":
             logger.error("  pip install face_recognition")
-        elif backend_type == 'insightface':
+        elif backend_type == "insightface":
             logger.error("  pip install insightface onnxruntime")
         raise
     except Exception as e:

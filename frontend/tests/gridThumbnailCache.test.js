@@ -99,9 +99,13 @@ describe('GridThumbnailCache', () => {
 
   it('coalesces concurrent requests for the same key into one fetch', async () => {
     let resolveBlob;
-    global.fetch = vi.fn(() => new Promise((res) => {
-      resolveBlob = () => res({ ok: true, blob: async () => ({ size: 42 }) });
-    }));
+    global.fetch = vi.fn(
+      () =>
+        new Promise((res) => {
+          resolveBlob = () =>
+            res({ ok: true, blob: async () => ({ size: 42 }) });
+        }),
+    );
     const cache = new GridThumbnailCache(10);
 
     const p1 = cache.getThumbnail('/p/a.jpg', 256, 'fp');
@@ -109,14 +113,17 @@ describe('GridThumbnailCache', () => {
     resolveBlob();
     const [u1, u2] = await Promise.all([p1, p2]);
 
-    expect(global.fetch).toHaveBeenCalledTimes(1);   // one fetch, not two
+    expect(global.fetch).toHaveBeenCalledTimes(1); // one fetch, not two
     expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1); // one blob URL
     expect(u1).toBe(u2);
     expect(cache.getStats().size).toBe(1);
   });
 
   it('throws on an empty blob response', async () => {
-    global.fetch = vi.fn(async () => ({ ok: true, blob: async () => ({ size: 0 }) }));
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      blob: async () => ({ size: 0 }),
+    }));
     const cache = new GridThumbnailCache(10);
     await expect(cache.getThumbnail('/p/a.jpg', 256, 'fp')).rejects.toThrow();
   });
@@ -133,18 +140,22 @@ describe('GridThumbnailCache', () => {
 
   it("clear() during an in-flight fetch doesn't repopulate the cache", async () => {
     let resolveBlob;
-    global.fetch = vi.fn(() => new Promise((res) => {
-      resolveBlob = () => res({ ok: true, blob: async () => ({ size: 42 }) });
-    }));
+    global.fetch = vi.fn(
+      () =>
+        new Promise((res) => {
+          resolveBlob = () =>
+            res({ ok: true, blob: async () => ({ size: 42 }) });
+        }),
+    );
     const cache = new GridThumbnailCache(10);
 
     const p = cache.getThumbnail('/p/a.jpg', 256, 'fp');
-    cache.clear();          // clears while the fetch is still pending
+    cache.clear(); // clears while the fetch is still pending
     resolveBlob();
 
     // The fetch is cancelled — it rejects rather than handing back a revoked URL.
     await expect(p).rejects.toMatchObject({ name: 'CacheClearedError' });
-    expect(cache.getStats().size).toBe(0);                 // not repopulated
+    expect(cache.getStats().size).toBe(0); // not repopulated
     expect(global.URL.revokeObjectURL).toHaveBeenCalled(); // the late blob was revoked
   });
 });

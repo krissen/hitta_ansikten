@@ -29,8 +29,8 @@ from core import fs_ops
 from core.exiftool import find_exiftool
 from core.files import SUPPORTED_EXTENSIONS
 
-DATE_PATTERN = re.compile(r'^(\d{6})_')
-TIMESTAMP_PATTERN = re.compile(r'^(\d{6}_\d{6})')
+DATE_PATTERN = re.compile(r"^(\d{6})_")
+TIMESTAMP_PATTERN = re.compile(r"^(\d{6}_\d{6})")
 DEFAULT_SOURCE_ROOT = Path("~/Pictures/nerladdat").expanduser()
 DEFAULT_TARGET_ROOT = Path("~/Pictures/framkallat").expanduser()
 
@@ -42,30 +42,33 @@ def parse_date_arg(date_str: str) -> str:
     """
     date_str = date_str.strip()
 
-    if re.match(r'^\d{6}$', date_str):
+    if re.match(r"^\d{6}$", date_str):
         return date_str
-    if re.match(r'^\d{8}$', date_str):
+    if re.match(r"^\d{8}$", date_str):
         return date_str[2:]
-    if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
-        dt = datetime.strptime(date_str, '%Y-%m-%d')
-        return dt.strftime('%y%m%d')
-    if re.match(r'^\d{2}-\d{2}-\d{2}$', date_str):
-        dt = datetime.strptime(date_str, '%y-%m-%d')
-        return dt.strftime('%y%m%d')
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        return dt.strftime("%y%m%d")
+    if re.match(r"^\d{2}-\d{2}-\d{2}$", date_str):
+        dt = datetime.strptime(date_str, "%y-%m-%d")
+        return dt.strftime("%y%m%d")
 
-    raise ValueError(f"Okänt datumformat: {date_str} (använd YYMMDD, YYYY-MM-DD, YY-MM-DD eller YYYYMMDD)")
+    raise ValueError(
+        f"Okänt datumformat: {date_str} (använd YYMMDD, YYYY-MM-DD, YY-MM-DD eller YYYYMMDD)"
+    )
 
 
 def format_date_display(yymmdd: str) -> str:
     """Formatera YYMMDD för visning."""
     try:
-        dt = datetime.strptime(yymmdd, '%y%m%d')
-        return dt.strftime('%Y-%m-%d')
+        dt = datetime.strptime(yymmdd, "%y%m%d")
+        return dt.strftime("%Y-%m-%d")
     except ValueError:
         return yymmdd
 
 
 # === Datumkällor ===
+
 
 def extract_date_from_filename(filename: str) -> str | None:
     """Extrahera YYMMDD från filnamn."""
@@ -78,7 +81,7 @@ def extract_date_from_mtime(file: Path) -> str | None:
     try:
         mtime = os.path.getmtime(file)
         dt = datetime.fromtimestamp(mtime)
-        return dt.strftime('%y%m%d')
+        return dt.strftime("%y%m%d")
     except OSError:
         return None
 
@@ -90,12 +93,18 @@ def extract_dates_from_exif(files: list[Path]) -> dict[Path, str]:
 
     try:
         cmd = [
-            find_exiftool(), "-q", "-q", "-m",
-            "-if", "defined $CreateDate",
-            "-d", "%y%m%d",
-            "-p", "$CreateDate|$FilePath",
+            find_exiftool(),
+            "-q",
+            "-q",
+            "-m",
+            "-if",
+            "defined $CreateDate",
+            "-d",
+            "%y%m%d",
+            "-p",
+            "$CreateDate|$FilePath",
             "--",
-            *[str(f) for f in files]
+            *[str(f) for f in files],
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     except FileNotFoundError:
@@ -118,10 +127,7 @@ def extract_dates_from_exif(files: list[Path]) -> dict[Path, str]:
     return dates
 
 
-def get_file_dates(
-    files: list[Path],
-    source: str = "filename"
-) -> dict[Path, str]:
+def get_file_dates(files: list[Path], source: str = "filename") -> dict[Path, str]:
     """Hämta datum för filer baserat på vald källa."""
 
     if source == "exif":
@@ -144,6 +150,7 @@ def get_file_dates(
 
 # === Sidecar-hantering ===
 
+
 def find_sidecar_files(file: Path) -> list[Path]:
     """Hitta sidecar-filer (.xmp) för en given fil."""
     sidecars = []
@@ -156,6 +163,7 @@ def find_sidecar_files(file: Path) -> list[Path]:
 
 
 # === Filtrering och flytt ===
+
 
 def filter_by_date(
     file_dates: dict[Path, str],
@@ -188,8 +196,7 @@ def filter_by_date(
 
 
 def compute_moves(
-    file_dates: dict[Path, str],
-    include_sidecars: bool = True
+    file_dates: dict[Path, str], include_sidecars: bool = True
 ) -> dict[str, list[Path]]:
     """Gruppera filer per datum och inkludera sidecars."""
     moves: dict[str, list[Path]] = defaultdict(list)
@@ -237,10 +244,7 @@ def preflight_destinations(destinations: list[Path]) -> str | None:
 
 
 def execute_moves(
-    moves: dict[str, list[Path]],
-    base_dir: Path,
-    dry_run: bool = False,
-    verbose: bool = False
+    moves: dict[str, list[Path]], base_dir: Path, dry_run: bool = False, verbose: bool = False
 ) -> int:
     """Utför flytt av filer till datummappar."""
     if not moves:
@@ -259,7 +263,8 @@ def execute_moves(
             if file.suffix.lower() == ".xmp":
                 continue
             sidecars = [
-                sidecar for sidecar in find_sidecar_files(file)
+                sidecar
+                for sidecar in find_sidecar_files(file)
                 if sidecar in file_set and sidecar not in attached_sidecars
             ]
             sidecars_by_main[file] = sidecars
@@ -277,8 +282,7 @@ def execute_moves(
                 continue
             target = target_dir / file.name
             sidecar_pairs = [
-                (sidecar, target_dir / sidecar.name)
-                for sidecar in sidecars_by_main.get(file, [])
+                (sidecar, target_dir / sidecar.name) for sidecar in sidecars_by_main.get(file, [])
             ]
 
             if target.exists():
@@ -286,9 +290,9 @@ def execute_moves(
                 continue
 
             if dry_run:
-                preflight_error = preflight_destinations([
-                    target, *(dst for _src, dst in sidecar_pairs)
-                ])
+                preflight_error = preflight_destinations(
+                    [target, *(dst for _src, dst in sidecar_pairs)]
+                )
                 if preflight_error:
                     print(f"SKIP: {file.name}: {preflight_error}", file=sys.stderr)
                     continue
@@ -319,6 +323,7 @@ def execute_moves(
 
 # === Matchning mot kallmappar ===
 
+
 def extract_timestamp(filename: str) -> tuple[str, datetime] | None:
     """Return a leading YYMMDD_HHMMSS token and its naive local datetime."""
     match = TIMESTAMP_PATTERN.match(filename)
@@ -335,7 +340,8 @@ def iter_supported_images(root: Path, recursive: bool) -> list[Path]:
     """List supported image files in deterministic order."""
     candidates = root.rglob("*") if recursive else root.iterdir()
     return sorted(
-        path for path in candidates
+        path
+        for path in candidates
         if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS
     )
 
@@ -391,7 +397,7 @@ def guess_source_folder(
 
     source_times = [item[0] for item in source_timeline]
     position = bisect.bisect_left(source_times, timestamp)
-    nearby = source_timeline[max(0, position - 1):position + 1]
+    nearby = source_timeline[max(0, position - 1) : position + 1]
     if not nearby:
         return None
     min_delta = min(abs((item[0] - timestamp).total_seconds()) for item in nearby)
@@ -414,9 +420,7 @@ def guess_source_folder(
     return candidate, round(min_delta)
 
 
-def resolve_selection(
-    patterns: list[str], target_root: Path
-) -> tuple[set[str], list[str]]:
+def resolve_selection(patterns: list[str], target_root: Path) -> tuple[set[str], list[str]]:
     """Resolve CLI patterns to names of root images inside ``target_root``.
 
     Selecting files narrows which moves are carried out; the guess evidence is
@@ -427,9 +431,11 @@ def resolve_selection(
     problems: list[str] = []
     for pattern in patterns:
         candidate = Path(pattern)
-        matches = [candidate] if candidate.is_file() else [
-            Path(match) for match in sorted(glob(pattern)) if Path(match).is_file()
-        ]
+        matches = (
+            [candidate]
+            if candidate.is_file()
+            else [Path(match) for match in sorted(glob(pattern)) if Path(match).is_file()]
+        )
         if not matches:
             problems.append(f"{pattern}: ingen fil matchar")
             continue
@@ -491,9 +497,9 @@ def execute_matched_moves(
         sidecar_pairs = [(sidecar, target.with_suffix(sidecar.suffix)) for sidecar in sidecars]
         relative_target = target
         if dry_run:
-            preflight_error = preflight_destinations([
-                target, *(dst for _src, dst in sidecar_pairs)
-            ])
+            preflight_error = preflight_destinations(
+                [target, *(dst for _src, dst in sidecar_pairs)]
+            )
             if preflight_error:
                 failed += 1
                 print(
@@ -531,23 +537,33 @@ def match_source_main(argv: list[str]) -> int:
     parser.add_argument("-n", "--dry-run", action="store_true", help="Visa utan att flytta")
     parser.add_argument("-v", "--verbose", action="store_true", help="Visa varje flytt")
     parser.add_argument(
-        "--kallrot", type=Path, default=DEFAULT_SOURCE_ROOT,
+        "--kallrot",
+        type=Path,
+        default=DEFAULT_SOURCE_ROOT,
         help=f"Källträd (default: {DEFAULT_SOURCE_ROOT})",
     )
     parser.add_argument(
-        "--malrot", type=Path, default=DEFAULT_TARGET_ROOT,
+        "--malrot",
+        type=Path,
+        default=DEFAULT_TARGET_ROOT,
         help=f"Rot med framkallade bilder (default: {DEFAULT_TARGET_ROOT})",
     )
     parser.add_argument(
-        "--flytta-osakra", action="store_true",
+        "--flytta-osakra",
+        action="store_true",
         help="Flytta även redovisade kvalificerade gissningar",
     )
     parser.add_argument(
-        "--tidsfonster", type=int, default=30, metavar="MINUTER",
+        "--tidsfonster",
+        type=int,
+        default=30,
+        metavar="MINUTER",
         help="Maximalt tidsavstånd för gissningar (default: 30)",
     )
     parser.add_argument(
-        "patterns", nargs="*", metavar="FIL",
+        "patterns",
+        nargs="*",
+        metavar="FIL",
         help="Filer eller glob-mönster i målrotens topp (default: alla)",
     )
     args = parser.parse_args(argv)
@@ -567,9 +583,7 @@ def match_source_main(argv: list[str]) -> int:
         print("FEL: källrot och målrot får inte överlappa", file=sys.stderr)
         return 1
 
-    safe, guessed, unresolved = compute_matched_moves(
-        source_root, target_root, args.tidsfonster
-    )
+    safe, guessed, unresolved = compute_matched_moves(source_root, target_root, args.tidsfonster)
     if args.patterns:
         selection, problems = resolve_selection(args.patterns, target_root)
         for problem in problems:
@@ -581,11 +595,7 @@ def match_source_main(argv: list[str]) -> int:
         unresolved = [path for path in unresolved if path.name in selection]
         skipped = selection - {
             path.name
-            for path in (
-                [pair[0] for pair in safe]
-                + [item[0] for item in guessed]
-                + unresolved
-            )
+            for path in ([pair[0] for pair in safe] + [item[0] for item in guessed] + unresolved)
         }
         for name in sorted(skipped):
             print(f"{name}: källan ligger i källrotens topp — ingen mapp att spegla")
@@ -598,10 +608,7 @@ def match_source_main(argv: list[str]) -> int:
     if args.flytta_osakra:
         selected.extend((source, target) for source, target, _delta in guessed)
 
-    print(
-        f"Säkra: {len(safe)}, osäkra förslag: {len(guessed)}, "
-        f"olösta: {len(unresolved)}."
-    )
+    print(f"Säkra: {len(safe)}, osäkra förslag: {len(guessed)}, olösta: {len(unresolved)}.")
     if guessed:
         print("Osäkra förslag:")
         for source, target, delta_seconds in guessed:
@@ -638,8 +645,7 @@ def main(argv: list[str] | None = None) -> int:
         return match_source_main(argv[1:])
 
     parser = argparse.ArgumentParser(
-        usage="%(prog)s [flaggor] [patterns ...]\n"
-              "       %(prog)s matcha-kalla [flaggor]",
+        usage="%(prog)s [flaggor] [patterns ...]\n       %(prog)s matcha-kalla [flaggor]",
         description="Flytta filer till undermappar baserat på datum (YYMMDD)",
         epilog=(
             "underkommando:\n"
@@ -653,76 +659,80 @@ def main(argv: list[str] | None = None) -> int:
 
     # Allmänna
     parser.add_argument(
-        "-n", "--dry-run",
-        action="store_true",
-        help="Visa vad som skulle göras utan att utföra"
+        "-n", "--dry-run", action="store_true", help="Visa vad som skulle göras utan att utföra"
     )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Visa varje flytt")
     parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Visa varje flytt"
-    )
-    parser.add_argument(
-        "--no-sidecars", "--inga-sidecars",
+        "--no-sidecars",
+        "--inga-sidecars",
         dest="no_sidecars",
         action="store_true",
-        help="Flytta inte .xmp-filer automatiskt"
+        help="Flytta inte .xmp-filer automatiskt",
     )
 
     # Datumkälla
-    source_group = parser.add_argument_group('datumkälla (default: filnamn)')
+    source_group = parser.add_argument_group("datumkälla (default: filnamn)")
     source_mutex = source_group.add_mutually_exclusive_group()
     source_mutex.add_argument(
-        "--exif-date", "--exif-datum",
+        "--exif-date",
+        "--exif-datum",
         dest="exif_date",
         action="store_true",
-        help="Använd EXIF CreateDate (kräver exiftool)"
+        help="Använd EXIF CreateDate (kräver exiftool)",
     )
     source_mutex.add_argument(
-        "--file-date", "--fil-datum",
+        "--file-date",
+        "--fil-datum",
         dest="file_date",
         action="store_true",
-        help="Använd filens modifieringsdatum"
+        help="Använd filens modifieringsdatum",
     )
 
     # Datumfilter
-    filter_group = parser.add_argument_group('datumfilter')
+    filter_group = parser.add_argument_group("datumfilter")
     filter_group.add_argument(
-        "--before", "--fore-datum", "--datum-fore",
+        "--before",
+        "--fore-datum",
+        "--datum-fore",
         dest="before",
         metavar="DATUM",
-        help="Filer med datum FÖRE detta (exklusivt)"
+        help="Filer med datum FÖRE detta (exklusivt)",
     )
     filter_group.add_argument(
-        "--after", "--efter-datum", "--datum-efter",
+        "--after",
+        "--efter-datum",
+        "--datum-efter",
         dest="after",
         metavar="DATUM",
-        help="Filer med datum EFTER detta (exklusivt)"
+        help="Filer med datum EFTER detta (exklusivt)",
     )
     filter_group.add_argument(
-        "--exact", "--datum", "--exakt-datum",
+        "--exact",
+        "--datum",
+        "--exakt-datum",
         dest="exact",
         metavar="DATUM",
-        help="Endast filer med exakt detta datum"
+        help="Endast filer med exakt detta datum",
     )
     filter_group.add_argument(
-        "--from", "--fran-datum", "--fran",
+        "--from",
+        "--fran-datum",
+        "--fran",
         dest="from_date",
         metavar="DATUM",
-        help="Filer från och med detta datum (inklusivt)"
+        help="Filer från och med detta datum (inklusivt)",
     )
     filter_group.add_argument(
-        "--to", "--till-datum", "--till",
+        "--to",
+        "--till-datum",
+        "--till",
         dest="to_date",
         metavar="DATUM",
-        help="Filer till och med detta datum (inklusivt)"
+        help="Filer till och med detta datum (inklusivt)",
     )
 
     parser.add_argument(
-        "patterns",
-        nargs="*",
-        default=["*.NEF"],
-        help="Filer eller glob-mönster (default: *.NEF)"
+        "patterns", nargs="*", default=["*.NEF"], help="Filer eller glob-mönster (default: *.NEF)"
     )
 
     args = parser.parse_args(argv)

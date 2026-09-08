@@ -6,9 +6,18 @@
  */
 
 import React, { useState, useEffect, useCallback, useId, useRef } from 'react';
-import { preferences, DEFAULT_EXTERNAL_EDITOR } from '../workspace/preferences.js';
+import {
+  preferences,
+  DEFAULT_EXTERNAL_EDITOR,
+} from '../workspace/preferences.js';
 import { themeManager } from '../theme-manager.js';
-import { getCategories, setCategories, resetCategories, debug, debugError } from '../shared/debug.js';
+import {
+  getCategories,
+  setCategories,
+  resetCategories,
+  debug,
+  debugError,
+} from '../shared/debug.js';
 import { t } from '../../i18n/index.js';
 import { Button } from './shared/index.js';
 import { useConfirm } from '../context/ConfirmContext.jsx';
@@ -26,7 +35,7 @@ const SECTION_IDS = [
   'files',
   'preprocessing',
   'dashboard',
-  'advanced'
+  'advanced',
 ];
 
 const sectionLabel = (id) => t(`preferences.sections.${id}`);
@@ -120,8 +129,10 @@ function SelectField({ label, hint, value, onChange, options }) {
         onChange={(e) => onChange(e.target.value)}
         aria-describedby={hintId}
       >
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
         ))}
       </select>
       {hint && <small id={hintId}>{hint}</small>}
@@ -205,7 +216,10 @@ export function PreferencesModule({ api }) {
   // Used for immediate live preview when user adjusts slider
   const applyToastOpacity = useCallback((opacity) => {
     if (opacity !== undefined) {
-      document.documentElement.style.setProperty('--toast-opacity', String(opacity));
+      document.documentElement.style.setProperty(
+        '--toast-opacity',
+        String(opacity),
+      );
     }
   }, []);
 
@@ -219,7 +233,7 @@ export function PreferencesModule({ api }) {
 
   // Update a preference value
   const updatePref = useCallback((path, value) => {
-    setPrefs(prev => {
+    setPrefs((prev) => {
       const newPrefs = JSON.parse(JSON.stringify(prev));
       const keys = path.split('.');
       let target = newPrefs;
@@ -251,7 +265,7 @@ export function PreferencesModule({ api }) {
     try {
       const ok = await confirm({
         message: t('preferences.dialogs.resetConfirm'),
-        confirmLabel: t('common.reset')
+        confirmLabel: t('common.reset'),
       });
       if (!ok) return;
       const defaults = preferences.getDefaults();
@@ -292,22 +306,29 @@ export function PreferencesModule({ api }) {
         if (!cancelled) setTrashRetention(null);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [activeSection]);
 
   // Persist the retention threshold to backend config (clamped to >= 0).
-  const handleTrashRetentionChange = useCallback(async (days) => {
-    const v = Math.max(0, Math.floor(Number.isFinite(days) ? days : 0));
-    setTrashRetention(v); // optimistic
-    try {
-      const { apiClient } = await import('../shared/api-client.js');
-      const res = await apiClient.setTrashRetention(v);
-      setTrashRetention(res.days);
-    } catch (err) {
-      debugError('Preferences', 'Failed to save trash retention:', err);
-      showToast(t('preferences.toasts.trashRetentionError'), { type: 'error' });
-    }
-  }, [showToast]);
+  const handleTrashRetentionChange = useCallback(
+    async (days) => {
+      const v = Math.max(0, Math.floor(Number.isFinite(days) ? days : 0));
+      setTrashRetention(v); // optimistic
+      try {
+        const { apiClient } = await import('../shared/api-client.js');
+        const res = await apiClient.setTrashRetention(v);
+        setTrashRetention(res.days);
+      } catch (err) {
+        debugError('Preferences', 'Failed to save trash retention:', err);
+        showToast(t('preferences.toasts.trashRetentionError'), {
+          type: 'error',
+        });
+      }
+    },
+    [showToast],
+  );
 
   // Clear cache
   const handleClearCache = useCallback(async () => {
@@ -317,7 +338,7 @@ export function PreferencesModule({ api }) {
       const ok = await confirm({
         message: t('preferences.dialogs.clearCacheConfirm'),
         confirmLabel: t('preferences.dialogs.clearCacheConfirmLabel'),
-        variant: 'danger'
+        variant: 'danger',
       });
       if (!ok) return;
       try {
@@ -393,7 +414,7 @@ export function PreferencesModule({ api }) {
         options={[
           { value: 'dark', label: t('preferences.general.theme.dark') },
           { value: 'light', label: t('preferences.general.theme.light') },
-          { value: 'system', label: t('preferences.general.theme.system') }
+          { value: 'system', label: t('preferences.general.theme.system') },
         ]}
       />
       <SelectField
@@ -401,9 +422,18 @@ export function PreferencesModule({ api }) {
         value={prefs.ui?.defaultLayout ?? 'standard'}
         onChange={(v) => updatePref('ui.defaultLayout', v)}
         options={[
-          { value: 'standard', label: t('preferences.general.defaultLayout.standard') },
-          { value: 'compact', label: t('preferences.general.defaultLayout.compact') },
-          { value: 'review-focused', label: t('preferences.general.defaultLayout.reviewFocused') }
+          {
+            value: 'standard',
+            label: t('preferences.general.defaultLayout.standard'),
+          },
+          {
+            value: 'compact',
+            label: t('preferences.general.defaultLayout.compact'),
+          },
+          {
+            value: 'review-focused',
+            label: t('preferences.general.defaultLayout.reviewFocused'),
+          },
         ]}
       />
       <CheckboxField
@@ -437,9 +467,15 @@ export function PreferencesModule({ api }) {
         onChange={(v) => updatePref('layout.defaultTemplate', v)}
         options={[
           { value: 'review', label: t('preferences.layout.template.review') },
-          { value: 'comparison', label: t('preferences.layout.template.comparison') },
-          { value: 'full-image', label: t('preferences.layout.template.fullImage') },
-          { value: 'stats', label: t('preferences.layout.template.stats') }
+          {
+            value: 'comparison',
+            label: t('preferences.layout.template.comparison'),
+          },
+          {
+            value: 'full-image',
+            label: t('preferences.layout.template.fullImage'),
+          },
+          { value: 'stats', label: t('preferences.layout.template.stats') },
         ]}
       />
       <SelectField
@@ -452,7 +488,7 @@ export function PreferencesModule({ api }) {
           { value: '60-40', label: '60% / 40%' },
           { value: '70-30', label: '70% / 30%' },
           { value: '30-70', label: '30% / 70%' },
-          { value: '40-60', label: '40% / 60%' }
+          { value: '40-60', label: '40% / 60%' },
         ]}
       />
       <CheckboxField
@@ -502,8 +538,14 @@ export function PreferencesModule({ api }) {
         value={prefs.imageViewer?.defaultZoomMode ?? 'auto-fit'}
         onChange={(v) => updatePref('imageViewer.defaultZoomMode', v)}
         options={[
-          { value: 'auto-fit', label: t('preferences.imageViewer.zoomMode.autoFit') },
-          { value: '1:1', label: t('preferences.imageViewer.zoomMode.oneToOne') }
+          {
+            value: 'auto-fit',
+            label: t('preferences.imageViewer.zoomMode.autoFit'),
+          },
+          {
+            value: '1:1',
+            label: t('preferences.imageViewer.zoomMode.oneToOne'),
+          },
         ]}
       />
       <CheckboxField
@@ -533,7 +575,7 @@ export function PreferencesModule({ api }) {
         onChange={(v) => updatePref('reviewModule.defaultAction', v)}
         options={[
           { value: 'next', label: t('preferences.review.action.next') },
-          { value: 'stay', label: t('preferences.review.action.stay') }
+          { value: 'stay', label: t('preferences.review.action.stay') },
         ]}
       />
       <CheckboxField
@@ -547,15 +589,26 @@ export function PreferencesModule({ api }) {
         value={prefs.reviewModule?.saveMode ?? 'per-image'}
         onChange={(v) => updatePref('reviewModule.saveMode', v)}
         options={[
-          { value: 'per-image', label: t('preferences.review.saveMode.perImage') },
-          { value: 'per-face', label: t('preferences.review.saveMode.perFace') }
+          {
+            value: 'per-image',
+            label: t('preferences.review.saveMode.perImage'),
+          },
+          {
+            value: 'per-face',
+            label: t('preferences.review.saveMode.perFace'),
+          },
         ]}
       />
       <NumberField
         label={t('preferences.review.matchAlternatives.label')}
         hint={t('preferences.review.matchAlternatives.hint')}
         value={prefs.reviewModule?.maxAlternatives ?? 5}
-        onChange={(v) => updatePref('reviewModule.maxAlternatives', Math.max(1, Math.min(9, v)))}
+        onChange={(v) =>
+          updatePref(
+            'reviewModule.maxAlternatives',
+            Math.max(1, Math.min(9, v)),
+          )
+        }
         min={1}
         max={9}
       />
@@ -599,8 +652,11 @@ export function PreferencesModule({ api }) {
         value={prefs.fileQueue?.insertMode ?? 'alphabetical'}
         onChange={(v) => updatePref('fileQueue.insertMode', v)}
         options={[
-          { value: 'alphabetical', label: t('preferences.files.insertMode.alphabetical') },
-          { value: 'bottom', label: t('preferences.files.insertMode.bottom') }
+          {
+            value: 'alphabetical',
+            label: t('preferences.files.insertMode.alphabetical'),
+          },
+          { value: 'bottom', label: t('preferences.files.insertMode.bottom') },
         ]}
       />
 
@@ -609,12 +665,17 @@ export function PreferencesModule({ api }) {
         label={t('preferences.files.toastDuration.label')}
         hint={t('preferences.files.toastDuration.hint')}
         value={String(prefs.notifications?.toastDuration ?? 1.0)}
-        onChange={(v) => updatePref('notifications.toastDuration', parseFloat(v))}
+        onChange={(v) =>
+          updatePref('notifications.toastDuration', parseFloat(v))
+        }
         options={[
           { value: '0.5', label: t('preferences.files.toastDuration.short') },
           { value: '1.0', label: t('preferences.files.toastDuration.normal') },
           { value: '1.5', label: t('preferences.files.toastDuration.long') },
-          { value: '2.0', label: t('preferences.files.toastDuration.veryLong') }
+          {
+            value: '2.0',
+            label: t('preferences.files.toastDuration.veryLong'),
+          },
         ]}
       />
       <SliderField
@@ -647,10 +708,16 @@ export function PreferencesModule({ api }) {
         value={prefs.rename?.prefixSource ?? 'filename'}
         onChange={(v) => updatePref('rename.prefixSource', v)}
         options={[
-          { value: 'filename', label: t('preferences.files.prefixSource.filename') },
+          {
+            value: 'filename',
+            label: t('preferences.files.prefixSource.filename'),
+          },
           { value: 'exif', label: t('preferences.files.prefixSource.exif') },
-          { value: 'filedate', label: t('preferences.files.prefixSource.filedate') },
-          { value: 'none', label: t('preferences.files.prefixSource.none') }
+          {
+            value: 'filedate',
+            label: t('preferences.files.prefixSource.filedate'),
+          },
+          { value: 'none', label: t('preferences.files.prefixSource.none') },
         ]}
       />
       <SelectField
@@ -658,10 +725,16 @@ export function PreferencesModule({ api }) {
         value={prefs.rename?.nameSeparator ?? ',_'}
         onChange={(v) => updatePref('rename.nameSeparator', v)}
         options={[
-          { value: ',_', label: t('preferences.files.nameSeparator.commaUnderscore') },
-          { value: '_', label: t('preferences.files.nameSeparator.underscore') },
+          {
+            value: ',_',
+            label: t('preferences.files.nameSeparator.commaUnderscore'),
+          },
+          {
+            value: '_',
+            label: t('preferences.files.nameSeparator.underscore'),
+          },
           { value: '-', label: t('preferences.files.nameSeparator.dash') },
-          { value: '_och_', label: t('preferences.files.nameSeparator.och') }
+          { value: '_och_', label: t('preferences.files.nameSeparator.och') },
         ]}
       />
       <CheckboxField
@@ -689,7 +762,10 @@ export function PreferencesModule({ api }) {
         hint={t('preferences.files.sidecarExtensions.hint')}
         value={(prefs.rename?.sidecarExtensions ?? ['xmp']).join(', ')}
         onChange={(v) => {
-          const exts = v.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+          const exts = v
+            .split(',')
+            .map((e) => e.trim().toLowerCase())
+            .filter((e) => e);
           updatePref('rename.sidecarExtensions', exts);
         }}
         placeholder="xmp, dng"
@@ -720,9 +796,7 @@ export function PreferencesModule({ api }) {
   const renderPreprocessingSection = () => (
     <>
       <SectionHeader title={t('preferences.preprocessing.backgroundHeader')} />
-      <p className="section-hint">
-        {t('preferences.preprocessing.intro')}
-      </p>
+      <p className="section-hint">{t('preferences.preprocessing.intro')}</p>
       <CheckboxField
         label={t('preferences.preprocessing.enable.label')}
         hint={t('preferences.preprocessing.enable.hint')}
@@ -771,9 +845,11 @@ export function PreferencesModule({ api }) {
       {cacheStatus && (
         <div className="cache-status">
           <strong>{t('preferences.preprocessing.cache.statusLabel')}</strong>{' '}
-          {t('preferences.preprocessing.cache.entries', { count: cacheStatus.total_entries })},
-          {' '}{cacheStatus.total_size_mb} MB / {cacheStatus.max_size_mb} MB
-          {' '}({cacheStatus.usage_percent}%)
+          {t('preferences.preprocessing.cache.entries', {
+            count: cacheStatus.total_entries,
+          })}
+          , {cacheStatus.total_size_mb} MB / {cacheStatus.max_size_mb} MB (
+          {cacheStatus.usage_percent}%)
         </div>
       )}
       <Button variant="secondary" onClick={handleClearCache}>
@@ -791,9 +867,13 @@ export function PreferencesModule({ api }) {
         onChange={(v) => {
           const maxReady = Math.max(5, Math.min(50, v));
           updatePref('preprocessing.rollingWindow.maxReadyItems', maxReady);
-          const pauseBuffer = prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10;
+          const pauseBuffer =
+            prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10;
           if (pauseBuffer >= maxReady) {
-            updatePref('preprocessing.rollingWindow.minQueueBuffer', maxReady - 1);
+            updatePref(
+              'preprocessing.rollingWindow.minQueueBuffer',
+              maxReady - 1,
+            );
           }
         }}
         min={5}
@@ -804,7 +884,8 @@ export function PreferencesModule({ api }) {
         hint={t('preferences.preprocessing.pauseBuffer.hint')}
         value={prefs.preprocessing?.rollingWindow?.minQueueBuffer ?? 10}
         onChange={(v) => {
-          const maxReady = prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15;
+          const maxReady =
+            prefs.preprocessing?.rollingWindow?.maxReadyItems ?? 15;
           const pauseBuffer = Math.max(3, Math.min(maxReady - 1, v));
           updatePref('preprocessing.rollingWindow.minQueueBuffer', pauseBuffer);
         }}
@@ -815,29 +896,44 @@ export function PreferencesModule({ api }) {
         label={t('preferences.preprocessing.resumeAfter.label')}
         hint={t('preferences.preprocessing.resumeAfter.hint')}
         value={prefs.preprocessing?.rollingWindow?.resumeThreshold ?? 5}
-        onChange={(v) => updatePref('preprocessing.rollingWindow.resumeThreshold', Math.max(1, Math.min(15, v)))}
+        onChange={(v) =>
+          updatePref(
+            'preprocessing.rollingWindow.resumeThreshold',
+            Math.max(1, Math.min(15, v)),
+          )
+        }
         min={1}
         max={15}
       />
 
-      <SectionHeader title={t('preferences.preprocessing.notificationsHeader')} />
+      <SectionHeader
+        title={t('preferences.preprocessing.notificationsHeader')}
+      />
       <CheckboxField
         label={t('preferences.preprocessing.statusIndicator.label')}
         hint={t('preferences.preprocessing.statusIndicator.hint')}
-        checked={prefs.preprocessing?.notifications?.showStatusIndicator ?? true}
-        onChange={(v) => updatePref('preprocessing.notifications.showStatusIndicator', v)}
+        checked={
+          prefs.preprocessing?.notifications?.showStatusIndicator ?? true
+        }
+        onChange={(v) =>
+          updatePref('preprocessing.notifications.showStatusIndicator', v)
+        }
       />
       <CheckboxField
         label={t('preferences.preprocessing.toastOnPause.label')}
         hint={t('preferences.preprocessing.toastOnPause.hint')}
         checked={prefs.preprocessing?.notifications?.showToastOnPause ?? true}
-        onChange={(v) => updatePref('preprocessing.notifications.showToastOnPause', v)}
+        onChange={(v) =>
+          updatePref('preprocessing.notifications.showToastOnPause', v)
+        }
       />
       <CheckboxField
         label={t('preferences.preprocessing.toastOnResume.label')}
         hint={t('preferences.preprocessing.toastOnResume.hint')}
         checked={prefs.preprocessing?.notifications?.showToastOnResume ?? false}
-        onChange={(v) => updatePref('preprocessing.notifications.showToastOnResume', v)}
+        onChange={(v) =>
+          updatePref('preprocessing.notifications.showToastOnResume', v)
+        }
       />
     </>
   );
@@ -845,9 +941,7 @@ export function PreferencesModule({ api }) {
   const renderDashboardSection = () => (
     <>
       <SectionHeader title={t('preferences.dashboard.sectionsHeader')} />
-      <p className="section-hint">
-        {t('preferences.dashboard.intro')}
-      </p>
+      <p className="section-hint">{t('preferences.dashboard.intro')}</p>
       <CheckboxField
         label={t('preferences.dashboard.detectionStats.label')}
         hint={t('preferences.dashboard.detectionStats.hint')}
@@ -892,12 +986,26 @@ export function PreferencesModule({ api }) {
         label={t('preferences.dashboard.refreshInterval.label')}
         hint={t('preferences.dashboard.refreshInterval.hint')}
         value={String(prefs.dashboard?.refreshInterval ?? 5000)}
-        onChange={(v) => updatePref('dashboard.refreshInterval', parseInt(v, 10))}
+        onChange={(v) =>
+          updatePref('dashboard.refreshInterval', parseInt(v, 10))
+        }
         options={[
-          { value: '2000', label: t('preferences.dashboard.refreshInterval.s2') },
-          { value: '5000', label: t('preferences.dashboard.refreshInterval.s5') },
-          { value: '10000', label: t('preferences.dashboard.refreshInterval.s10') },
-          { value: '30000', label: t('preferences.dashboard.refreshInterval.s30') }
+          {
+            value: '2000',
+            label: t('preferences.dashboard.refreshInterval.s2'),
+          },
+          {
+            value: '5000',
+            label: t('preferences.dashboard.refreshInterval.s5'),
+          },
+          {
+            value: '10000',
+            label: t('preferences.dashboard.refreshInterval.s10'),
+          },
+          {
+            value: '30000',
+            label: t('preferences.dashboard.refreshInterval.s30'),
+          },
         ]}
       />
     </>
@@ -916,24 +1024,25 @@ export function PreferencesModule({ api }) {
             { value: 'debug', label: t('preferences.advanced.logLevel.debug') },
             { value: 'info', label: t('preferences.advanced.logLevel.info') },
             { value: 'warn', label: t('preferences.advanced.logLevel.warn') },
-            { value: 'error', label: t('preferences.advanced.logLevel.error') }
+            { value: 'error', label: t('preferences.advanced.logLevel.error') },
           ]}
         />
 
         <SectionHeader title={t('preferences.advanced.debugHeader')} />
-        <p className="section-hint">
-          {t('preferences.advanced.debugIntro')}
-        </p>
+        <p className="section-hint">{t('preferences.advanced.debugIntro')}</p>
         <div className="debug-grid">
           {Object.entries(debugCategories).map(([name, enabled]) => (
-            <label key={name} className={`debug-item ${enabled ? 'enabled' : ''}`}>
+            <label
+              key={name}
+              className={`debug-item ${enabled ? 'enabled' : ''}`}
+            >
               <input
                 type="checkbox"
                 checked={enabled}
                 onChange={(e) => {
                   const newValue = e.target.checked;
                   setCategories({ [name]: newValue });
-                  setDebugCategories(prev => ({ ...prev, [name]: newValue }));
+                  setDebugCategories((prev) => ({ ...prev, [name]: newValue }));
                 }}
               />
               {name}
@@ -954,11 +1063,14 @@ export function PreferencesModule({ api }) {
   };
 
   return (
-    <div className="module-container has-sidebar preferences-module" data-keyboard-scope="isolated">
+    <div
+      className="module-container has-sidebar preferences-module"
+      data-keyboard-scope="isolated"
+    >
       <div className="module-sidebar">
         <h3 className="sidebar-title">{t('preferences.sidebarTitle')}</h3>
         <ul className="item-list">
-          {SECTION_IDS.map(id => {
+          {SECTION_IDS.map((id) => {
             const active = activeSection === id;
             return (
               <li
@@ -977,11 +1089,7 @@ export function PreferencesModule({ api }) {
         </ul>
 
         <div className="sidebar-actions">
-          <Button
-            variant="primary"
-            onClick={handleSave}
-            disabled={!hasChanges}
-          >
+          <Button variant="primary" onClick={handleSave} disabled={!hasChanges}>
             {t('common.save')}
           </Button>
           <Button variant="secondary" onClick={handleReset}>

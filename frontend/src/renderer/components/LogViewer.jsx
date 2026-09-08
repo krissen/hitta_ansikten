@@ -48,17 +48,20 @@ export function LogViewer() {
   /**
    * Add a log entry
    */
-  const addLogEntry = useCallback((level, message, timestamp = null, source = 'backend') => {
-    const entry = {
-      id: Date.now() + Math.random(),
-      level,
-      message,
-      timestamp: timestamp || new Date().toISOString(),
-      source
-    };
+  const addLogEntry = useCallback(
+    (level, message, timestamp = null, source = 'backend') => {
+      const entry = {
+        id: Date.now() + Math.random(),
+        level,
+        message,
+        timestamp: timestamp || new Date().toISOString(),
+        source,
+      };
 
-    setLogs(prev => [...prev, entry]);
-  }, []);
+      setLogs((prev) => [...prev, entry]);
+    },
+    [],
+  );
 
   const clearLogs = useCallback(() => {
     setLogs([]);
@@ -101,7 +104,7 @@ export function LogViewer() {
       const buffer = getLogBuffer();
       if (buffer.length > lastBufferLengthRef.current) {
         const newEntries = buffer.slice(lastBufferLengthRef.current);
-        setLogs(prev => [...prev, ...newEntries]);
+        setLogs((prev) => [...prev, ...newEntries]);
         lastBufferLengthRef.current = buffer.length;
       }
     };
@@ -117,32 +120,62 @@ export function LogViewer() {
   /**
    * WebSocket subscriptions for backend logs
    */
-  useWebSocket('log-entry', useCallback((data) => {
-    const { level, message, timestamp } = data;
-    addLogEntry(level || 'info', message, timestamp, 'backend');
-  }, [addLogEntry]));
+  useWebSocket(
+    'log-entry',
+    useCallback(
+      (data) => {
+        const { level, message, timestamp } = data;
+        addLogEntry(level || 'info', message, timestamp, 'backend');
+      },
+      [addLogEntry],
+    ),
+  );
 
-  useWebSocket('detection-progress', useCallback((data) => {
-    addLogEntry('info', `Detection progress: ${data.percentage}%`, data.timestamp, 'backend');
-  }, [addLogEntry]));
+  useWebSocket(
+    'detection-progress',
+    useCallback(
+      (data) => {
+        addLogEntry(
+          'info',
+          `Detection progress: ${data.percentage}%`,
+          data.timestamp,
+          'backend',
+        );
+      },
+      [addLogEntry],
+    ),
+  );
 
-  useWebSocket('face-detected', useCallback((data) => {
-    addLogEntry('info', `Face detected: ${data.faceId} (confidence: ${data.confidence})`, data.timestamp, 'backend');
-  }, [addLogEntry]));
+  useWebSocket(
+    'face-detected',
+    useCallback(
+      (data) => {
+        addLogEntry(
+          'info',
+          `Face detected: ${data.faceId} (confidence: ${data.confidence})`,
+          data.timestamp,
+          'backend',
+        );
+      },
+      [addLogEntry],
+    ),
+  );
 
-  const filteredLogs = logs.filter(log => {
+  const filteredLogs = logs.filter((log) => {
     if (filterLevel !== 'all' && log.level !== filterLevel) return false;
     if (filterSource !== 'all' && log.source !== filterSource) return false;
     return true;
   });
 
   const formatLogsForClipboard = (logsToFormat) => {
-    return logsToFormat.map(entry => {
-      const time = formatTime(entry.timestamp);
-      const source = entry.source === 'frontend' ? 'FE' : 'BE';
-      const level = entry.level.toUpperCase().padEnd(5);
-      return `[${time}] [${source}] ${level} ${entry.message}`;
-    }).join('\n');
+    return logsToFormat
+      .map((entry) => {
+        const time = formatTime(entry.timestamp);
+        const source = entry.source === 'frontend' ? 'FE' : 'BE';
+        const level = entry.level.toUpperCase().padEnd(5);
+        return `[${time}] [${source}] ${level} ${entry.message}`;
+      })
+      .join('\n');
   };
 
   const copyLogs = async () => {
@@ -216,9 +249,11 @@ export function LogViewer() {
               : t('logs.empty.noMatch')}
           </div>
         ) : (
-          filteredLogs.map(entry => (
+          filteredLogs.map((entry) => (
             <div key={entry.id} className={`log-entry ${entry.level}`}>
-              <span className="log-timestamp">[{formatTime(entry.timestamp)}]</span>
+              <span className="log-timestamp">
+                [{formatTime(entry.timestamp)}]
+              </span>
               <span className={`log-source ${entry.source}`}>
                 [{entry.source === 'frontend' ? 'FE' : 'BE'}]
               </span>

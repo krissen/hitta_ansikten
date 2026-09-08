@@ -29,7 +29,10 @@ function hydrate() {
     if (raw) {
       const parsed = JSON.parse(raw);
       current = Object.fromEntries(
-        SESSION_BUCKETS.map((k) => [k, Array.isArray(parsed[k]) ? parsed[k] : []])
+        SESSION_BUCKETS.map((k) => [
+          k,
+          Array.isArray(parsed[k]) ? parsed[k] : [],
+        ]),
       );
     }
   } catch {
@@ -60,7 +63,7 @@ export function movePlayerSession(name, bucket) {
     SESSION_BUCKETS.map((k) => {
       const rest = current[k].filter((n) => n !== clean);
       return [k, k === bucket ? [...rest, clean] : rest];
-    })
+    }),
   );
   persist();
   notify();
@@ -70,7 +73,7 @@ export function movePlayerSession(name, bucket) {
 export function removePlayerSession(name) {
   hydrate();
   current = Object.fromEntries(
-    SESSION_BUCKETS.map((k) => [k, current[k].filter((n) => n !== name)])
+    SESSION_BUCKETS.map((k) => [k, current[k].filter((n) => n !== name)]),
   );
   persist();
   notify();
@@ -115,13 +118,32 @@ export function playerSessionParams(session = getPlayerSession()) {
 export function contextMenuItemsFor(bucket) {
   switch (bucket) {
     case 'players':
-      return ['toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent'];
+      return [
+        'toPublikSession',
+        'toTranareSession',
+        'toGruppSession',
+        'sep',
+        'publikPermanent',
+      ];
     case 'below_threshold':
       // Already a player by classification, but under min_images — the pin
       // ("gör till spelare") is what lifts it past the threshold.
-      return ['toPlayerSession', 'toPublikSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent'];
+      return [
+        'toPlayerSession',
+        'toPublikSession',
+        'toTranareSession',
+        'toGruppSession',
+        'sep',
+        'publikPermanent',
+      ];
     case 'publik':
-      return ['toPlayerSession', 'toTranareSession', 'toGruppSession', 'sep', 'publikPermanent'];
+      return [
+        'toPlayerSession',
+        'toTranareSession',
+        'toGruppSession',
+        'sep',
+        'publikPermanent',
+      ];
     case 'tranare':
       return ['toPlayerSession', 'toPublikSession', 'toGruppSession'];
     case 'grupp':
@@ -156,7 +178,7 @@ export function buildPlayerMenuItems(bucket, onPermanent) {
             key === 'publikPermanent'
               ? onPermanent(m.name)
               : movePlayerSession(m.name, ACTION_TO_BUCKET[key]),
-        }
+        },
   );
 }
 

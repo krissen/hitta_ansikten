@@ -31,8 +31,13 @@ PLOTS_DIRNAME = "plots"
 # ``hardness`` are injected by the runner (they need the DB record / attempt log,
 # not just the embedded face), so they may be absent for some faces.
 FACE_STRATA = (
-    "bbox_quartile", "blur_quartile", "is_manual", "event",
-    "sibling_surname", "twin", "hardness",
+    "bbox_quartile",
+    "blur_quartile",
+    "is_manual",
+    "event",
+    "sibling_surname",
+    "twin",
+    "hardness",
 )
 
 
@@ -63,12 +68,8 @@ def assign_face_strata(
             by_surname.setdefault(s, set()).add(f.identity)
     sibling_surnames = {s for s, ids in by_surname.items() if len(ids) >= 2}
 
-    bbox_labels = _numeric_quartile_labels(
-        [f.bbox_area for f in faces], bbox_quartile_label
-    )
-    blur_labels = _numeric_quartile_labels(
-        [f.blur for f in faces], _blur_quartile_label
-    )
+    bbox_labels = _numeric_quartile_labels([f.bbox_area for f in faces], bbox_quartile_label)
+    blur_labels = _numeric_quartile_labels([f.blur for f in faces], _blur_quartile_label)
 
     out: list[dict[str, str]] = []
     for i, f in enumerate(faces):
@@ -153,16 +154,27 @@ def render_markdown(results: list[ModelResult], meta: dict) -> str:
     L.append(f"_Generated {meta.get('generated')}_")
     L.append("")
     if meta.get("partial"):
-        L.append("> **PARTIAL DATA.** The backup restore was still running; these "
-                 "numbers cover only the currently-resolvable subset and are not "
-                 "the final evaluation.")
+        L.append(
+            "> **PARTIAL DATA.** The backup restore was still running; these "
+            "numbers cover only the currently-resolvable subset and are not "
+            "the final evaluation."
+        )
         L.append("")
     L.append("## Run configuration")
     L.append("")
     L.append("| Key | Value |")
     L.append("|---|---|")
-    for k in ("models", "seed", "roots", "db", "n_faces_total", "n_identities_total",
-              "dataset_buckets", "det_size", "max_impostor_pairs"):
+    for k in (
+        "models",
+        "seed",
+        "roots",
+        "db",
+        "n_faces_total",
+        "n_identities_total",
+        "dataset_buckets",
+        "det_size",
+        "max_impostor_pairs",
+    ):
         if k in meta:
             L.append(f"| {k} | {meta[k]} |")
     L.append("")
@@ -184,8 +196,10 @@ def _render_model(r: ModelResult) -> list[str]:
     L.append("")
     L.append("| Gallery mode | Probes | Rank-1 | Rank-5 |")
     L.append("|---|---:|---:|---:|")
-    for label, res in (("per-person centroid", r.closed_centroid),
-                       ("all-encodings max-sim", r.closed_maxsim)):
+    for label, res in (
+        ("per-person centroid", r.closed_centroid),
+        ("all-encodings max-sim", r.closed_maxsim),
+    ):
         L.append(f"| {label} | {res.n_probes} | {_pct(res.rank1)} | {_pct(res.rank5)} |")
     L.append("")
 
@@ -208,8 +222,10 @@ def _render_model(r: ModelResult) -> list[str]:
         L.append("### Twin confusion")
         L.append("")
         L.append(f"- Pair: **{t.twin_a} / {t.twin_b}**")
-        L.append(f"- Twin probes: **{t.n_probes}**, nearest-wrong-person-is-co-twin: "
-                 f"**{t.n_confused}** ({_pct(t.rate)})")
+        L.append(
+            f"- Twin probes: **{t.n_probes}**, nearest-wrong-person-is-co-twin: "
+            f"**{t.n_confused}** ({_pct(t.rate)})"
+        )
         L.append("")
 
     # threshold sweep
@@ -217,9 +233,11 @@ def _render_model(r: ModelResult) -> list[str]:
     L.append("")
     if r.sweep_opt is not None:
         o = r.sweep_opt
-        L.append(f"- Empirical F1 optimum at distance **{o.distance:.2f}** "
-                 f"(precision {_pct(o.precision)}, recall {_pct(o.recall)}, "
-                 f"FAR {_pct(o.far)}, FRR {_pct(o.frr)})")
+        L.append(
+            f"- Empirical F1 optimum at distance **{o.distance:.2f}** "
+            f"(precision {_pct(o.precision)}, recall {_pct(o.recall)}, "
+            f"FAR {_pct(o.far)}, FRR {_pct(o.frr)})"
+        )
     L.append("- App defaults: match_threshold **0.45**, ignore_distance **0.35**")
     L.append("")
     L.append("| Distance | Precision | Recall | FAR | FRR |")
@@ -228,8 +246,10 @@ def _render_model(r: ModelResult) -> list[str]:
     for p in r.sweep:
         if round(p.distance, 2) in marks:
             tag = " ⟵ app" if round(p.distance, 2) in (0.35, 0.45) else ""
-            L.append(f"| {p.distance:.2f}{tag} | {_pct(p.precision)} | {_pct(p.recall)} | "
-                     f"{_pct(p.far)} | {_pct(p.frr)} |")
+            L.append(
+                f"| {p.distance:.2f}{tag} | {_pct(p.precision)} | {_pct(p.recall)} | "
+                f"{_pct(p.far)} | {_pct(p.frr)} |"
+            )
     L.append("")
 
     # open-set
@@ -237,8 +257,7 @@ def _render_model(r: ModelResult) -> list[str]:
         os_ = r.openset
         L.append("### Open-set identification (DIR@rank1 vs FAR)")
         L.append("")
-        L.append(f"- Known probes: **{os_.n_known}**, unknown (reject) probes: "
-                 f"**{os_.n_unknown}**")
+        L.append(f"- Known probes: **{os_.n_known}**, unknown (reject) probes: **{os_.n_unknown}**")
         for f, d in sorted(os_.dir_at_far.items()):
             L.append(f"- DIR @ FAR<={f:g}: **{_pct(d)}**")
         L.append("")
@@ -247,9 +266,11 @@ def _render_model(r: ModelResult) -> list[str]:
     L.append("### Detector recall (matched / (matched + detector_missed))")
     L.append("")
     dr = r.det_recall_overall
-    L.append(f"- Overall: **{_pct(dr['recall'])}** "
-             f"({dr['matched']}/{dr['matched'] + dr['detector_missed']}; "
-             f"{dr['unresolved']} unresolved excluded)")
+    L.append(
+        f"- Overall: **{_pct(dr['recall'])}** "
+        f"({dr['matched']}/{dr['matched'] + dr['detector_missed']}; "
+        f"{dr['unresolved']} unresolved excluded)"
+    )
     L.append("")
     for dim, buckets in r.det_recall_by.items():
         L.append(f"**By {dim}**")
@@ -257,8 +278,9 @@ def _render_model(r: ModelResult) -> list[str]:
         L.append("| Bucket | Matched | Missed | Recall |")
         L.append("|---|---:|---:|---:|")
         for b, rec in buckets.items():
-            L.append(f"| {b} | {rec['matched']} | {rec['detector_missed']} | "
-                     f"{_pct(rec['recall'])} |")
+            L.append(
+                f"| {b} | {rec['matched']} | {rec['detector_missed']} | {_pct(rec['recall'])} |"
+            )
         L.append("")
 
     # per-stratum rank-1
@@ -299,9 +321,20 @@ def write_csv(
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = [
-        "model", "face_id", "identity", "image_hash", "is_manual",
-        "det_score", "bbox_area", "bbox_quartile", "blur", "blur_quartile",
-        "sibling_surname", "twin", "rank1_centroid", "rank1_maxsim",
+        "model",
+        "face_id",
+        "identity",
+        "image_hash",
+        "is_manual",
+        "det_score",
+        "bbox_area",
+        "bbox_quartile",
+        "blur",
+        "blur_quartile",
+        "sibling_surname",
+        "twin",
+        "rank1_centroid",
+        "rank1_maxsim",
     ]
     with open(path, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=fields)
@@ -312,22 +345,24 @@ def write_csv(
             r1m = per_model_rank1[model].get("max_sim", {})
             for i, f in enumerate(faces):
                 st = strata[i]
-                w.writerow({
-                    "model": model,
-                    "face_id": f.face_id,
-                    "identity": f.identity,
-                    "image_hash": f.image_hash,
-                    "is_manual": f.is_manual,
-                    "det_score": f"{f.det_score:.4f}" if f.det_score is not None else "",
-                    "bbox_area": f.bbox_area if f.bbox_area is not None else "",
-                    "bbox_quartile": st.get("bbox_quartile", ""),
-                    "blur": f"{f.blur:.2f}" if f.blur is not None else "",
-                    "blur_quartile": st.get("blur_quartile", ""),
-                    "sibling_surname": st.get("sibling_surname", ""),
-                    "twin": st.get("twin", ""),
-                    "rank1_centroid": _flag(r1c.get(i)),
-                    "rank1_maxsim": _flag(r1m.get(i)),
-                })
+                w.writerow(
+                    {
+                        "model": model,
+                        "face_id": f.face_id,
+                        "identity": f.identity,
+                        "image_hash": f.image_hash,
+                        "is_manual": f.is_manual,
+                        "det_score": f"{f.det_score:.4f}" if f.det_score is not None else "",
+                        "bbox_area": f.bbox_area if f.bbox_area is not None else "",
+                        "bbox_quartile": st.get("bbox_quartile", ""),
+                        "blur": f"{f.blur:.2f}" if f.blur is not None else "",
+                        "blur_quartile": st.get("blur_quartile", ""),
+                        "sibling_surname": st.get("sibling_surname", ""),
+                        "twin": st.get("twin", ""),
+                        "rank1_centroid": _flag(r1c.get(i)),
+                        "rank1_maxsim": _flag(r1m.get(i)),
+                    }
+                )
     return path
 
 
@@ -340,8 +375,10 @@ def _flag(v) -> str:
 # ---------------------------------------------------------------------------
 def _mpl():
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     return plt
 
 
@@ -375,8 +412,13 @@ def plot_sweep(result: ModelResult, out: Path) -> Path:
     for x, c in ((0.40, "tab:red"), (0.35, "tab:purple")):
         ax.axvline(x, color=c, linestyle=":", alpha=0.7, label=f"app {x:.2f}")
     if result.sweep_opt is not None:
-        ax.axvline(result.sweep_opt.distance, color="green", linestyle="--",
-                   alpha=0.7, label=f"F1 opt {result.sweep_opt.distance:.2f}")
+        ax.axvline(
+            result.sweep_opt.distance,
+            color="green",
+            linestyle="--",
+            alpha=0.7,
+            label=f"F1 opt {result.sweep_opt.distance:.2f}",
+        )
     ax.set_xlabel("Cosine distance threshold")
     ax.set_ylabel("Rate")
     ax.set_title(f"Threshold sweep — {result.model_name}")
@@ -397,8 +439,14 @@ def plot_rank1_bars(result: ModelResult, out: Path, dim: str = "bbox_quartile") 
     fig, ax = plt.subplots(figsize=(7, 4.5))
     bars = ax.bar(names, rates, color="tab:blue")
     for bar, n in zip(bars, ns):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-                f"n={n}", ha="center", va="bottom", fontsize=7)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01,
+            f"n={n}",
+            ha="center",
+            va="bottom",
+            fontsize=7,
+        )
     ax.set_ylim(0, 1.05)
     ax.set_ylabel("Rank-1")
     ax.set_title(f"Rank-1 by {dim} — {result.model_name}")
@@ -447,9 +495,7 @@ def write_plots(results: list[ModelResult], plots_dir: Path) -> list[Path]:
         written.append(plot_sweep(r, plots_dir / f"sweep_{safe}.png"))
         for dim in ("bbox_quartile", "blur_quartile"):
             if r.rank1_by_stratum.get(dim):
-                written.append(
-                    plot_rank1_bars(r, plots_dir / f"rank1_{dim}_{safe}.png", dim)
-                )
+                written.append(plot_rank1_bars(r, plots_dir / f"rank1_{dim}_{safe}.png", dim))
     return written
 
 

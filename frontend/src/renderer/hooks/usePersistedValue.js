@@ -24,7 +24,11 @@
  */
 import { useState, useEffect } from 'react';
 
-export function usePersistedValue(key, defaultValue, { parse, serialize } = {}) {
+export function usePersistedValue(
+  key,
+  defaultValue,
+  { parse, serialize } = {},
+) {
   const [value, setValue] = useState(() => {
     try {
       const raw = localStorage.getItem(key);

@@ -114,8 +114,7 @@ class UndoService:
             # encodings keep pointing at a name that no longer exists. It is a
             # no-op for basenames not in the DB, so it runs generally for every
             # tool's batch (rename-nef / import / culling), not gated on tool.
-            await loop.run_in_executor(
-                None, self._repair_db_paths, result["reverted_mains"])
+            await loop.run_in_executor(None, self._repair_db_paths, result["reverted_mains"])
 
             return {
                 "batch_id": batch_id,
@@ -141,8 +140,7 @@ class UndoService:
             return 0
         from .rename_service import get_rename_service
 
-        return get_rename_service()._update_database_paths(
-            reverted_mains, match="fullpath")
+        return get_rename_service()._update_database_paths(reverted_mains, match="fullpath")
 
 
 # Lazy singleton — no import-time construction / side effects.

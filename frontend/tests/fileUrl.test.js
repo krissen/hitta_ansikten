@@ -3,17 +3,21 @@ import { toFileUrl, bustedFileUrl } from '../src/renderer/shared/fileUrl.js';
 
 describe('toFileUrl', () => {
   it('URL-encodes spaces in a unix path', () => {
-    expect(toFileUrl('/Users/x/My Pictures/a b.jpg'))
-      .toBe('file:///Users/x/My%20Pictures/a%20b.jpg');
+    expect(toFileUrl('/Users/x/My Pictures/a b.jpg')).toBe(
+      'file:///Users/x/My%20Pictures/a%20b.jpg',
+    );
   });
 
   it('keeps commas and underscores as-is', () => {
-    expect(toFileUrl('/Users/x/Pictures/260626_194742_Srirang,_Valter.jpg'))
-      .toBe('file:///Users/x/Pictures/260626_194742_Srirang,_Valter.jpg');
+    expect(
+      toFileUrl('/Users/x/Pictures/260626_194742_Srirang,_Valter.jpg'),
+    ).toBe('file:///Users/x/Pictures/260626_194742_Srirang,_Valter.jpg');
   });
 
   it('passes through an existing file:// URL', () => {
-    expect(toFileUrl('file:///already/encoded.jpg')).toBe('file:///already/encoded.jpg');
+    expect(toFileUrl('file:///already/encoded.jpg')).toBe(
+      'file:///already/encoded.jpg',
+    );
   });
 
   it('adds the extra slash for Windows drive paths', () => {
@@ -23,8 +27,9 @@ describe('toFileUrl', () => {
 
 describe('bustedFileUrl', () => {
   it('appends a ?v= fingerprint', () => {
-    expect(bustedFileUrl('/p/a.jpg', '1700-2048'))
-      .toBe('file:///p/a.jpg?v=1700-2048');
+    expect(bustedFileUrl('/p/a.jpg', '1700-2048')).toBe(
+      'file:///p/a.jpg?v=1700-2048',
+    );
   });
 
   it('changes when the fingerprint changes (forces a reload)', () => {
@@ -39,7 +44,8 @@ describe('bustedFileUrl', () => {
   });
 
   it('uses & when the base already has a query', () => {
-    expect(bustedFileUrl('file:///p/a.jpg?x=1', '9'))
-      .toBe('file:///p/a.jpg?x=1&v=9');
+    expect(bustedFileUrl('file:///p/a.jpg?x=1', '9')).toBe(
+      'file:///p/a.jpg?x=1&v=9',
+    );
   });
 });

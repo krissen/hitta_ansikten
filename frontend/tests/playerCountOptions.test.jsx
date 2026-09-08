@@ -22,7 +22,7 @@ describe('buildCountParams', () => {
       INPUT,
       { gapMinutes: 45, baseline: 'mean', minImages: 5 },
       false,
-      null
+      null,
     );
     expect(params.gap_minutes).toBe(45);
     expect(params.baseline).toBe('mean');
@@ -87,12 +87,14 @@ describe('CountOptions', () => {
         {...baseProps}
         onOptionsPreview={onOptionsPreview}
         onOptionsChange={onOptionsChange}
-      />
+      />,
     );
     const gap = screen.getByTitle(/Minsta lucka mellan matcher/);
     // Typing previews the clamped value (min 1) without re-running the count...
     fireEvent.change(gap, { target: { value: '0' } });
-    expect(onOptionsPreview).toHaveBeenCalledWith(expect.objectContaining({ gapMinutes: 1 }));
+    expect(onOptionsPreview).toHaveBeenCalledWith(
+      expect.objectContaining({ gapMinutes: 1 }),
+    );
     expect(onOptionsChange).not.toHaveBeenCalled();
     // ...and blur commits (triggers the recount).
     fireEvent.blur(gap);
@@ -109,7 +111,9 @@ describe('CountOptions', () => {
     expect(screen.getByText('Publik (alltid)')).toBeTruthy();
     // The group markers render as removable chips (each has a "Ta bort" button).
     expect(screen.getByRole('button', { name: 'Ta bort FBK' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Ta bort Klacken' })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Ta bort Klacken' }),
+    ).toBeTruthy();
   });
 
   it('adds a custom always-group marker via the Gruppbilder editor', () => {

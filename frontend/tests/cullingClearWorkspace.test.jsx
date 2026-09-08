@@ -1,5 +1,19 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
-import { render, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterEach,
+} from 'vitest';
+import {
+  render,
+  act,
+  cleanup,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { gridThumbnailCache } from '../src/renderer/shared/grid-thumbnail-cache.js';
 import { settle } from './helpers/settle.js';
 
@@ -14,7 +28,12 @@ const REFRESH_MS = 400;
 const h = vi.hoisted(() => {
   const registry = new Map();
   const api = { get: vi.fn(), post: vi.fn() };
-  return { registry, api, nextFiles: { files: [], players: [] }, nextStats: {} };
+  return {
+    registry,
+    api,
+    nextFiles: { files: [], players: [] },
+    nextStats: {},
+  };
 });
 
 vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
@@ -34,7 +53,10 @@ vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
 }));
 
 import { CullingModule } from '../src/renderer/components/CullingModule.jsx';
-import { getScanScope, setScanScope } from '../src/renderer/shared/scanScope.js';
+import {
+  getScanScope,
+  setScanScope,
+} from '../src/renderer/shared/scanScope.js';
 
 beforeAll(() => {
   if (!globalThis.ResizeObserver) {
@@ -56,8 +78,18 @@ beforeAll(() => {
 });
 
 const FILES = [
-  { path: '/p/260601_120000_Alice.jpg', basename: '260601_120000_Alice.jpg', mtime_ms: 100, size: 10 },
-  { path: '/p/260601_120100_Bob.jpg', basename: '260601_120100_Bob.jpg', mtime_ms: 200, size: 20 },
+  {
+    path: '/p/260601_120000_Alice.jpg',
+    basename: '260601_120000_Alice.jpg',
+    mtime_ms: 100,
+    size: 10,
+  },
+  {
+    path: '/p/260601_120100_Bob.jpg',
+    basename: '260601_120100_Bob.jpg',
+    mtime_ms: 200,
+    size: 20,
+  },
 ];
 const STATS = {
   baseline: 5,
@@ -79,7 +111,11 @@ beforeEach(() => {
     if (path.includes('/players/count')) return Promise.resolve(h.nextStats);
     return Promise.resolve({});
   });
-  try { localStorage.clear(); } catch { /* ignore */ }
+  try {
+    localStorage.clear();
+  } catch {
+    /* ignore */
+  }
   originalFetch = global.fetch;
   global.fetch = vi.fn(() => new Promise(() => {}));
   globalThis.window.ansiktenAPI = {
@@ -131,7 +167,9 @@ async function loadFiles(roots = ['/p']) {
   await settle();
   // The load's own outcome, asserted rather than assumed: every test below
   // starts from a list that is actually on screen.
-  expect(document.querySelectorAll('.culling-files li')).toHaveLength(FILES.length);
+  expect(document.querySelectorAll('.culling-files li')).toHaveLength(
+    FILES.length,
+  );
 }
 
 function lastPost(fragment) {
@@ -140,7 +178,7 @@ function lastPost(fragment) {
 }
 function findButton(container, text) {
   return [...container.querySelectorAll('.culling-filterbar button')].find(
-    (b) => b.textContent === text
+    (b) => b.textContent === text,
   );
 }
 
@@ -179,16 +217,21 @@ describe('CullingModule — root chip removal', () => {
   it('re-scans with the remaining root when one of several chips is removed', async () => {
     const { container } = await mountCulling();
     await loadFiles(['/a', '/b']);
-    const before = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+    const before = h.api.post.mock.calls.filter(([p]) =>
+      p.includes('/culling/files'),
+    ).length;
 
     const removes = container.querySelectorAll('.culling-chip-x');
     expect(removes).toHaveLength(2);
     fireEvent.click(removes[0].closest('button')); // remove '/a'
 
     // Settle on the re-scan itself rather than on a counted flush.
-    await waitFor(() => expect(
-      h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length
-    ).toBe(before + 1));
+    await waitFor(() =>
+      expect(
+        h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files'))
+          .length,
+      ).toBe(before + 1),
+    );
     expect(lastPost('/culling/files')).toMatchObject({ roots: ['/b'] });
   });
 
@@ -221,7 +264,10 @@ describe('CullingModule — clear cancels pending refreshes (Codex round 2)', ()
       globalThis.window.ansiktenAPI = {
         watchFolder: vi.fn(),
         unwatchFolder: vi.fn(),
-        onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
+        onFolderChanged: (cb) => {
+          folderCb = cb;
+          return () => {};
+        },
         invoke: vi.fn().mockResolvedValue([]),
       };
       const { container } = await mountCulling();
@@ -234,7 +280,9 @@ describe('CullingModule — clear cancels pending refreshes (Codex round 2)', ()
 
       // Clear the workspace (Rensa) while that timer is pending.
       const rensa = findButton(container, 'Rensa');
-      const filesBefore = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+      const filesBefore = h.api.post.mock.calls.filter(([p]) =>
+        p.includes('/culling/files'),
+      ).length;
       // Full macrotask flush rather than a counted microtask: every assertion
       // below is negative, and a negative assertion cannot tell "the clear
       // cancelled the refresh" from "the continuation never ran". Free here
@@ -249,11 +297,13 @@ describe('CullingModule — clear cancels pending refreshes (Codex round 2)', ()
         await vi.advanceTimersByTimeAsync(REFRESH_MS * 2);
       });
 
-      const filesAfter = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+      const filesAfter = h.api.post.mock.calls.filter(([p]) =>
+        p.includes('/culling/files'),
+      ).length;
       expect(filesAfter).toBe(filesBefore);
       // Specifically: no /culling/files POST with a null/undefined body.
       const nullBody = h.api.post.mock.calls.filter(
-        ([p, body]) => p.includes('/culling/files') && body == null
+        ([p, body]) => p.includes('/culling/files') && body == null,
       );
       expect(nullBody).toHaveLength(0);
       // Workspace stays cleared.
@@ -272,7 +322,9 @@ describe('CullingModule — clear/chip state consistency (Codex round 3)', () =>
   it('empties the player dropdown on Rensa (no stale names to pick)', async () => {
     const { container } = await mountCulling();
     await loadFiles(['/p']); // players: ['Alice', 'Bob']
-    const selectBefore = container.querySelectorAll('.culling-filterbar select.form-select')[1];
+    const selectBefore = container.querySelectorAll(
+      '.culling-filterbar select.form-select',
+    )[1];
     expect([...selectBefore.options].map((o) => o.value)).toContain('Alice');
 
     const rensa = findButton(container, 'Rensa');
@@ -281,7 +333,9 @@ describe('CullingModule — clear/chip state consistency (Codex round 3)', () =>
     // Only the "Alla spelare" placeholder (value '') remains — settled on the
     // rendered option list, which is the outcome the user would see.
     await waitFor(() => {
-      const selectAfter = container.querySelectorAll('.culling-filterbar select.form-select')[1];
+      const selectAfter = container.querySelectorAll(
+        '.culling-filterbar select.form-select',
+      )[1];
       expect([...selectAfter.options].map((o) => o.value)).toEqual(['']);
     });
   });
@@ -294,23 +348,40 @@ describe('CullingModule — clear/chip state consistency (Codex round 3)', () =>
     // cull-player hand-off carries both a root and a path-glob.
     const cullPlayer = h.registry.get('cull-player');
     await act(async () => {
-      await cullPlayer({ roots: ['/a'], globs: ['*.jpg'], recursive: true, name: '' });
+      await cullPlayer({
+        roots: ['/a'],
+        globs: ['*.jpg'],
+        recursive: true,
+        name: '',
+      });
     });
-    await waitFor(() => expect(container.querySelectorAll('.culling-chip-x')).toHaveLength(1));
+    await waitFor(() =>
+      expect(container.querySelectorAll('.culling-chip-x')).toHaveLength(1),
+    );
     expect(getScanScope()).not.toBeNull();
-    const before = h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length;
+    const before = h.api.post.mock.calls.filter(([p]) =>
+      p.includes('/culling/files'),
+    ).length;
 
     // Remove the only root chip.
     const remove = container.querySelector('.culling-chip-x');
     fireEvent.click(remove.closest('button'));
 
     // Re-scanned as a glob-only scope (roots empty, glob kept) — NOT cleared.
-    await waitFor(() => expect(
-      h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files')).length
-    ).toBe(before + 1));
-    expect(lastPost('/culling/files')).toMatchObject({ roots: [], globs: ['*.jpg'] });
+    await waitFor(() =>
+      expect(
+        h.api.post.mock.calls.filter(([p]) => p.includes('/culling/files'))
+          .length,
+      ).toBe(before + 1),
+    );
+    expect(lastPost('/culling/files')).toMatchObject({
+      roots: [],
+      globs: ['*.jpg'],
+    });
     expect(getScanScope()).not.toBeNull();
-    expect(container.querySelectorAll('.culling-files li').length).toBeGreaterThan(0);
+    expect(
+      container.querySelectorAll('.culling-files li').length,
+    ).toBeGreaterThan(0);
   });
 });
 
@@ -322,7 +393,10 @@ describe('CullingModule — clear enabled during in-flight adopt (Codex round 4)
     // /culling/files hangs so the adopt scan stays in flight.
     let resolveFiles;
     h.api.post.mockImplementation((path) => {
-      if (path.includes('/culling/files')) return new Promise((res) => { resolveFiles = res; });
+      if (path.includes('/culling/files'))
+        return new Promise((res) => {
+          resolveFiles = res;
+        });
       if (path.includes('/players/count')) return Promise.resolve(h.nextStats);
       return Promise.resolve({});
     });

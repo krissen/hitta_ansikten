@@ -93,7 +93,12 @@ def test_person_match_encodings_filters_backend_and_manual():
 
 
 def _alt(name, distance):
-    return {"name": name, "distance": distance, "confidence": int((1 - distance) * 100), "is_ignored": False}
+    return {
+        "name": name,
+        "distance": distance,
+        "confidence": int((1 - distance) * 100),
+        "is_ignored": False,
+    }
 
 
 def _twin_service():
@@ -119,7 +124,7 @@ def test_maybe_disambiguate_overrides_and_reorders():
     assert out is not None
     chosen, chosen_distance, reordered, info = out
     assert chosen == "Maximilian"
-    assert reordered[0]["name"] == "Maximilian"          # recommended chip now agrees
+    assert reordered[0]["name"] == "Maximilian"  # recommended chip now agrees
     assert chosen_distance == 0.24
     assert [a_["name"] for a_ in reordered] == ["Maximilian", "Wilmer", "Other"]
     assert info["chosen"] == "Maximilian" and info["between"] == ["Wilmer", "Maximilian"]

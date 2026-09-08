@@ -45,7 +45,12 @@ describe('isTabsetActive — base cases', () => {
   });
 
   it('is false for a hidden tab regardless of the active tabset', () => {
-    const node = makeNode({ mine: 'TSR', activeId: 'TSR', activeComponent: 'review-module', visible: false });
+    const node = makeNode({
+      mine: 'TSR',
+      activeId: 'TSR',
+      activeComponent: 'review-module',
+      visible: false,
+    });
     expect(isTabsetActive(node, REVIEW_COMPANIONS)).toBe(false);
   });
 
@@ -55,12 +60,20 @@ describe('isTabsetActive — base cases', () => {
   });
 
   it('is true when the module owns the active tabset', () => {
-    const node = makeNode({ mine: 'TSR', activeId: 'TSR', activeComponent: 'review-module' });
+    const node = makeNode({
+      mine: 'TSR',
+      activeId: 'TSR',
+      activeComponent: 'review-module',
+    });
     expect(isTabsetActive(node, REVIEW_COMPANIONS)).toBe(true);
   });
 
   it('is false when a foreign, non-companion tabset is active', () => {
-    const node = makeNode({ mine: 'TSR', activeId: 'TSC', activeComponent: 'culling' });
+    const node = makeNode({
+      mine: 'TSR',
+      activeId: 'TSC',
+      activeComponent: 'culling',
+    });
     expect(isTabsetActive(node, REVIEW_COMPANIONS)).toBe(false);
   });
 
@@ -74,21 +87,37 @@ describe('isTabsetActive — base cases', () => {
     // closed one level up: FlexLayoutWorkspace.ensureActiveTabset() elects a
     // deterministic active tabset immediately after every Model.fromJson, so a
     // loaded model never actually reaches the module gates with a null active.
-    const node = makeNode({ mine: 'TSR', activeId: null, activeComponent: null });
+    const node = makeNode({
+      mine: 'TSR',
+      activeId: null,
+      activeComponent: null,
+    });
     expect(isTabsetActive(node, REVIEW_COMPANIONS)).toBe(true);
   });
 });
 
 describe('isTabsetActive — companions', () => {
   it('keeps Review live when a companion image surface hosts the active tabset', () => {
-    const onImage = makeNode({ mine: 'TSR', activeId: 'TSI', activeComponent: 'image-viewer' });
-    const onOriginal = makeNode({ mine: 'TSR', activeId: 'TSO', activeComponent: 'original-view' });
+    const onImage = makeNode({
+      mine: 'TSR',
+      activeId: 'TSI',
+      activeComponent: 'image-viewer',
+    });
+    const onOriginal = makeNode({
+      mine: 'TSR',
+      activeId: 'TSO',
+      activeComponent: 'original-view',
+    });
     expect(isTabsetActive(onImage, REVIEW_COMPANIONS)).toBe(true);
     expect(isTabsetActive(onOriginal, REVIEW_COMPANIONS)).toBe(true);
   });
 
   it('does NOT widen to a companion for a module that declares none (Culling)', () => {
-    const node = makeNode({ mine: 'TSC', activeId: 'TSI', activeComponent: 'image-viewer' });
+    const node = makeNode({
+      mine: 'TSC',
+      activeId: 'TSI',
+      activeComponent: 'image-viewer',
+    });
     expect(isTabsetActive(node, CULLING_COMPANIONS)).toBe(false);
   });
 });

@@ -55,6 +55,7 @@ def _rows(path):
 
 # ----- rename_service.execute_rename -----------------------------------------
 
+
 def test_rename_service_journals_moves(journal, tmp_path, monkeypatch):
     from api.services.rename_service import RenameService
 
@@ -64,15 +65,21 @@ def test_rename_service_journals_moves(journal, tmp_path, monkeypatch):
 
     svc = RenameService()
     # Canned preview so the test drives only the execute/move + journal path.
-    monkeypatch.setattr(svc, "preview_rename", lambda *a, **k: {
-        "items": [{
-            "original_path": str(img),
-            "new_name": "250101_120000_Anna.NEF",
-            "status": "ok",
-            "sidecars": [str(tmp_path / "IMG_0001.xmp")],
-        }],
-        "name_map": {},
-    })
+    monkeypatch.setattr(
+        svc,
+        "preview_rename",
+        lambda *a, **k: {
+            "items": [
+                {
+                    "original_path": str(img),
+                    "new_name": "250101_120000_Anna.NEF",
+                    "status": "ok",
+                    "sidecars": [str(tmp_path / "IMG_0001.xmp")],
+                }
+            ],
+            "name_map": {},
+        },
+    )
     monkeypatch.setattr(svc, "_update_database_paths", lambda renamed: 0)
 
     result = svc.execute_rename([str(img)])
@@ -103,15 +110,21 @@ def test_rename_service_toctou_guard_skips_occupied_target(journal, tmp_path, mo
     occupied.write_bytes(b"KEEP")  # target already taken (preview was stale)
 
     svc = RenameService()
-    monkeypatch.setattr(svc, "preview_rename", lambda *a, **k: {
-        "items": [{
-            "original_path": str(img),
-            "new_name": "250101_120000.NEF",
-            "status": "ok",
-            "sidecars": [],
-        }],
-        "name_map": {},
-    })
+    monkeypatch.setattr(
+        svc,
+        "preview_rename",
+        lambda *a, **k: {
+            "items": [
+                {
+                    "original_path": str(img),
+                    "new_name": "250101_120000.NEF",
+                    "status": "ok",
+                    "sidecars": [],
+                }
+            ],
+            "name_map": {},
+        },
+    )
     monkeypatch.setattr(svc, "_update_database_paths", lambda renamed: 0)
 
     result = svc.execute_rename([str(img)])
@@ -126,6 +139,7 @@ def test_rename_service_toctou_guard_skips_occupied_target(journal, tmp_path, mo
 
 
 # ----- rename_nef_service.execute --------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_rename_nef_execute_journals(journal, tmp_path, monkeypatch):
@@ -153,6 +167,7 @@ async def test_rename_nef_execute_journals(journal, tmp_path, monkeypatch):
 
 # ----- rename_nef_service.restore_names_execute ------------------------------
 
+
 @pytest.mark.asyncio
 async def test_restore_names_execute_journals(journal, tmp_path):
     import hashlib
@@ -177,6 +192,7 @@ async def test_restore_names_execute_journals(journal, tmp_path):
 
 # ----- import_service.run_import ---------------------------------------------
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode,expected_op", [("move", "move"), ("copy", "copy")])
 async def test_import_journals_transfers(journal, tmp_path, monkeypatch, mode, expected_op):
@@ -195,7 +211,8 @@ async def test_import_journals_transfers(journal, tmp_path, monkeypatch, mode, e
     dest = tmp_path / "dest"
 
     await ImportService().run_import(
-        volume_mount=str(src), destination=str(dest), mode=mode, eject=False)
+        volume_mount=str(src), destination=str(dest), mode=mode, eject=False
+    )
 
     rows = _rows(journal)
     assert len(rows) == 2
@@ -223,7 +240,8 @@ async def test_import_journals_transferred_sidecar(journal, tmp_path, monkeypatc
     dest = tmp_path / "dest"
 
     await ImportService().run_import(
-        volume_mount=str(src), destination=str(dest), mode="copy", eject=False)
+        volume_mount=str(src), destination=str(dest), mode="copy", eject=False
+    )
 
     rows = _rows(journal)
     assert len(rows) == 1
@@ -235,6 +253,7 @@ async def test_import_journals_transferred_sidecar(journal, tmp_path, monkeypatc
 
 
 # ----- culling_service: rename / trash / restore -----------------------------
+
 
 def test_culling_rename_journals(journal, tmp_path):
     from api.services.culling_service import CullingService
@@ -346,7 +365,9 @@ def test_culling_restore_journals_main_even_when_sidecar_fails(journal, tmp_path
     assert restore_rows[0]["sidecars"] == []
 
 
-def test_culling_restore_keeps_orphaned_sidecar_as_recoverable_entry(journal, tmp_path, monkeypatch):
+def test_culling_restore_keeps_orphaned_sidecar_as_recoverable_entry(
+    journal, tmp_path, monkeypatch
+):
     # P3: when the main image restores but a sidecar restore fails while its
     # stored file REMAINS in the trash, a sidecar-only leftover survives as a
     # NEW trash entry (own id) that is reported in `partial`, so the UI keeps it

@@ -91,10 +91,10 @@ def _sample_real_crop() -> np.ndarray | None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--variant", default="lvface_base",
-                    help="LVFace variant (default lvface_base).")
-    ap.add_argument("--model-path", default=None,
-                    help="Explicit ONNX path (overrides --variant).")
+    ap.add_argument(
+        "--variant", default="lvface_base", help="LVFace variant (default lvface_base)."
+    )
+    ap.add_argument("--model-path", default=None, help="Explicit ONNX path (overrides --variant).")
     ap.add_argument("--threshold", type=float, default=0.999)
     ap.add_argument("--n", type=int, default=3, help="Number of crops to check.")
     args = ap.parse_args(argv)
@@ -109,13 +109,14 @@ def main(argv=None) -> int:
             return 2
         model_path = local_path(KNOWN_MODELS[args.variant])
         if not model_path.exists():
-            print(f"Weights not found: {model_path}\nDownload with: "
-                  f"python -m benchmarks.models.download {args.variant}", file=sys.stderr)
+            print(
+                f"Weights not found: {model_path}\nDownload with: "
+                f"python -m benchmarks.models.download {args.variant}",
+                file=sys.stderr,
+            )
             return 2
 
-    adapter = LVFaceRecognition(
-        args.variant, model_path=args.model_path, auto_download=False
-    )
+    adapter = LVFaceRecognition(args.variant, model_path=args.model_path, auto_download=False)
     session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
     in_name = session.get_inputs()[0].name
     out_name = session.get_outputs()[0].name

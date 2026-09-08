@@ -42,7 +42,9 @@ describe('WORKFLOW_STEPS derivation', () => {
   });
 
   it('gates only Import on a camera card', () => {
-    const requiring = WORKFLOW_STEPS.filter((s) => s.requiresCard).map((s) => s.step);
+    const requiring = WORKFLOW_STEPS.filter((s) => s.requiresCard).map(
+      (s) => s.step,
+    );
     expect(requiring).toEqual(['import']);
   });
 
@@ -70,14 +72,20 @@ describe('getContinuation', () => {
 
   it('returns null for a step with no known next step', () => {
     // culling is the terminal step — nothing continues past it.
-    expect(getContinuation({ roots: ['/e/cupen'], step: 'culling' })).toBeNull();
+    expect(
+      getContinuation({ roots: ['/e/cupen'], step: 'culling' }),
+    ).toBeNull();
     // an unknown step id also has no continuation.
     expect(getContinuation({ roots: ['/e/cupen'], step: 'nope' })).toBeNull();
   });
 
   it('continues review → count and count → culling', () => {
-    expect(getContinuation({ roots: ['/e/cupen'], step: 'review' }).event).toBe('open-count');
-    expect(getContinuation({ roots: ['/e/cupen'], step: 'count' }).event).toBe('open-culling');
+    expect(getContinuation({ roots: ['/e/cupen'], step: 'review' }).event).toBe(
+      'open-count',
+    );
+    expect(getContinuation({ roots: ['/e/cupen'], step: 'count' }).event).toBe(
+      'open-culling',
+    );
   });
 
   it('after import, continues into rename with the roots and folder name', () => {

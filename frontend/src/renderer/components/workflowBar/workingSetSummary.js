@@ -44,7 +44,9 @@ export function buildWorkingSetSummary(t, { queue, scan, anchor, steps } = {}) {
       ? t('workflowBar.queueValue', {
           count: queue.count,
           done: queue.done || 0,
-          folder: queue.folder ? basename(queue.folder) : t('workflowBar.unknownFolder'),
+          folder: queue.folder
+            ? basename(queue.folder)
+            : t('workflowBar.unknownFolder'),
         })
       : t('workflowBar.queueEmpty'),
   };
@@ -58,13 +60,23 @@ export function buildWorkingSetSummary(t, { queue, scan, anchor, steps } = {}) {
     const where = scanRoots.length > 0 ? basename(scanRoots[0]) : scanGlobs[0];
     const flags = [];
     if (scan.recursive) flags.push(t('workflowBar.scanRecursive'));
-    if (scanGlobs.length > 0 && scanRoots.length > 0) flags.push(t('workflowBar.scanGlobs'));
+    if (scanGlobs.length > 0 && scanRoots.length > 0)
+      flags.push(t('workflowBar.scanGlobs'));
     if (scan.date_from || scan.date_to) flags.push(t('workflowBar.scanDates'));
-    scanValue = flags.length > 0
-      ? t('workflowBar.scanValueFlags', { folder: where, flags: flags.join(', ') })
-      : t('workflowBar.scanValue', { folder: where });
+    scanValue =
+      flags.length > 0
+        ? t('workflowBar.scanValueFlags', {
+            folder: where,
+            flags: flags.join(', '),
+          })
+        : t('workflowBar.scanValue', { folder: where });
   }
-  const scanLine = { key: 'scan', label: t('workflowBar.scanLabel'), empty: !hasScan, value: scanValue };
+  const scanLine = {
+    key: 'scan',
+    label: t('workflowBar.scanLabel'),
+    empty: !hasScan,
+    value: scanValue,
+  };
 
   // Anchor: "<mapp> (satt av <steg>)" or "Inget ankare".
   const anchorRoots = Array.isArray(anchor?.roots) ? anchor.roots : [];
@@ -77,7 +89,12 @@ export function buildWorkingSetSummary(t, { queue, scan, anchor, steps } = {}) {
       ? t('workflowBar.anchorValueSetBy', { folder, step: setBy })
       : t('workflowBar.anchorValue', { folder });
   }
-  const anchorLine = { key: 'anchor', label: t('workflowBar.anchorLabel'), empty: !hasAnchor, value: anchorValue };
+  const anchorLine = {
+    key: 'anchor',
+    label: t('workflowBar.anchorLabel'),
+    empty: !hasAnchor,
+    value: anchorValue,
+  };
 
   return [queueLine, scanLine, anchorLine];
 }

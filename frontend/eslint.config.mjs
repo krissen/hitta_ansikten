@@ -7,6 +7,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import react from 'eslint-plugin-react';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default [
   // Global ignores (build output, deps, generated files).
@@ -73,7 +74,13 @@ export default [
   // carry both Node and browser globals and a stray Node-only API would lint
   // clean in a file that only ever runs in Chrome.
   {
-    files: ['src/main/**/*.js', 'scripts/**/*.js', 'main.js', '*.config.js', '*.config.mjs'],
+    files: [
+      'src/main/**/*.js',
+      'scripts/**/*.js',
+      'main.js',
+      '*.config.js',
+      '*.config.mjs',
+    ],
     ignores: ['scripts/midi-probe/**/*.js'],
     languageOptions: {
       globals: { ...globals.node },
@@ -104,4 +111,9 @@ export default [
       globals: { ...globals.browser, ...globals.node, ...globals.vitest },
     },
   },
+
+  // Last: turns off any stylistic rule that would otherwise fight
+  // prettier's formatting (none active above today, but this is the
+  // standard guard against a future rule addition reintroducing one).
+  eslintConfigPrettier,
 ];

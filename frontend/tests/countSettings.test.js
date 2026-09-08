@@ -48,7 +48,11 @@ describe('countSettings store', () => {
     setCountSettings({ baseline: 'mean' });
     expect(getCountSettings()).toEqual({ ...DEFAULTS, baseline: 'mean' });
     setCountSettings({ minImages: 5 });
-    expect(getCountSettings()).toEqual({ ...DEFAULTS, baseline: 'mean', minImages: 5 });
+    expect(getCountSettings()).toEqual({
+      ...DEFAULTS,
+      baseline: 'mean',
+      minImages: 5,
+    });
   });
 
   it('persists to localStorage', () => {
@@ -77,14 +81,26 @@ describe('countSettings store', () => {
     // sanitized notify() snapshot against the options it last applied. For that
     // to be robust it adopts setCountSettings' return value, so the return must
     // already be sanitized/coerced (not the raw patch).
-    const returned = setCountSettings({ minImages: '7', gapMinutes: 12.9, baseline: 'mean' });
-    expect(returned).toEqual({ minImages: 7, gapMinutes: 12, baseline: 'mean' });
+    const returned = setCountSettings({
+      minImages: '7',
+      gapMinutes: 12.9,
+      baseline: 'mean',
+    });
+    expect(returned).toEqual({
+      minImages: 7,
+      gapMinutes: 12,
+      baseline: 'mean',
+    });
     // And it equals the value a subscriber is handed / getCountSettings returns.
     expect(returned).toEqual(getCountSettings());
   });
 
   it('returns defaults for invalid fields so an adopting caller holds a valid shape', () => {
-    const returned = setCountSettings({ minImages: 0, gapMinutes: -5, baseline: 'bogus' });
+    const returned = setCountSettings({
+      minImages: 0,
+      gapMinutes: -5,
+      baseline: 'bogus',
+    });
     expect(returned).toEqual(DEFAULTS);
   });
 
@@ -118,7 +134,9 @@ describe('countSettings store', () => {
 
   it('a broken subscriber does not stop the others', () => {
     const seen = [];
-    const unsubA = subscribeCountSettings(() => { throw new Error('boom'); });
+    const unsubA = subscribeCountSettings(() => {
+      throw new Error('boom');
+    });
     const unsubB = subscribeCountSettings((s) => seen.push(s.baseline));
     setCountSettings({ baseline: 'mean' });
     unsubA();
@@ -133,7 +151,11 @@ describe('countSettings persistence', () => {
     setCountSettings({ baseline: 'mean', minImages: 4 });
     vi.resetModules();
     const fresh = await import('../src/renderer/shared/countSettings.js');
-    expect(fresh.getCountSettings()).toEqual({ gapMinutes: 30, baseline: 'mean', minImages: 4 });
+    expect(fresh.getCountSettings()).toEqual({
+      gapMinutes: 30,
+      baseline: 'mean',
+      minImages: 4,
+    });
   });
 
   it('tolerates corrupt localStorage and falls back to the defaults', async () => {

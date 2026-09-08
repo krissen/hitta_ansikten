@@ -68,8 +68,12 @@ describe('Autocomplete — ARIA wiring', () => {
     expect(input.getAttribute('aria-expanded')).toBe('true');
     const listbox = document.querySelector('[role="listbox"]');
     expect(listbox).toBeTruthy();
-    expect(input.getAttribute('aria-controls')).toBe(listbox.getAttribute('id'));
-    const opts = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent);
+    expect(input.getAttribute('aria-controls')).toBe(
+      listbox.getAttribute('id'),
+    );
+    const opts = [...document.querySelectorAll('[role="option"]')].map(
+      (o) => o.textContent,
+    );
     expect(opts).toEqual(['Anna', 'Anders']);
   });
 
@@ -100,7 +104,10 @@ describe('Autocomplete — keyboard navigation', () => {
     expect(input.value).toBe('Anna');
 
     act(() => fireEvent.keyDown(input, { key: 'ArrowDown' }));
-    expect(document.getElementById(input.getAttribute('aria-activedescendant')).textContent).toBe('Anders');
+    expect(
+      document.getElementById(input.getAttribute('aria-activedescendant'))
+        .textContent,
+    ).toBe('Anders');
   });
 
   it('ArrowUp from no highlight wraps to the last option', () => {
@@ -108,7 +115,10 @@ describe('Autocomplete — keyboard navigation', () => {
     const input = container.querySelector('input');
     type(input, 'an');
     act(() => fireEvent.keyDown(input, { key: 'ArrowUp' }));
-    expect(document.getElementById(input.getAttribute('aria-activedescendant')).textContent).toBe('Anders');
+    expect(
+      document.getElementById(input.getAttribute('aria-activedescendant'))
+        .textContent,
+    ).toBe('Anders');
   });
 
   it('Enter selects the highlighted option when selectOnEnter is set', () => {
@@ -138,7 +148,9 @@ describe('Autocomplete — keyboard navigation', () => {
     const { container } = render(<Harness onSelect={onSelect} />);
     const input = container.querySelector('input');
     type(input, 'ha'); // Hanna
-    const option = [...document.querySelectorAll('[role="option"]')].find((o) => o.textContent === 'Hanna');
+    const option = [...document.querySelectorAll('[role="option"]')].find(
+      (o) => o.textContent === 'Hanna',
+    );
     act(() => fireEvent.mouseDown(option));
     expect(onSelect).toHaveBeenCalledWith('Hanna');
     expect(input.value).toBe('Hanna');
@@ -171,7 +183,9 @@ describe('Autocomplete — passthrough contract (review flow)', () => {
     document.addEventListener('keydown', docHandler);
     try {
       const onSelect = vi.fn();
-      const { container } = render(<Harness onSelect={onSelect} selectOnEnter={false} navigateWithTab />);
+      const { container } = render(
+        <Harness onSelect={onSelect} selectOnEnter={false} navigateWithTab />,
+      );
       const input = container.querySelector('input');
       type(input, 'an');
       act(() => fireEvent.keyDown(input, { key: 'ArrowDown' }));
@@ -189,7 +203,10 @@ describe('Autocomplete — passthrough contract (review flow)', () => {
     const input = container.querySelector('input');
     type(input, 'an');
     act(() => fireEvent.keyDown(input, { key: 'Tab' }));
-    expect(document.getElementById(input.getAttribute('aria-activedescendant')).textContent).toBe('Anna');
+    expect(
+      document.getElementById(input.getAttribute('aria-activedescendant'))
+        .textContent,
+    ).toBe('Anna');
   });
 });
 

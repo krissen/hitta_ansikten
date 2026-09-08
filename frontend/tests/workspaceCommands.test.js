@@ -7,7 +7,10 @@ vi.mock('../src/renderer/shared/scanScope.js', () => ({
   signalExternalLoad: vi.fn(),
 }));
 
-import { createWorkspaceRouter, HANDOFFS } from '../src/renderer/workspace/flexlayout/workspaceCommands.js';
+import {
+  createWorkspaceRouter,
+  HANDOFFS,
+} from '../src/renderer/workspace/flexlayout/workspaceCommands.js';
 import { signalExternalLoad } from '../src/renderer/shared/scanScope.js';
 
 function makeHandlers() {
@@ -44,7 +47,11 @@ describe('workspaceCommands — direct intents', () => {
     router.dispatch({ type: 'enter-step', step: 'culling' });
     expect(h.enterStep).toHaveBeenCalledWith('culling');
 
-    router.dispatch({ type: 'open-module', moduleId: 'trash', options: { forceNew: true } });
+    router.dispatch({
+      type: 'open-module',
+      moduleId: 'trash',
+      options: { forceNew: true },
+    });
     expect(h.openModule).toHaveBeenCalledWith('trash', { forceNew: true });
 
     router.dispatch({ type: 'open-workflow-step', moduleId: 'player-count' });
@@ -76,7 +83,10 @@ describe('workspaceCommands — hand-offs (morph + waitForListeners + emit)', ()
       await router.dispatch({ type, payload });
 
       expect(h.enterStep).toHaveBeenCalledWith(desc.step);
-      expect(h.moduleAPI.waitForListeners).toHaveBeenCalledWith(desc.event, 1234);
+      expect(h.moduleAPI.waitForListeners).toHaveBeenCalledWith(
+        desc.event,
+        1234,
+      );
       expect(h.moduleAPI.emit).toHaveBeenCalledWith(desc.event, payload);
     }
   });
@@ -93,7 +103,9 @@ describe('workspaceCommands — hand-offs (morph + waitForListeners + emit)', ()
     const router = readyRouter(h);
     await router.dispatch({ type: 'open-count', payload: { roots: ['/x'] } });
     expect(signalExternalLoad).toHaveBeenCalledTimes(1);
-    expect(h.moduleAPI.emit).toHaveBeenCalledWith('count-load', { roots: ['/x'] });
+    expect(h.moduleAPI.emit).toHaveBeenCalledWith('count-load', {
+      roots: ['/x'],
+    });
   });
 
   it('non-count hand-offs do NOT signal an external load', async () => {
@@ -122,8 +134,9 @@ describe('workspaceCommands — intent buffer', () => {
     expect(h.enterStep).toHaveBeenCalledWith('import');
     expect(h.openModule).toHaveBeenCalledWith('trash', undefined);
     // Order preserved: enterStep before openModule.
-    expect(h.enterStep.mock.invocationCallOrder[0])
-      .toBeLessThan(h.openModule.mock.invocationCallOrder[0]);
+    expect(h.enterStep.mock.invocationCallOrder[0]).toBeLessThan(
+      h.openModule.mock.invocationCallOrder[0],
+    );
     expect(router.pending()).toBe(0);
   });
 

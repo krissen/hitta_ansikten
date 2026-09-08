@@ -14,20 +14,26 @@ describe('Alert', () => {
 
   it('uses role="alert" for the error variant', () => {
     const { container } = render(<Alert variant="error">Nåt gick fel</Alert>);
-    expect(container.querySelector('.alert').getAttribute('role')).toBe('alert');
+    expect(container.querySelector('.alert').getAttribute('role')).toBe(
+      'alert',
+    );
   });
 
   it('uses role="status" for non-error variants', () => {
     for (const variant of ['info', 'success', 'warning']) {
       const { container, unmount } = render(<Alert variant={variant}>x</Alert>);
-      expect(container.querySelector('.alert').getAttribute('role')).toBe('status');
+      expect(container.querySelector('.alert').getAttribute('role')).toBe(
+        'status',
+      );
       unmount();
     }
   });
 
   it('defaults to the info variant', () => {
     const { container } = render(<Alert>hej</Alert>);
-    expect(container.querySelector('.alert').classList.contains('alert--info')).toBe(true);
+    expect(
+      container.querySelector('.alert').classList.contains('alert--info'),
+    ).toBe(true);
   });
 
   it('renders no dismiss button by default', () => {
@@ -45,7 +51,9 @@ describe('Alert', () => {
   });
 
   it('renders an optional icon', () => {
-    const { container } = render(<Alert icon={<span data-testid="ic">!</span>}>text</Alert>);
+    const { container } = render(
+      <Alert icon={<span data-testid="ic">!</span>}>text</Alert>,
+    );
     expect(container.querySelector('.alert__icon')).not.toBeNull();
   });
 });

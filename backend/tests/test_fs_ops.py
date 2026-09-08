@@ -14,6 +14,7 @@ from core import fs_ops
 def journal(tmp_path, monkeypatch):
     """Redirect the journal under tmp_path via core.db.BASE_DIR; return its path."""
     import core.db as db
+
     monkeypatch.setattr(db, "BASE_DIR", tmp_path)
     return tmp_path / "rename_journal.jsonl"
 
@@ -26,12 +27,14 @@ def _find_sidecars(src, exts):
     """Minimal find_sidecars: same-stem files with one of the given extensions."""
     ext_lower = {e.lower() for e in exts}
     return [
-        p for p in src.parent.iterdir()
+        p
+        for p in src.parent.iterdir()
         if p.is_file() and p.stem == src.stem and p.suffix.lstrip(".").lower() in ext_lower
     ]
 
 
 # ----- journal ---------------------------------------------------------------
+
 
 def test_record_writes_row(journal):
     fs_ops.record(op="rename", tool="test", batch_id="b1", src="/a.NEF", dst="/b.NEF")
@@ -56,8 +59,14 @@ def test_journal_base_dir_does_not_import_db_for_standalone_cli(tmp_path, monkey
 
 
 def test_record_lists_moved_sidecars(journal):
-    fs_ops.record(op="rename", tool="t", batch_id="b", src="/a.NEF", dst="/b.NEF",
-                  sidecars=[("/a.xmp", "/b.xmp")])
+    fs_ops.record(
+        op="rename",
+        tool="t",
+        batch_id="b",
+        src="/a.NEF",
+        dst="/b.NEF",
+        sidecars=[("/a.xmp", "/b.xmp")],
+    )
     row = _rows(journal)[0]
     assert row["sidecars"] == [{"src": "/a.xmp", "dst": "/b.xmp"}]
 
@@ -102,8 +111,7 @@ def test_record_does_not_resolve_symlinks(journal, tmp_path):
     real.mkdir()
     link = tmp_path / "link"
     link.symlink_to(real)
-    fs_ops.record(op="rename", tool="t", batch_id="b",
-                  src=link / "a.NEF", dst=link / "b.NEF")
+    fs_ops.record(op="rename", tool="t", batch_id="b", src=link / "a.NEF", dst=link / "b.NEF")
     row = _rows(journal)[0]
     # The symlinked path is preserved verbatim, not rewritten to .../real/...
     assert row["src"] == str(link / "a.NEF")
@@ -112,6 +120,7 @@ def test_record_does_not_resolve_symlinks(journal, tmp_path):
 
 # ----- rename_with_sidecars (atomic unit) ------------------------------------
 
+
 def test_rename_with_sidecars_moves_and_journals(journal, tmp_path):
     img = tmp_path / "a.jpg"
     img.write_bytes(b"img")
@@ -119,8 +128,7 @@ def test_rename_with_sidecars_moves_and_journals(journal, tmp_path):
     sc.write_text("side")
     dst = tmp_path / "b.jpg"
 
-    moved = fs_ops.rename_with_sidecars(
-        img, dst, [(sc, tmp_path / "b.xmp")], tool="culling")
+    moved = fs_ops.rename_with_sidecars(img, dst, [(sc, tmp_path / "b.xmp")], tool="culling")
 
     assert (img, dst) in moved
     assert dst.exists() and not img.exists()
@@ -188,7 +196,8 @@ def test_rename_with_sidecars_rolls_back_on_sidecar_failure(journal, tmp_path, m
 
     with pytest.raises(OSError):
         fs_ops.rename_with_sidecars(
-            img, tmp_path / "b.jpg", [(sc, tmp_path / "b.xmp")], tool="culling")
+            img, tmp_path / "b.jpg", [(sc, tmp_path / "b.xmp")], tool="culling"
+        )
 
     # Rolled back: originals restored, no partial b.* and nothing journaled.
     assert img.exists()
@@ -214,7 +223,8 @@ def test_rename_with_sidecars_rejects_main_dst_equal_sidecar_dst(journal, tmp_pa
 
     with pytest.raises(FileExistsError):
         fs_ops.rename_with_sidecars(
-            img, tmp_path / "b.xmp", [(sc, tmp_path / "b.xmp")], tool="rename")
+            img, tmp_path / "b.xmp", [(sc, tmp_path / "b.xmp")], tool="rename"
+        )
 
     # Nothing moved, nothing journaled.
     assert img.read_bytes() == b"photo"
@@ -234,7 +244,8 @@ def test_rename_with_sidecars_rejects_case_insensitive_dst_collision(journal, tm
 
     with pytest.raises(FileExistsError):
         fs_ops.rename_with_sidecars(
-            img, tmp_path / "B.XMP", [(sc, tmp_path / "B.xmp")], tool="rename")
+            img, tmp_path / "B.XMP", [(sc, tmp_path / "B.xmp")], tool="rename"
+        )
 
     assert img.read_bytes() == b"photo"
     assert sc.read_text() == "side"
@@ -254,8 +265,11 @@ def test_rename_with_sidecars_rejects_duplicate_sidecar_dsts(journal, tmp_path):
     # Two sidecars targeting the same destination.
     with pytest.raises(FileExistsError):
         fs_ops.rename_with_sidecars(
-            img, tmp_path / "b.NEF",
-            [(sc1, tmp_path / "b.xmp"), (sc2, tmp_path / "b.xmp")], tool="rename")
+            img,
+            tmp_path / "b.NEF",
+            [(sc1, tmp_path / "b.xmp"), (sc2, tmp_path / "b.xmp")],
+            tool="rename",
+        )
 
     assert img.read_bytes() == b"photo"
     assert sc1.read_text() == "one" and sc2.read_text() == "two"
@@ -265,6 +279,7 @@ def test_rename_with_sidecars_rejects_duplicate_sidecar_dsts(journal, tmp_path):
 
 # ----- two_pass_rename -------------------------------------------------------
 
+
 def test_two_pass_renames_and_journals_mains(journal, tmp_path):
     a = tmp_path / "a.NEF"
     a.write_bytes(b"A")
@@ -272,7 +287,8 @@ def test_two_pass_renames_and_journals_mains(journal, tmp_path):
     b.write_bytes(b"B")
 
     res = fs_ops.two_pass_rename(
-        [(a, tmp_path / "1.NEF"), (b, tmp_path / "2.NEF")], tool="rename-nef")
+        [(a, tmp_path / "1.NEF"), (b, tmp_path / "2.NEF")], tool="rename-nef"
+    )
 
     assert {r["to"] for r in res["renamed"]} == {"1.NEF", "2.NEF"}
     assert res["skipped"] == [] and res["errors"] == []
@@ -333,7 +349,8 @@ def test_two_pass_swaps_via_temp(journal, tmp_path):
     b.write_bytes(b"B")
 
     res = fs_ops.two_pass_rename(
-        [(a, tmp_path / "b.NEF"), (b, tmp_path / "c.NEF")], tool="rename-nef")
+        [(a, tmp_path / "b.NEF"), (b, tmp_path / "c.NEF")], tool="rename-nef"
+    )
 
     assert res["errors"] == []
     assert (tmp_path / "b.NEF").read_bytes() == b"A"
@@ -362,8 +379,11 @@ def test_two_pass_carries_sidecars(journal, tmp_path):
     (tmp_path / "a.xmp").write_text("side")
 
     res = fs_ops.two_pass_rename(
-        [(a, tmp_path / "1.NEF")], tool="rename-nef",
-        sidecar_exts=["xmp"], find_sidecars=_find_sidecars)
+        [(a, tmp_path / "1.NEF")],
+        tool="rename-nef",
+        sidecar_exts=["xmp"],
+        find_sidecars=_find_sidecars,
+    )
 
     assert {r["to"] for r in res["renamed"]} == {"1.NEF", "1.xmp"}
     assert (tmp_path / "1.xmp").read_text() == "side"
@@ -371,9 +391,7 @@ def test_two_pass_carries_sidecars(journal, tmp_path):
     rows = _rows(journal)
     assert len(rows) == 1
     assert rows[0]["dst"] == str(tmp_path / "1.NEF")
-    assert rows[0]["sidecars"] == [
-        {"src": str(tmp_path / "a.xmp"), "dst": str(tmp_path / "1.xmp")}
-    ]
+    assert rows[0]["sidecars"] == [{"src": str(tmp_path / "a.xmp"), "dst": str(tmp_path / "1.xmp")}]
 
 
 def test_two_pass_sidecar_move_failure_kept_out_of_row(journal, tmp_path, monkeypatch):
@@ -394,8 +412,11 @@ def test_two_pass_sidecar_move_failure_kept_out_of_row(journal, tmp_path, monkey
     monkeypatch.setattr(Path, "rename", flaky)
 
     res = fs_ops.two_pass_rename(
-        [(a, tmp_path / "1.NEF")], tool="rename-nef",
-        sidecar_exts=["xmp"], find_sidecars=_find_sidecars)
+        [(a, tmp_path / "1.NEF")],
+        tool="rename-nef",
+        sidecar_exts=["xmp"],
+        find_sidecars=_find_sidecars,
+    )
 
     assert {r["to"] for r in res["renamed"]} == {"1.NEF"}
     assert len(res["errors"]) == 1
@@ -415,8 +436,11 @@ def test_two_pass_sidecar_restored_when_main_target_taken(journal, tmp_path):
     occupied.write_bytes(b"KEEP")  # main target taken; 1.xmp is free
 
     res = fs_ops.two_pass_rename(
-        [(a, tmp_path / "1.NEF")], tool="rename-nef",
-        sidecar_exts=["xmp"], find_sidecars=_find_sidecars)
+        [(a, tmp_path / "1.NEF")],
+        tool="rename-nef",
+        sidecar_exts=["xmp"],
+        find_sidecars=_find_sidecars,
+    )
 
     assert res["renamed"] == []
     assert len(res["skipped"]) == 1
@@ -438,8 +462,11 @@ def test_two_pass_sidecar_target_taken_keeps_main(journal, tmp_path):
     occupied.write_text("KEEP")  # sidecar target taken; 1.NEF is free
 
     res = fs_ops.two_pass_rename(
-        [(a, tmp_path / "1.NEF")], tool="rename-nef",
-        sidecar_exts=["xmp"], find_sidecars=_find_sidecars)
+        [(a, tmp_path / "1.NEF")],
+        tool="rename-nef",
+        sidecar_exts=["xmp"],
+        find_sidecars=_find_sidecars,
+    )
 
     assert {r["to"] for r in res["renamed"]} == {"1.NEF"}
     assert (tmp_path / "1.NEF").read_bytes() == b"A"
@@ -455,6 +482,7 @@ def test_two_pass_sidecar_target_taken_keeps_main(journal, tmp_path):
 
 
 # ----- import target resolution ----------------------------------------------
+
 
 def test_resolve_import_target_free_name(tmp_path):
     src = tmp_path / "DSC0001.NEF"

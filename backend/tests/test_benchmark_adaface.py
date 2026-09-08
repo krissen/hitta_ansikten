@@ -74,7 +74,7 @@ def _crop(seed: int) -> np.ndarray:
 def test_preprocess_no_swap_and_norm():
     # Distinct constant B/G/R planes let us assert the channels are NOT swapped.
     crop = np.zeros((112, 112, 3), dtype=np.uint8)
-    crop[..., 0] = 0    # B
+    crop[..., 0] = 0  # B
     crop[..., 1] = 128  # G
     crop[..., 2] = 255  # R
     t = AdaFaceRecognition._preprocess(crop)

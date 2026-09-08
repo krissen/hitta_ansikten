@@ -220,10 +220,14 @@ class CullingService:
             # Journal after the sidecars are settled, listing the ones that
             # actually moved into the trash (mirrors the manifest entry).
             fs_ops.record(
-                op="trash", tool="culling", batch_id=batch_id,
-                src=src, dst=TRASH_DIR / stored_name,
-                sidecars=[(sc["original_path"], TRASH_DIR / sc["stored_name"])
-                          for sc in stored_sidecars],
+                op="trash",
+                tool="culling",
+                batch_id=batch_id,
+                src=src,
+                dst=TRASH_DIR / stored_name,
+                sidecars=[
+                    (sc["original_path"], TRASH_DIR / sc["stored_name"]) for sc in stored_sidecars
+                ],
             )
 
             entry = {
@@ -294,7 +298,8 @@ class CullingService:
         # caller always sees a ValueError with a user-facing reason.
         try:
             fs_ops.rename_with_sidecars(
-                src, dst, sidecar_moves, tool="culling", journal_op="rename")
+                src, dst, sidecar_moves, tool="culling", journal_op="rename"
+            )
         except Exception:
             logger.exception("Rename failed; rolled back %s", src)
             raise ValueError("Kunde inte byta namn på en sidecar-fil; ändringen återställdes")
@@ -352,14 +357,20 @@ class CullingService:
                     sc_dest = self._restore_one(str(sc_target), sc["stored_name"])
                     restored_sidecars.append((TRASH_DIR / sc["stored_name"], sc_dest))
                 except Exception:
-                    logger.exception("Failed to restore sidecar %s for %s",
-                                     sc.get("stored_name"), tid)
+                    logger.exception(
+                        "Failed to restore sidecar %s for %s", sc.get("stored_name"), tid
+                    )
                     failed_sidecars.append(sc)
 
             # Journal the actual delta (main + sidecars that landed).
-            fs_ops.record(op="restore", tool="culling", batch_id=batch_id,
-                          src=TRASH_DIR / entry["stored_name"], dst=dest,
-                          sidecars=restored_sidecars)
+            fs_ops.record(
+                op="restore",
+                tool="culling",
+                batch_id=batch_id,
+                src=TRASH_DIR / entry["stored_name"],
+                dst=dest,
+                sidecars=restored_sidecars,
+            )
 
             # Only drop the manifest entry once every stored file is accounted
             # for. A failed sidecar whose stored file is still in the trash would
@@ -367,8 +378,7 @@ class CullingService:
             # a sidecar-only entry (promote the first to the main slot) so they
             # stay recoverable and purgeable; a failed sidecar whose stored file
             # is already gone leaves nothing to keep.
-            leftover = [sc for sc in failed_sidecars
-                        if (TRASH_DIR / sc["stored_name"]).exists()]
+            leftover = [sc for sc in failed_sidecars if (TRASH_DIR / sc["stored_name"]).exists()]
             keep = [e for e in keep if e["id"] != tid]
             if leftover:
                 head, rest = leftover[0], leftover[1:]

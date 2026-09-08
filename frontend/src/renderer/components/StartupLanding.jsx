@@ -21,10 +21,16 @@ import './StartupLanding.css';
 
 export function StartupLanding() {
   return (
-    <div className="startup-landing" role="region" aria-label={t('startupLanding.title')}>
+    <div
+      className="startup-landing"
+      role="region"
+      aria-label={t('startupLanding.title')}
+    >
       <div className="startup-landing-card">
         <h1 className="startup-landing-title">{t('startupLanding.title')}</h1>
-        <p className="startup-landing-subtitle">{t('startupLanding.subtitle')}</p>
+        <p className="startup-landing-subtitle">
+          {t('startupLanding.subtitle')}
+        </p>
         <p className="startup-landing-hint">{t('startupLanding.barHint')}</p>
       </div>
     </div>

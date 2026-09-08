@@ -33,7 +33,7 @@ export function ContextMenu({ menu, items, onClose }) {
           >
             {item.label}
           </li>
-        )
+        ),
       )}
     </ul>
   );

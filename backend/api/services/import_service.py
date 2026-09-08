@@ -53,20 +53,23 @@ class ImportService:
             if not self._is_ejectable(info):
                 continue
             count, size = self._count_nefs(entry)
-            volumes.append({
-                "name": entry.name,
-                "mount": str(entry),
-                "nef_count": count,
-                "total_bytes": size,
-                "ejectable": True,
-            })
+            volumes.append(
+                {
+                    "name": entry.name,
+                    "mount": str(entry),
+                    "nef_count": count,
+                    "total_bytes": size,
+                    "ejectable": True,
+                }
+            )
         return volumes
 
     def _diskutil_info(self, mount: str) -> dict | None:
         try:
             res = subprocess.run(
                 ["diskutil", "info", "-plist", mount],
-                capture_output=True, timeout=15,
+                capture_output=True,
+                timeout=15,
             )
             if res.returncode != 0:
                 return None
@@ -128,10 +131,7 @@ class ImportService:
         dest = Path(os.path.expanduser(destination))
         dest.mkdir(parents=True, exist_ok=True)
 
-        nefs = sorted(
-            p for p in src_base.rglob("*")
-            if p.is_file() and p.suffix.lower() == ".nef"
-        )
+        nefs = sorted(p for p in src_base.rglob("*") if p.is_file() and p.suffix.lower() == ".nef")
         total = len(nefs)
         transferred: list[str] = []
         skipped: list[dict] = []
@@ -145,7 +145,9 @@ class ImportService:
 
         for i, src in enumerate(nefs, 1):
             try:
-                target = await loop.run_in_executor(None, fs_ops.resolve_import_target, dest, src.name, src)
+                target = await loop.run_in_executor(
+                    None, fs_ops.resolve_import_target, dest, src.name, src
+                )
                 if target is None:
                     # Byte-identical copy already present (base or a -N variant) —
                     # safe to skip; re-import is idempotent.
@@ -166,19 +168,28 @@ class ImportService:
                             except Exception:
                                 logger.exception("[Import] sidecar transfer failed: %s", sc)
                     # Journal after the sidecars are settled, listing only movers.
-                    fs_ops.record(op=journal_op, tool="import", batch_id=batch_id,
-                                  src=src, dst=target, sidecars=moved_sidecars)
+                    fs_ops.record(
+                        op=journal_op,
+                        tool="import",
+                        batch_id=batch_id,
+                        src=src,
+                        dst=target,
+                        sidecars=moved_sidecars,
+                    )
                     transferred.append(str(target))
             except Exception as e:
                 logger.exception("[Import] transfer failed: %s", src)
                 errors.append({"path": str(src), "error": str(e)})
-            await broadcast_event("import-progress", {
-                "phase": "transfer",
-                "current": i,
-                "total": total,
-                "file": src.name,
-                "percent": round(100 * i / total) if total else 100,
-            })
+            await broadcast_event(
+                "import-progress",
+                {
+                    "phase": "transfer",
+                    "current": i,
+                    "total": total,
+                    "file": src.name,
+                    "percent": round(100 * i / total) if total else 100,
+                },
+            )
 
         ejected = False
         eject_error: str | None = None
@@ -188,7 +199,11 @@ class ImportService:
                 # may need a retry off the card). Surface a reason so the UI warns
                 # the card is still mounted instead of leaving it silently so.
                 eject_error = "utmatning hoppades över på grund av överföringsfel"
-                logger.warning("[Import] eject skipped — transfer had %d error(s): %s", len(errors), volume_mount)
+                logger.warning(
+                    "[Import] eject skipped — transfer had %d error(s): %s",
+                    len(errors),
+                    volume_mount,
+                )
             # Re-validate ejectable here (defense-in-depth): keep the "never the
             # internal/boot disk" guarantee local to the destructive call, not only
             # in list_volumes.
@@ -201,16 +216,19 @@ class ImportService:
         # Terminal event: lets the UI show the final summary even if the HTTP
         # response was lost (a long import can outlive the request). Carries
         # counts (not the full path lists), the destination, and eject outcome.
-        await broadcast_event("import-progress", {
-            "phase": "done",
-            "transferred": len(transferred),
-            "skipped": len(skipped),
-            "errors": len(errors),
-            "ejected": ejected,
-            "eject_error": eject_error,
-            "destination": str(dest),
-            "total": total,
-        })
+        await broadcast_event(
+            "import-progress",
+            {
+                "phase": "done",
+                "transferred": len(transferred),
+                "skipped": len(skipped),
+                "errors": len(errors),
+                "ejected": ejected,
+                "eject_error": eject_error,
+                "destination": str(dest),
+                "total": total,
+            },
+        )
 
         return {
             "transferred": transferred,
@@ -228,7 +246,9 @@ class ImportService:
         try:
             res = await loop.run_in_executor(
                 None,
-                lambda: subprocess.run(["diskutil", "eject", mount], capture_output=True, timeout=60),
+                lambda: subprocess.run(
+                    ["diskutil", "eject", mount], capture_output=True, timeout=60
+                ),
             )
             if res.returncode != 0:
                 reason = res.stderr.decode(errors="replace").strip()

@@ -50,7 +50,11 @@ export const WORKSPACE_SPECS = {
   rename: [{ moduleId: 'rename-nef', weight: 100 }],
   review: [
     { moduleId: 'review-module', weight: 15 },
-    { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+    {
+      tabs: ['image-viewer', 'file-queue'],
+      active: 'image-viewer',
+      weight: 85,
+    },
   ],
   count: [{ moduleId: 'player-count', weight: 100 }],
   culling: [{ moduleId: 'culling', weight: 100 }],
@@ -118,7 +122,9 @@ export function specModuleIds(spec) {
  */
 export function primaryModuleOf(spec) {
   if (!Array.isArray(spec) || spec.length === 0) return null;
-  const primary = spec.reduce((best, pane) => (pane.weight >= best.weight ? pane : best));
+  const primary = spec.reduce((best, pane) =>
+    pane.weight >= best.weight ? pane : best,
+  );
   return paneActiveModule(primary);
 }
 
@@ -132,9 +138,13 @@ if (process.env.NODE_ENV !== 'production') {
       console.warn(`[workflows] no workspace spec for step "${step}"`);
       continue;
     }
-    const hasStepModule = specModuleIds(spec).some((id) => getModuleStep(id) === step);
+    const hasStepModule = specModuleIds(spec).some(
+      (id) => getModuleStep(id) === step,
+    );
     if (!hasStepModule) {
-      console.warn(`[workflows] spec for step "${step}" omits its own step module`);
+      console.warn(
+        `[workflows] spec for step "${step}" omits its own step module`,
+      );
     }
   }
 }

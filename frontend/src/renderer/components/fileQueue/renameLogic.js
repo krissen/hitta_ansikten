@@ -34,16 +34,19 @@ export function basename(filePath) {
  * @param {Set<string>|null} [opts.visibleIds] - filter-visible item ids, or null for no filter
  * @returns {string[]} eligible file paths
  */
-export function selectRenamePaths(queue, { fixMode, dirtyPaths, selectedIds, visibleIds }) {
+export function selectRenamePaths(
+  queue,
+  { fixMode, dirtyPaths, selectedIds, visibleIds },
+) {
   const hasSelection = selectedIds && selectedIds.size > 0;
   return queue
-    .filter(q => {
+    .filter((q) => {
       const eligible = isRenameEligible(q, fixMode, dirtyPaths);
       if (hasSelection) return eligible && selectedIds.has(q.id);
       if (visibleIds) return eligible && visibleIds.has(q.id);
       return eligible;
     })
-    .map(q => q.filePath);
+    .map((q) => q.filePath);
 }
 
 /**
@@ -97,7 +100,7 @@ export function buildRenamedMap(renamed) {
  * @returns {Array} new queue
  */
 export function applyRenameToQueue(queue, renamedMap) {
-  return queue.map(item => {
+  return queue.map((item) => {
     const newPath = renamedMap[item.filePath];
     if (newPath) {
       return { ...item, filePath: newPath, fileName: basename(newPath) };

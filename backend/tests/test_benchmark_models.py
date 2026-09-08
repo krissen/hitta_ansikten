@@ -245,10 +245,18 @@ def test_build_dataset_buckets(tmp_cache, monkeypatch):
 def test_write_manifest(tmp_path):
     rows = [
         dataset.DatasetFace(
-            identity="A", image_hash="s1", bucket=dataset.MATCHED, face_id="h_A",
-            db_bbox_xyxy=[0, 0, 10, 10], det_bbox_xyxy=[0, 0, 10, 10],
-            kps=[[1, 1]] * 5, score=0.9, iou=1.0, path="/x.jpg",
-            is_manual=False, has_encoding=True,
+            identity="A",
+            image_hash="s1",
+            bucket=dataset.MATCHED,
+            face_id="h_A",
+            db_bbox_xyxy=[0, 0, 10, 10],
+            det_bbox_xyxy=[0, 0, 10, 10],
+            kps=[[1, 1]] * 5,
+            score=0.9,
+            iou=1.0,
+            path="/x.jpg",
+            is_manual=False,
+            has_encoding=True,
         )
     ]
     out = dataset.write_manifest(rows, tmp_path / "dataset.jsonl")

@@ -75,10 +75,10 @@ def _at_cos_distance(base, ortho_seed, dist):
     """Unit vector at cosine distance ``dist`` from unit vector ``base``."""
     base = np.asarray(base, dtype=float)
     w = _unit(ortho_seed, len(base))
-    w = w - (w @ base) * base           # Gram-Schmidt: make w orthogonal to base
+    w = w - (w @ base) * base  # Gram-Schmidt: make w orthogonal to base
     w = w / np.linalg.norm(w)
     dot = 1.0 - dist
-    v = dot * base + np.sqrt(max(0.0, 1.0 - dot ** 2)) * w
+    v = dot * base + np.sqrt(max(0.0, 1.0 - dot**2)) * w
     return v / np.linalg.norm(v)
 
 
@@ -162,9 +162,7 @@ def test_hard_negative_removes_a_twin_before_the_knn_tiebreak():
 
     # With Wilmer gone the pair is no longer both present, so the twin override
     # does not fire — Maximilian stands as the suggestion.
-    out = svc._maybe_disambiguate_twins(
-        probe, alts, "name", {("Maximilian", "Wilmer")}
-    )
+    out = svc._maybe_disambiguate_twins(probe, alts, "name", {("Maximilian", "Wilmer")})
     assert out is None
 
 

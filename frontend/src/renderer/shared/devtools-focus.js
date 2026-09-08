@@ -9,7 +9,7 @@ import { debugError } from './debug.js';
 
 class DevToolsFocusManager {
   constructor() {
-    this.isDevToolsOpen = false;  // Track if DevTools is OPEN (not just focused)
+    this.isDevToolsOpen = false; // Track if DevTools is OPEN (not just focused)
     this.listeners = [];
 
     // Listen for DevTools open/close state from main process
@@ -46,7 +46,7 @@ class DevToolsFocusManager {
   }
 
   notifyListeners() {
-    this.listeners.forEach(listener => {
+    this.listeners.forEach((listener) => {
       try {
         listener(this.isDevToolsOpen);
       } catch (err) {
@@ -68,16 +68,25 @@ class DevToolsFocusManager {
     // Regular input focus checks
     const activeElement = document.activeElement;
     if (activeElement) {
-      if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+      if (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA'
+      ) {
         return true;
       }
-      if (activeElement.isContentEditable || activeElement.getAttribute('contenteditable') === 'true') {
+      if (
+        activeElement.isContentEditable ||
+        activeElement.getAttribute('contenteditable') === 'true'
+      ) {
         return true;
       }
     }
 
     if (event.target) {
-      if (event.target.isContentEditable || event.target.getAttribute('contenteditable') === 'true') {
+      if (
+        event.target.isContentEditable ||
+        event.target.getAttribute('contenteditable') === 'true'
+      ) {
         return true;
       }
     }

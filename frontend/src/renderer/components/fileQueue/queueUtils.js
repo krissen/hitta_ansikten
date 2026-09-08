@@ -9,7 +9,10 @@
  * @returns {number}
  */
 export const naturalSortCompare = (a, b) => {
-  return a.fileName.localeCompare(b.fileName, undefined, { numeric: true, sensitivity: 'base' });
+  return a.fileName.localeCompare(b.fileName, undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
 };
 
 /**
@@ -19,7 +22,15 @@ export const naturalSortCompare = (a, b) => {
 export const generateId = () => Math.random().toString(36).substring(2, 9);
 
 // Supported image file extensions
-export const SUPPORTED_EXTENSIONS = new Set(['nef', 'cr2', 'arw', 'jpg', 'jpeg', 'png', 'tiff']);
+export const SUPPORTED_EXTENSIONS = new Set([
+  'nef',
+  'cr2',
+  'arw',
+  'jpg',
+  'jpeg',
+  'png',
+  'tiff',
+]);
 
 /**
  * The source folder of the queued files, for labelling the queue ("Kö: <mapp>").

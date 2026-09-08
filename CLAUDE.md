@@ -28,14 +28,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **dev is main branch** - feature branches from dev
 - **Never commit to master directly**
 - **Never delete master or dev**
+- **Every PR needs at least one label** (`bug`, `enhancement`, etc.) before merge
 
 ```bash
 git checkout dev
 git checkout -b feature/my-feature
 # ... work ...
-git commit -m "(scope) description"
+git commit -m "feat(scope): description"
 git push origin feature/my-feature
-# Create PR to dev
+# Create PR to dev, with a label
 ```
 
 ### Commit Messages
@@ -247,9 +248,56 @@ Config in `~/.local/share/faceid/config.json`:
 - Comments and docs in English
 - User-facing strings in Swedish
 
+### Quality gate
+
+`.pre-commit-config.yaml` (run by [`prek`](https://github.com/j178/prek), not
+`pre-commit`) is the lint/format/secrets grind: ruff, eslint, actionlint,
+shellcheck, gitleaks, and the standard pre-commit-hooks set. Nothing in this
+repo installs a git hook or sets `core.hooksPath` — running it locally at
+commit time depends on a **global** git-hook dispatcher that reads this
+repo-local setting and calls `prek` when it's on:
+
+```bash
+git config prek.enabled true      # once per clone — git config isn't cloned
+```
+
+**Without that global dispatcher already set up on the machine, this line
+is a no-op** — plain `git commit` runs no local hook at all, and nothing in
+the repo detects or warns about that. CI still enforces the same
+`.pre-commit-config.yaml` on every PR regardless (see below), so nothing
+merges unchecked — but a clone without the dispatcher gets zero local,
+pre-push feedback.
+
+- `SKIP_PREK=1 git commit ...` skips prek for one commit without disabling
+  the separate AI-attribution commit-msg check.
+- `git commit --no-verify` skips everything, including that check — last
+  resort only.
+- CI runs the same `.pre-commit-config.yaml` (see `lint` job in
+  `.github/workflows/ci.yml`), plus a full-tree gitleaks sweep the local
+  `--staged` hook can't do, so nothing merges that this file doesn't cover
+  either way.
+
+Run the whole gate plus both test suites in one command:
+
+```bash
+make check
+```
+
+Prints a few lines on success, the tail of `.check.log` (gitignored, full
+output) on failure. Unlike prek alone, `make check` also lints without
+`--fix`, so a brand-new untracked file gets a real failing verdict instead
+of being silently autofixed with nothing to diff against.
+
+Formatting commits should be excluded from blame:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
 ### Testing
 
-Automated tests exist — run them before pushing:
+Automated tests exist — run them before pushing (`make check` above runs
+both, plus the linters):
 
 ```bash
 cd backend && pytest        # backend/tests/ (configured in backend/pyproject.toml)

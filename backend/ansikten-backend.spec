@@ -31,23 +31,23 @@ hiddenimports = [
     'starlette',
     'pydantic',
     'pydantic_core',
-    
+
     # Image processing
     'cv2',
     'PIL',
     'PIL.Image',
     'rawpy',
     'numpy',
-    
+
     # Required by insightface (vis.py imports at package load)
     'matplotlib',
     'matplotlib.pyplot',
     'matplotlib.font_manager',
-    
+
     # InsightFace and ONNX runtime
     'insightface',
     'onnxruntime',
-    
+
     # API modules
     'api',
     'api.server',

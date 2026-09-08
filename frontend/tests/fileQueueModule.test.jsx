@@ -1,8 +1,25 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
-import { render, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterEach,
+} from 'vitest';
+import {
+  render,
+  act,
+  cleanup,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { settle } from './helpers/settle.js';
 import { PreprocessingStatus } from '../src/renderer/services/preprocessing/index.js';
-import { setWorkingFolder, clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
+import {
+  setWorkingFolder,
+  clearWorkingFolder,
+} from '../src/renderer/shared/workingFolder.js';
 import { t } from '../src/i18n/index.js';
 
 // Characterization + fence tests for FileQueueModule.
@@ -80,7 +97,14 @@ const h = vi.hoisted(() => {
     completed: new Map(),
   };
   return {
-    registry, ipc, managerHandlers, api, emit, showToast, confirm, manager,
+    registry,
+    ipc,
+    managerHandlers,
+    api,
+    emit,
+    showToast,
+    confirm,
+    manager,
     isConnected: true,
     recentFiles: [],
     renamePreview: { items: [] },
@@ -125,15 +149,21 @@ vi.mock('../src/renderer/shared/api-client.js', () => ({
 
 // Keep PreprocessingStatus real (assertions key off its string values); only
 // swap the singleton factory for our controllable fake manager.
-vi.mock('../src/renderer/services/preprocessing/index.js', async (importOriginal) => {
-  const actual = await importOriginal();
-  return { ...actual, getPreprocessingManager: () => h.manager };
-});
+vi.mock(
+  '../src/renderer/services/preprocessing/index.js',
+  async (importOriginal) => {
+    const actual = await importOriginal();
+    return { ...actual, getPreprocessingManager: () => h.manager };
+  },
+);
 
 // jsdom (as configured here) does not expose a bare `localStorage` global; the
 // preference readers and the queue persistence effect both reach for it.
 beforeAll(() => {
-  if (typeof globalThis.localStorage === 'undefined' || !globalThis.localStorage) {
+  if (
+    typeof globalThis.localStorage === 'undefined' ||
+    !globalThis.localStorage
+  ) {
     const store = new Map();
     const ls = {
       getItem: (k) => (store.has(k) ? store.get(k) : null),
@@ -162,7 +192,11 @@ function setPrefs(obj) {
 
 describe('FileQueueModule — preference readers (pure)', () => {
   beforeEach(() => {
-    try { localStorage.clear(); } catch { /* ignore */ }
+    try {
+      localStorage.clear();
+    } catch {
+      /* ignore */
+    }
   });
 
   it('getAutoLoadPreference defaults to true and reads the stored flag', () => {
@@ -199,7 +233,11 @@ describe('FileQueueModule — preference readers (pure)', () => {
     expect(getNotificationPreference('showStatusIndicator')).toBe(true);
     expect(getNotificationPreference('showToastOnPause')).toBe(true);
     expect(getNotificationPreference('showToastOnResume')).toBe(false);
-    setPrefs({ preprocessing: { notifications: { showToastOnResume: true, showToastOnPause: false } } });
+    setPrefs({
+      preprocessing: {
+        notifications: { showToastOnResume: true, showToastOnPause: false },
+      },
+    });
     expect(getNotificationPreference('showToastOnResume')).toBe(true);
     expect(getNotificationPreference('showToastOnPause')).toBe(false);
   });
@@ -212,13 +250,19 @@ describe('FileQueueModule — preference readers (pure)', () => {
 
   it('getRenameConfig includes only the explicitly-set keys (defaults omitted)', () => {
     setPrefs({ rename: { useFirstNameOnly: true, nameSeparator: '_' } });
-    expect(getRenameConfig()).toEqual({ useFirstNameOnly: true, nameSeparator: '_' });
+    expect(getRenameConfig()).toEqual({
+      useFirstNameOnly: true,
+      nameSeparator: '_',
+    });
   });
 
   it('getPreprocessingConfig fills enabled/maxWorkers defaults', () => {
     expect(getPreprocessingConfig()).toEqual({});
     setPrefs({ preprocessing: { parallelWorkers: 4 } });
-    expect(getPreprocessingConfig()).toMatchObject({ enabled: true, maxWorkers: 4 });
+    expect(getPreprocessingConfig()).toMatchObject({
+      enabled: true,
+      maxWorkers: 4,
+    });
   });
 
   it('naturalSortCompare orders filenames numeric-aware', () => {
@@ -264,17 +308,22 @@ beforeEach(() => {
   h.renameResult = { renamed: [], skipped: [], errors: [] };
 
   h.api.get.mockImplementation((path) => {
-    if (path.includes('/management/recent-files')) return Promise.resolve(h.recentFiles);
-    if (path.includes('/preprocessing/cache/status')) return Promise.resolve({});
+    if (path.includes('/management/recent-files'))
+      return Promise.resolve(h.recentFiles);
+    if (path.includes('/preprocessing/cache/status'))
+      return Promise.resolve({});
     return Promise.resolve({});
   });
   h.api.post.mockImplementation((path) => {
-    if (path.includes('/files/rename-preview')) return Promise.resolve(h.renamePreview);
+    if (path.includes('/files/rename-preview'))
+      return Promise.resolve(h.renamePreview);
     if (path.includes('/files/rename')) return Promise.resolve(h.renameResult);
     if (path.includes('/statistics/file-stats')) return Promise.resolve({});
     if (path.includes('/management/undo-file')) return Promise.resolve({});
-    if (path.includes('/culling/trash')) return Promise.resolve({ trashed: [{ id: 't1' }] });
-    if (path.includes('/culling/restore')) return Promise.resolve({ restored: ['t1'] });
+    if (path.includes('/culling/trash'))
+      return Promise.resolve({ trashed: [{ id: 't1' }] });
+    if (path.includes('/culling/restore'))
+      return Promise.resolve({ restored: ['t1'] });
     return Promise.resolve({});
   });
 
@@ -287,10 +336,17 @@ beforeEach(() => {
   apiClient.batchDeleteCache.mockResolvedValue({});
   apiClient.setPriorityCacheHashes.mockResolvedValue({});
 
-  try { localStorage.clear(); } catch { /* ignore */ }
+  try {
+    localStorage.clear();
+  } catch {
+    /* ignore */
+  }
 
   window.ansiktenAPI = {
-    on: (channel, handler) => { h.ipc.set(channel, handler); return () => h.ipc.delete(channel); },
+    on: (channel, handler) => {
+      h.ipc.set(channel, handler);
+      return () => h.ipc.delete(channel);
+    },
     onFileDeleted: () => () => {},
     onWatcherError: () => () => {},
     watchFile: vi.fn(),
@@ -350,7 +406,12 @@ async function mountQueue(node = null) {
 async function addViaIpc(files, opts = {}) {
   const handler = h.registry.get('file-queue-load');
   await act(async () => {
-    handler({ files, position: opts.position, clear: opts.clear, startQueue: opts.startQueue });
+    handler({
+      files,
+      position: opts.position,
+      clear: opts.clear,
+      startQueue: opts.startQueue,
+    });
   });
   await settle();
 }
@@ -392,7 +453,11 @@ describe('FileQueueModule — queue basics (characterization)', () => {
   it('numeric-aware ordering keeps IMG_2 before IMG_10', async () => {
     const { container } = await mountQueue();
     await addViaIpc(['/p/IMG_10.jpg', '/p/IMG_2.jpg', '/p/IMG_1.jpg']);
-    expect(itemNames(container)).toEqual(['IMG_1.jpg', 'IMG_2.jpg', 'IMG_10.jpg']);
+    expect(itemNames(container)).toEqual([
+      'IMG_1.jpg',
+      'IMG_2.jpg',
+      'IMG_10.jpg',
+    ]);
   });
 
   it('a duplicate path is ignored and warns "already in queue"', async () => {
@@ -401,7 +466,11 @@ describe('FileQueueModule — queue basics (characterization)', () => {
     h.showToast.mockClear();
     await addViaIpc(['/p/a.jpg']);
     expect(container.querySelectorAll('.file-item')).toHaveLength(1);
-    expect(h.showToast).toHaveBeenCalledWith('Filen finns redan i kön', 'info', 2500);
+    expect(h.showToast).toHaveBeenCalledWith(
+      'Filen finns redan i kön',
+      'info',
+      2500,
+    );
   });
 
   it('unsupported files (e.g. XMP sidecars) are filtered out on add', async () => {
@@ -414,7 +483,9 @@ describe('FileQueueModule — queue basics (characterization)', () => {
     const { container } = await mountQueue();
     await addViaIpc(['/p/a.jpg', '/p/b.jpg']);
     const firstRemove = container.querySelector('.file-item .remove-btn');
-    await act(async () => { fireEvent.click(firstRemove); });
+    await act(async () => {
+      fireEvent.click(firstRemove);
+    });
     expect(itemNames(container)).toEqual(['b.jpg']);
     expect(h.manager.removeFile).toHaveBeenCalledWith('/p/a.jpg');
   });
@@ -430,7 +501,9 @@ describe('FileQueueModule — queue basics (characterization)', () => {
     await mountQueue();
     await addViaIpc(['/p/a.jpg']);
     h.emit.mockClear();
-    await act(async () => { h.registry.get('request-queue-status')(); });
+    await act(async () => {
+      h.registry.get('request-queue-status')();
+    });
     expect(lastEmit('queue-status')).toMatchObject({ total: 1 });
   });
 });
@@ -496,15 +569,26 @@ describe('FileQueueModule — preprocessing orchestration (characterization)', (
   it('a status-change event surfaces the in-progress indicator on the row', async () => {
     const { container } = await mountQueue();
     await addViaIpc(['/p/fresh.jpg']);
-    await fireManager('status-change', { filePath: '/p/fresh.jpg', status: PreprocessingStatus.HASHING });
-    expect(container.querySelector('.preprocess-indicator.loading')).toBeTruthy();
+    await fireManager('status-change', {
+      filePath: '/p/fresh.jpg',
+      status: PreprocessingStatus.HASHING,
+    });
+    expect(
+      container.querySelector('.preprocess-indicator.loading'),
+    ).toBeTruthy();
   });
 
   it('a completed event flips the row to the cached (bolt) indicator', async () => {
     const { container } = await mountQueue();
     await addViaIpc(['/p/fresh.jpg']);
-    await fireManager('completed', { filePath: '/p/fresh.jpg', hash: 'hh', faceCount: 2 });
-    expect(container.querySelector('.preprocess-indicator.completed')).toBeTruthy();
+    await fireManager('completed', {
+      filePath: '/p/fresh.jpg',
+      hash: 'hh',
+      faceCount: 2,
+    });
+    expect(
+      container.querySelector('.preprocess-indicator.completed'),
+    ).toBeTruthy();
   });
 
   it('an error event toasts the failure and marks the row', async () => {
@@ -513,7 +597,9 @@ describe('FileQueueModule — preprocessing orchestration (characterization)', (
     await fireManager('error', { filePath: '/p/fresh.jpg', error: 'boom' });
     expect(container.querySelector('.preprocess-indicator.error')).toBeTruthy();
     expect(h.showToast).toHaveBeenCalledWith(
-      expect.stringContaining('Kunde inte förbehandla'), 'error', 4000,
+      expect.stringContaining('Kunde inte förbehandla'),
+      'error',
+      4000,
     );
   });
 
@@ -521,9 +607,13 @@ describe('FileQueueModule — preprocessing orchestration (characterization)', (
     const { container } = await mountQueue();
     await addViaIpc(['/p/fresh.jpg']);
     await fireManager('paused', { readyCount: 3, queueLength: 5 });
-    expect(container.querySelector('.preprocessing-status .status-paused')).toBeTruthy();
+    expect(
+      container.querySelector('.preprocessing-status .status-paused'),
+    ).toBeTruthy();
     expect(h.showToast).toHaveBeenCalledWith(
-      expect.stringContaining('Förbehandling pausad'), 'info', 3000,
+      expect.stringContaining('Förbehandling pausad'),
+      'info',
+      3000,
     );
   });
 
@@ -533,7 +623,9 @@ describe('FileQueueModule — preprocessing orchestration (characterization)', (
     await fireManager('paused', { readyCount: 1, queueLength: 2 });
     h.showToast.mockClear();
     await fireManager('resumed', {});
-    expect(container.querySelector('.preprocessing-status .status-paused')).toBeNull();
+    expect(
+      container.querySelector('.preprocessing-status .status-paused'),
+    ).toBeNull();
     expect(h.showToast).not.toHaveBeenCalled();
   });
 });
@@ -549,8 +641,8 @@ describe('FileQueueModule — rename flow (characterization)', () => {
   }
 
   function renameButton(container) {
-    return [...container.querySelectorAll('.file-queue-footer button')].find((b) =>
-      b.textContent.includes('Byt namn'),
+    return [...container.querySelectorAll('.file-queue-footer button')].find(
+      (b) => b.textContent.includes('Byt namn'),
     );
   }
 
@@ -576,8 +668,11 @@ describe('FileQueueModule — rename flow (characterization)', () => {
     // Short target: FileQueueItem truncates displayed names past 25 chars, so a
     // long new name would surface as an ellipsis; the path update is the point.
     h.renameResult = {
-      renamed: [{ original: '/p/250601_120000_Alice.NEF', new: '/p/Alice_A.NEF' }],
-      skipped: [], errors: [],
+      renamed: [
+        { original: '/p/250601_120000_Alice.NEF', new: '/p/Alice_A.NEF' },
+      ],
+      skipped: [],
+      errors: [],
     };
     const { container } = await mountWithProcessed();
     fireEvent.click(renameButton(container));
@@ -585,7 +680,9 @@ describe('FileQueueModule — rename flow (characterization)', () => {
     // rename post; the renamed row is the outcome to settle on instead.
     await waitFor(() => expect(itemNames(container)).toEqual(['Alice_A.NEF']));
     expect(renamePosts()).toHaveLength(1);
-    expect(renamePosts()[0][1]).toMatchObject({ file_paths: ['/p/250601_120000_Alice.NEF'] });
+    expect(renamePosts()[0][1]).toMatchObject({
+      file_paths: ['/p/250601_120000_Alice.NEF'],
+    });
   });
 
   it('confirmation gate off (preference): renames with no confirm dialog', async () => {
@@ -604,9 +701,16 @@ describe('FileQueueModule — FileQueueItem render states (characterization)', (
   // full load/review round-trip. Auto-load is disabled so no file is opened.
   function seedQueue(items) {
     setPrefs({ fileQueue: { autoLoadOnStartup: false } });
-    localStorage.setItem('ansikten-file-queue', JSON.stringify({
-      queue: items, currentIndex: -1, autoAdvance: true, fixMode: false, showPreviewNames: false,
-    }));
+    localStorage.setItem(
+      'ansikten-file-queue',
+      JSON.stringify({
+        queue: items,
+        currentIndex: -1,
+        autoAdvance: true,
+        fixMode: false,
+        showPreviewNames: false,
+      }),
+    );
   }
 
   function rowByName(container, name) {
@@ -617,11 +721,41 @@ describe('FileQueueModule — FileQueueItem render states (characterization)', (
 
   it('renders the right icon + status text for each item state', async () => {
     seedQueue([
-      { id: '1', filePath: '/p/pending.jpg', fileName: 'pending.jpg', status: 'pending', isAlreadyProcessed: false },
-      { id: '2', filePath: '/p/done.jpg', fileName: 'done.jpg', status: 'completed', isAlreadyProcessed: false },
-      { id: '3', filePath: '/p/err.jpg', fileName: 'err.jpg', status: 'error', isAlreadyProcessed: false },
-      { id: '4', filePath: '/p/gone.jpg', fileName: 'gone.jpg', status: 'missing', isAlreadyProcessed: false },
-      { id: '5', filePath: '/p/proc.jpg', fileName: 'proc.jpg', status: 'pending', isAlreadyProcessed: true },
+      {
+        id: '1',
+        filePath: '/p/pending.jpg',
+        fileName: 'pending.jpg',
+        status: 'pending',
+        isAlreadyProcessed: false,
+      },
+      {
+        id: '2',
+        filePath: '/p/done.jpg',
+        fileName: 'done.jpg',
+        status: 'completed',
+        isAlreadyProcessed: false,
+      },
+      {
+        id: '3',
+        filePath: '/p/err.jpg',
+        fileName: 'err.jpg',
+        status: 'error',
+        isAlreadyProcessed: false,
+      },
+      {
+        id: '4',
+        filePath: '/p/gone.jpg',
+        fileName: 'gone.jpg',
+        status: 'missing',
+        isAlreadyProcessed: false,
+      },
+      {
+        id: '5',
+        filePath: '/p/proc.jpg',
+        fileName: 'proc.jpg',
+        status: 'pending',
+        isAlreadyProcessed: true,
+      },
     ]);
     const { container } = await mountQueue();
 
@@ -644,12 +778,20 @@ describe('FileQueueModule — FileQueueItem render states (characterization)', (
 
     const processed = rowByName(container, 'proc.jpg');
     expect(processed.querySelector('.status-icon.already-done')).toBeTruthy();
-    expect(processed.querySelector('.file-status').textContent).toBe('Behandlad');
+    expect(processed.querySelector('.file-status').textContent).toBe(
+      'Behandlad',
+    );
   });
 
   it('an already-processed row (fix-mode off) offers the reprocess button', async () => {
     seedQueue([
-      { id: '5', filePath: '/p/proc.jpg', fileName: 'proc.jpg', status: 'pending', isAlreadyProcessed: true },
+      {
+        id: '5',
+        filePath: '/p/proc.jpg',
+        fileName: 'proc.jpg',
+        status: 'pending',
+        isAlreadyProcessed: true,
+      },
     ]);
     const { container } = await mountQueue();
     expect(container.querySelector('.file-item .reprocess-btn')).toBeTruthy();
@@ -660,13 +802,19 @@ describe('FileQueueModule — folder hand-off + working-folder offer', () => {
   afterEach(() => clearWorkingFolder());
 
   it('file-queue-load with roots expands the folder via expand-folders and queues the files', async () => {
-    window.ansiktenAPI.invoke = vi.fn().mockResolvedValue(['/dir/a.jpg', '/dir/b.jpg']);
+    window.ansiktenAPI.invoke = vi
+      .fn()
+      .mockResolvedValue(['/dir/a.jpg', '/dir/b.jpg']);
     const { container } = await mountQueue();
     await act(async () => {
       h.registry.get('file-queue-load')({ roots: ['/dir'] });
     });
-    await waitFor(() => expect(itemNames(container)).toEqual(['a.jpg', 'b.jpg']));
-    expect(window.ansiktenAPI.invoke).toHaveBeenCalledWith('expand-folders', ['/dir']);
+    await waitFor(() =>
+      expect(itemNames(container)).toEqual(['a.jpg', 'b.jpg']),
+    );
+    expect(window.ansiktenAPI.invoke).toHaveBeenCalledWith('expand-folders', [
+      '/dir',
+    ]);
   });
 
   it('file-queue-load with roots that expand to nothing warns instead of silently doing nothing', async () => {
@@ -678,24 +826,34 @@ describe('FileQueueModule — folder hand-off + working-folder offer', () => {
     // The warning toast is the positive anchor — reaching it proves the expand
     // ran and returned nothing, which is what makes the empty queue meaningful.
     // showToast is wrapped with a duration multiplier, so match on message+type.
-    await waitFor(() => expect(
-      h.showToast.mock.calls.some(
-        (c) => c[0] === t('fileQueue.toasts.noSupportedFound') && c[1] === 'warning',
-      ),
-    ).toBe(true));
+    await waitFor(() =>
+      expect(
+        h.showToast.mock.calls.some(
+          (c) =>
+            c[0] === t('fileQueue.toasts.noSupportedFound') &&
+            c[1] === 'warning',
+        ),
+      ).toBe(true),
+    );
     expect(container.querySelectorAll('.file-item')).toHaveLength(0);
   });
 
   it('offers to load the working-folder anchor when the queue is empty', async () => {
     setWorkingFolder({ roots: ['/events/cupen'], step: 'rename' });
     const { container, getByText } = await mountQueue();
-    const btn = getByText(t('fileQueue.emptyStates.loadFolderOffer', { name: 'cupen' }));
+    const btn = getByText(
+      t('fileQueue.emptyStates.loadFolderOffer', { name: 'cupen' }),
+    );
     expect(btn).toBeTruthy();
 
-    window.ansiktenAPI.invoke = vi.fn().mockResolvedValue(['/events/cupen/x.jpg']);
+    window.ansiktenAPI.invoke = vi
+      .fn()
+      .mockResolvedValue(['/events/cupen/x.jpg']);
     fireEvent.click(btn);
     await waitFor(() => expect(itemNames(container)).toEqual(['x.jpg']));
-    expect(window.ansiktenAPI.invoke).toHaveBeenCalledWith('expand-folders', ['/events/cupen']);
+    expect(window.ansiktenAPI.invoke).toHaveBeenCalledWith('expand-folders', [
+      '/events/cupen',
+    ]);
   });
 
   it('shows no folder offer when the anchor is unset', async () => {

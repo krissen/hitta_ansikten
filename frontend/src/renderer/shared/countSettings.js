@@ -29,7 +29,9 @@ function sanitize(raw) {
   const min = Math.trunc(Number(src.minImages));
   return {
     gapMinutes: Number.isFinite(gap) && gap >= 1 ? gap : DEFAULTS.gapMinutes,
-    baseline: VALID_BASELINES.includes(src.baseline) ? src.baseline : DEFAULTS.baseline,
+    baseline: VALID_BASELINES.includes(src.baseline)
+      ? src.baseline
+      : DEFAULTS.baseline,
     minImages: Number.isFinite(min) && min >= 1 ? min : DEFAULTS.minImages,
   };
 }

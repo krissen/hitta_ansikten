@@ -63,9 +63,7 @@ def _read_known():
 
 
 def _write_pairs(pairs):
-    m.DISTINCT_PAIRS_PATH.write_text(
-        json.dumps([list(p) for p in pairs]), encoding="utf-8"
-    )
+    m.DISTINCT_PAIRS_PATH.write_text(json.dumps([list(p) for p in pairs]), encoding="utf-8")
 
 
 def _read_pairs():
@@ -75,6 +73,7 @@ def _read_pairs():
 # --------------------------------------------------------------------------
 # 1. rename_person
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_rename_person_persists_to_disk(db_dir):
@@ -119,12 +118,15 @@ async def test_rename_onto_existing_name_raises(db_dir):
 # 2. merge_people
 # --------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_merge_combines_and_deletes_sources(db_dir):
-    _seed(known={
-        "Alice": [_entry([1.0, 0.0], encoding_hash="h1")],
-        "Ali": [_entry([0.0, 1.0], encoding_hash="h2")],
-    })
+    _seed(
+        known={
+            "Alice": [_entry([1.0, 0.0], encoding_hash="h1")],
+            "Ali": [_entry([0.0, 1.0], encoding_hash="h2")],
+        }
+    )
     svc = ManagementService()
 
     result = await svc.merge_people(["Ali"], "Alice")
@@ -138,10 +140,12 @@ async def test_merge_combines_and_deletes_sources(db_dir):
 @pytest.mark.asyncio
 async def test_merge_dedups_by_encoding_hash(db_dir):
     # Same encoding_hash on both sides collapses to one entry.
-    _seed(known={
-        "Alice": [_entry([1.0, 0.0], encoding_hash="dup")],
-        "Ali": [_entry([1.0, 0.0], encoding_hash="dup")],
-    })
+    _seed(
+        known={
+            "Alice": [_entry([1.0, 0.0], encoding_hash="dup")],
+            "Ali": [_entry([1.0, 0.0], encoding_hash="dup")],
+        }
+    )
     svc = ManagementService()
 
     await svc.merge_people(["Ali"], "Alice")
@@ -154,11 +158,13 @@ async def test_merge_dedups_by_encoding_hash(db_dir):
 @pytest.mark.asyncio
 async def test_merge_transfers_distinct_pair_to_target(db_dir):
     # Ali was marked distinct from Bob; merging Ali->Alice re-anchors on Alice.
-    _seed(known={
-        "Alice": [_entry([1.0], encoding_hash="a")],
-        "Ali": [_entry([2.0], encoding_hash="b")],
-        "Bob": [_entry([3.0], encoding_hash="c")],
-    })
+    _seed(
+        known={
+            "Alice": [_entry([1.0], encoding_hash="a")],
+            "Ali": [_entry([2.0], encoding_hash="b")],
+            "Bob": [_entry([3.0], encoding_hash="c")],
+        }
+    )
     _write_pairs([("Ali", "Bob")])
     svc = ManagementService()
 
@@ -178,6 +184,7 @@ async def test_merge_missing_source_raises(db_dir):
 # --------------------------------------------------------------------------
 # 3. delete_person
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_delete_person_persists_and_drops_pairs(db_dir):
@@ -203,6 +210,7 @@ async def test_delete_missing_person_raises(db_dir):
 # --------------------------------------------------------------------------
 # 4. move_to_ignore / move_from_ignore / undo_file (ignored + processed handling)
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_move_to_ignore_moves_all_encodings(db_dir):
@@ -275,6 +283,7 @@ async def test_undo_file_shrinks_processed_and_encodings_on_disk(db_dir):
 # 4b. dedup_people no-op guard
 # --------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_dedup_noop_schedules_no_save(db_dir):
     """A confirm that removes nothing must not mutate or schedule a save.
@@ -306,6 +315,7 @@ async def test_dedup_noop_schedules_no_save(db_dir):
 # that contract is gone by design. The equivalent guarantee is: an external
 # write is visible on the *next* read, with no TTL wait.
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_external_write_visible_on_next_read(db_dir):

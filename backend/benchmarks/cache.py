@@ -54,9 +54,9 @@ def deterministic_face_id(image_hash: str, bbox_xyxy) -> str:
 class DetectionRecord:
     """Cached detector output for one image."""
 
-    bboxes: np.ndarray   # (n, 4) xyxy
-    kps: np.ndarray      # (n, 5, 2)
-    scores: np.ndarray   # (n,)
+    bboxes: np.ndarray  # (n, 4) xyxy
+    kps: np.ndarray  # (n, 5, 2)
+    scores: np.ndarray  # (n,)
 
     def __len__(self) -> int:
         return int(self.bboxes.shape[0])
@@ -92,9 +92,7 @@ def load_detections(image_hash: str, detector_name: str) -> DetectionRecord | No
     if not path.exists():
         return None
     with np.load(path) as data:
-        return DetectionRecord(
-            bboxes=data["bboxes"], kps=data["kps"], scores=data["scores"]
-        )
+        return DetectionRecord(bboxes=data["bboxes"], kps=data["kps"], scores=data["scores"])
 
 
 def get_or_compute_detections(

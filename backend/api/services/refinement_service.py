@@ -58,9 +58,7 @@ def _get_encoding(entry) -> np.ndarray | None:
     return None
 
 
-def _compute_distances_to_centroid(
-    encodings: list[np.ndarray]
-) -> tuple[np.ndarray, np.ndarray]:
+def _compute_distances_to_centroid(encodings: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
     """
     Compute cosine distances from each encoding to the centroid.
 
@@ -95,8 +93,7 @@ def _compute_distances_to_centroid(
 
 
 def _std_outlier_filter(
-    encodings: list[np.ndarray],
-    std_threshold: float = DEFAULT_STD_THRESHOLD
+    encodings: list[np.ndarray], std_threshold: float = DEFAULT_STD_THRESHOLD
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Filter encodings by standard deviation from centroid.
@@ -121,7 +118,7 @@ def _std_outlier_filter(
 def _cluster_filter(
     encodings: list[np.ndarray],
     cluster_dist: float = DEFAULT_CLUSTER_DIST,
-    cluster_min: int = DEFAULT_CLUSTER_MIN
+    cluster_min: int = DEFAULT_CLUSTER_MIN,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Keep only encodings within cluster_dist from centroid.
@@ -140,8 +137,7 @@ def _cluster_filter(
 
 
 def _mahalanobis_outlier_filter(
-    encodings: list[np.ndarray],
-    threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD
+    encodings: list[np.ndarray], threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD
 ) -> tuple[np.ndarray, np.ndarray, bool]:
     """
     Filter encodings using Mahalanobis distance.
@@ -201,7 +197,7 @@ def _compute_stats(distances: np.ndarray) -> dict[str, float]:
         "min_dist": float(np.min(distances)),
         "max_dist": float(np.max(distances)),
         "mean_dist": float(np.mean(distances)),
-        "std_dist": float(np.std(distances))
+        "std_dist": float(np.std(distances)),
     }
 
 
@@ -230,10 +226,7 @@ class RefinementService:
                     result.append((i, encoding))
         return result
 
-    async def remove_dlib_encodings(
-        self,
-        dry_run: bool = False
-    ) -> dict[str, Any]:
+    async def remove_dlib_encodings(self, dry_run: bool = False) -> dict[str, Any]:
         """
         Remove ALL dlib encodings from the database.
 
@@ -245,6 +238,7 @@ class RefinementService:
         Returns:
             Results with counts per person
         """
+
         def compute(known, apply_changes):
             removed_by_person = {}
             total_removed = 0
@@ -277,7 +271,7 @@ class RefinementService:
             "dry_run": dry_run,
             "total_removed": total_removed,
             "by_person": removed_by_person,
-            "people_affected": len(removed_by_person)
+            "people_affected": len(removed_by_person),
         }
 
     async def preview(
@@ -288,7 +282,7 @@ class RefinementService:
         cluster_dist: float = DEFAULT_CLUSTER_DIST,
         cluster_min: int = DEFAULT_CLUSTER_MIN,
         mahalanobis_threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD,
-        min_encodings: int = DEFAULT_MIN_ENCODINGS
+        min_encodings: int = DEFAULT_MIN_ENCODINGS,
     ) -> dict[str, Any]:
         """
         Preview what encodings would be removed.
@@ -307,6 +301,7 @@ class RefinementService:
         Returns:
             Preview results with per-person breakdown and statistics
         """
+
         # Read-only scan under the store lock (consistent with any concurrent
         # mutation), mirroring ManagementService.find_duplicate_people.
         def scan(known, ignored, hardneg, processed):
@@ -353,7 +348,9 @@ class RefinementService:
                     mask, distances = _cluster_filter(encodings, cluster_dist, cluster_min)
                     reason = "cluster_outlier"
                 elif mode == "mahalanobis":
-                    mask, distances, fell_back = _mahalanobis_outlier_filter(encodings, mahalanobis_threshold)
+                    mask, distances, fell_back = _mahalanobis_outlier_filter(
+                        encodings, mahalanobis_threshold
+                    )
                     reason = "std_outlier" if fell_back else "mahalanobis_outlier"
                 else:  # std
                     mask, distances = _std_outlier_filter(encodings, std_threshold)
@@ -371,7 +368,9 @@ class RefinementService:
                         "remove": remove_count,
                         "remove_indices": remove_indices,
                         "reason": reason,
-                        "stats": _compute_stats(distances) if len(distances) > 0 and distances.any() else None
+                        "stats": _compute_stats(distances)
+                        if len(distances) > 0 and distances.any()
+                        else None,
                     }
                     if mode == "mahalanobis" and fell_back:
                         result_entry["fallback"] = True
@@ -393,9 +392,9 @@ class RefinementService:
                 "summary": {
                     "total_people": len(people_to_check),
                     "affected_people": affected_people,
-                    "total_remove": total_remove
+                    "total_remove": total_remove,
                 },
-                "warnings": warnings
+                "warnings": warnings,
             }
 
         return self.store.read(scan)
@@ -409,7 +408,7 @@ class RefinementService:
         cluster_min: int = DEFAULT_CLUSTER_MIN,
         mahalanobis_threshold: float = DEFAULT_MAHALANOBIS_THRESHOLD,
         min_encodings: int = DEFAULT_MIN_ENCODINGS,
-        dry_run: bool = False
+        dry_run: bool = False,
     ) -> dict[str, Any]:
         """
         Apply filtering to remove outlier encodings.
@@ -429,6 +428,7 @@ class RefinementService:
         Returns:
             Results with counts of removed encodings
         """
+
         def compute(known, apply_changes):
             removed_by_person = {}
             total_removed = 0
@@ -492,13 +492,11 @@ class RefinementService:
             "status": "success",
             "dry_run": dry_run,
             "removed": total_removed,
-            "by_person": removed_by_person
+            "by_person": removed_by_person,
         }
 
     async def repair_shapes(
-        self,
-        persons: list[str] | None = None,
-        dry_run: bool = False
+        self, persons: list[str] | None = None, dry_run: bool = False
     ) -> dict[str, Any]:
         """
         Repair inconsistent encoding shapes.
@@ -513,6 +511,7 @@ class RefinementService:
         Returns:
             Results with details of what was repaired
         """
+
         def compute(known, apply_changes):
             repaired = []
             total_removed = 0
@@ -547,20 +546,22 @@ class RefinementService:
                 bad_indices = {i for i, shape in shapes_with_index if shape != common_shape}
 
                 if bad_indices:
-                    removed_shapes = list({shape for i, shape in shapes_with_index if i in bad_indices})
-                    repaired.append({
-                        "person": name,
-                        "removed": len(bad_indices),
-                        "total": len(entries),
-                        "kept_shape": list(common_shape),
-                        "removed_shapes": [list(s) for s in removed_shapes]
-                    })
+                    removed_shapes = list(
+                        {shape for i, shape in shapes_with_index if i in bad_indices}
+                    )
+                    repaired.append(
+                        {
+                            "person": name,
+                            "removed": len(bad_indices),
+                            "total": len(entries),
+                            "kept_shape": list(common_shape),
+                            "removed_shapes": [list(s) for s in removed_shapes],
+                        }
+                    )
                     total_removed += len(bad_indices)
 
                     if apply_changes:
-                        known[name] = [
-                            e for i, e in enumerate(entries) if i not in bad_indices
-                        ]
+                        known[name] = [e for i, e in enumerate(entries) if i not in bad_indices]
             return repaired, total_removed
 
         # Plan under read() first so a no-op (or dry-run) schedules no save.
@@ -578,7 +579,7 @@ class RefinementService:
             "status": "success",
             "dry_run": dry_run,
             "total_removed": total_removed,
-            "repaired": repaired
+            "repaired": repaired,
         }
 
 

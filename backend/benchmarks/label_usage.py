@@ -49,6 +49,7 @@ except ImportError:  # pragma: no cover - fallback if run outside the backend tr
     def is_ignore_name(name: str) -> bool:
         return name.strip().lower() in IGNORE_MARKERS
 
+
 # The label the reviewer picks when a detected face should not be enrolled.
 # It is an *action*, not a person, and is counted separately everywhere.
 #

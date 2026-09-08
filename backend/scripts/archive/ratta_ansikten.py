@@ -61,11 +61,7 @@ def redo_glob(glob_pattern: str) -> None:
 
     print(f"Hittade {len(match_encodings)} ansikten att ta bort ur ignore-lista.")
     before = len(ignored)
-    ignored = [
-        e
-        for e in ignored
-        if not any(np.allclose(e, m, atol=1e-5) for m in match_encodings)
-    ]
+    ignored = [e for e in ignored if not any(np.allclose(e, m, atol=1e-5) for m in match_encodings)]
     after = len(ignored)
 
     print(f"Tog bort {before - after} ignorerade entries.")

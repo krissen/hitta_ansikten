@@ -14,8 +14,16 @@
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Layout, Model, Actions, DockLocation } from 'flexlayout-react';
-import { reviewLayout, getLayoutByName, ensureBottomBorder } from './layouts.js';
-import { resolvePlacementTabset, applyPlacement, ensureActiveTabset } from './tabsetUtils.js';
+import {
+  reviewLayout,
+  getLayoutByName,
+  ensureBottomBorder,
+} from './layouts.js';
+import {
+  resolvePlacementTabset,
+  applyPlacement,
+  ensureActiveTabset,
+} from './tabsetUtils.js';
 import { applyWorkspace, revealHiddenModuleTab } from './workspaceMorph.js';
 import { getWorkspaceSpec } from './workflows.js';
 import {
@@ -32,7 +40,14 @@ import { preferences } from '../preferences.js';
 import { useModuleAPI } from '../../context/ModuleAPIContext.jsx';
 import { useConfirm } from '../../context/ConfirmContext.jsx';
 import { debug, debugWarn, debugError } from '../../shared/debug.js';
-import { MODULE_COMPONENTS, MODULE_TITLES, getModuleRole, getModuleWeight, getModuleStep, isSingletonModule } from './moduleRegistry.js';
+import {
+  MODULE_COMPONENTS,
+  MODULE_TITLES,
+  getModuleRole,
+  getModuleWeight,
+  getModuleStep,
+  isSingletonModule,
+} from './moduleRegistry.js';
 import { useUIPreferences } from './uiPreferences.js';
 import { ShortcutsHelpOverlay } from './ShortcutsHelp.jsx';
 import {
@@ -72,7 +87,9 @@ export function FlexLayoutWorkspace() {
   // (`ansikten culling /typo`) still gets an explicit launch command (open the
   // step empty) and suppresses the landing accordingly.
   const willLaunch = !!window.ansiktenAPI?.launchIntent?.willLaunch;
-  const [showLanding, setShowLanding] = useState(() => !willLaunch && !hasBeenWelcomed());
+  const [showLanding, setShowLanding] = useState(
+    () => !willLaunch && !hasBeenWelcomed(),
+  );
   // Whether the workspace holds any open view (tab). Combined with showLanding it
   // gates the WorkflowBar autohide: with only the welcome card / an empty
   // workspace there's nothing behind the bar to uncover, so it must not hide.
@@ -118,20 +135,25 @@ export function FlexLayoutWorkspace() {
   // doAction, so a plain boolean flag is race-free.
   const suppressPersistRef = useRef(false);
   const [showWorkflowBar, setShowWorkflowBar] = useState(
-    () => preferences.get('workspace.showWorkflowBar') !== false
+    () => preferences.get('workspace.showWorkflowBar') !== false,
   );
   // Independent of showWorkflowBar: when the bar is shown, does it autohide when
   // idle? Default on; the "alltid synlig" opt-out sets this false.
   const [workflowBarAutoHide, setWorkflowBarAutoHide] = useState(
-    () => preferences.get('workspace.workflowBarAutoHide') !== false
+    () => preferences.get('workspace.workflowBarAutoHide') !== false,
   );
   useEffect(() => {
     const onPrefChange = () => {
-      setShowWorkflowBar(preferences.get('workspace.showWorkflowBar') !== false);
-      setWorkflowBarAutoHide(preferences.get('workspace.workflowBarAutoHide') !== false);
+      setShowWorkflowBar(
+        preferences.get('workspace.showWorkflowBar') !== false,
+      );
+      setWorkflowBarAutoHide(
+        preferences.get('workspace.workflowBarAutoHide') !== false,
+      );
     };
     window.addEventListener('preferences-changed', onPrefChange);
-    return () => window.removeEventListener('preferences-changed', onPrefChange);
+    return () =>
+      window.removeEventListener('preferences-changed', onPrefChange);
   }, []);
   const moduleAPI = useModuleAPI();
   const confirm = useConfirm();
@@ -154,7 +176,8 @@ export function FlexLayoutWorkspace() {
     // enters a step (enterStep → resolveStepSpec), not on bare startup: the
     // mount surface stays a predictable default and the pipeline's remembered
     // shapes surface only when the user actually engages a step.
-    const defaultLayout = preferences.get('workspace.defaultLayout') || 'review';
+    const defaultLayout =
+      preferences.get('workspace.defaultLayout') || 'review';
     debug('FlexLayout', 'Using default layout:', defaultLayout);
     let layoutConfig = getLayoutByName(defaultLayout);
 
@@ -164,13 +187,13 @@ export function FlexLayoutWorkspace() {
 
     // Ensure critical global settings are always applied.
     const criticalSettings = {
-      tabEnableRenderOnDemand: true,   // Unmount hidden tabs to save CPU
-      splitterSize: 4,                  // Consistent splitter appearance
-      tabSetMinWidth: 100,              // Prevent panels from becoming too small
+      tabEnableRenderOnDemand: true, // Unmount hidden tabs to save CPU
+      splitterSize: 4, // Consistent splitter appearance
+      tabSetMinWidth: 100, // Prevent panels from becoming too small
       tabSetMinHeight: 100,
-      tabEnableRename: false,           // Tabs are fixed module labels derived
-                                        // from i18n; a manual rename wouldn't
-                                        // survive a morph anyway.
+      tabEnableRename: false, // Tabs are fixed module labels derived
+      // from i18n; a manual rename wouldn't
+      // survive a morph anyway.
     };
     layoutConfig.global = { ...layoutConfig.global, ...criticalSettings };
 
@@ -224,42 +247,49 @@ export function FlexLayoutWorkspace() {
 
   // Focus tab content when tab is selected (via tab header click)
   // This ensures keyboard shortcuts work immediately after switching tabs
-  const handleAction = useCallback((action) => {
-    if (action.type === Actions.SELECT_TAB && model) {
-      const tabNodeId = action.data?.tabNode;
+  const handleAction = useCallback(
+    (action) => {
+      if (action.type === Actions.SELECT_TAB && model) {
+        const tabNodeId = action.data?.tabNode;
 
-      // Use setTimeout to run after DOM update
-      setTimeout(() => {
-        // Get the component name from the model
-        const tabNode = model.getNodeById(tabNodeId);
-        if (!tabNode) return;
+        // Use setTimeout to run after DOM update
+        setTimeout(() => {
+          // Get the component name from the model
+          const tabNode = model.getNodeById(tabNodeId);
+          if (!tabNode) return;
 
-        const componentName = tabNode.getComponent?.();
-        if (!componentName) return;
+          const componentName = tabNode.getComponent?.();
+          if (!componentName) return;
 
-        // Find the module container by its class name
-        const moduleClass = componentName; // e.g., 'image-viewer', 'review-module'
-        const moduleElement = document.querySelector(`.${moduleClass}`);
+          // Find the module container by its class name
+          const moduleClass = componentName; // e.g., 'image-viewer', 'review-module'
+          const moduleElement = document.querySelector(`.${moduleClass}`);
 
-        if (moduleElement) {
-          // Focus the module container if it has tabindex, otherwise find a focusable child
-          if (moduleElement.hasAttribute('tabindex')) {
-            moduleElement.focus();
-            debug('FlexLayout', 'Focused module:', componentName);
-          } else {
-            const focusable = moduleElement.querySelector(
-              '[tabindex], canvas, input:not([disabled]), button:not([disabled])'
-            );
-            if (focusable) {
-              focusable.focus();
-              debug('FlexLayout', 'Focused element in module:', componentName);
+          if (moduleElement) {
+            // Focus the module container if it has tabindex, otherwise find a focusable child
+            if (moduleElement.hasAttribute('tabindex')) {
+              moduleElement.focus();
+              debug('FlexLayout', 'Focused module:', componentName);
+            } else {
+              const focusable = moduleElement.querySelector(
+                '[tabindex], canvas, input:not([disabled]), button:not([disabled])',
+              );
+              if (focusable) {
+                focusable.focus();
+                debug(
+                  'FlexLayout',
+                  'Focused element in module:',
+                  componentName,
+                );
+              }
             }
           }
-        }
-      }, 50);
-    }
-    return action; // Allow action to proceed
-  }, [model]);
+        }, 50);
+      }
+      return action; // Allow action to proceed
+    },
+    [model],
+  );
 
   // Open a module tab
   // - Singleton modules: reuses existing if found (unless forceNew is true)
@@ -270,99 +300,124 @@ export function FlexLayoutWorkspace() {
   // module in the same kind of area. `options.placement` is an escape hatch: a
   // placement descriptor ({ tabsetId } or { split, refTabsetId }) that overrides
   // the role-based resolution.
-  const openModule = useCallback((moduleId, options = {}) => {
-    if (!model || !layoutRef.current) return;
+  const openModule = useCallback(
+    (moduleId, options = {}) => {
+      if (!model || !layoutRef.current) return;
 
-    const ModuleComponent = MODULE_COMPONENTS[moduleId];
-    if (!ModuleComponent) {
-      debugError('FlexLayout', `Module not found: ${moduleId}`);
-      return;
-    }
-
-    // Opening any module dismisses the welcome card (and marks it seen).
-    dismissLanding();
-
-    // The bar highlights workflow context: opening/focusing a module that IS a
-    // pipeline step (culling→culling, player-count→count, review-module→review,
-    // …) marks it active. This is the single root — it covers the View menu, the
-    // Verktyg menu and every window.workspace caller that routes through
-    // openModule, so those paths need no setActiveStep of their own. Modules with
-    // no step (Inställningar, Statistik, Loggar, …) leave activeStep untouched.
-    const step = getModuleStep(moduleId);
-    const markActiveStep = () => { if (step != null) applyActiveStep(step); };
-
-    // Check if module is a singleton and already exists
-    const isSingleton = isSingletonModule(moduleId);
-    if (isSingleton && !options.forceNew) {
-      let existingTab = null;
-      model.visitNodes(node => {
-        if (node.getComponent?.() === moduleId && node.getType() === 'tab') {
-          existingTab = node;
-        }
-      });
-
-      if (existingTab) {
-        // Select the existing tab instead of creating a new one
-        model.doAction(Actions.selectTab(existingTab.getId()));
-        markActiveStep();
-        debug('FlexLayout', `Focused existing singleton module: ${moduleId}`);
+      const ModuleComponent = MODULE_COMPONENTS[moduleId];
+      if (!ModuleComponent) {
+        debugError('FlexLayout', `Module not found: ${moduleId}`);
         return;
       }
-    }
 
-    const tabJson = {
-      type: 'tab',
-      name: MODULE_TITLES[moduleId] || moduleId,
-      component: moduleId,
-      config: { moduleId }
-    };
+      // Opening any module dismisses the welcome card (and marks it seen).
+      dismissLanding();
 
-    // Resolve where to dock: role-based placement unless a caller forces one.
-    const placement = options.placement || resolvePlacementTabset(model, getModuleRole(moduleId), getModuleRole);
-    if (!placement) {
-      debugWarn('FlexLayout', `No tabset to host module: ${moduleId}`);
-      return;
-    }
+      // The bar highlights workflow context: opening/focusing a module that IS a
+      // pipeline step (culling→culling, player-count→count, review-module→review,
+      // …) marks it active. This is the single root — it covers the View menu, the
+      // Verktyg menu and every window.workspace caller that routes through
+      // openModule, so those paths need no setActiveStep of their own. Modules with
+      // no step (Inställningar, Statistik, Loggar, …) leave activeStep untouched.
+      const step = getModuleStep(moduleId);
+      const markActiveStep = () => {
+        if (step != null) applyActiveStep(step);
+      };
 
-    // Add the tab at the resolved placement; a fresh split is sized to the
-    // module's declared role weight so a side/bottom pane opens narrow and never
-    // ends up weighing >= main (which would confuse later role resolution).
-    const added = applyPlacement(model, tabJson, placement, getModuleWeight(moduleId));
+      // Check if module is a singleton and already exists
+      const isSingleton = isSingletonModule(moduleId);
+      if (isSingleton && !options.forceNew) {
+        let existingTab = null;
+        model.visitNodes((node) => {
+          if (node.getComponent?.() === moduleId && node.getType() === 'tab') {
+            existingTab = node;
+          }
+        });
 
-    // Make the host tabset active so the switch is visible and later opens dock
-    // here too (matches the pre-placement behavior).
-    const hostTabsetId = added?.getParent?.()?.getId?.()
-      || placement.tabsetId
-      || placement.refTabsetId;
-    if (hostTabsetId) model.doAction(Actions.setActiveTabset(hostTabsetId));
+        if (existingTab) {
+          // Select the existing tab instead of creating a new one
+          model.doAction(Actions.selectTab(existingTab.getId()));
+          markActiveStep();
+          debug('FlexLayout', `Focused existing singleton module: ${moduleId}`);
+          return;
+        }
+      }
 
-    markActiveStep();
-    debug('FlexLayout', `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`);
-  }, [model, applyActiveStep, dismissLanding]);
+      const tabJson = {
+        type: 'tab',
+        name: MODULE_TITLES[moduleId] || moduleId,
+        component: moduleId,
+        config: { moduleId },
+      };
+
+      // Resolve where to dock: role-based placement unless a caller forces one.
+      const placement =
+        options.placement ||
+        resolvePlacementTabset(model, getModuleRole(moduleId), getModuleRole);
+      if (!placement) {
+        debugWarn('FlexLayout', `No tabset to host module: ${moduleId}`);
+        return;
+      }
+
+      // Add the tab at the resolved placement; a fresh split is sized to the
+      // module's declared role weight so a side/bottom pane opens narrow and never
+      // ends up weighing >= main (which would confuse later role resolution).
+      const added = applyPlacement(
+        model,
+        tabJson,
+        placement,
+        getModuleWeight(moduleId),
+      );
+
+      // Make the host tabset active so the switch is visible and later opens dock
+      // here too (matches the pre-placement behavior).
+      const hostTabsetId =
+        added?.getParent?.()?.getId?.() ||
+        placement.tabsetId ||
+        placement.refTabsetId;
+      if (hostTabsetId) model.doAction(Actions.setActiveTabset(hostTabsetId));
+
+      markActiveStep();
+      debug(
+        'FlexLayout',
+        `Opened new module: ${moduleId}${isSingleton ? ' (singleton)' : ''}`,
+      );
+    },
+    [model, applyActiveStep, dismissLanding],
+  );
 
   // Close a panel by ID
-  const closePanel = useCallback((panelId) => {
-    if (!model) return;
+  const closePanel = useCallback(
+    (panelId) => {
+      if (!model) return;
 
-    const node = model.getNodeById(panelId);
-    if (node) {
-      model.doAction(Actions.deleteTab(panelId));
-      debug('FlexLayout', `Closed panel: ${panelId}`);
-    }
-  }, [model]);
+      const node = model.getNodeById(panelId);
+      if (node) {
+        model.doAction(Actions.deleteTab(panelId));
+        debug('FlexLayout', `Closed panel: ${panelId}`);
+      }
+    },
+    [model],
+  );
 
   // The tab node for the given module, or null if it isn't in the layout.
-  const findModuleTab = useCallback((moduleId) => {
-    if (!model) return null;
-    let node = null;
-    model.visitNodes((n) => {
-      if (n.getType() === 'tab' && n.getComponent?.() === moduleId) node = n;
-    });
-    return node;
-  }, [model]);
+  const findModuleTab = useCallback(
+    (moduleId) => {
+      if (!model) return null;
+      let node = null;
+      model.visitNodes((n) => {
+        if (n.getType() === 'tab' && n.getComponent?.() === moduleId) node = n;
+      });
+      return node;
+    },
+    [model],
+  );
 
   // True if a tab for the given module is currently present in the layout.
-  const hasModuleTab = useCallback((moduleId) => !!findModuleTab(moduleId), [findModuleTab]);
+  const hasModuleTab = useCallback(
+    (moduleId) => !!findModuleTab(moduleId),
+    [findModuleTab],
+  );
 
   // Hand-off: when an image loads, surface the Image Viewer if it is sitting
   // hidden behind another tab in its column (the review step stacks the File
@@ -375,7 +430,9 @@ export function FlexLayoutWorkspace() {
   // whether or not the queue tab is the visible one (see FileQueueModule).
   useEffect(() => {
     if (!model) return;
-    const off = moduleAPI.on('image-loaded', () => revealHiddenModuleTab(model, 'image-viewer'));
+    const off = moduleAPI.on('image-loaded', () =>
+      revealHiddenModuleTab(model, 'image-viewer'),
+    );
     return off;
   }, [model, moduleAPI]);
 
@@ -401,27 +458,33 @@ export function FlexLayoutWorkspace() {
   }, [model]);
 
   // Add a new tabset (column or row)
-  const addTabset = useCallback((direction) => {
-    const activeTabset = model.getActiveTabset();
-    if (!activeTabset) {
-      debug('FlexLayout', 'No active tabset for adding', direction);
-      return;
-    }
+  const addTabset = useCallback(
+    (direction) => {
+      const activeTabset = model.getActiveTabset();
+      if (!activeTabset) {
+        debug('FlexLayout', 'No active tabset for adding', direction);
+        return;
+      }
 
-    // FlexLayout's addNode with RIGHT or BOTTOM location creates new tabset
-    const location = direction === 'column' ? DockLocation.RIGHT : DockLocation.BOTTOM;
+      // FlexLayout's addNode with RIGHT or BOTTOM location creates new tabset
+      const location =
+        direction === 'column' ? DockLocation.RIGHT : DockLocation.BOTTOM;
 
-    // Create a placeholder tab in the new tabset
-    const placeholderTab = {
-      type: 'tab',
-      name: t('modules.image-viewer'),
-      component: 'image-viewer',
-      config: { moduleId: 'image-viewer' }
-    };
+      // Create a placeholder tab in the new tabset
+      const placeholderTab = {
+        type: 'tab',
+        name: t('modules.image-viewer'),
+        component: 'image-viewer',
+        config: { moduleId: 'image-viewer' },
+      };
 
-    model.doAction(Actions.addNode(placeholderTab, activeTabset.getId(), location, -1));
-    debug('FlexLayout', `Added new ${direction}`);
-  }, [model]);
+      model.doAction(
+        Actions.addNode(placeholderTab, activeTabset.getId(), location, -1),
+      );
+      debug('FlexLayout', `Added new ${direction}`);
+    },
+    [model],
+  );
 
   // Remove empty tabset
   const removeEmptyTabset = useCallback(() => {
@@ -467,7 +530,8 @@ export function FlexLayoutWorkspace() {
   // 'review-dirty' signal); when any file is dirty, review-module is parked
   // rather than closed during a step switch.
   const dirtyModuleSet = useCallback(
-    () => (reviewDirtyRef.current.size > 0 ? new Set(['review-module']) : new Set()),
+    () =>
+      reviewDirtyRef.current.size > 0 ? new Set(['review-module']) : new Set(),
     [],
   );
 
@@ -483,25 +547,30 @@ export function FlexLayoutWorkspace() {
   // missing) unless `useMemory` is false, in which case the bare factory spec is
   // used (Reset layout). The morph is wrapped in the persist suppressor so its
   // intermediate shapes never overwrite the step's memory.
-  const enterStep = useCallback((stepId, { useMemory = true } = {}) => {
-    if (!model) return;
-    const spec = useMemory ? resolveStepSpec(stepId) : getWorkspaceSpec(stepId);
-    if (!spec) {
-      debugWarn('FlexLayout', `No workspace spec for step: ${stepId}`);
-      return;
-    }
-    dismissLanding();
-    suppressPersistRef.current = true;
-    try {
-      applyWorkspace(model, spec, {
-        keepDirty: dirtyModuleSet(),
-        backgroundName: t('workspace.backgroundTab'),
-      });
-    } finally {
-      suppressPersistRef.current = false;
-    }
-    applyActiveStep(stepId);
-  }, [model, dirtyModuleSet, applyActiveStep, dismissLanding]);
+  const enterStep = useCallback(
+    (stepId, { useMemory = true } = {}) => {
+      if (!model) return;
+      const spec = useMemory
+        ? resolveStepSpec(stepId)
+        : getWorkspaceSpec(stepId);
+      if (!spec) {
+        debugWarn('FlexLayout', `No workspace spec for step: ${stepId}`);
+        return;
+      }
+      dismissLanding();
+      suppressPersistRef.current = true;
+      try {
+        applyWorkspace(model, spec, {
+          keepDirty: dirtyModuleSet(),
+          backgroundName: t('workspace.backgroundTab'),
+        });
+      } finally {
+        suppressPersistRef.current = false;
+      }
+      applyActiveStep(stepId);
+    },
+    [model, dirtyModuleSet, applyActiveStep, dismissLanding],
+  );
 
   // Open a pipeline step from the WorkflowBar, landing or a Cmd+1..5 accelerator.
   //
@@ -515,22 +584,29 @@ export function FlexLayoutWorkspace() {
   // switch can no longer discard unsaved edits, and the old discard prompt is gone
   // (see docs/dev/ux-principles.md). Reset layout is the only path that still
   // confirms, because it alone rebuilds the model destructively.
-  const openWorkflowStep = useCallback((moduleId) => {
-    const step = getModuleStep(moduleId);
-    const reviewDirty = reviewDirtyRef.current.size > 0;
-    if (step != null && hasModuleTab(moduleId) && (step === activeStep || reviewDirty)) {
-      // openModule syncs the bar highlight to this step (covers the dirty clause
-      // where step !== activeStep).
-      openModule(moduleId);
-      return;
-    }
-    if (step != null) {
-      enterStep(step);
-    } else {
-      // A non-pipeline module routed here (defensive): open it as a plain tab.
-      openModule(moduleId);
-    }
-  }, [activeStep, enterStep, openModule, hasModuleTab]);
+  const openWorkflowStep = useCallback(
+    (moduleId) => {
+      const step = getModuleStep(moduleId);
+      const reviewDirty = reviewDirtyRef.current.size > 0;
+      if (
+        step != null &&
+        hasModuleTab(moduleId) &&
+        (step === activeStep || reviewDirty)
+      ) {
+        // openModule syncs the bar highlight to this step (covers the dirty clause
+        // where step !== activeStep).
+        openModule(moduleId);
+        return;
+      }
+      if (step != null) {
+        enterStep(step);
+      } else {
+        // A non-pipeline module routed here (defensive): open it as a plain tab.
+        openModule(moduleId);
+      }
+    },
+    [activeStep, enterStep, openModule, hasModuleTab],
+  );
 
   // Confirm before a reset that would discard unsaved Review edits. Returns true
   // when the reset may proceed (nothing dirty, or the user confirmed). Reset
@@ -580,19 +656,28 @@ export function FlexLayoutWorkspace() {
   }, [confirmDirtyReset, rebuildCurrentToFactory]);
 
   // Swap active panel with panel in specified direction (Cmd+Arrow)
-  const swapActivePanel = useCallback((direction) => {
-    geomSwapActivePanel(model, layoutRef, direction);
-  }, [model]);
+  const swapActivePanel = useCallback(
+    (direction) => {
+      geomSwapActivePanel(model, layoutRef, direction);
+    },
+    [model],
+  );
 
   // Move active panel to new tabset in direction (Cmd+Alt+Arrow)
-  const moveToNewTabset = useCallback((direction) => {
-    geomMoveToNewTabset(model, direction);
-  }, [model]);
+  const moveToNewTabset = useCallback(
+    (direction) => {
+      geomMoveToNewTabset(model, direction);
+    },
+    [model],
+  );
 
   // Group active panel as tab with panel in direction (Cmd+Shift+Arrow)
-  const groupAsTab = useCallback((direction) => {
-    geomGroupAsTab(model, layoutRef, direction);
-  }, [model]);
+  const groupAsTab = useCallback(
+    (direction) => {
+      geomGroupAsTab(model, layoutRef, direction);
+    },
+    [model],
+  );
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -600,14 +685,17 @@ export function FlexLayoutWorkspace() {
 
     const handleKeyDown = (event) => {
       // Check if should ignore (input focused, etc.)
-      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+      if (
+        event.target.tagName === 'INPUT' ||
+        event.target.tagName === 'TEXTAREA'
+      ) {
         return;
       }
 
       // ? - Show keyboard shortcuts help
       if (event.key === '?') {
         event.preventDefault();
-        setShowShortcutsHelp(prev => !prev);
+        setShowShortcutsHelp((prev) => !prev);
         return;
       }
 
@@ -621,7 +709,12 @@ export function FlexLayoutWorkspace() {
       }
 
       // Cmd+R / Ctrl+R - Reload
-      if (isMod && event.key.toLowerCase() === 'r' && !event.shiftKey && !event.altKey) {
+      if (
+        isMod &&
+        event.key.toLowerCase() === 'r' &&
+        !event.shiftKey &&
+        !event.altKey
+      ) {
         event.preventDefault();
         window.location.reload();
         return;
@@ -631,10 +724,10 @@ export function FlexLayoutWorkspace() {
       const arrowKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
       if (isMod && arrowKeys.includes(event.key)) {
         const dirMap = {
-          'ArrowLeft': 'left',
-          'ArrowRight': 'right',
-          'ArrowUp': 'above',
-          'ArrowDown': 'below'
+          ArrowLeft: 'left',
+          ArrowRight: 'right',
+          ArrowUp: 'above',
+          ArrowDown: 'below',
         };
         const direction = dirMap[event.key];
 
@@ -703,7 +796,9 @@ export function FlexLayoutWorkspace() {
     const openFileDialog = async () => {
       try {
         // Use multi-file dialog (same as + button in FileQueue)
-        const filePaths = await window.ansiktenAPI?.invoke('open-multi-file-dialog');
+        const filePaths = await window.ansiktenAPI?.invoke(
+          'open-multi-file-dialog',
+        );
         if (!filePaths || filePaths.length === 0) return;
 
         debug('FlexLayout', `Opening ${filePaths.length} file(s)`);
@@ -723,7 +818,16 @@ export function FlexLayoutWorkspace() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [model, ready, swapActivePanel, moveToNewTabset, groupAsTab, addTabset, removeEmptyTabset, moduleAPI]);
+  }, [
+    model,
+    ready,
+    swapActivePanel,
+    moveToNewTabset,
+    groupAsTab,
+    addTabset,
+    removeEmptyTabset,
+    moduleAPI,
+  ]);
 
   // Wire the router's handlers whenever the underlying operations change. The
   // router is created before the model exists (so early dispatches buffer); this
@@ -740,7 +844,16 @@ export function FlexLayoutWorkspace() {
       resetAllLayouts,
       moduleAPI,
     });
-  }, [router, enterStep, openModule, openWorkflowStep, loadLayout, resetLayout, resetAllLayouts, moduleAPI]);
+  }, [
+    router,
+    enterStep,
+    openModule,
+    openWorkflowStep,
+    loadLayout,
+    resetLayout,
+    resetAllLayouts,
+    moduleAPI,
+  ]);
 
   // Setup IPC listeners + in-app hand-off adapters, then complete the
   // workspace-ready handshake. Every mechanism here is now a thin adapter that
@@ -782,16 +895,22 @@ export function FlexLayoutWorkspace() {
       // fell through to a no-op moduleAPI broadcast).
       toggleShortcutsHelp: () => setShowShortcutsHelp((prev) => !prev),
     });
-    const offMenuCommand = window.ansiktenAPI.on('menu-command', handleMenuCommand);
+    const offMenuCommand = window.ansiktenAPI.on(
+      'menu-command',
+      handleMenuCommand,
+    );
 
     // Main-process launch commands: one unified `workspace-command` IPC carrying
     // a typed intent (open-culling / queue-files / open-import / enter-step /
     // load-image), sent only after this handshake so the router's listeners are
     // guaranteed live. dispatch buffers anything that still races ahead.
-    const offWorkspaceCommand = window.ansiktenAPI.on('workspace-command', (intent) => {
-      debug('FlexLayout', 'workspace-command', intent?.type);
-      dispatch(intent);
-    });
+    const offWorkspaceCommand = window.ansiktenAPI.on(
+      'workspace-command',
+      (intent) => {
+        debug('FlexLayout', 'workspace-command', intent?.type);
+        dispatch(intent);
+      },
+    );
 
     // In-app hand-offs (WorkflowBar "Fortsätt →", chip "Använd i…", Import →
     // Rename → Review chain): each moduleAPI event becomes the matching intent.
@@ -802,28 +921,37 @@ export function FlexLayoutWorkspace() {
     // Queue rather than discarding them, and signalExternalLoad for count is
     // preserved (HANDOFFS.signalExternal).
     const offOpenCulling = moduleAPI.on('open-culling', (payload) =>
-      dispatch({ type: 'open-culling', payload }));
+      dispatch({ type: 'open-culling', payload }),
+    );
     const offOpenCount = moduleAPI.on('open-count', (payload) =>
-      dispatch({ type: 'open-count', payload }));
+      dispatch({ type: 'open-count', payload }),
+    );
     const offOpenRenameNef = moduleAPI.on('open-rename-nef', (payload) =>
-      dispatch({ type: 'open-rename-nef', payload }));
+      dispatch({ type: 'open-rename-nef', payload }),
+    );
     const offOpenReviewQueue = moduleAPI.on('open-review-queue', (payload) =>
-      dispatch({ type: 'open-review-queue', payload }));
+      dispatch({ type: 'open-review-queue', payload }),
+    );
 
     // Track which files have unsaved Review changes so a step morph parks Review
     // (keepDirty) instead of discarding its edits.
-    const offReviewDirty = moduleAPI.on('review-dirty', ({ imagePath, dirty }) => {
-      if (!imagePath) return;
-      if (dirty) reviewDirtyRef.current.add(imagePath);
-      else reviewDirtyRef.current.delete(imagePath);
-    });
+    const offReviewDirty = moduleAPI.on(
+      'review-dirty',
+      ({ imagePath, dirty }) => {
+        if (!imagePath) return;
+        if (dirty) reviewDirtyRef.current.add(imagePath);
+        else reviewDirtyRef.current.delete(imagePath);
+      },
+    );
 
     // A loaded image dismisses the landing. Listen on the past-tense
     // 'image-loaded' (emitted by ImageViewer after a load), NOT the imperative
     // 'load-image' command: FileQueue uses hasListeners('load-image') to detect
     // when ImageViewer has mounted, and a permanent listener here would defeat
     // that guard and reintroduce a lost-event race on first queue load.
-    const unsubscribeImageLoaded = moduleAPI.on('image-loaded', () => dismissLanding());
+    const unsubscribeImageLoaded = moduleAPI.on('image-loaded', () =>
+      dismissLanding(),
+    );
 
     // Listeners are registered and the router's handlers are wired — flush any
     // buffered intents and tell the main process the workspace is ready. The
@@ -846,7 +974,16 @@ export function FlexLayoutWorkspace() {
       offOpenReviewQueue?.();
       offReviewDirty?.();
     };
-  }, [ready, dispatch, router, addTabset, removeEmptyTabset, moduleAPI, moveToNewTabset, dismissLanding]);
+  }, [
+    ready,
+    dispatch,
+    router,
+    addTabset,
+    removeEmptyTabset,
+    moduleAPI,
+    moveToNewTabset,
+    dismissLanding,
+  ]);
 
   // Expose workspace API globally for debugging
   useEffect(() => {
@@ -858,8 +995,10 @@ export function FlexLayoutWorkspace() {
       // Navigation surface routed through the single command router (same outer
       // API, so existing callers/debug usage are unchanged).
       dispatch,
-      openModule: (moduleId, options) => dispatch({ type: 'open-module', moduleId, options }),
-      openWorkflowStep: (moduleId) => dispatch({ type: 'open-workflow-step', moduleId }),
+      openModule: (moduleId, options) =>
+        dispatch({ type: 'open-module', moduleId, options }),
+      openWorkflowStep: (moduleId) =>
+        dispatch({ type: 'open-workflow-step', moduleId }),
       enterStep: (step) => dispatch({ type: 'enter-step', step }),
       loadLayout: (name) => dispatch({ type: 'load-layout', name }),
       activeStep,
@@ -873,24 +1012,39 @@ export function FlexLayoutWorkspace() {
       groupAsTab: groupAsTab,
       applyModuleRatios: applyModuleBasedRatios,
       moduleAPI,
-      preferences
+      preferences,
     };
 
     return () => {
       delete window.workspace;
     };
-  }, [model, dispatch, activeStep, closePanel, addTabset, removeEmptyTabset, swapActivePanel, moveToNewTabset, groupAsTab, applyModuleBasedRatios, moduleAPI]);
+  }, [
+    model,
+    dispatch,
+    activeStep,
+    closePanel,
+    addTabset,
+    removeEmptyTabset,
+    swapActivePanel,
+    moveToNewTabset,
+    groupAsTab,
+    applyModuleBasedRatios,
+    moduleAPI,
+  ]);
 
   // NOTE: Auto-load from queue is handled by FileQueueModule, not here
 
   if (!model) {
     return (
-      <div className="workspace-placeholder-text" style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%'
-      }}>
+      <div
+        className="workspace-placeholder-text"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+        }}
+      >
         {t('workspace.loading')}
       </div>
     );

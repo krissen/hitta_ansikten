@@ -105,7 +105,9 @@ def main(argv=None) -> int:
     ap.add_argument("--config", default=None, help="Path to a roots.json config.")
     ap.add_argument("--cache", default=str(cfg.CACHE_PATH), help="Index cache path.")
     ap.add_argument("--db", default=str(DEFAULT_DB_PATH), help="encodings.pkl path.")
-    ap.add_argument("--det-size", type=int, default=DEFAULT_DET_SIZE[0], help="SCRFD det_size (square).")
+    ap.add_argument(
+        "--det-size", type=int, default=DEFAULT_DET_SIZE[0], help="SCRFD det_size (square)."
+    )
     ap.add_argument("--force", action="store_true", help="Ignore caches, recompute.")
     args = ap.parse_args(argv)
 

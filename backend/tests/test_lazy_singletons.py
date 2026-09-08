@@ -15,20 +15,38 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 CASES = [
-    ("api.services.detection_service", "DetectionService",
-     "_detection_service", "get_detection_service"),
-    ("api.services.statistics_service", "StatisticsService",
-     "_statistics_service", "get_statistics_service"),
-    ("api.services.player_count_service", "PlayerCountService",
-     "_player_count_service", "get_player_count_service"),
-    ("api.services.culling_service", "CullingService",
-     "_culling_service", "get_culling_service"),
-    ("api.services.rename_nef_service", "RenameNefService",
-     "_rename_nef_service", "get_rename_nef_service"),
-    ("api.services.import_service", "ImportService",
-     "_import_service", "get_import_service"),
-    ("api.services.management_service", "ManagementService",
-     "_management_service", "get_management_service"),
+    (
+        "api.services.detection_service",
+        "DetectionService",
+        "_detection_service",
+        "get_detection_service",
+    ),
+    (
+        "api.services.statistics_service",
+        "StatisticsService",
+        "_statistics_service",
+        "get_statistics_service",
+    ),
+    (
+        "api.services.player_count_service",
+        "PlayerCountService",
+        "_player_count_service",
+        "get_player_count_service",
+    ),
+    ("api.services.culling_service", "CullingService", "_culling_service", "get_culling_service"),
+    (
+        "api.services.rename_nef_service",
+        "RenameNefService",
+        "_rename_nef_service",
+        "get_rename_nef_service",
+    ),
+    ("api.services.import_service", "ImportService", "_import_service", "get_import_service"),
+    (
+        "api.services.management_service",
+        "ManagementService",
+        "_management_service",
+        "get_management_service",
+    ),
 ]
 
 
@@ -45,6 +63,7 @@ class _SlowCountingFactory:
         # Widen the check-then-set window: an unguarded getter would let every
         # racing thread pass the None check before any assignment lands.
         import time
+
         time.sleep(0.05)
         return object()
 

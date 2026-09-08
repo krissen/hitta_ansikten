@@ -3,9 +3,21 @@ import { isRenameEligible } from '../src/renderer/components/fileQueueEligibilit
 
 describe('fileQueueEligibility', () => {
   describe('isRenameEligible', () => {
-    const completed = { status: 'completed', isAlreadyProcessed: false, filePath: '/a.NEF' };
-    const processed = { status: 'pending', isAlreadyProcessed: true, filePath: '/b.NEF' };
-    const fresh = { status: 'pending', isAlreadyProcessed: false, filePath: '/c.NEF' };
+    const completed = {
+      status: 'completed',
+      isAlreadyProcessed: false,
+      filePath: '/a.NEF',
+    };
+    const processed = {
+      status: 'pending',
+      isAlreadyProcessed: true,
+      filePath: '/b.NEF',
+    };
+    const fresh = {
+      status: 'pending',
+      isAlreadyProcessed: false,
+      filePath: '/c.NEF',
+    };
 
     it('returns false for a missing item', () => {
       expect(isRenameEligible(null, false, new Set())).toBe(false);

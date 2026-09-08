@@ -54,7 +54,9 @@ export function useDecodedImage(url) {
       let drawable = img;
       try {
         if (typeof createImageBitmap === 'function') {
-          drawable = await createImageBitmap(img, { imageOrientation: 'from-image' });
+          drawable = await createImageBitmap(img, {
+            imageOrientation: 'from-image',
+          });
         } else if (typeof img.decode === 'function') {
           await img.decode();
         }
@@ -67,7 +69,8 @@ export function useDecodedImage(url) {
       if (cancelled) {
         // A newer URL (or unmount) won while decoding: never commit a stale
         // drawable, and close the bitmap we just created so it can't leak.
-        if (drawable !== img && typeof drawable.close === 'function') drawable.close();
+        if (drawable !== img && typeof drawable.close === 'function')
+          drawable.close();
         return;
       }
 
@@ -75,7 +78,9 @@ export function useDecodedImage(url) {
       setLoading(false);
     };
 
-    img.onload = () => { finalize(); };
+    img.onload = () => {
+      finalize();
+    };
     img.onerror = () => {
       if (cancelled) return;
       setImage(null);

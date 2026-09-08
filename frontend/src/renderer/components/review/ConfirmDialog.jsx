@@ -18,7 +18,13 @@ import { Button } from '../shared/Button.jsx';
 import { Kbd } from '../shared/Kbd.jsx';
 import { t } from '../../../i18n/index.js';
 
-export function ConfirmDialog({ type, topMatch, chosenName, onConfirm, onCancel }) {
+export function ConfirmDialog({
+  type,
+  topMatch,
+  chosenName,
+  onConfirm,
+  onCancel,
+}) {
   const isNameMismatch = type === 'name-mismatch';
 
   const handleKeyDown = (e) => {
@@ -44,13 +50,18 @@ export function ConfirmDialog({ type, topMatch, chosenName, onConfirm, onCancel 
       open
       onClose={onCancel}
       onKeyDown={handleKeyDown}
-      title={isNameMismatch ? t('review.dialog.confirmNameChange') : t('review.dialog.confirmIgnore')}
+      title={
+        isNameMismatch
+          ? t('review.dialog.confirmNameChange')
+          : t('review.dialog.confirmIgnore')
+      }
       footer={footer}
       size="sm"
       className="confirm"
     >
       <div className="match-info">
-        {t('review.dialog.bestMatch')} <strong>{topMatch.name}</strong> ({topMatch.confidence}%)
+        {t('review.dialog.bestMatch')} <strong>{topMatch.name}</strong> (
+        {topMatch.confidence}%)
       </div>
       <p className="modal__message">
         {isNameMismatch
@@ -58,7 +69,8 @@ export function ConfirmDialog({ type, topMatch, chosenName, onConfirm, onCancel 
           : t('review.dialog.ignoreConfirm')}
       </p>
       <div className="modal__hint">
-        <Kbd>Enter</Kbd> {t('review.dialog.hintConfirms')} · <Kbd>Esc</Kbd> {t('review.dialog.hintCancels')}
+        <Kbd>Enter</Kbd> {t('review.dialog.hintConfirms')} · <Kbd>Esc</Kbd>{' '}
+        {t('review.dialog.hintCancels')}
       </div>
     </Modal>
   );

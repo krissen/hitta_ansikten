@@ -27,7 +27,8 @@ def _redirect_app_log(tmp_path, monkeypatch):
 
     root = logging.getLogger()
     removed = [
-        h for h in root.handlers
+        h
+        for h in root.handlers
         if isinstance(h, logging.FileHandler) and h.baseFilename == real_log
     ]
     for h in removed:
@@ -52,9 +53,8 @@ def _redirect_rename_journal(tmp_path, monkeypatch):
     the journal back use the same ``tmp_path / "rename_journal.jsonl"``.
     """
     import core.fs_ops as fs_ops
-    monkeypatch.setattr(
-        fs_ops, "journal_path", lambda: tmp_path / "rename_journal.jsonl"
-    )
+
+    monkeypatch.setattr(fs_ops, "journal_path", lambda: tmp_path / "rename_journal.jsonl")
 
 
 @pytest.fixture(autouse=True)
@@ -99,7 +99,6 @@ def _reset_service_singletons():
     _clear()
     yield
     _clear()
-
 
 
 class InMemoryDBStore:

@@ -28,16 +28,23 @@ vi.mock('../src/renderer/shared/api-client.js', () => ({
   },
 }));
 
-import { BackendProvider, useBackend } from '../src/renderer/context/BackendContext.jsx';
+import {
+  BackendProvider,
+  useBackend,
+} from '../src/renderer/context/BackendContext.jsx';
 
 function Caller({ onReady }) {
   const { api } = useBackend();
-  useEffect(() => { onReady(api); }, [api, onReady]);
+  useEffect(() => {
+    onReady(api);
+  }, [api, onReady]);
   return null;
 }
 
 describe('BackendContext api.post per-call options', () => {
-  beforeEach(() => { post.mockClear(); });
+  beforeEach(() => {
+    post.mockClear();
+  });
   afterEach(() => cleanup());
 
   it('forwards the third options arg through to apiClient.post', async () => {
@@ -45,19 +52,27 @@ describe('BackendContext api.post per-call options', () => {
     await act(async () => {
       render(
         <BackendProvider>
-          <Caller onReady={(a) => { api = a; }} />
-        </BackendProvider>
+          <Caller
+            onReady={(a) => {
+              api = a;
+            }}
+          />
+        </BackendProvider>,
       );
     });
 
     await act(async () => {
-      await api.post('/api/v1/import/run', { volume_mount: '/Volumes/CARD' }, { timeout: 0 });
+      await api.post(
+        '/api/v1/import/run',
+        { volume_mount: '/Volumes/CARD' },
+        { timeout: 0 },
+      );
     });
 
     expect(post).toHaveBeenCalledWith(
       '/api/v1/import/run',
       { volume_mount: '/Volumes/CARD' },
-      { timeout: 0 }
+      { timeout: 0 },
     );
   });
 });

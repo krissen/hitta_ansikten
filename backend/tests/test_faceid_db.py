@@ -23,6 +23,7 @@ from core import db as faceid_db
 # Fixtures
 # --------------------------------------------------------------------------
 
+
 @pytest.fixture
 def db_dir(tmp_path, monkeypatch):
     """Redirect every faceid_db path constant into a temp dir."""
@@ -68,6 +69,7 @@ def _assert_entries_equal(a, b):
 # --------------------------------------------------------------------------
 # 1. load/save round-trip
 # --------------------------------------------------------------------------
+
 
 def test_save_load_round_trip(db_dir):
     known = {
@@ -125,6 +127,7 @@ def test_save_only_rewrites_named_files(db_dir):
 
     # Bump mtimes so a rewrite is unambiguously detectable.
     import os
+
     for p in others:
         st = p.stat()
         os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
@@ -154,12 +157,16 @@ def test_save_only_subset_rewrites_exactly_those(db_dir):
     }
     before = {k: p.stat().st_mtime_ns for k, p in paths.items()}
     import os
+
     for p in paths.values():
         st = p.stat()
         os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
 
     faceid_db.save_database(
-        {"A": [_entry([1.0])]}, [], {"B": [_entry([2.0])]}, [],
+        {"A": [_entry([1.0])]},
+        [],
+        {"B": [_entry([2.0])]},
+        [],
         only={"known", "hardneg"},
     )
     assert paths["known"].stat().st_mtime_ns != before["known"]
@@ -181,8 +188,12 @@ def test_save_only_unknown_collection_raises(db_dir):
 
 def test_save_only_none_rewrites_all(db_dir):
     faceid_db.save_database({}, [], {}, [], only=None)
-    for p in (faceid_db.ENCODING_PATH, faceid_db.IGNORED_PATH,
-              faceid_db.HARDNEG_PATH, faceid_db.PROCESSED_PATH):
+    for p in (
+        faceid_db.ENCODING_PATH,
+        faceid_db.IGNORED_PATH,
+        faceid_db.HARDNEG_PATH,
+        faceid_db.PROCESSED_PATH,
+    ):
         assert p.exists()
 
 
@@ -198,8 +209,7 @@ def test_load_missing_files_returns_empty_defaults(db_dir):
 def test_processed_legacy_bare_line_fallback(db_dir):
     # A non-JSON line becomes {"name": line, "hash": None}.
     faceid_db.PROCESSED_PATH.write_text(
-        '{"name": "a.NEF", "hash": "h1"}\n'
-        "legacy_bare_filename.NEF\n",
+        '{"name": "a.NEF", "hash": "h1"}\nlegacy_bare_filename.NEF\n',
         encoding="utf-8",
     )
     _, _, _, processed = faceid_db.load_database()
@@ -213,17 +223,21 @@ def test_processed_legacy_bare_line_fallback(db_dir):
 # 1b. One-time normalization with schema marker
 # --------------------------------------------------------------------------
 
+
 def _write_legacy_encodings(base):
     """Seed encodings.pkl with legacy-format entries needing migration:
     a bare ndarray, a dict missing 'backend', and a dict missing 'encoding_hash'.
     """
     legacy = {
         "Alice": [
-            np.array([1.0, 2.0, 3.0]),                      # bare array
-            {"encoding": np.array([4.0, 5.0, 6.0])},        # dict missing backend/hash
+            np.array([1.0, 2.0, 3.0]),  # bare array
+            {"encoding": np.array([4.0, 5.0, 6.0])},  # dict missing backend/hash
         ],
         "Bob": [
-            {"encoding": np.array([7.0, 8.0]), "backend": "insightface"},  # missing hash/version/created_at
+            {
+                "encoding": np.array([7.0, 8.0]),
+                "backend": "insightface",
+            },  # missing hash/version/created_at
         ],
     }
     with open(base / "encodings.pkl", "wb") as f:
@@ -283,7 +297,8 @@ def test_marker_missing_forces_full_pass(db_dir, monkeypatch):
     calls = []
     real = faceid_db.normalize_encoding_entry
     monkeypatch.setattr(
-        faceid_db, "normalize_encoding_entry",
+        faceid_db,
+        "normalize_encoding_entry",
         lambda entry, *a, **k: (calls.append(entry), real(entry, *a, **k))[1],
     )
     faceid_db.load_database()
@@ -294,7 +309,9 @@ def test_marker_missing_forces_full_pass(db_dir, monkeypatch):
 def test_stale_marker_forces_full_pass(db_dir):
     _write_legacy_encodings(db_dir)
     # Marker at an older schema must not short-circuit migration.
-    faceid_db.DB_META_PATH.write_text(json.dumps({"schema": faceid_db.DB_SCHEMA_VERSION - 1}), encoding="utf-8")
+    faceid_db.DB_META_PATH.write_text(
+        json.dumps({"schema": faceid_db.DB_SCHEMA_VERSION - 1}), encoding="utf-8"
+    )
 
     known, _, _, _ = faceid_db.load_database()
     assert all("backend" in e for e in known["Alice"])  # migrated despite marker
@@ -311,6 +328,7 @@ def test_clean_load_writes_marker_without_rewriting_data(db_dir):
         faceid_db.DB_META_PATH.unlink()
 
     import os
+
     st = faceid_db.ENCODING_PATH.stat()
     os.utime(faceid_db.ENCODING_PATH, ns=(st.st_atime_ns, st.st_mtime_ns))
     enc_mtime = faceid_db.ENCODING_PATH.stat().st_mtime_ns
@@ -370,7 +388,9 @@ def test_marker_present_but_legacy_entry_does_not_crash(db_dir):
     # comes back raw (no crash), and the defensive consume sites tolerate it.
     with open(faceid_db.ENCODING_PATH, "wb") as f:
         pickle.dump({"Alice": [np.array([1.0, 2.0, 3.0])]}, f)
-    faceid_db.DB_META_PATH.write_text(json.dumps({"schema": faceid_db.DB_SCHEMA_VERSION}), encoding="utf-8")
+    faceid_db.DB_META_PATH.write_text(
+        json.dumps({"schema": faceid_db.DB_SCHEMA_VERSION}), encoding="utf-8"
+    )
 
     known, _, _, _ = faceid_db.load_database()
     # Skipped normalization: the bare array is returned unchanged.
@@ -392,15 +412,24 @@ def test_entry_needs_normalization_predicate():
     assert faceid_db._entry_needs_normalization(np.array([1.0])) is True
     assert faceid_db._entry_needs_normalization({"encoding": np.array([1.0])}) is True
     # Missing only encoding_hash (with a real encoding) still needs migration.
-    assert faceid_db._entry_needs_normalization(
-        {"encoding": np.array([1.0]), "backend": "insightface",
-         "backend_version": "x", "created_at": None}
-    ) is True
+    assert (
+        faceid_db._entry_needs_normalization(
+            {
+                "encoding": np.array([1.0]),
+                "backend": "insightface",
+                "backend_version": "x",
+                "created_at": None,
+            }
+        )
+        is True
+    )
     # Manual face (encoding=None) without encoding_hash does NOT need migration.
-    assert faceid_db._entry_needs_normalization(
-        {"encoding": None, "backend": "dlib", "backend_version": "unknown",
-         "created_at": None}
-    ) is False
+    assert (
+        faceid_db._entry_needs_normalization(
+            {"encoding": None, "backend": "dlib", "backend_version": "unknown", "created_at": None}
+        )
+        is False
+    )
     # Fully normalized -> no migration.
     assert faceid_db._entry_needs_normalization(_entry([1.0, 2.0])) is False
     # Corrupt -> predicate returns False (handled separately as a drop).
@@ -410,6 +439,7 @@ def test_entry_needs_normalization_predicate():
 # --------------------------------------------------------------------------
 # 2. normalize_encoding_entry
 # --------------------------------------------------------------------------
+
 
 def test_normalize_legacy_bare_array():
     arr = np.array([1.0, 2.0, 3.0])
@@ -436,9 +466,7 @@ def test_normalize_dict_missing_backend_defaults_dlib():
     assert out["backend_version"] == "unknown"
     assert out["created_at"] is None
     # encoding_hash computed because encoding is not None
-    assert out["encoding_hash"] == hashlib.sha1(
-        np.array([1.0, 2.0]).tobytes()
-    ).hexdigest()
+    assert out["encoding_hash"] == hashlib.sha1(np.array([1.0, 2.0]).tobytes()).hexdigest()
 
 
 def test_normalize_already_normalized_passthrough():
@@ -477,6 +505,7 @@ def test_normalize_mutates_input_dict_in_place():
 # 3. get_file_hash
 # --------------------------------------------------------------------------
 
+
 def test_get_file_hash_known_content(tmp_path):
     p = tmp_path / "f.bin"
     p.write_bytes(b"hello world")
@@ -508,6 +537,7 @@ def test_get_file_hash_missing_file_returns_none(tmp_path):
 # 4. rotate_logs
 # --------------------------------------------------------------------------
 
+
 def test_rotate_logs_noop_below_limits(db_dir, monkeypatch):
     monkeypatch.setattr(faceid_db, "MAX_PROCESSED_ENTRIES", 5)
     monkeypatch.setattr(faceid_db, "MAX_ATTEMPT_ENTRIES", 5)
@@ -531,7 +561,10 @@ def test_rotate_logs_trims_processed(db_dir, monkeypatch):
 
     faceid_db.rotate_logs()
 
-    kept = [json.loads(line) for line in faceid_db.PROCESSED_PATH.read_text(encoding="utf-8").splitlines()]
+    kept = [
+        json.loads(line)
+        for line in faceid_db.PROCESSED_PATH.read_text(encoding="utf-8").splitlines()
+    ]
     assert len(kept) == 5
     # Keeps the MOST RECENT entries.
     assert kept == entries[-5:]
@@ -546,7 +579,10 @@ def test_rotate_logs_archives_attempts(db_dir, monkeypatch):
 
     faceid_db.rotate_logs()
 
-    recent = [json.loads(line) for line in faceid_db.ATTEMPT_LOG_PATH.read_text(encoding="utf-8").splitlines()]
+    recent = [
+        json.loads(line)
+        for line in faceid_db.ATTEMPT_LOG_PATH.read_text(encoding="utf-8").splitlines()
+    ]
     assert recent == entries[-5:]
 
     archives = list(faceid_db.ARCHIVE_DIR.glob("attempt_stats_*.jsonl"))
@@ -570,6 +606,7 @@ def test_rotate_logs_rotates_oversized_log(db_dir, monkeypatch):
 # --------------------------------------------------------------------------
 # 5. Atomic write
 # --------------------------------------------------------------------------
+
 
 def test_atomic_pickle_write_failure_preserves_original(db_dir, monkeypatch):
     target = faceid_db.ENCODING_PATH
@@ -620,9 +657,14 @@ def test_atomic_jsonl_write_failure_preserves_original(db_dir, monkeypatch):
 # 6. flock presence
 # --------------------------------------------------------------------------
 
+
 def test_load_takes_shared_locks(db_dir, monkeypatch):
-    faceid_db.save_database({"A": [_entry([1.0])]}, [_entry([2.0])], {"B": [_entry([3.0])]},
-                            [{"name": "x.NEF", "hash": "h"}])
+    faceid_db.save_database(
+        {"A": [_entry([1.0])]},
+        [_entry([2.0])],
+        {"B": [_entry([3.0])]},
+        [{"name": "x.NEF", "hash": "h"}],
+    )
 
     calls = []
     real_flock = fcntl.flock
@@ -661,6 +703,7 @@ def test_save_takes_exclusive_locks(db_dir, monkeypatch):
 # --------------------------------------------------------------------------
 # 7. RestrictedUnpickler
 # --------------------------------------------------------------------------
+
 
 def test_restricted_unpickler_blocks_forbidden_class(db_dir):
     import io

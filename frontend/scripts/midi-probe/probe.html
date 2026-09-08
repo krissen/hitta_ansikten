@@ -21,21 +21,45 @@
         --good: #6fcf7f;
         --warn: #ffcf6b;
         --bad: #ff7b72;
-        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        --mono:
+          ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
       }
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         padding: 16px;
         background: var(--bg);
         color: var(--text);
-        font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        font:
+          13px/1.45 -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          system-ui,
+          sans-serif;
       }
-      h1 { font-size: 17px; margin: 0 0 4px; }
-      h2 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
-      p { margin: 0 0 8px; }
-      a { color: var(--accent); }
-      .sub { color: var(--dim); margin-bottom: 12px; }
+      h1 {
+        font-size: 17px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 13px;
+        margin: 0 0 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--dim);
+      }
+      p {
+        margin: 0 0 8px;
+      }
+      a {
+        color: var(--accent);
+      }
+      .sub {
+        color: var(--dim);
+        margin-bottom: 12px;
+      }
       .panel {
         background: var(--panel);
         border: 1px solid var(--line);
@@ -43,8 +67,15 @@
         padding: 12px;
         margin-bottom: 12px;
       }
-      .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-      .row + .row { margin-top: 8px; }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .row + .row {
+        margin-top: 8px;
+      }
       button {
         background: #262b33;
         color: var(--text);
@@ -54,9 +85,18 @@
         font: inherit;
         cursor: pointer;
       }
-      button:hover { border-color: var(--accent); }
-      button.primary { background: var(--accent); color: #14161a; border-color: var(--accent); font-weight: 600; }
-      select, input[type="number"], input[type="text"] {
+      button:hover {
+        border-color: var(--accent);
+      }
+      button.primary {
+        background: var(--accent);
+        color: #14161a;
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+      select,
+      input[type='number'],
+      input[type='text'] {
         background: #101317;
         color: var(--text);
         border: 1px solid var(--line);
@@ -64,42 +104,134 @@
         padding: 4px 6px;
         font: inherit;
       }
-      input[type="number"] { width: 74px; }
-      label { color: var(--dim); }
-      label.inline { display: inline-flex; align-items: center; gap: 5px; color: var(--text); }
-      code, .mono { font-family: var(--mono); }
+      input[type='number'] {
+        width: 74px;
+      }
+      label {
+        color: var(--dim);
+      }
+      label.inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--text);
+      }
+      code,
+      .mono {
+        font-family: var(--mono);
+      }
 
-      .status { padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: #101317; }
-      .status.good { border-color: var(--good); color: var(--good); }
-      .status.warn { border-color: var(--warn); color: var(--warn); }
-      .status.bad { border-color: var(--bad); color: var(--bad); }
+      .status {
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: #101317;
+      }
+      .status.good {
+        border-color: var(--good);
+        color: var(--good);
+      }
+      .status.warn {
+        border-color: var(--warn);
+        color: var(--warn);
+      }
+      .status.bad {
+        border-color: var(--bad);
+        color: var(--bad);
+      }
 
-      .counters { display: flex; gap: 18px; flex-wrap: wrap; }
-      .counter b { display: block; font-size: 20px; font-family: var(--mono); color: var(--accent); }
-      .counter span { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+      .counters {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+      }
+      .counter b {
+        display: block;
+        font-size: 20px;
+        font-family: var(--mono);
+        color: var(--accent);
+      }
+      .counter span {
+        color: var(--dim);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
 
-      table { border-collapse: collapse; width: 100%; font-size: 12px; }
-      th, td { text-align: left; padding: 3px 8px 3px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-      th { color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-      td { font-family: var(--mono); white-space: nowrap; }
-      td.empty { color: var(--dim); font-family: inherit; font-style: italic; white-space: normal; }
-      .scroll { overflow: auto; max-height: 40vh; border: 1px solid var(--line); border-radius: 4px; background: #101317; padding: 0 8px; }
-      #logWrap { max-height: 46vh; }
-      tr.tx td { color: var(--accent); }
-      tr.echo td { background: rgba(255, 123, 114, .12); }
-      tr.note td { color: var(--dim); font-family: inherit; white-space: normal; }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 12px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 3px 8px 3px 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        color: var(--dim);
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      td {
+        font-family: var(--mono);
+        white-space: nowrap;
+      }
+      td.empty {
+        color: var(--dim);
+        font-family: inherit;
+        font-style: italic;
+        white-space: normal;
+      }
+      .scroll {
+        overflow: auto;
+        max-height: 40vh;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: #101317;
+        padding: 0 8px;
+      }
+      #logWrap {
+        max-height: 46vh;
+      }
+      tr.tx td {
+        color: var(--accent);
+      }
+      tr.echo td {
+        background: rgba(255, 123, 114, 0.12);
+      }
+      tr.note td {
+        color: var(--dim);
+        font-family: inherit;
+        white-space: normal;
+      }
 
-      .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
-      .hint { color: var(--dim); font-size: 12px; }
-      .gate { border-left: 3px solid var(--accent); padding-left: 8px; }
+      .grid2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 12px;
+      }
+      .hint {
+        color: var(--dim);
+        font-size: 12px;
+      }
+      .gate {
+        border-left: 3px solid var(--accent);
+        padding-left: 8px;
+      }
     </style>
   </head>
   <body>
     <h1>MIDI-sond</h1>
     <p class="sub">
-      Mätverktyg för Behringer X-TOUCH MINI. Kör i <b>Chrome</b> (Web MIDI saknas i Safari och
-      Firefox). Rådata i hex är facit — avkodningen är bara en bekvämlighet.
-      Procedurer och resultattabeller: <code>docs/dev/midi.md</code>.
+      Mätverktyg för Behringer X-TOUCH MINI. Kör i <b>Chrome</b> (Web MIDI
+      saknas i Safari och Firefox). Rådata i hex är facit — avkodningen är bara
+      en bekvämlighet. Procedurer och resultattabeller:
+      <code>docs/dev/midi.md</code>.
     </p>
 
     <!-- Connection ------------------------------------------------------- -->
@@ -107,7 +239,9 @@
       <div class="row">
         <button id="connect" class="primary">Anslut</button>
         <button id="refresh">Uppdatera portar</button>
-        <label class="inline"><input type="checkbox" id="sysex" /> Begär SysEx</label>
+        <label class="inline"
+          ><input type="checkbox" id="sysex" /> Begär SysEx</label
+        >
         <span class="hint">SysEx måste väljas <i>innan</i> anslutning.</span>
       </div>
       <div class="row">
@@ -123,8 +257,13 @@
           <table>
             <thead>
               <tr>
-                <th>Typ</th><th>Namn</th><th>Tillverkare</th><th>Version</th>
-                <th>State</th><th>Connection</th><th>ID</th>
+                <th>Typ</th>
+                <th>Namn</th>
+                <th>Tillverkare</th>
+                <th>Version</th>
+                <th>State</th>
+                <th>Connection</th>
+                <th>ID</th>
               </tr>
             </thead>
             <tbody id="portBody"></tbody>
@@ -136,13 +275,21 @@
       <div class="panel">
         <h2>Enhetskarta (mätt)</h2>
         <p class="hint">
-          Ett distinkt meddelande per rad. Min/max visar hela värdeområdet som setts —
-          använd det för att avgöra om en ratt är absolut 0–127 och klipper i ändlägena.
+          Ett distinkt meddelande per rad. Min/max visar hela värdeområdet som
+          setts — använd det för att avgöra om en ratt är absolut 0–127 och
+          klipper i ändlägena.
         </p>
         <div class="scroll">
           <table>
             <thead>
-              <tr><th>Status</th><th>Nr</th><th>Tolkning</th><th>Antal</th><th>Min</th><th>Max</th></tr>
+              <tr>
+                <th>Status</th>
+                <th>Nr</th>
+                <th>Tolkning</th>
+                <th>Antal</th>
+                <th>Min</th>
+                <th>Max</th>
+              </tr>
             </thead>
             <tbody id="controlBody"></tbody>
           </table>
@@ -165,10 +312,11 @@
         <button id="e4a">E4a Ringvärde 7</button>
         <button id="e4b">E4b Pan-läge + ringvärde 7</button>
         <span class="hint">
-          Vrid ratten ETT hack efteråt. <b>65/63</b> = räknaren flyttades till mitten.
-          <b>Föregående ±1</b> = den flyttades inte. <b>Något annat värde</b> (t.ex. 8/6)
-          = den flyttades ändå, till ett läge härlett ur kransvärdet — notera vilket.
-          Bara mittengrenen är ett nej.
+          Vrid ratten ETT hack efteråt. <b>65/63</b> = räknaren flyttades till
+          mitten. <b>Föregående ±1</b> = den flyttades inte.
+          <b>Något annat värde</b> (t.ex. 8/6) = den flyttades ändå, till ett
+          läge härlett ur kransvärdet — notera vilket. Bara mittengrenen är ett
+          nej.
         </span>
       </div>
       <div class="row">
@@ -177,7 +325,10 @@
         <button id="e5blink">Blinka 0–15</button>
         <button id="e5off">Släck 0–15</button>
         <button id="e5step">Stega 0–15</button>
-        <span class="hint">Rader märkta <b>EKO?</b> = enheten skickade tillbaka något vi just skickade.</span>
+        <span class="hint"
+          >Rader märkta <b>EKO?</b> = enheten skickade tillbaka något vi just
+          skickade.</span
+        >
       </div>
       <div class="row">
         <label for="txChannel">Utgångskanal (1-indexerad):</label>
@@ -209,8 +360,12 @@
       </form>
       <form id="rawForm" class="row">
         <label for="rawBytes">Råa bytes (hex):</label>
-        <input type="text" id="rawBytes" style="flex: 1; min-width: 240px"
-               placeholder="f0 40 41 42 51 00 00 00 00 00 00 00 00 f7" />
+        <input
+          type="text"
+          id="rawBytes"
+          style="flex: 1; min-width: 240px"
+          placeholder="f0 40 41 42 51 00 00 00 00 00 00 00 00 f7"
+        />
         <button type="submit">Skicka rått</button>
       </form>
     </div>
@@ -227,16 +382,31 @@
         <button id="pause">Pausa logg</button>
         <button id="clear">Rensa logg</button>
         <button id="resetCounters">Nollställ räknare + karta</button>
-        <label class="inline"><input type="checkbox" id="autoscroll" checked /> Följ</label>
-        <label class="inline"><input type="checkbox" id="hideClock" checked /> Dölj klocka/sensing</label>
-        <input type="text" id="filter" placeholder="filtrera (hex eller text)" />
+        <label class="inline"
+          ><input type="checkbox" id="autoscroll" checked /> Följ</label
+        >
+        <label class="inline"
+          ><input type="checkbox" id="hideClock" checked /> Dölj
+          klocka/sensing</label
+        >
+        <input
+          type="text"
+          id="filter"
+          placeholder="filtrera (hex eller text)"
+        />
       </div>
       <div id="logWrap" class="scroll" style="margin-top: 8px">
         <table>
           <thead>
             <tr>
-              <th>Tid</th><th>Port</th><th>Rikt.</th><th>Hex</th>
-              <th>Kanal 1/0</th><th>Typ</th><th>Nr</th><th>Värde</th>
+              <th>Tid</th>
+              <th>Port</th>
+              <th>Rikt.</th>
+              <th>Hex</th>
+              <th>Kanal 1/0</th>
+              <th>Typ</th>
+              <th>Nr</th>
+              <th>Värde</th>
             </tr>
           </thead>
           <tbody id="logBody"></tbody>

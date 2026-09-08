@@ -96,7 +96,9 @@ export function Modal({
     }
   };
 
-  const classes = ['modal', `modal--${size}`, className].filter(Boolean).join(' ');
+  const classes = ['modal', `modal--${size}`, className]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <dialog

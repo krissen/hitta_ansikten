@@ -35,7 +35,8 @@ let PreferencesModule;
 let preferences;
 
 beforeAll(async () => {
-  ({ PreferencesModule } = await import('../src/renderer/components/PreferencesModule.jsx'));
+  ({ PreferencesModule } =
+    await import('../src/renderer/components/PreferencesModule.jsx'));
   ({ preferences } = await import('../src/renderer/workspace/preferences.js'));
 });
 

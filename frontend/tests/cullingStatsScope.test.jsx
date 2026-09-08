@@ -1,5 +1,19 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
-import { render, act, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterEach,
+} from 'vitest';
+import {
+  render,
+  act,
+  cleanup,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { settle } from './helpers/settle.js';
 
 // Scope-clearing tests for CullingModule's live stats panel.
@@ -19,7 +33,12 @@ import { settle } from './helpers/settle.js';
 const h = vi.hoisted(() => {
   const registry = new Map(); // eventName -> latest useModuleEvent handler
   const api = { get: vi.fn(), post: vi.fn() };
-  return { registry, api, nextFiles: { files: [], players: [] }, nextStats: {} };
+  return {
+    registry,
+    api,
+    nextFiles: { files: [], players: [] },
+    nextStats: {},
+  };
 });
 
 vi.mock('../src/renderer/context/BackendContext.jsx', () => ({
@@ -60,11 +79,26 @@ beforeAll(() => {
 });
 
 const FILES_A = [
-  { path: '/a/260601_120000_Alice.jpg', basename: '260601_120000_Alice.jpg', mtime_ms: 100, size: 10 },
-  { path: '/a/260601_120100_Bob.jpg', basename: '260601_120100_Bob.jpg', mtime_ms: 200, size: 20 },
+  {
+    path: '/a/260601_120000_Alice.jpg',
+    basename: '260601_120000_Alice.jpg',
+    mtime_ms: 100,
+    size: 10,
+  },
+  {
+    path: '/a/260601_120100_Bob.jpg',
+    basename: '260601_120100_Bob.jpg',
+    mtime_ms: 200,
+    size: 20,
+  },
 ];
 const FILES_B = [
-  { path: '/b/260701_090000_Carol.jpg', basename: '260701_090000_Carol.jpg', mtime_ms: 300, size: 30 },
+  {
+    path: '/b/260701_090000_Carol.jpg',
+    basename: '260701_090000_Carol.jpg',
+    mtime_ms: 300,
+    size: 30,
+  },
 ];
 
 const STATS_A = {
@@ -105,13 +139,21 @@ beforeEach(() => {
   h.api.post.mockImplementation((path) => {
     if (path.includes('/culling/files')) return Promise.resolve(h.nextFiles);
     if (path.includes('/players/count')) {
-      if (hangStats) return new Promise((resolve) => { pendingStatsResolve = resolve; });
+      if (hangStats)
+        return new Promise((resolve) => {
+          pendingStatsResolve = resolve;
+        });
       return Promise.resolve(h.nextStats);
     }
-    if (path.includes('/culling/rename')) return Promise.resolve({ path: '/renamed.jpg' });
+    if (path.includes('/culling/rename'))
+      return Promise.resolve({ path: '/renamed.jpg' });
     return Promise.resolve({});
   });
-  try { localStorage.clear(); } catch { /* ignore */ }
+  try {
+    localStorage.clear();
+  } catch {
+    /* ignore */
+  }
   originalFetch = global.fetch;
   global.fetch = vi.fn(() => new Promise(() => {}));
   globalThis.window.ansiktenAPI = {
@@ -163,7 +205,9 @@ async function loadFilesA() {
   });
   // Scope A is loaded when its counts are on screen — the panel this file is
   // about. Waiting for the rendered rows also covers the file list behind them.
-  await waitFor(() => expect(document.querySelectorAll('.culling-stat-row')).toHaveLength(2));
+  await waitFor(() =>
+    expect(document.querySelectorAll('.culling-stat-row')).toHaveLength(2),
+  );
 }
 
 function statRows(container) {
@@ -205,7 +249,9 @@ describe('CullingModule — stats panel clears on scan-scope change', () => {
     resolveStats(STATS_B);
     await waitFor(() => expect(statRows(container)).toHaveLength(1));
     const rows = statRows(container);
-    expect(rows[0].querySelector('.culling-stat-name').textContent).toBe('Carol');
+    expect(rows[0].querySelector('.culling-stat-name').textContent).toBe(
+      'Carol',
+    );
   });
 
   it('does NOT blank the panel on a player-only filter (same scan scope)', async () => {
@@ -217,7 +263,9 @@ describe('CullingModule — stats panel clears on scan-scope change', () => {
     // is unchanged (same roots), so the refetch must keep the numbers visible.
     hangStats = true;
     const before = countPost('/players/count');
-    const aliceRow = [...statRows(container)].find((r) => r.textContent.includes('Alice'));
+    const aliceRow = [...statRows(container)].find((r) =>
+      r.textContent.includes('Alice'),
+    );
     fireEvent.click(aliceRow);
 
     // Anchor on the refetch actually being issued. The assertions below are that
@@ -244,12 +292,14 @@ describe('CullingModule — stats panel clears on scan-scope change', () => {
     // fields are unchanged, so the panel must not blank.
     hangStats = true;
     const before = countPost('/players/count');
-    const select = container.querySelector('select.culling-stats-baseline-select');
+    const select = container.querySelector(
+      'select.culling-stats-baseline-select',
+    );
     const other = select.value === 'mean' ? 'median' : 'mean';
     fireEvent.change(select, { target: { value: other } });
 
     await waitFor(() => expect(countPost('/players/count')).toBe(before + 1)); // a refetch did fire
-    expect(statRows(container)).toHaveLength(2);          // …but nothing blanked
+    expect(statRows(container)).toHaveLength(2); // …but nothing blanked
     expect(container.querySelector('.culling-stats-empty')).toBeNull();
     resolveStats(STATS_A);
     await settle();

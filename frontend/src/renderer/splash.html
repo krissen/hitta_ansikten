@@ -1,125 +1,137 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <title>Ansikten</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      color: #e8e8e8;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      -webkit-app-region: drag;
-      user-select: none;
-    }
-    
-    .logo {
-      width: 80px;
-      height: 80px;
-      margin-bottom: 20px;
-      animation: pulse 2s ease-in-out infinite;
-    }
-    
-    .logo img {
-      width: 100%;
-      height: 100%;
-      border-radius: 16px;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.8; }
-    }
-    
-    h1 {
-      font-size: 24px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      letter-spacing: 0.5px;
-    }
-    
-    .status {
-      font-size: 13px;
-      color: #a0a0a0;
-      margin-bottom: 24px;
-      min-height: 20px;
-    }
-    
-    .progress-container {
-      width: 200px;
-      height: 3px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    
-    .progress-bar {
-      height: 100%;
-      background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
-      width: 0%;
-      transition: width 0.3s ease;
-      animation: loading 1.5s ease-in-out infinite;
-    }
-    
-    @keyframes loading {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(400%); }
-    }
-    
-    .progress-bar.determinate {
-      animation: none;
-      transform: none;
-    }
-    
-    .version {
-      position: absolute;
-      bottom: 12px;
-      font-size: 11px;
-      color: #606060;
-    }
-  </style>
-</head>
-<body>
-  <div class="logo">
-    <img src="../../assets/rainbowwaves.png" alt="Ansikten">
-  </div>
-  <h1>Ansikten</h1>
-  <p class="status" id="status">Startar…</p>
-  <div class="progress-container">
-    <div class="progress-bar" id="progress"></div>
-  </div>
-  <span class="version" id="version">...</span>
-  
-  <script>
-    const { ipcRenderer } = require('electron');
-    
-    const statusEl = document.getElementById('status');
-    const progressEl = document.getElementById('progress');
-    const versionEl = document.getElementById('version');
-    
-    ipcRenderer.on('splash-status', (event, { message, progress }) => {
-      if (message) {
-        statusEl.textContent = message;
+  <head>
+    <meta charset="UTF-8" />
+    <title>Ansikten</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      if (typeof progress === 'number') {
-        progressEl.classList.add('determinate');
-        progressEl.style.width = `${progress}%`;
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: #e8e8e8;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        -webkit-app-region: drag;
+        user-select: none;
       }
-    });
-    
-    ipcRenderer.on('version-info', (event, { version, isTag }) => {
-      versionEl.textContent = isTag ? version : `#${version}`;
-    });
-  </script>
-</body>
+
+      .logo {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 20px;
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      .logo img {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 0.8;
+        }
+      }
+
+      h1 {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        letter-spacing: 0.5px;
+      }
+
+      .status {
+        font-size: 13px;
+        color: #a0a0a0;
+        margin-bottom: 24px;
+        min-height: 20px;
+      }
+
+      .progress-container {
+        width: 200px;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+        width: 0%;
+        transition: width 0.3s ease;
+        animation: loading 1.5s ease-in-out infinite;
+      }
+
+      @keyframes loading {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(400%);
+        }
+      }
+
+      .progress-bar.determinate {
+        animation: none;
+        transform: none;
+      }
+
+      .version {
+        position: absolute;
+        bottom: 12px;
+        font-size: 11px;
+        color: #606060;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="logo">
+      <img src="../../assets/rainbowwaves.png" alt="Ansikten" />
+    </div>
+    <h1>Ansikten</h1>
+    <p class="status" id="status">Startar…</p>
+    <div class="progress-container">
+      <div class="progress-bar" id="progress"></div>
+    </div>
+    <span class="version" id="version">...</span>
+
+    <script>
+      const { ipcRenderer } = require('electron');
+
+      const statusEl = document.getElementById('status');
+      const progressEl = document.getElementById('progress');
+      const versionEl = document.getElementById('version');
+
+      ipcRenderer.on('splash-status', (event, { message, progress }) => {
+        if (message) {
+          statusEl.textContent = message;
+        }
+        if (typeof progress === 'number') {
+          progressEl.classList.add('determinate');
+          progressEl.style.width = `${progress}%`;
+        }
+      });
+
+      ipcRenderer.on('version-info', (event, { version, isTag }) => {
+        versionEl.textContent = isTag ? version : `#${version}`;
+      });
+    </script>
+  </body>
 </html>

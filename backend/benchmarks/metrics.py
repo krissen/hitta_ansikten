@@ -166,9 +166,7 @@ def closed_set_identification(
             flags[k].append(true_rank <= k)
 
     n_probes = len(probe_indices)
-    rates = {
-        k: (float(np.mean(flags[k])) if n_probes else 0.0) for k in ranks
-    }
+    rates = {k: (float(np.mean(flags[k])) if n_probes else 0.0) for k in ranks}
     return ClosedSetResult(
         mode=mode,
         n_probes=n_probes,
@@ -340,16 +338,10 @@ def build_pairs(
     imp_i, imp_j, imp_sims = iu[imp_mask], ju[imp_mask], pair_sims[imp_mask]
 
     same_surname = np.array(
-        [
-            surnames[i] is not None and surnames[i] == surnames[j]
-            for i, j in zip(imp_i, imp_j)
-        ]
+        [surnames[i] is not None and surnames[i] == surnames[j] for i, j in zip(imp_i, imp_j)]
     )
     twin_mask = np.array(
-        [
-            {labels[i], labels[j]} == twin_set and len(twin_set) == 2
-            for i, j in zip(imp_i, imp_j)
-        ]
+        [{labels[i], labels[j]} == twin_set and len(twin_set) == 2 for i, j in zip(imp_i, imp_j)]
     )
 
     impostor_same_surname = imp_sims[same_surname] if same_surname.size else imp_sims[:0]

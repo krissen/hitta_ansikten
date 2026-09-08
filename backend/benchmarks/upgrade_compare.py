@@ -74,9 +74,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
     from face_backends import InsightFaceBackend
 
     det_size = (args.det_size, args.det_size)
-    backend = InsightFaceBackend(
-        model_name=args.model, ctx_id=args.ctx_id, det_size=det_size
-    )
+    backend = InsightFaceBackend(model_name=args.model, ctx_id=args.ctx_id, det_size=det_size)
 
     records: list[dict] = []
     images = [Path(p) for p in args.images]
@@ -195,11 +193,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
         print(f"  cos={cos:.6f}  iou={iou:.4f}  {name}")
     print()
 
-    gate_pass = (
-        cosines.min() > args.gate
-        and unmatched_new == 0
-        and unmatched_old == 0
-    )
+    gate_pass = cosines.min() > args.gate and unmatched_new == 0 and unmatched_old == 0
     if gate_pass:
         print(f"GATE: PASS — all matched faces cosine > {args.gate} and detection parity is exact.")
         return 0
@@ -217,7 +211,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_ex = sub.add_parser("extract", help="Detect + embed faces with the current InsightFace")
@@ -231,8 +227,12 @@ def main(argv: list[str] | None = None) -> int:
     p_cmp = sub.add_parser("compare", help="Compare two extract dumps")
     p_cmp.add_argument("old", help="OLD-version .npz")
     p_cmp.add_argument("new", help="NEW-version .npz")
-    p_cmp.add_argument("--iou-thresh", type=float, default=0.5, help="Min IoU to call two boxes the same face")
-    p_cmp.add_argument("--gate", type=float, default=0.999, help="Min per-face cosine to pass the gate")
+    p_cmp.add_argument(
+        "--iou-thresh", type=float, default=0.5, help="Min IoU to call two boxes the same face"
+    )
+    p_cmp.add_argument(
+        "--gate", type=float, default=0.999, help="Min per-face cosine to pass the gate"
+    )
     p_cmp.set_defaults(func=cmd_compare)
 
     args = parser.parse_args(argv)

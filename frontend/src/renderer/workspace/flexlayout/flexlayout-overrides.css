@@ -15,7 +15,7 @@
  */
 
 /* FlexLayout custom theme overrides - Light Mode */
-:root[data-theme="light"] .flexlayout__layout {
+:root[data-theme='light'] .flexlayout__layout {
   --font-size: var(--font-base);
   --color-text: var(--text-primary);
   --color-background: var(--bg-primary);
@@ -41,7 +41,7 @@
 }
 
 /* FlexLayout custom theme overrides - Dark Mode */
-:root[data-theme="dark"] .flexlayout__layout,
+:root[data-theme='dark'] .flexlayout__layout,
 :root:not([data-theme]) .flexlayout__layout {
   --font-size: var(--font-base);
   --color-text: var(--text-primary);
@@ -90,7 +90,9 @@
   padding: var(--space-xs) var(--space-md);
   margin-right: 2px;
   font-size: var(--font-base);
-  transition: background-color var(--transition-fast), color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .flexlayout__tab_button--selected {
@@ -149,7 +151,7 @@
 .image-viewer:focus,
 .review-module:focus,
 [tabindex]:focus,
-[class*="flexlayout"]:focus {
+[class*='flexlayout']:focus {
   outline: none !important;
   box-shadow: none !important;
 }
@@ -186,7 +188,9 @@
   cursor: pointer;
   opacity: var(--toast-opacity);
   animation: toast-slide-in var(--transition-slow) forwards;
-  transition: transform var(--transition-slow), opacity var(--transition-slow);
+  transition:
+    transform var(--transition-slow),
+    opacity var(--transition-slow);
 }
 
 .global-toast__message {
@@ -199,7 +203,8 @@
 .global-toast__dismiss {
   flex-shrink: 0;
   color: inherit;
-  margin: calc(-1 * var(--space-xs)) calc(-1 * var(--space-sm)) calc(-1 * var(--space-xs)) 0;
+  margin: calc(-1 * var(--space-xs)) calc(-1 * var(--space-sm))
+    calc(-1 * var(--space-xs)) 0;
 }
 .global-toast__dismiss:hover:not(:disabled) {
   background: var(--overlay-hover, rgba(255, 255, 255, 0.2));

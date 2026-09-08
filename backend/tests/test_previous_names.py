@@ -16,6 +16,7 @@ from core.naming import record_previous_name
 
 # ----- helper: record_previous_name ------------------------------------------
 
+
 class TestRecordPreviousName:
     def test_creates_list_on_first_overwrite(self):
         entry = {"name": "old.NEF", "hash": "h1"}
@@ -45,6 +46,7 @@ class TestRecordPreviousName:
 
 # ----- DB-store integration --------------------------------------------------
 
+
 def _redirect_db(monkeypatch, tmp_path, processed):
     """Bind core.db paths + a fresh FaceDBStore, seeding processed_files.jsonl."""
     import faceid_db
@@ -53,10 +55,13 @@ def _redirect_db(monkeypatch, tmp_path, processed):
     base = tmp_path / "faceid"
     base.mkdir(exist_ok=True)
     for attr, fname in [
-        ("BASE_DIR", None), ("ENCODING_PATH", "encodings.pkl"),
-        ("IGNORED_PATH", "ignored.pkl"), ("HARDNEG_PATH", "hardneg.pkl"),
+        ("BASE_DIR", None),
+        ("ENCODING_PATH", "encodings.pkl"),
+        ("IGNORED_PATH", "ignored.pkl"),
+        ("HARDNEG_PATH", "hardneg.pkl"),
         ("PROCESSED_PATH", "processed_files.jsonl"),
-        ("ATTEMPT_LOG_PATH", "attempt_stats.jsonl"), ("LOGGING_PATH", "ansikten.log"),
+        ("ATTEMPT_LOG_PATH", "attempt_stats.jsonl"),
+        ("LOGGING_PATH", "ansikten.log"),
     ]:
         monkeypatch.setattr(faceid_db, attr, base if fname is None else base / fname)
     (base / "processed_files.jsonl").write_text(
@@ -67,6 +72,7 @@ def _redirect_db(monkeypatch, tmp_path, processed):
 
 def _processed_now(tmp_path):
     from api.services.db_store import get_db_store
+
     get_db_store().flush()
     path = tmp_path / "faceid" / "processed_files.jsonl"
     return [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
@@ -78,8 +84,7 @@ def test_forward_rename_records_previous_name(monkeypatch, tmp_path):
     _redirect_db(monkeypatch, tmp_path, [{"name": "250101_120000.NEF", "hash": "h1"}])
     svc = RenameService()
     n = svc._update_database_paths(
-        [{"original": "/photos/250101_120000.NEF",
-          "new": "/photos/250101_120000_Anna.NEF"}],
+        [{"original": "/photos/250101_120000.NEF", "new": "/photos/250101_120000_Anna.NEF"}],
         match="basename",
     )
     assert n == 1
@@ -109,15 +114,13 @@ def test_rename_then_undo_logs_both_names_in_order(monkeypatch, tmp_path):
 
     # Forward rename: bare -> named.
     svc._update_database_paths(
-        [{"original": "/photos/250101_120000.NEF",
-          "new": "/photos/250101_120000_Anna.NEF"}],
+        [{"original": "/photos/250101_120000.NEF", "new": "/photos/250101_120000_Anna.NEF"}],
         match="basename",
     )
     # Undo: named -> bare, via fullpath match (how undo calls it). The DB entry
     # is a bare basename, so it is matched and rewritten by basename.
     svc._update_database_paths(
-        [{"original": "/photos/250101_120000_Anna.NEF",
-          "new": "/photos/250101_120000.NEF"}],
+        [{"original": "/photos/250101_120000_Anna.NEF", "new": "/photos/250101_120000.NEF"}],
         match="fullpath",
     )
 
@@ -143,6 +146,7 @@ def test_no_history_when_name_unchanged(monkeypatch, tmp_path):
 
 
 # ----- dedup must survive the additive field ---------------------------------
+
 
 @pytest.mark.asyncio
 async def test_mark_review_complete_dedup_ignores_previous_names(tmp_path, monkeypatch):
@@ -170,8 +174,11 @@ async def test_mark_review_complete_dedup_ignores_previous_names(tmp_path, monke
     svc.backend = be
     # Entry already recorded AND carrying additive history from a prior rename.
     svc.processed_files = [
-        {"name": "250101_120000_Anna.NEF", "hash": "deadbeef",
-         "previous_names": ["250101_120000.NEF"]}
+        {
+            "name": "250101_120000_Anna.NEF",
+            "hash": "deadbeef",
+            "previous_names": ["250101_120000.NEF"],
+        }
     ]
     svc.store = InMemoryDBStore(svc)
 
@@ -181,7 +188,10 @@ async def test_mark_review_complete_dedup_ignores_previous_names(tmp_path, monke
         file_hash="deadbeef",
     )
 
-    rows = [r for r in svc.processed_files
-            if r.get("hash") == "deadbeef" and r.get("name") == "250101_120000_Anna.NEF"]
+    rows = [
+        r
+        for r in svc.processed_files
+        if r.get("hash") == "deadbeef" and r.get("name") == "250101_120000_Anna.NEF"
+    ]
     assert len(rows) == 1
     assert rows[0]["previous_names"] == ["250101_120000.NEF"]

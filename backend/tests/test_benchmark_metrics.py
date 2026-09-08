@@ -248,8 +248,6 @@ def test_detection_recall_by_stratum():
         {"bucket": M.MATCHED, "q": "Q2"},
         {"bucket": M.UNRESOLVED, "q": "Q2"},
     ]
-    out = M.detection_recall_by_stratum(
-        rows, lambda r: r["bucket"], lambda r: r["q"]
-    )
+    out = M.detection_recall_by_stratum(rows, lambda r: r["bucket"], lambda r: r["q"])
     assert out["Q1"]["recall"] == pytest.approx(0.5)
     assert out["Q2"]["recall"] == pytest.approx(1.0)

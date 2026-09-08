@@ -13,8 +13,8 @@
 
 @layer theme, base, components, utilities;
 
-@import "tailwindcss/theme.css" layer(theme);
-@import "tailwindcss/utilities.css" layer(utilities);
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
 
 /* Scan the renderer sources for utility classes. dist/ is gitignored and thus
    excluded from Tailwind's source detection automatically. */

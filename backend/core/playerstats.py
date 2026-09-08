@@ -27,8 +27,8 @@ CONFIG_FILE = CONFIG_DIR / "rakna_spelare.json"
 # `always_grupp`/`always_publik`, or env RAKNA_ALWAYS_GRUPP/PUBLIK), so the
 # photographer can add their own (e.g. "Forward") or change which markers are
 # always excluded. Kept as the defaults so existing configs behave unchanged.
-ALWAYS_GRUPP = {"Laget", "FBK"}   # default team / group photo markers
-ALWAYS_PUBLIK = {"Klacken"}        # default crowd / supporter markers
+ALWAYS_GRUPP = {"Laget", "FBK"}  # default team / group photo markers
+ALWAYS_PUBLIK = {"Klacken"}  # default crowd / supporter markers
 
 
 def resolve_always_markers(
@@ -106,18 +106,26 @@ def save_exclusion_config(
         return set(default)
 
     new_always_grupp = (
-        set(_clean(always_grupp, set())) if always_grupp is not None
+        set(_clean(always_grupp, set()))
+        if always_grupp is not None
         else _cfg_always("always_grupp", ALWAYS_GRUPP)
     )
     new_always_publik = (
-        set(_clean(always_publik, set())) if always_publik is not None
+        set(_clean(always_publik, set()))
+        if always_publik is not None
         else _cfg_always("always_publik", ALWAYS_PUBLIK)
     )
 
     config: dict[str, list[str]] = {
-        "tranare": _clean(tranare, set()) if tranare is not None else list(existing.get("tranare", [])),
-        "publik": _clean(publik, new_always_publik) if publik is not None else list(existing.get("publik", [])),
-        "grupp": _clean(grupp, new_always_grupp) if grupp is not None else list(existing.get("grupp", [])),
+        "tranare": _clean(tranare, set())
+        if tranare is not None
+        else list(existing.get("tranare", [])),
+        "publik": _clean(publik, new_always_publik)
+        if publik is not None
+        else list(existing.get("publik", [])),
+        "grupp": _clean(grupp, new_always_grupp)
+        if grupp is not None
+        else list(existing.get("grupp", [])),
     }
 
     # Persist the always-keys when provided, else preserve any existing ones
@@ -276,11 +284,13 @@ def bucket_counter(
     excluded = (tranare_set | publik_set | grupp_set) - force
     return {
         "players": {
-            n: c for n, c in counter.items()
+            n: c
+            for n, c in counter.items()
             if n not in excluded and (c >= min_images or n in force)
         },
         "below_threshold": {
-            n: c for n, c in counter.items()
+            n: c
+            for n, c in counter.items()
             if n not in excluded and c < min_images and n not in force
         },
         "tranare": {n: c for n, c in counter.items() if n in tranare_set},
@@ -318,11 +328,11 @@ def summarize_counter(
     Players are sorted by (count - baseline) descending, same as the CLI table.
     Excluded groups (tranare/publik/grupp/below_threshold) are sorted by count.
     """
-    buckets = bucket_counter(
-        counter, min_images, tranare_set, publik_set, grupp_set, force_players
-    )
+    buckets = bucket_counter(counter, min_images, tranare_set, publik_set, grupp_set, force_players)
     players_counts = buckets["players"]
-    baseline = compute_baseline(list(players_counts.values()), baseline_method) if players_counts else 0
+    baseline = (
+        compute_baseline(list(players_counts.values()), baseline_method) if players_counts else 0
+    )
 
     def player_row(name: str, count: int) -> dict:
         pct = 100 * count / total_images if total_images > 0 else 0
@@ -414,8 +424,15 @@ def compute_player_stats(
     duration_minutes = (global_end - global_start).total_seconds() / 60
 
     summary = summarize_counter(
-        total_counter, total_timestamps, total_images, min_images, baseline_method,
-        tranare_set, publik_set, grupp_set, force_players,
+        total_counter,
+        total_timestamps,
+        total_images,
+        min_images,
+        baseline_method,
+        tranare_set,
+        publik_set,
+        grupp_set,
+        force_players,
     )
 
     match_summaries: list[dict] = []
@@ -431,17 +448,26 @@ def compute_player_stats(
             m_start = entries[idx_list[0]][0]
             m_end = entries[idx_list[-1]][0]
             m_summary = summarize_counter(
-                c, ts_map, len(idx_list), min_images, baseline_method,
-                tranare_set, publik_set, grupp_set, force_players,
+                c,
+                ts_map,
+                len(idx_list),
+                min_images,
+                baseline_method,
+                tranare_set,
+                publik_set,
+                grupp_set,
+                force_players,
             )
-            match_summaries.append({
-                "index": match_idx,
-                "start": m_start.isoformat(),
-                "end": m_end.isoformat(),
-                "duration_minutes": round((m_end - m_start).total_seconds() / 60, 1),
-                "total_images": len(idx_list),
-                **m_summary,
-            })
+            match_summaries.append(
+                {
+                    "index": match_idx,
+                    "start": m_start.isoformat(),
+                    "end": m_end.isoformat(),
+                    "duration_minutes": round((m_end - m_start).total_seconds() / 60, 1),
+                    "total_images": len(idx_list),
+                    **m_summary,
+                }
+            )
 
     return {
         "total_images": total_images,

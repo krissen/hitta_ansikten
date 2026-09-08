@@ -17,6 +17,7 @@ from api.services.rename_service import build_new_filename_with_config
 # normalize_suffix
 # ---------------------------------------------------------------------------
 
+
 class TestNormalizeSuffix:
     def test_spaces_to_underscore(self):
         assert normalize_suffix("blå bär") == "bla_bar"
@@ -55,6 +56,7 @@ class TestNormalizeSuffix:
 # ---------------------------------------------------------------------------
 # store round-trip
 # ---------------------------------------------------------------------------
+
 
 class TestStoreRoundTrip:
     @pytest.fixture
@@ -97,6 +99,7 @@ class TestStoreRoundTrip:
 # ---------------------------------------------------------------------------
 # build_new_filename_with_config
 # ---------------------------------------------------------------------------
+
 
 class TestBuildFilenameWithSuffix:
     def test_faces_plus_suffix_appended_last(self):

@@ -3,7 +3,7 @@ import {
   splitName,
   resolveFirstNameCollisions,
   formatNamesToFit,
-  measureTextWidth
+  measureTextWidth,
 } from '../src/renderer/shared/nameFormatter.js';
 
 describe('nameFormatter', () => {
@@ -49,7 +49,10 @@ describe('nameFormatter', () => {
     });
 
     it('should handle same prefix in last names', () => {
-      const result = resolveFirstNameCollisions(['Anna Svensson', 'Anna Ström']);
+      const result = resolveFirstNameCollisions([
+        'Anna Svensson',
+        'Anna Ström',
+      ]);
       expect(result.get('Anna Svensson').prefixLen).toBe(2);
       expect(result.get('Anna Ström').prefixLen).toBe(2);
     });
@@ -60,12 +63,14 @@ describe('nameFormatter', () => {
     const font = '11px Monaco';
 
     beforeEach(() => {
-      vi.spyOn({ measureTextWidth }, 'measureTextWidth').mockImplementation(() => 50);
+      vi.spyOn({ measureTextWidth }, 'measureTextWidth').mockImplementation(
+        () => 50,
+      );
       const mockCanvas = {
         getContext: () => ({
           font: '',
-          measureText: () => ({ width: 50 })
-        })
+          measureText: () => ({ width: 50 }),
+        }),
       };
       vi.spyOn(document, 'createElement').mockReturnValue(mockCanvas);
     });
@@ -88,18 +93,30 @@ describe('nameFormatter', () => {
     });
 
     it('should join multiple names with comma', () => {
-      const result = formatNamesToFit(['Anna Svensson', 'Erik Berg'], wideWidth, font);
+      const result = formatNamesToFit(
+        ['Anna Svensson', 'Erik Berg'],
+        wideWidth,
+        font,
+      );
       expect(result.text).toBe('Anna Svensson, Erik Berg');
       expect(result.level).toBe(1);
     });
 
     it('should deduplicate names', () => {
-      const result = formatNamesToFit(['Anna Svensson', 'Anna Svensson'], wideWidth, font);
+      const result = formatNamesToFit(
+        ['Anna Svensson', 'Anna Svensson'],
+        wideWidth,
+        font,
+      );
       expect(result.text).toBe('Anna Svensson');
     });
 
     it('should filter out empty/null names', () => {
-      const result = formatNamesToFit(['Anna Svensson', '', null], wideWidth, font);
+      const result = formatNamesToFit(
+        ['Anna Svensson', '', null],
+        wideWidth,
+        font,
+      );
       expect(result.text).toBe('Anna Svensson');
     });
   });

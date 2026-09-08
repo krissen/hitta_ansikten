@@ -14,11 +14,15 @@ const isDev = process.argv.includes('--dev') || isWatch;
 
 function getVersionInfo() {
   try {
-    const gitTag = execSync('git describe --tags --exact-match 2>/dev/null', { encoding: 'utf8' }).trim();
+    const gitTag = execSync('git describe --tags --exact-match 2>/dev/null', {
+      encoding: 'utf8',
+    }).trim();
     return { version: gitTag, isTag: true };
   } catch {
     try {
-      const commitHash = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+      const commitHash = execSync('git rev-parse --short HEAD', {
+        encoding: 'utf8',
+      }).trim();
       return { version: commitHash, isTag: false };
     } catch {
       return { version: 'unknown', isTag: false };
@@ -27,20 +31,37 @@ function getVersionInfo() {
 }
 
 const versionInfo = getVersionInfo();
-console.log(`Version: ${versionInfo.isTag ? versionInfo.version : 'commit ' + versionInfo.version}`);
+console.log(
+  `Version: ${versionInfo.isTag ? versionInfo.version : 'commit ' + versionInfo.version}`,
+);
 
 const versionFile = path.join(__dirname, '..', 'src', 'version.json');
 fs.writeFileSync(versionFile, JSON.stringify(versionInfo, null, 2));
 
 // Ensure output directory exists
-const outdir = path.join(__dirname, '..', 'src', 'renderer', 'workspace', 'dist');
+const outdir = path.join(
+  __dirname,
+  '..',
+  'src',
+  'renderer',
+  'workspace',
+  'dist',
+);
 if (!fs.existsSync(outdir)) {
   fs.mkdirSync(outdir, { recursive: true });
 }
 
 const buildOptions = {
   entryPoints: [
-    path.join(__dirname, '..', 'src', 'renderer', 'workspace', 'flexlayout', 'index.jsx')
+    path.join(
+      __dirname,
+      '..',
+      'src',
+      'renderer',
+      'workspace',
+      'flexlayout',
+      'index.jsx',
+    ),
   ],
   bundle: true,
   outfile: path.join(outdir, 'workspace-bundle.js'),
@@ -54,20 +75,26 @@ const buildOptions = {
   jsx: 'automatic',
   external: [],
   define: {
-    'process.env.NODE_ENV': isDev ? '"development"' : '"production"'
+    'process.env.NODE_ENV': isDev ? '"development"' : '"production"',
   },
   loader: {
     '.js': 'jsx',
     '.jsx': 'jsx',
-    '.css': 'css'
+    '.css': 'css',
   },
-  logLevel: 'info'
+  logLevel: 'info',
 };
 
 // Tailwind utility layer (see src/renderer/tailwind.css). Compiled by the
 // Tailwind CLI into a sibling bundle that workspace-flex.html links after
 // workspace-bundle.css so legacy (unlayered) CSS keeps winning the cascade.
-const tailwindInput = path.join(__dirname, '..', 'src', 'renderer', 'tailwind.css');
+const tailwindInput = path.join(
+  __dirname,
+  '..',
+  'src',
+  'renderer',
+  'tailwind.css',
+);
 const tailwindOutput = path.join(outdir, 'tailwind-bundle.css');
 
 function tailwindArgs(extra = []) {
@@ -82,12 +109,15 @@ function tailwindArgs(extra = []) {
 // only exports package.json, so resolve the bin entry relative to it.
 const TAILWIND_CLI = path.join(
   path.dirname(require.resolve('@tailwindcss/cli/package.json')),
-  'dist', 'index.mjs'
+  'dist',
+  'index.mjs',
 );
 
 function buildTailwind() {
   const args = tailwindArgs(isDev ? [] : ['--minify']);
-  const result = spawnSync(process.execPath, [TAILWIND_CLI, ...args], { stdio: 'inherit' });
+  const result = spawnSync(process.execPath, [TAILWIND_CLI, ...args], {
+    stdio: 'inherit',
+  });
   if (result.status !== 0) {
     console.error('Tailwind build failed');
     process.exit(result.status || 1);
@@ -99,13 +129,23 @@ function buildTailwind() {
 // otherwise exits on stdin EOF, e.g. when run detached / piped / in CI).
 // Killed when this process exits so no orphan watcher is left behind.
 function watchTailwind() {
-  const child = spawn(process.execPath, [TAILWIND_CLI, ...tailwindArgs(['--watch=always'])], { stdio: 'inherit' });
+  const child = spawn(
+    process.execPath,
+    [TAILWIND_CLI, ...tailwindArgs(['--watch=always'])],
+    { stdio: 'inherit' },
+  );
   const cleanup = () => {
     if (!child.killed) child.kill();
   };
   process.on('exit', cleanup);
-  process.on('SIGINT', () => { cleanup(); process.exit(0); });
-  process.on('SIGTERM', () => { cleanup(); process.exit(0); });
+  process.on('SIGINT', () => {
+    cleanup();
+    process.exit(0);
+  });
+  process.on('SIGTERM', () => {
+    cleanup();
+    process.exit(0);
+  });
   return child;
 }
 
@@ -120,7 +160,9 @@ async function build() {
       const result = await esbuild.build(buildOptions);
       buildTailwind();
       if (result.metafile && !isDev) {
-        const analysis = await esbuild.analyzeMetafile(result.metafile, { verbose: false });
+        const analysis = await esbuild.analyzeMetafile(result.metafile, {
+          verbose: false,
+        });
         console.log('\nBundle analysis:\n' + analysis);
       }
       console.log('Build complete');

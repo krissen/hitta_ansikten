@@ -83,7 +83,10 @@ export function nextFaceIndex(faces, prev, direction, skipIndex = null) {
 
   // Skip confirmed faces AND explicitly skipped index (handles stale closure)
   let attempts = 0;
-  while ((faces[newIndex]?.is_confirmed || newIndex === skipIndex) && attempts < faces.length) {
+  while (
+    (faces[newIndex]?.is_confirmed || newIndex === skipIndex) &&
+    attempts < faces.length
+  ) {
     newIndex += direction;
     if (newIndex >= faces.length) newIndex = 0;
     if (newIndex < 0) newIndex = faces.length - 1;
@@ -109,14 +112,18 @@ export function confirmFaceState(faces, index, personName, imagePath) {
   const undoEntry = { type: 'confirm', index, face: { ...face } };
 
   const updatedFaces = [...faces];
-  updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, person_name: personName.trim() };
+  updatedFaces[index] = {
+    ...updatedFaces[index],
+    is_confirmed: true,
+    person_name: personName.trim(),
+  };
 
   const suggestedName = face.person_name || null;
   const confirmation = {
     face_id: face.face_id,
     person_name: personName.trim(),
     image_path: imagePath,
-    suggested_name: suggestedName !== personName.trim() ? suggestedName : null
+    suggested_name: suggestedName !== personName.trim() ? suggestedName : null,
   };
 
   return { faces: updatedFaces, confirmation, undoEntry };
@@ -137,7 +144,12 @@ export function ignoreFaceState(faces, index, imagePath) {
   const undoEntry = { type: 'ignore', index, face: { ...face } };
 
   const updatedFaces = [...faces];
-  updatedFaces[index] = { ...updatedFaces[index], is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
+  updatedFaces[index] = {
+    ...updatedFaces[index],
+    is_confirmed: true,
+    is_rejected: true,
+    person_name: '(ignored)',
+  };
 
   const ignore = { face_id: face.face_id, image_path: imagePath };
 
@@ -160,7 +172,7 @@ export function unconfirmFaceState(faces, index) {
     ...originalFace,
     is_confirmed: false,
     is_rejected: false,
-    person_name: originalFace._original_person_name || null
+    person_name: originalFace._original_person_name || null,
   };
 
   return { faces: updatedFaces, faceId: face.face_id };
@@ -208,7 +220,12 @@ export function acceptAllState(faces, imagePath) {
       if (face.face_id) {
         ignores.push({ face_id: face.face_id, image_path: imagePath });
       }
-      return { ...face, is_confirmed: true, is_rejected: true, person_name: '(ignored)' };
+      return {
+        ...face,
+        is_confirmed: true,
+        is_rejected: true,
+        person_name: '(ignored)',
+      };
     }
 
     const trimmedName = suggestion.name?.trim() || suggestion.name;
@@ -220,16 +237,30 @@ export function acceptAllState(faces, imagePath) {
         face_id: face.face_id,
         person_name: trimmedName,
         image_path: imagePath,
-        suggested_name: suggestedName && suggestedName.toLowerCase() !== trimmedName.toLowerCase()
-          ? suggestedName
-          : null
+        suggested_name:
+          suggestedName &&
+          suggestedName.toLowerCase() !== trimmedName.toLowerCase()
+            ? suggestedName
+            : null,
       });
     }
 
-    return { ...face, is_confirmed: true, is_rejected: false, person_name: trimmedName };
+    return {
+      ...face,
+      is_confirmed: true,
+      is_rejected: false,
+      person_name: trimmedName,
+    };
   });
 
-  return { faces: updatedFaces, confirmations, ignores, accepted, ignored, skipped };
+  return {
+    faces: updatedFaces,
+    confirmations,
+    ignores,
+    accepted,
+    ignored,
+    skipped,
+  };
 }
 
 /**
@@ -239,10 +270,13 @@ export function acceptAllState(faces, imagePath) {
  * @returns {Object[]}
  */
 export function upsertConfirmation(prev, confirmation) {
-  const existing = prev.findIndex(p => p.face_id === confirmation.face_id);
+  const existing = prev.findIndex((p) => p.face_id === confirmation.face_id);
   if (existing >= 0) {
     const updated = [...prev];
-    updated[existing] = { ...updated[existing], person_name: confirmation.person_name };
+    updated[existing] = {
+      ...updated[existing],
+      person_name: confirmation.person_name,
+    };
     return updated;
   }
   return [...prev, confirmation];
@@ -255,7 +289,7 @@ export function upsertConfirmation(prev, confirmation) {
  * @returns {Object[]}
  */
 export function appendIgnore(prev, ignoreEntry) {
-  if (prev.some(p => p.face_id === ignoreEntry.face_id)) return prev;
+  if (prev.some((p) => p.face_id === ignoreEntry.face_id)) return prev;
   return [...prev, ignoreEntry];
 }
 
@@ -271,9 +305,15 @@ export function mergeConfirmations(prev, confirmations) {
   if (confirmations.length === 0) return prev;
   const next = [...prev];
   confirmations.forEach((confirmation) => {
-    const existingIndex = next.findIndex(item => item.face_id === confirmation.face_id);
+    const existingIndex = next.findIndex(
+      (item) => item.face_id === confirmation.face_id,
+    );
     if (existingIndex >= 0) {
-      next[existingIndex] = { ...next[existingIndex], person_name: confirmation.person_name, suggested_name: confirmation.suggested_name };
+      next[existingIndex] = {
+        ...next[existingIndex],
+        person_name: confirmation.person_name,
+        suggested_name: confirmation.suggested_name,
+      };
     } else {
       next.push(confirmation);
     }
@@ -291,7 +331,7 @@ export function mergeIgnores(prev, ignores) {
   if (ignores.length === 0) return prev;
   const next = [...prev];
   ignores.forEach((ignoreEntry) => {
-    if (!next.some(item => item.face_id === ignoreEntry.face_id)) {
+    if (!next.some((item) => item.face_id === ignoreEntry.face_id)) {
       next.push(ignoreEntry);
     }
   });
@@ -307,8 +347,9 @@ export function buildReviewedFaces(faces) {
   return faces.map((face, index) => ({
     faceIndex: index,
     faceId: face.face_id,
-    encodingHash: face.encoding_hash,  // Permanent identifier for undo/rename operations
-    personName: face.is_confirmed && !face.is_rejected ? face.person_name : null,
-    isIgnored: face.is_rejected || false
+    encodingHash: face.encoding_hash, // Permanent identifier for undo/rename operations
+    personName:
+      face.is_confirmed && !face.is_rejected ? face.person_name : null,
+    isIgnored: face.is_rejected || false,
   }));
 }

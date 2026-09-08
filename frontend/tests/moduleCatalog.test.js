@@ -24,19 +24,25 @@ describe('module catalog integrity', () => {
     expect(ids.length).toBeGreaterThan(0);
     for (const [id, entry] of Object.entries(MODULE_CATALOG)) {
       expect(entry.component, `component for ${id}`).toBeTruthy();
-      expect(VALID_ROLES.has(entry.role), `role for ${id}: ${entry.role}`).toBe(true);
+      expect(VALID_ROLES.has(entry.role), `role for ${id}: ${entry.role}`).toBe(
+        true,
+      );
     }
   });
 
   it('derives MODULE_COMPONENTS one-to-one from the catalog', () => {
-    expect(Object.keys(MODULE_COMPONENTS).sort()).toEqual(Object.keys(MODULE_CATALOG).sort());
+    expect(Object.keys(MODULE_COMPONENTS).sort()).toEqual(
+      Object.keys(MODULE_CATALOG).sort(),
+    );
     for (const [id, entry] of Object.entries(MODULE_CATALOG)) {
       expect(MODULE_COMPONENTS[id]).toBe(entry.component);
     }
   });
 
   it('has a non-empty title for every module id', () => {
-    expect(Object.keys(MODULE_TITLES).sort()).toEqual(Object.keys(MODULE_CATALOG).sort());
+    expect(Object.keys(MODULE_TITLES).sort()).toEqual(
+      Object.keys(MODULE_CATALOG).sort(),
+    );
     for (const id of Object.keys(MODULE_CATALOG)) {
       expect(typeof MODULE_TITLES[id]).toBe('string');
       expect(MODULE_TITLES[id].length).toBeGreaterThan(0);

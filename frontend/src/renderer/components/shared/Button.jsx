@@ -39,12 +39,9 @@ export function Button({
   children,
   ...rest
 }) {
-  const classes = [
-    'btn',
-    `btn--${variant}`,
-    `btn--${size}`,
-    className,
-  ].filter(Boolean).join(' ');
+  const classes = ['btn', `btn--${variant}`, `btn--${size}`, className]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <button

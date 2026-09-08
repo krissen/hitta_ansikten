@@ -8,7 +8,17 @@
 
 // RAW extensions that go through the NEF->JPG preview pipeline
 // (matches core/files.py RAW_EXTENSIONS).
-export const RAW_EXTS = ['.nef', '.cr2', '.cr3', '.arw', '.dng', '.raw', '.raf', '.orf', '.rw2'];
+export const RAW_EXTS = [
+  '.nef',
+  '.cr2',
+  '.cr3',
+  '.arw',
+  '.dng',
+  '.raw',
+  '.raf',
+  '.orf',
+  '.rw2',
+];
 
 export const JPG_EXTS = ['.jpg', '.jpeg'];
 

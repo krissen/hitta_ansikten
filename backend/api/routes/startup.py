@@ -16,10 +16,11 @@ router = APIRouter()
 async def get_startup_status():
     """
     Get current startup/initialization status of all backend components.
-    
+
     Returns status for:
     - database: Face database loading
     - mlModels: ML model initialization (InsightFace)
     """
     from ..services.startup_service import get_startup_state
+
     return get_startup_state().get_status()

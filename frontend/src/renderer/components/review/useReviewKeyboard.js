@@ -53,7 +53,10 @@ export function useReviewKeyboard(handlers, { isActive }) {
       const h = handlersRef.current;
 
       const activeEl = document.activeElement;
-      const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable;
+      const isInput =
+        e.target.tagName === 'INPUT' ||
+        e.target.tagName === 'TEXTAREA' ||
+        e.target.isContentEditable;
       // Modules that own their own keyboard opt out of the review shortcuts by
       // marking their root with `data-keyboard-scope="isolated"`. Replaces the
       // former hardcoded `.log-viewer, .preferences-module, …` selector list:
@@ -61,7 +64,8 @@ export function useReviewKeyboard(handlers, { isActive }) {
       // silently rot when a module's root class is renamed. (The old list's
       // `.database-management` had already gone stale — that root is
       // `.db-management` — so DatabaseManagement was no longer being shielded.)
-      const inBlockingModule = activeEl?.closest('[data-keyboard-scope="isolated"]') != null;
+      const inBlockingModule =
+        activeEl?.closest('[data-keyboard-scope="isolated"]') != null;
 
       if (inBlockingModule) {
         return;
@@ -89,7 +93,13 @@ export function useReviewKeyboard(handlers, { isActive }) {
       // Number keys - select alternative (1-N) for current face
       const maxAlt = h.maxAlternatives();
       const keyNum = parseInt(e.key, 10);
-      if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= maxAlt && !isInput && bareKey) {
+      if (
+        !isNaN(keyNum) &&
+        keyNum >= 1 &&
+        keyNum <= maxAlt &&
+        !isInput &&
+        bareKey
+      ) {
         e.preventDefault();
         h.selectAlternative(keyNum - 1);
         return;
@@ -154,21 +164,36 @@ export function useReviewKeyboard(handlers, { isActive }) {
       }
 
       // Cmd+Z to undo last face action
-      if (e.key === 'z' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInput) {
+      if (
+        e.key === 'z' &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !isInput
+      ) {
         e.preventDefault();
         h.undo();
         return;
       }
 
       // Cmd+Backspace - soft-delete the current file to trash (Finder convention).
-      if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInput) {
+      if (
+        e.key === 'Backspace' &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !isInput
+      ) {
         e.preventDefault();
         h.deleteFile();
         return;
       }
 
       // Cmd+Shift+Backspace - undo the last delete-to-trash.
-      if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey) && e.shiftKey && !isInput) {
+      if (
+        e.key === 'Backspace' &&
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        !isInput
+      ) {
         e.preventDefault();
         h.undoDelete();
         return;

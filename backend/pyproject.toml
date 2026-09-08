@@ -33,10 +33,13 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "httpx>=0.27",
-    # Upper bound: the lint rule set is pinned in [tool.ruff.lint], but cap
-    # the version too so a new minor cannot change autofix or parser
-    # behaviour unannounced. Raise deliberately, not by drift.
-    "ruff>=0.6,<0.17",
+    # Pinned to the exact version the pre-commit hook runs (see
+    # .pre-commit-config.yaml, astral-sh/ruff-pre-commit rev). The lint rule
+    # set is pinned in [tool.ruff.lint], but the version matters too: a local
+    # `ruff check`/`ruff format` must say the same thing as the grind, and an
+    # unpinned range let 0.16.6 install here while the hook stayed on 0.16.5.
+    # Raise deliberately, in step with the hook rev, not by drift.
+    "ruff==0.16.5",
 ]
 build = [
     "pyinstaller>=6.0",

@@ -40,8 +40,14 @@ function largestTabset(model) {
   let byArea = null;
   let byWeight = null;
   for (const ts of collectTabsets(model)) {
-    if (ts.area > bestArea) { bestArea = ts.area; byArea = ts.node; }
-    if (ts.weight > bestWeight) { bestWeight = ts.weight; byWeight = ts.node; }
+    if (ts.area > bestArea) {
+      bestArea = ts.area;
+      byArea = ts.node;
+    }
+    if (ts.weight > bestWeight) {
+      bestWeight = ts.weight;
+      byWeight = ts.node;
+    }
   }
   return byArea || byWeight;
 }
@@ -95,7 +101,8 @@ function isMeasured(rect) {
 function hostsRole(node, roleOf, role) {
   const children = node.getChildren?.() || [];
   return children.some(
-    (child) => child.getType?.() === 'tab' && roleOf(child.getComponent?.()) === role
+    (child) =>
+      child.getType?.() === 'tab' && roleOf(child.getComponent?.()) === role,
   );
 }
 
@@ -116,12 +123,15 @@ function hostsRole(node, roleOf, role) {
  */
 function narrowSideTabset(model, main, roleOf) {
   const mainRect = main.getRect?.() || null;
-  const candidates = collectTabsets(model)
-    .filter((ts) => ts.node !== main && hostsRole(ts.node, roleOf, 'side'));
+  const candidates = collectTabsets(model).filter(
+    (ts) => ts.node !== main && hostsRole(ts.node, roleOf, 'side'),
+  );
   if (!candidates.length) return null;
 
   if (isMeasured(mainRect)) {
-    const left = candidates.filter((ts) => isMeasured(ts.rect) && ts.rect.x < mainRect.x);
+    const left = candidates.filter(
+      (ts) => isMeasured(ts.rect) && ts.rect.x < mainRect.x,
+    );
     if (left.length) {
       left.sort((a, b) => a.rect.x - b.rect.x);
       return left[0].node;
@@ -153,10 +163,11 @@ function bottomBarTabset(model, main, roleOf) {
   if (!isMeasured(mainRect)) return null;
   const threshold = mainRect.y + mainRect.height * 0.5;
   const below = collectTabsets(model).filter(
-    (ts) => ts.node !== main
-      && isMeasured(ts.rect)
-      && ts.rect.y >= threshold
-      && hostsRole(ts.node, roleOf, 'bottom')
+    (ts) =>
+      ts.node !== main &&
+      isMeasured(ts.rect) &&
+      ts.rect.y >= threshold &&
+      hostsRole(ts.node, roleOf, 'bottom'),
   );
   if (!below.length) return null;
   below.sort((a, b) => b.rect.y - a.rect.y);
@@ -198,12 +209,16 @@ export function resolvePlacementTabset(model, role, roleOf = () => undefined) {
 
   if (role === 'side') {
     const side = narrowSideTabset(model, main, roleOf);
-    return side ? { tabsetId: side.getId() } : { split: 'left', refTabsetId: main.getId() };
+    return side
+      ? { tabsetId: side.getId() }
+      : { split: 'left', refTabsetId: main.getId() };
   }
 
   if (role === 'bottom') {
     const bottom = bottomBarTabset(model, main, roleOf);
-    return bottom ? { tabsetId: bottom.getId() } : { split: 'bottom', refTabsetId: main.getId() };
+    return bottom
+      ? { tabsetId: bottom.getId() }
+      : { split: 'bottom', refTabsetId: main.getId() };
   }
 
   // 'main' (and any unknown role): the main working area.
@@ -236,16 +251,33 @@ export function resolvePlacementTabset(model, role, roleOf = () => undefined) {
 export function applyPlacement(model, tabJson, placement, paneWeight = null) {
   if (placement.tabsetId) {
     // select=true so the new tab is shown (not added behind the current one).
-    return model.doAction(Actions.addNode(tabJson, placement.tabsetId, DockLocation.CENTER, -1, true));
+    return model.doAction(
+      Actions.addNode(
+        tabJson,
+        placement.tabsetId,
+        DockLocation.CENTER,
+        -1,
+        true,
+      ),
+    );
   }
 
-  const location = placement.split === 'bottom' ? DockLocation.BOTTOM : DockLocation.LEFT;
-  const added = model.doAction(Actions.addNode(tabJson, placement.refTabsetId, location, -1, true));
+  const location =
+    placement.split === 'bottom' ? DockLocation.BOTTOM : DockLocation.LEFT;
+  const added = model.doAction(
+    Actions.addNode(tabJson, placement.refTabsetId, location, -1, true),
+  );
 
   const newTabsetId = added?.getParent?.()?.getId?.();
   if (newTabsetId && paneWeight != null) {
-    model.doAction(Actions.updateNodeAttributes(newTabsetId, { weight: paneWeight }));
-    model.doAction(Actions.updateNodeAttributes(placement.refTabsetId, { weight: 100 - paneWeight }));
+    model.doAction(
+      Actions.updateNodeAttributes(newTabsetId, { weight: paneWeight }),
+    );
+    model.doAction(
+      Actions.updateNodeAttributes(placement.refTabsetId, {
+        weight: 100 - paneWeight,
+      }),
+    );
   }
   return added;
 }

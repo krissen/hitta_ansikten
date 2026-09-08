@@ -20,6 +20,7 @@ def _entry(vec, backend="insightface"):
 def service(tmp_path, monkeypatch):
     """A ManagementService fully isolated from the real database and registry."""
     import api.services.management_service as m
+
     monkeypatch.setattr(m, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
     svc = ManagementService.__new__(ManagementService)
     svc.known_faces = {}
@@ -70,8 +71,8 @@ async def test_threshold_excludes_borderline_pairs(service):
 @pytest.mark.asyncio
 async def test_pairs_sorted_closest_first(service):
     base = _unit(0)
-    near = base + 0.005 * np.random.RandomState(1).randn(512)   # very close
-    midd = base + 0.20 * np.random.RandomState(3).randn(512)    # less close
+    near = base + 0.005 * np.random.RandomState(1).randn(512)  # very close
+    midd = base + 0.20 * np.random.RandomState(3).randn(512)  # less close
     service.known_faces = {
         "Base": [_entry(base)],
         "VeryClose": [_entry(near)],

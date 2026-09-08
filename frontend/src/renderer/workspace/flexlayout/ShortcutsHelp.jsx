@@ -40,14 +40,18 @@ export function ShortcutsHelpOverlay({ onClose, activeModule }) {
 
   return (
     <div className="shortcuts-overlay" onClick={onClose}>
-      <div className="shortcuts-dialog" onClick={e => e.stopPropagation()}>
+      <div className="shortcuts-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="shortcuts-header">
           <h2>{t('shortcuts.header')}</h2>
-          <button type="button" className="shortcuts-close" onClick={onClose}>&times;</button>
+          <button type="button" className="shortcuts-close" onClick={onClose}>
+            &times;
+          </button>
         </div>
         <div className="shortcuts-content">
-          {SHORTCUT_SECTIONS.map(section => {
-            const isActive = section.modules.length > 0 && section.modules.includes(activeModule);
+          {SHORTCUT_SECTIONS.map((section) => {
+            const isActive =
+              section.modules.length > 0 &&
+              section.modules.includes(activeModule);
             return (
               <div
                 key={section.id}
@@ -62,7 +66,11 @@ export function ShortcutsHelpOverlay({ onClose, activeModule }) {
           })}
         </div>
         <div className="shortcuts-footer">
-          {t('shortcuts.footer.before')}<kbd>?</kbd>{t('shortcuts.footer.or')}<kbd>Esc</kbd>{t('shortcuts.footer.after')}
+          {t('shortcuts.footer.before')}
+          <kbd>?</kbd>
+          {t('shortcuts.footer.or')}
+          <kbd>Esc</kbd>
+          {t('shortcuts.footer.after')}
         </div>
       </div>
     </div>

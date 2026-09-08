@@ -95,7 +95,9 @@ export function ReviewModule({ node }) {
   const detectedFacesRef = useRef(detectedFaces);
 
   // Keep detectedFacesRef in sync with state (for use in timeout callbacks)
-  useEffect(() => { detectedFacesRef.current = detectedFaces; }, [detectedFaces]);
+  useEffect(() => {
+    detectedFacesRef.current = detectedFaces;
+  }, [detectedFaces]);
 
   /**
    * Load people names for autocomplete
@@ -114,185 +116,234 @@ export function ReviewModule({ node }) {
     loadPeopleNames();
   }, [loadPeopleNames]);
 
-  const detectFaces = useCallback(async (imagePath) => {
-    if (detectAbortRef.current) {
-      detectAbortRef.current.abort();
-    }
-    const abortController = new AbortController();
-    detectAbortRef.current = abortController;
-
-    setCurrentImagePath(imagePath);
-    setCurrentFileHash(null);
-    setIsLoading(true);
-    setStatus(t('review.status.detecting'));
-    setDetectedFaces([]);
-    setDetectionOk(false);
-    setCurrentFaceIndex(0);
-    setPendingConfirmations([]);
-    setPendingIgnores([]);
-    setUndoStack([]);
-
-    try {
-      const result = await api.post(
-        '/api/v1/detect-faces',
-        { image_path: imagePath, force_reprocess: false },
-        { signal: abortController.signal }
-      );
-
-      if (abortController.signal.aborted) return;
-
-      const faces = result.faces || [];
-      setDetectedFaces(faces);
-      setDetectionOk(true);
-      setCurrentFileHash(result.file_hash || null);
-      setStatus(t('review.status.found', { count: faces.length, ms: result.processing_time_ms?.toFixed(0) || 0 }));
-
-      emit('faces-detected', { faces, imagePath });
-
-      if (faces.length > 0) {
-        setTimeout(() => {
-          moduleRef.current?.focus();
-        }, 100);
-      } else {
-        const fileName = imagePath.split('/').pop();
-        showToast(t('review.toasts.noFacesFound', { fileName }), 'info');
-        // Keep focus on the module so the manual-name affordance is reachable
-        // (button + the 'm' shortcut) instead of the panel losing focus.
-        setTimeout(() => {
-          moduleRef.current?.focus();
-        }, 100);
+  const detectFaces = useCallback(
+    async (imagePath) => {
+      if (detectAbortRef.current) {
+        detectAbortRef.current.abort();
       }
-    } catch (err) {
-      if (abortController.signal.aborted) {
-        setStatus(t('review.status.detectionCancelled'));
-        return;
+      const abortController = new AbortController();
+      detectAbortRef.current = abortController;
+
+      setCurrentImagePath(imagePath);
+      setCurrentFileHash(null);
+      setIsLoading(true);
+      setStatus(t('review.status.detecting'));
+      setDetectedFaces([]);
+      setDetectionOk(false);
+      setCurrentFaceIndex(0);
+      setPendingConfirmations([]);
+      setPendingIgnores([]);
+      setUndoStack([]);
+
+      try {
+        const result = await api.post(
+          '/api/v1/detect-faces',
+          { image_path: imagePath, force_reprocess: false },
+          { signal: abortController.signal },
+        );
+
+        if (abortController.signal.aborted) return;
+
+        const faces = result.faces || [];
+        setDetectedFaces(faces);
+        setDetectionOk(true);
+        setCurrentFileHash(result.file_hash || null);
+        setStatus(
+          t('review.status.found', {
+            count: faces.length,
+            ms: result.processing_time_ms?.toFixed(0) || 0,
+          }),
+        );
+
+        emit('faces-detected', { faces, imagePath });
+
+        if (faces.length > 0) {
+          setTimeout(() => {
+            moduleRef.current?.focus();
+          }, 100);
+        } else {
+          const fileName = imagePath.split('/').pop();
+          showToast(t('review.toasts.noFacesFound', { fileName }), 'info');
+          // Keep focus on the module so the manual-name affordance is reachable
+          // (button + the 'm' shortcut) instead of the panel losing focus.
+          setTimeout(() => {
+            moduleRef.current?.focus();
+          }, 100);
+        }
+      } catch (err) {
+        if (abortController.signal.aborted) {
+          setStatus(t('review.status.detectionCancelled'));
+          return;
+        }
+        debugError('ReviewModule', 'Face detection failed:', err);
+        if (err instanceof NetworkError) {
+          const msg = err.isOffline
+            ? t('review.toasts.backendUnreachable')
+            : err.message;
+          showToast(msg, 'error');
+          setStatus(t('review.status.connectionError'));
+        } else {
+          setStatus(t('review.status.detectionFailed'));
+        }
+      } finally {
+        if (detectAbortRef.current === abortController) {
+          detectAbortRef.current = null;
+        }
+        setIsLoading(false);
       }
-      debugError('ReviewModule', 'Face detection failed:', err);
-      if (err instanceof NetworkError) {
-        const msg = err.isOffline ? t('review.toasts.backendUnreachable') : err.message;
-        showToast(msg, 'error');
-        setStatus(t('review.status.connectionError'));
-      } else {
-        setStatus(t('review.status.detectionFailed'));
-      }
-    } finally {
-      if (detectAbortRef.current === abortController) {
-        detectAbortRef.current = null;
-      }
-      setIsLoading(false);
-    }
-  }, [api, emit, showToast]);
+    },
+    [api, emit, showToast],
+  );
 
   /**
    * Navigate to face
    */
-  const navigateToFace = useCallback((direction, skipIndex = null) => {
-    if (detectedFaces.length === 0) return;
+  const navigateToFace = useCallback(
+    (direction, skipIndex = null) => {
+      if (detectedFaces.length === 0) return;
 
-    setCurrentFaceIndex(prev => {
-      const newIndex = nextFaceIndex(detectedFaces, prev, direction, skipIndex);
+      setCurrentFaceIndex((prev) => {
+        const newIndex = nextFaceIndex(
+          detectedFaces,
+          prev,
+          direction,
+          skipIndex,
+        );
 
-      // ALWAYS emit so ImageViewer's activeFaceIndex tracks Review's — otherwise
-      // the single-box highlight/label lags behind the face a keystroke acts on.
-      // Centering is a separate concern carried by `center`: only center when the
-      // target is an unconfirmed face (avoid jumping to an already-done face when
-      // navigation lands on one).
-      const targetFace = detectedFaces[newIndex];
-      emit('active-face-changed', { index: newIndex, center: !!targetFace && !targetFace.is_confirmed });
-      return newIndex;
-    });
-  }, [detectedFaces, emit]);
+        // ALWAYS emit so ImageViewer's activeFaceIndex tracks Review's — otherwise
+        // the single-box highlight/label lags behind the face a keystroke acts on.
+        // Centering is a separate concern carried by `center`: only center when the
+        // target is an unconfirmed face (avoid jumping to an already-done face when
+        // navigation lands on one).
+        const targetFace = detectedFaces[newIndex];
+        emit('active-face-changed', {
+          index: newIndex,
+          center: !!targetFace && !targetFace.is_confirmed,
+        });
+        return newIndex;
+      });
+    },
+    [detectedFaces, emit],
+  );
 
   const getTopMatch = useCallback((face) => getTopMatchPure(face), []);
 
-  const doConfirmFace = useCallback((index, personName) => {
-    const result = confirmFaceState(detectedFaces, index, personName, currentImagePath);
-    if (!result) return;
+  const doConfirmFace = useCallback(
+    (index, personName) => {
+      const result = confirmFaceState(
+        detectedFaces,
+        index,
+        personName,
+        currentImagePath,
+      );
+      if (!result) return;
 
-    setUndoStack(prev => [...prev, result.undoEntry]);
-    setDetectedFaces(result.faces);
+      setUndoStack((prev) => [...prev, result.undoEntry]);
+      setDetectedFaces(result.faces);
 
-    emit('faces-detected', { faces: result.faces, imagePath: currentImagePath });
-
-    setPendingConfirmations(prev => upsertConfirmation(prev, result.confirmation));
-
-    // Advance to the next unreviewed face. When this action completes the image
-    // (auto-save takes over, so navigation is skipped) still sync ImageViewer's
-    // active index to the acted-on face — with center:false so it doesn't jump
-    // to an already-confirmed target. Keep faces-detected (above) BEFORE this.
-    if (willAllBeDone(detectedFaces, index)) {
-      emit('active-face-changed', { index, center: false });
-    } else {
-      navigateToFace(1, index);
-    }
-  }, [detectedFaces, currentImagePath, navigateToFace, emit]);
-
-  const doIgnoreFace = useCallback((index) => {
-    const result = ignoreFaceState(detectedFaces, index, currentImagePath);
-    if (!result) return;
-
-    setUndoStack(prev => [...prev, result.undoEntry]);
-    setDetectedFaces(result.faces);
-
-    emit('faces-detected', { faces: result.faces, imagePath: currentImagePath });
-
-    setPendingIgnores(prev => appendIgnore(prev, result.ignore));
-
-    // Advance to the next unreviewed face. When this action completes the image
-    // (auto-save takes over, so navigation is skipped) still sync ImageViewer's
-    // active index to the acted-on face — with center:false so it doesn't jump
-    // to an already-confirmed target. Keep faces-detected (above) BEFORE this.
-    if (willAllBeDone(detectedFaces, index)) {
-      emit('active-face-changed', { index, center: false });
-    } else {
-      navigateToFace(1, index);
-    }
-  }, [detectedFaces, currentImagePath, navigateToFace, emit]);
-
-  const confirmFace = useCallback((index, personName) => {
-    if (!personName?.trim()) return;
-
-    const face = detectedFaces[index];
-    if (!face || face.is_confirmed) return;
-
-    const topMatch = getTopMatch(face);
-    if (topMatch && topMatch.name.toLowerCase() !== personName.trim().toLowerCase()) {
-      setConfirmDialog({
-        type: 'name-mismatch',
-        topMatch,
-        chosenName: personName.trim(),
-        onConfirm: () => {
-          doConfirmFace(index, personName);
-          setConfirmDialog(null);
-        },
-        onCancel: () => setConfirmDialog(null)
+      emit('faces-detected', {
+        faces: result.faces,
+        imagePath: currentImagePath,
       });
-      return;
-    }
 
-    doConfirmFace(index, personName);
-  }, [detectedFaces, getTopMatch, doConfirmFace]);
+      setPendingConfirmations((prev) =>
+        upsertConfirmation(prev, result.confirmation),
+      );
 
-  const ignoreFace = useCallback((index) => {
-    const face = detectedFaces[index];
-    if (!face || face.is_confirmed) return;
+      // Advance to the next unreviewed face. When this action completes the image
+      // (auto-save takes over, so navigation is skipped) still sync ImageViewer's
+      // active index to the acted-on face — with center:false so it doesn't jump
+      // to an already-confirmed target. Keep faces-detected (above) BEFORE this.
+      if (willAllBeDone(detectedFaces, index)) {
+        emit('active-face-changed', { index, center: false });
+      } else {
+        navigateToFace(1, index);
+      }
+    },
+    [detectedFaces, currentImagePath, navigateToFace, emit],
+  );
 
-    const topMatch = getTopMatch(face);
-    if (topMatch) {
-      setConfirmDialog({
-        type: 'ignore-high-confidence',
-        topMatch,
-        onConfirm: () => {
-          doIgnoreFace(index);
-          setConfirmDialog(null);
-        },
-        onCancel: () => setConfirmDialog(null)
+  const doIgnoreFace = useCallback(
+    (index) => {
+      const result = ignoreFaceState(detectedFaces, index, currentImagePath);
+      if (!result) return;
+
+      setUndoStack((prev) => [...prev, result.undoEntry]);
+      setDetectedFaces(result.faces);
+
+      emit('faces-detected', {
+        faces: result.faces,
+        imagePath: currentImagePath,
       });
-      return;
-    }
 
-    doIgnoreFace(index);
-  }, [detectedFaces, getTopMatch, doIgnoreFace]);
+      setPendingIgnores((prev) => appendIgnore(prev, result.ignore));
+
+      // Advance to the next unreviewed face. When this action completes the image
+      // (auto-save takes over, so navigation is skipped) still sync ImageViewer's
+      // active index to the acted-on face — with center:false so it doesn't jump
+      // to an already-confirmed target. Keep faces-detected (above) BEFORE this.
+      if (willAllBeDone(detectedFaces, index)) {
+        emit('active-face-changed', { index, center: false });
+      } else {
+        navigateToFace(1, index);
+      }
+    },
+    [detectedFaces, currentImagePath, navigateToFace, emit],
+  );
+
+  const confirmFace = useCallback(
+    (index, personName) => {
+      if (!personName?.trim()) return;
+
+      const face = detectedFaces[index];
+      if (!face || face.is_confirmed) return;
+
+      const topMatch = getTopMatch(face);
+      if (
+        topMatch &&
+        topMatch.name.toLowerCase() !== personName.trim().toLowerCase()
+      ) {
+        setConfirmDialog({
+          type: 'name-mismatch',
+          topMatch,
+          chosenName: personName.trim(),
+          onConfirm: () => {
+            doConfirmFace(index, personName);
+            setConfirmDialog(null);
+          },
+          onCancel: () => setConfirmDialog(null),
+        });
+        return;
+      }
+
+      doConfirmFace(index, personName);
+    },
+    [detectedFaces, getTopMatch, doConfirmFace],
+  );
+
+  const ignoreFace = useCallback(
+    (index) => {
+      const face = detectedFaces[index];
+      if (!face || face.is_confirmed) return;
+
+      const topMatch = getTopMatch(face);
+      if (topMatch) {
+        setConfirmDialog({
+          type: 'ignore-high-confidence',
+          topMatch,
+          onConfirm: () => {
+            doIgnoreFace(index);
+            setConfirmDialog(null);
+          },
+          onCancel: () => setConfirmDialog(null),
+        });
+        return;
+      }
+
+      doIgnoreFace(index);
+    },
+    [detectedFaces, getTopMatch, doIgnoreFace],
+  );
 
   const cancelDetection = useCallback(() => {
     if (detectAbortRef.current) {
@@ -305,7 +356,7 @@ export function ReviewModule({ node }) {
     if (undoStack.length === 0) return null;
 
     const lastAction = undoStack[undoStack.length - 1];
-    setUndoStack(prev => prev.slice(0, -1));
+    setUndoStack((prev) => prev.slice(0, -1));
 
     const { type, index, face } = lastAction;
 
@@ -314,12 +365,19 @@ export function ReviewModule({ node }) {
     const updatedFaces = undoFaceState(detectedFaces, lastAction);
     setDetectedFaces(updatedFaces);
 
-    emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
+    emit('faces-detected', {
+      faces: updatedFaces,
+      imagePath: currentImagePath,
+    });
 
     if (type === 'confirm') {
-      setPendingConfirmations(prev => prev.filter(p => p.face_id !== face.face_id));
+      setPendingConfirmations((prev) =>
+        prev.filter((p) => p.face_id !== face.face_id),
+      );
     } else if (type === 'ignore') {
-      setPendingIgnores(prev => prev.filter(p => p.face_id !== face.face_id));
+      setPendingIgnores((prev) =>
+        prev.filter((p) => p.face_id !== face.face_id),
+      );
     }
 
     setCurrentFaceIndex(index);
@@ -331,46 +389,69 @@ export function ReviewModule({ node }) {
   /**
    * Unconfirm a face - revert to unconfirmed state for re-review
    */
-  const unconfirmFace = useCallback((index) => {
-    const result = unconfirmFaceState(detectedFaces, index);
-    if (!result) return;
+  const unconfirmFace = useCallback(
+    (index) => {
+      const result = unconfirmFaceState(detectedFaces, index);
+      if (!result) return;
 
-    debug('ReviewModule', 'Unconfirming face at index:', index);
+      debug('ReviewModule', 'Unconfirming face at index:', index);
 
-    setDetectedFaces(result.faces);
+      setDetectedFaces(result.faces);
 
-    // Emit updated faces to sync ImageViewer
-    emit('faces-detected', { faces: result.faces, imagePath: currentImagePath });
+      // Emit updated faces to sync ImageViewer
+      emit('faces-detected', {
+        faces: result.faces,
+        imagePath: currentImagePath,
+      });
 
-    setPendingConfirmations(prev => prev.filter(p => p.face_id !== result.faceId));
-    setPendingIgnores(prev => prev.filter(p => p.face_id !== result.faceId));
+      setPendingConfirmations((prev) =>
+        prev.filter((p) => p.face_id !== result.faceId),
+      );
+      setPendingIgnores((prev) =>
+        prev.filter((p) => p.face_id !== result.faceId),
+      );
 
-    setCurrentFaceIndex(index);
-    emit('active-face-changed', { index });
+      setCurrentFaceIndex(index);
+      emit('active-face-changed', { index });
 
-    setTimeout(() => {
-      inputRefs.current[index]?.focus();
-    }, 50);
-  }, [detectedFaces, currentImagePath, emit]);
+      setTimeout(() => {
+        inputRefs.current[index]?.focus();
+      }, 50);
+    },
+    [detectedFaces, currentImagePath, emit],
+  );
 
   /**
    * Accept all suggestions - confirm/ignore all unconfirmed faces using their top suggestion
    */
   const acceptAllSuggestions = useCallback(() => {
-    const { faces: updatedFaces, confirmations, ignores, accepted, ignored, skipped } =
-      acceptAllState(detectedFaces, currentImagePath);
+    const {
+      faces: updatedFaces,
+      confirmations,
+      ignores,
+      accepted,
+      ignored,
+      skipped,
+    } = acceptAllState(detectedFaces, currentImagePath);
 
     if (confirmations.length > 0 || ignores.length > 0) {
       setDetectedFaces(updatedFaces);
-      emit('faces-detected', { faces: updatedFaces, imagePath: currentImagePath });
+      emit('faces-detected', {
+        faces: updatedFaces,
+        imagePath: currentImagePath,
+      });
 
-      setPendingConfirmations((prev) => mergeConfirmations(prev, confirmations));
+      setPendingConfirmations((prev) =>
+        mergeConfirmations(prev, confirmations),
+      );
       setPendingIgnores((prev) => mergeIgnores(prev, ignores));
     }
 
     setStatus(
       t('review.status.accepted', { accepted, ignored }) +
-      (skipped > 0 ? t('review.status.acceptedSkippedSuffix', { skipped }) : '')
+        (skipped > 0
+          ? t('review.status.acceptedSkippedSuffix', { skipped })
+          : ''),
     );
   }, [detectedFaces, currentImagePath, emit]);
 
@@ -379,38 +460,42 @@ export function ReviewModule({ node }) {
    */
   const buildReviewedFaces = useCallback(
     () => buildReviewedFacesPure(detectedFaces),
-    [detectedFaces]
+    [detectedFaces],
   );
 
   /**
    * Mark review as complete (logs to attempt_stats.jsonl for rename)
    */
-  const markReviewComplete = useCallback(async (imagePath, reviewedFaces, fileHash = null) => {
-    try {
-      await api.post('/api/v1/mark-review-complete', {
-        image_path: imagePath,
-        reviewed_faces: reviewedFaces.map(f => ({
-          face_index: f.faceIndex,
-          face_id: f.faceId,
-          encoding_hash: f.encodingHash,  // Permanent identifier (face_id is ephemeral)
-          person_name: f.personName,
-          is_ignored: f.isIgnored
-        })),
-        file_hash: fileHash  // Reuse hash from detection to avoid re-reading file
-      });
-      debug('ReviewModule', 'Review marked complete for rename');
-    } catch (err) {
-      debugError('ReviewModule', 'Failed to mark review complete:', err);
-      // Non-fatal - continue even if this fails
-    }
-  }, [api]);
+  const markReviewComplete = useCallback(
+    async (imagePath, reviewedFaces, fileHash = null) => {
+      try {
+        await api.post('/api/v1/mark-review-complete', {
+          image_path: imagePath,
+          reviewed_faces: reviewedFaces.map((f) => ({
+            face_index: f.faceIndex,
+            face_id: f.faceId,
+            encoding_hash: f.encodingHash, // Permanent identifier (face_id is ephemeral)
+            person_name: f.personName,
+            is_ignored: f.isIgnored,
+          })),
+          file_hash: fileHash, // Reuse hash from detection to avoid re-reading file
+        });
+        debug('ReviewModule', 'Review marked complete for rename');
+      } catch (err) {
+        debugError('ReviewModule', 'Failed to mark review complete:', err);
+        // Non-fatal - continue even if this fails
+      }
+    },
+    [api],
+  );
 
   /**
    * Save all changes
    * @returns {Promise<boolean>} true if save succeeded, false if failed
    */
   const saveAllChanges = useCallback(async () => {
-    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0) return true;
+    if (pendingConfirmations.length === 0 && pendingIgnores.length === 0)
+      return true;
 
     const totalChanges = pendingConfirmations.length + pendingIgnores.length;
     setStatus(t('review.status.saving', { count: totalChanges }));
@@ -419,7 +504,7 @@ export function ReviewModule({ node }) {
       // Batch save: single request instead of N individual calls
       await api.post('/api/v1/batch-confirm', {
         confirmations: pendingConfirmations,
-        ignores: pendingIgnores
+        ignores: pendingIgnores,
       });
 
       setPendingConfirmations([]);
@@ -455,12 +540,19 @@ export function ReviewModule({ node }) {
     if (!ok) return;
 
     // Reset face states
-    setDetectedFaces(prev => prev.map(face => {
-      if (face.is_rejected || face.is_confirmed) {
-        return { ...face, is_confirmed: false, is_rejected: false, person_name: null };
-      }
-      return face;
-    }));
+    setDetectedFaces((prev) =>
+      prev.map((face) => {
+        if (face.is_rejected || face.is_confirmed) {
+          return {
+            ...face,
+            is_confirmed: false,
+            is_rejected: false,
+            person_name: null,
+          };
+        }
+        return face;
+      }),
+    );
 
     setPendingConfirmations([]);
     setPendingIgnores([]);
@@ -493,14 +585,24 @@ export function ReviewModule({ node }) {
     // Emit review-complete to advance to next image
     emit('review-complete', {
       imagePath: currentImagePath,
-      facesReviewed: detectedFaces.filter(f => f.is_confirmed).length,
+      facesReviewed: detectedFaces.filter((f) => f.is_confirmed).length,
       skipped: true,
       success: true,
-      reviewedFaces
+      reviewedFaces,
     });
 
     setStatus(t('review.status.imageSkipped'));
-  }, [currentImagePath, pendingConfirmations.length, pendingIgnores.length, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, detectedFaces, currentFileHash]);
+  }, [
+    currentImagePath,
+    pendingConfirmations.length,
+    pendingIgnores.length,
+    saveAllChanges,
+    buildReviewedFaces,
+    markReviewComplete,
+    emit,
+    detectedFaces,
+    currentFileHash,
+  ]);
 
   /**
    * Add manual face - for when a person exists but wasn't detected
@@ -509,7 +611,14 @@ export function ReviewModule({ node }) {
     if (!currentImagePath) return;
 
     const insertIndex = detectedFaces.length === 0 ? 0 : currentFaceIndex + 1;
-    debug('ReviewModule', 'Adding manual face at index:', insertIndex, '(faces:', detectedFaces.length, ')');
+    debug(
+      'ReviewModule',
+      'Adding manual face at index:',
+      insertIndex,
+      '(faces:',
+      detectedFaces.length,
+      ')',
+    );
 
     const manualFaceId = `manual_${Date.now()}`;
     const manualFace = {
@@ -518,10 +627,10 @@ export function ReviewModule({ node }) {
       confidence: null,
       person_name: '',
       is_manual: true,
-      is_confirmed: false
+      is_confirmed: false,
     };
 
-    setDetectedFaces(prev => {
+    setDetectedFaces((prev) => {
       const updated = [...prev];
       updated.splice(insertIndex, 0, manualFace);
 
@@ -547,15 +656,19 @@ export function ReviewModule({ node }) {
    * Auto-save when all faces reviewed
    */
   useEffect(() => {
-    const allDone = detectedFaces.length > 0 && detectedFaces.every(f => f.is_confirmed || f.is_rejected);
-    const hasChanges = pendingConfirmations.length > 0 || pendingIgnores.length > 0;
+    const allDone =
+      detectedFaces.length > 0 &&
+      detectedFaces.every((f) => f.is_confirmed || f.is_rejected);
+    const hasChanges =
+      pendingConfirmations.length > 0 || pendingIgnores.length > 0;
 
     if (allDone && hasChanges) {
       const timeout = setTimeout(async () => {
         // Re-check with current ref — new faces may have been added since timeout was scheduled
         const currentFaces = detectedFacesRef.current;
-        const stillAllDone = currentFaces.length > 0 &&
-          currentFaces.every(f => f.is_confirmed || f.is_rejected);
+        const stillAllDone =
+          currentFaces.length > 0 &&
+          currentFaces.every((f) => f.is_confirmed || f.is_rejected);
         if (!stillAllDone) return;
 
         const saveSuccess = await saveAllChanges();
@@ -568,19 +681,33 @@ export function ReviewModule({ node }) {
         const reviewedFaces = buildReviewedFaces();
 
         // Mark review complete (logs to attempt_stats.jsonl)
-        await markReviewComplete(currentImagePath, reviewedFaces, currentFileHash);
+        await markReviewComplete(
+          currentImagePath,
+          reviewedFaces,
+          currentFileHash,
+        );
 
         // Emit review-complete event for FileQueue auto-advance
         emit('review-complete', {
           imagePath: currentImagePath,
           facesReviewed: detectedFaces.length,
           success: true,
-          reviewedFaces
+          reviewedFaces,
         });
       }, 500);
       return () => clearTimeout(timeout);
     }
-  }, [detectedFaces, pendingConfirmations, pendingIgnores, saveAllChanges, buildReviewedFaces, markReviewComplete, emit, currentImagePath, currentFileHash]);
+  }, [
+    detectedFaces,
+    pendingConfirmations,
+    pendingIgnores,
+    saveAllChanges,
+    buildReviewedFaces,
+    markReviewComplete,
+    emit,
+    currentImagePath,
+    currentFileHash,
+  ]);
 
   /**
    * Signal "dirty" state for the current file so the file queue can hold it out of
@@ -593,7 +720,12 @@ export function ReviewModule({ node }) {
     if (!currentImagePath) return;
     const dirty = pendingConfirmations.length + pendingIgnores.length > 0;
     emit('review-dirty', { imagePath: currentImagePath, dirty });
-  }, [pendingConfirmations.length, pendingIgnores.length, currentImagePath, emit]);
+  }, [
+    pendingConfirmations.length,
+    pendingIgnores.length,
+    currentImagePath,
+    emit,
+  ]);
 
   /**
    * Clear the dirty flag for a file when the user leaves it (manual file switch that
@@ -613,11 +745,17 @@ export function ReviewModule({ node }) {
   useEffect(() => {
     if (detectedFaces.length === 0) return;
 
-    const reviewedCount = detectedFaces.filter(f => f.is_confirmed).length;
+    const reviewedCount = detectedFaces.filter((f) => f.is_confirmed).length;
     const pendingCount = pendingConfirmations.length + pendingIgnores.length;
 
     if (pendingCount > 0) {
-      setStatus(t('review.status.reviewProgress', { reviewed: reviewedCount, total: detectedFaces.length, pending: pendingCount }));
+      setStatus(
+        t('review.status.reviewProgress', {
+          reviewed: reviewedCount,
+          total: detectedFaces.length,
+          pending: pendingCount,
+        }),
+      );
     }
   }, [detectedFaces, pendingConfirmations.length, pendingIgnores.length]);
 
@@ -655,10 +793,16 @@ export function ReviewModule({ node }) {
     if (!currentImagePath) return;
     let prefill = '';
     try {
-      const res = await api.get('/api/v1/files/manual-suffix', { image_path: currentImagePath });
+      const res = await api.get('/api/v1/files/manual-suffix', {
+        image_path: currentImagePath,
+      });
       prefill = res?.raw || '';
     } catch (err) {
-      debugWarn('ReviewModule', 'Could not load manual suffix:', err?.message || err);
+      debugWarn(
+        'ReviewModule',
+        'Could not load manual suffix:',
+        err?.message || err,
+      );
     }
     setSuffixDialog({ imagePath: currentImagePath, prefill });
   }, [currentImagePath, api]);
@@ -666,17 +810,31 @@ export function ReviewModule({ node }) {
   /**
    * Persist (or clear) the manual filename suffix for a given image.
    */
-  const saveSuffix = useCallback(async (imagePath, rawSuffix) => {
-    try {
-      await api.post('/api/v1/files/manual-suffix', { image_path: imagePath, suffix: rawSuffix });
-      const cleared = !normalizeSuffix(rawSuffix);
-      showToast(t(cleared ? 'review.manualSuffix.cleared' : 'review.manualSuffix.saved'), 'success', 1500);
-    } catch (err) {
-      debugError('ReviewModule', 'Failed to save manual suffix:', err);
-      showToast(t('review.manualSuffix.saveError'), 'error');
-    }
-    setSuffixDialog(null);
-  }, [api, showToast]);
+  const saveSuffix = useCallback(
+    async (imagePath, rawSuffix) => {
+      try {
+        await api.post('/api/v1/files/manual-suffix', {
+          image_path: imagePath,
+          suffix: rawSuffix,
+        });
+        const cleared = !normalizeSuffix(rawSuffix);
+        showToast(
+          t(
+            cleared
+              ? 'review.manualSuffix.cleared'
+              : 'review.manualSuffix.saved',
+          ),
+          'success',
+          1500,
+        );
+      } catch (err) {
+        debugError('ReviewModule', 'Failed to save manual suffix:', err);
+        showToast(t('review.manualSuffix.saveError'), 'error');
+      }
+      setSuffixDialog(null);
+    },
+    [api, showToast],
+  );
 
   /**
    * Undo the last face action and toast the result (Cmd+Z + menu event).
@@ -684,9 +842,14 @@ export function ReviewModule({ node }) {
   const undoWithToast = useCallback(() => {
     const undone = undoLastAction();
     if (undone) {
-      const msg = undone.type === 'confirm'
-        ? t('review.toasts.undo', { label: undone.face.person_name || t('review.toasts.undoConfirmFallback') })
-        : t('review.toasts.undoIgnore');
+      const msg =
+        undone.type === 'confirm'
+          ? t('review.toasts.undo', {
+              label:
+                undone.face.person_name ||
+                t('review.toasts.undoConfirmFallback'),
+            })
+          : t('review.toasts.undoIgnore');
       showToast(msg, 'info', 1500);
     }
   }, [undoLastAction, showToast]);
@@ -700,119 +863,138 @@ export function ReviewModule({ node }) {
    * key routing; the handlers below are the semantic branch bodies (they read
    * module state: faces, active index, input refs).
    */
-  useReviewKeyboard({
-    navigate: navigateToFace,
-    maxAlternatives: () => preferences.get('reviewModule.maxAlternatives', 5),
-    selectAlternative: (idx) => {
-      const currentFace = detectedFaces[currentFaceIndex];
-      const alternatives = currentFace?.match_alternatives || [];
+  useReviewKeyboard(
+    {
+      navigate: navigateToFace,
+      maxAlternatives: () => preferences.get('reviewModule.maxAlternatives', 5),
+      selectAlternative: (idx) => {
+        const currentFace = detectedFaces[currentFaceIndex];
+        const alternatives = currentFace?.match_alternatives || [];
 
-      if (idx < alternatives.length && !currentFace?.is_confirmed) {
-        const alt = alternatives[idx];
-        if (alt.name === 'ign') {
-          ignoreFace(currentFaceIndex);
+        if (idx < alternatives.length && !currentFace?.is_confirmed) {
+          const alt = alternatives[idx];
+          if (alt.name === 'ign') {
+            ignoreFace(currentFaceIndex);
+          } else {
+            confirmFace(currentFaceIndex, alt.name);
+          }
+        }
+      },
+      openSuffixDialog,
+      confirmEnter: (e, isInput) => {
+        const currentFace = detectedFaces[currentFaceIndex];
+        if (currentFace?.is_confirmed) return;
+
+        const inputValue = isInput
+          ? e.target.value?.trim()
+          : inputRefs.current[currentFaceIndex]?.value?.trim();
+
+        if (inputValue) {
+          confirmFace(currentFaceIndex, inputValue);
         } else {
-          confirmFace(currentFaceIndex, alt.name);
+          const suggestion = resolveSuggestion(currentFace);
+          if (suggestion?.isIgnore) {
+            ignoreFace(currentFaceIndex);
+          } else if (suggestion) {
+            confirmFace(currentFaceIndex, suggestion.name);
+          }
         }
-      }
-    },
-    openSuffixDialog,
-    confirmEnter: (e, isInput) => {
-      const currentFace = detectedFaces[currentFaceIndex];
-      if (currentFace?.is_confirmed) return;
+      },
+      acceptAll: acceptAllSuggestions,
+      confirmKey: () => {
+        const currentFace = detectedFaces[currentFaceIndex];
+        if (currentFace?.is_confirmed) return;
 
-      const inputValue = isInput
-        ? e.target.value?.trim()
-        : inputRefs.current[currentFaceIndex]?.value?.trim();
-
-      if (inputValue) {
-        confirmFace(currentFaceIndex, inputValue);
-      } else {
-        const suggestion = resolveSuggestion(currentFace);
-        if (suggestion?.isIgnore) {
-          ignoreFace(currentFaceIndex);
-        } else if (suggestion) {
-          confirmFace(currentFaceIndex, suggestion.name);
+        const input = inputRefs.current[currentFaceIndex];
+        if (input?.value?.trim()) {
+          confirmFace(currentFaceIndex, input.value);
+        } else {
+          const suggestion = resolveSuggestion(currentFace);
+          if (suggestion?.isIgnore) {
+            ignoreFace(currentFaceIndex);
+          } else if (suggestion) {
+            confirmFace(currentFaceIndex, suggestion.name);
+          }
         }
-      }
-    },
-    acceptAll: acceptAllSuggestions,
-    confirmKey: () => {
-      const currentFace = detectedFaces[currentFaceIndex];
-      if (currentFace?.is_confirmed) return;
-
-      const input = inputRefs.current[currentFaceIndex];
-      if (input?.value?.trim()) {
-        confirmFace(currentFaceIndex, input.value);
-      } else {
-        const suggestion = resolveSuggestion(currentFace);
-        if (suggestion?.isIgnore) {
-          ignoreFace(currentFaceIndex);
-        } else if (suggestion) {
-          confirmFace(currentFaceIndex, suggestion.name);
+      },
+      ignore: () => ignoreFace(currentFaceIndex),
+      focusInput: () => {
+        const input = inputRefs.current[currentFaceIndex];
+        if (input && !detectedFaces[currentFaceIndex]?.is_confirmed) {
+          setClearInputTrigger((prev) => prev + 1);
+          input.focus();
         }
-      }
+      },
+      skipImage,
+      addManualFace,
+      undo: undoWithToast,
+      deleteFile: requestDeleteCurrentFile,
+      undoDelete: () => emit('file-queue:undo-trash'),
+      escape: (e, isInput) => {
+        if (isLoading) {
+          cancelDetection();
+          showToast(t('review.status.detectionCancelled'), 'info', 1500);
+          return;
+        }
+        if (isInput) {
+          e.target.blur();
+        } else {
+          discardChanges();
+        }
+      },
     },
-    ignore: () => ignoreFace(currentFaceIndex),
-    focusInput: () => {
-      const input = inputRefs.current[currentFaceIndex];
-      if (input && !detectedFaces[currentFaceIndex]?.is_confirmed) {
-        setClearInputTrigger(prev => prev + 1);
-        input.focus();
-      }
+    {
+      // Active-tabset-aware gate (I1): visible AND (my tabset active OR a
+      // companion — the image — hosts the active tabset). Replaces the old
+      // isVisible-only gate that let a visible-but-inactive Review steal keys
+      // from another active panel.
+      isActive: isReviewActive,
     },
-    skipImage,
-    addManualFace,
-    undo: undoWithToast,
-    deleteFile: requestDeleteCurrentFile,
-    undoDelete: () => emit('file-queue:undo-trash'),
-    escape: (e, isInput) => {
-      if (isLoading) {
-        cancelDetection();
-        showToast(t('review.status.detectionCancelled'), 'info', 1500);
-        return;
-      }
-      if (isInput) {
-        e.target.blur();
-      } else {
-        discardChanges();
-      }
-    },
-  }, {
-    // Active-tabset-aware gate (I1): visible AND (my tabset active OR a
-    // companion — the image — hosts the active tabset). Replaces the old
-    // isVisible-only gate that let a visible-but-inactive Review steal keys
-    // from another active panel.
-    isActive: isReviewActive,
-  });
+  );
 
-  useModuleEvent('image-loaded', useCallback(({ imagePath, skipAutoDetect }) => {
-    if (skipAutoDetect) {
-      debug('ReviewModule', 'Skipping auto-detect for already-processed file:', imagePath);
-      setCurrentImagePath(imagePath);
-      setDetectedFaces([]);
-      setDetectionOk(false);
-      setStatus(t('review.status.alreadyProcessed'));
-      return;
-    }
-    if (imagePath === currentImagePath && detectedFaces.length > 0) {
-      debug('ReviewModule', 'Ignoring duplicate image-loaded for same file with faces');
-      return;
-    }
-    detectFaces(imagePath);
-  }, [detectFaces, currentImagePath, detectedFaces.length]));
+  useModuleEvent(
+    'image-loaded',
+    useCallback(
+      ({ imagePath, skipAutoDetect }) => {
+        if (skipAutoDetect) {
+          debug(
+            'ReviewModule',
+            'Skipping auto-detect for already-processed file:',
+            imagePath,
+          );
+          setCurrentImagePath(imagePath);
+          setDetectedFaces([]);
+          setDetectionOk(false);
+          setStatus(t('review.status.alreadyProcessed'));
+          return;
+        }
+        if (imagePath === currentImagePath && detectedFaces.length > 0) {
+          debug(
+            'ReviewModule',
+            'Ignoring duplicate image-loaded for same file with faces',
+          );
+          return;
+        }
+        detectFaces(imagePath);
+      },
+      [detectFaces, currentImagePath, detectedFaces.length],
+    ),
+  );
 
   /**
    * Listen for clear-image events (when file is removed from queue)
    */
-  useModuleEvent('clear-image', useCallback(() => {
-    debug('ReviewModule', 'Clearing review state');
-    setCurrentImagePath(null);
-    setDetectedFaces([]);
-    setDetectionOk(false);
-    setCurrentFaceIndex(-1);
-    setStatus(t('review.status.waitingForImage'));
-  }, []));
+  useModuleEvent(
+    'clear-image',
+    useCallback(() => {
+      debug('ReviewModule', 'Clearing review state');
+      setCurrentImagePath(null);
+      setDetectedFaces([]);
+      setDetectionOk(false);
+      setCurrentFaceIndex(-1);
+      setStatus(t('review.status.waitingForImage'));
+    }, []),
+  );
 
   /**
    * Listen for save/discard commands
@@ -822,14 +1004,20 @@ export function ReviewModule({ node }) {
   // File menu → "Flytta till papperskorgen" / "Ångra radering". Gated by
   // visibility so the menu items act on the reviewed file only when the review
   // surface is up (they no-op during culling, which has its own delete).
-  useModuleEvent('delete-current-file', useCallback(() => {
-    if (node && !node.isVisible()) return;
-    requestDeleteCurrentFile();
-  }, [node, requestDeleteCurrentFile]));
-  useModuleEvent('undo-delete-file', useCallback(() => {
-    if (node && !node.isVisible()) return;
-    emit('file-queue:undo-trash');
-  }, [node, emit]));
+  useModuleEvent(
+    'delete-current-file',
+    useCallback(() => {
+      if (node && !node.isVisible()) return;
+      requestDeleteCurrentFile();
+    }, [node, requestDeleteCurrentFile]),
+  );
+  useModuleEvent(
+    'undo-delete-file',
+    useCallback(() => {
+      if (node && !node.isVisible()) return;
+      emit('file-queue:undo-trash');
+    }, [node, emit]),
+  );
   useModuleEvent('queue-status', setQueueStatus);
   // Pull the current queue status AND the current image on mount. When Review
   // is opened after an image already loaded (e.g. a layout switch into the
@@ -845,12 +1033,19 @@ export function ReviewModule({ node }) {
   /**
    * WebSocket events
    */
-  useWebSocket('face-detected', useCallback((data) => {
-    debug('ReviewModule', 'Face detected event:', data);
-  }, []));
+  useWebSocket(
+    'face-detected',
+    useCallback((data) => {
+      debug('ReviewModule', 'Face detected event:', data);
+    }, []),
+  );
 
   return (
-    <div ref={moduleRef} className="module-container review-module" tabIndex={-1}>
+    <div
+      ref={moduleRef}
+      className="module-container review-module"
+      tabIndex={-1}
+    >
       <div className="module-header review-header">
         <div className="review-status">{status}</div>
       </div>
@@ -881,7 +1076,9 @@ export function ReviewModule({ node }) {
             // No successful detection yet: before any image, or after an error
             // (the status line shows the real error). No actionable button.
             <div className="loading">
-              {currentImagePath ? t('review.noFacesDetected') : t('review.status.waitingForImage')}
+              {currentImagePath
+                ? t('review.noFacesDetected')
+                : t('review.status.waitingForImage')}
             </div>
           )
         ) : (
@@ -893,8 +1090,12 @@ export function ReviewModule({ node }) {
               isActive={index === currentFaceIndex}
               imagePath={currentImagePath}
               people={people}
-              cardRef={(el) => { cardRefs.current[index] = el; }}
-              inputRef={(el) => { inputRefs.current[index] = el; }}
+              cardRef={(el) => {
+                cardRefs.current[index] = el;
+              }}
+              inputRef={(el) => {
+                inputRefs.current[index] = el;
+              }}
               onSelect={() => {
                 setCurrentFaceIndex(index);
                 emit('active-face-changed', { index });
@@ -902,7 +1103,10 @@ export function ReviewModule({ node }) {
               onConfirm={(name) => confirmFace(index, name)}
               onIgnore={() => ignoreFace(index)}
               onUnconfirm={() => unconfirmFace(index)}
-              maxAlternatives={preferences.get('reviewModule.maxAlternatives', 5)}
+              maxAlternatives={preferences.get(
+                'reviewModule.maxAlternatives',
+                5,
+              )}
               onSelectAlternative={(name) => {
                 if (name === 'ign') {
                   ignoreFace(index);
@@ -910,33 +1114,47 @@ export function ReviewModule({ node }) {
                   confirmFace(index, name);
                 }
               }}
-              clearInputTrigger={index === currentFaceIndex ? clearInputTrigger : 0}
+              clearInputTrigger={
+                index === currentFaceIndex ? clearInputTrigger : 0
+              }
             />
           ))
         )}
       </div>
 
-      {queueStatus && queueStatus.total > 0 && (() => {
-        const { total, done, preprocessed = 0 } = queueStatus;
-        const remaining = Math.max(0, total - done - preprocessed);
-        const pct = (n) => (n / total) * 100;
-        return (
-          <div className="module-footer review-footer">
-            <div
-              className="review-queue-bar"
-              title={t('review.queueBar.title', { done, preprocessed, remaining })}
-            >
-              {done > 0 && (
-                <div className="seg seg-done" style={{ width: `${pct(done)}%` }} />
-              )}
-              {preprocessed > 0 && (
-                <div className="seg seg-cached" style={{ width: `${pct(preprocessed)}%` }} />
-              )}
-              {/* "remaining" is the bar track itself (var(--bg-elevated)) showing through */}
+      {queueStatus &&
+        queueStatus.total > 0 &&
+        (() => {
+          const { total, done, preprocessed = 0 } = queueStatus;
+          const remaining = Math.max(0, total - done - preprocessed);
+          const pct = (n) => (n / total) * 100;
+          return (
+            <div className="module-footer review-footer">
+              <div
+                className="review-queue-bar"
+                title={t('review.queueBar.title', {
+                  done,
+                  preprocessed,
+                  remaining,
+                })}
+              >
+                {done > 0 && (
+                  <div
+                    className="seg seg-done"
+                    style={{ width: `${pct(done)}%` }}
+                  />
+                )}
+                {preprocessed > 0 && (
+                  <div
+                    className="seg seg-cached"
+                    style={{ width: `${pct(preprocessed)}%` }}
+                  />
+                )}
+                {/* "remaining" is the bar track itself (var(--bg-elevated)) showing through */}
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {confirmDialog && (
         <ConfirmDialog
@@ -951,7 +1169,11 @@ export function ReviewModule({ node }) {
       {suffixDialog && (
         <SuffixDialog
           initialValue={suffixDialog.prefill}
-          originalName={suffixDialog.imagePath ? suffixDialog.imagePath.split('/').pop() : ''}
+          originalName={
+            suffixDialog.imagePath
+              ? suffixDialog.imagePath.split('/').pop()
+              : ''
+          }
           onSave={(value) => saveSuffix(suffixDialog.imagePath, value)}
           onCancel={() => setSuffixDialog(null)}
         />

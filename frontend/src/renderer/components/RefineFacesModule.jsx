@@ -29,7 +29,7 @@ export function RefineFacesModule() {
   const confirm = useConfirm();
 
   // Mode selection
-  const [mode, setMode] = useState('std');  // 'std', 'cluster', 'mahalanobis', 'shape'
+  const [mode, setMode] = useState('std'); // 'std', 'cluster', 'mahalanobis', 'shape'
 
   // Configuration
   const [config, setConfig] = useState({
@@ -38,7 +38,7 @@ export function RefineFacesModule() {
     clusterMin: 6,
     mahalanobisThreshold: 3.0,
     minEncodings: 8,
-    person: ''    // Empty = all people
+    person: '', // Empty = all people
   });
 
   // State
@@ -48,7 +48,8 @@ export function RefineFacesModule() {
 
   // Operation status: persistent errors surfaced via Alert; transient success
   // receipts go to toasts.
-  const { isLoading, setIsLoading, status, showError, clearStatus } = useOperationStatus();
+  const { isLoading, setIsLoading, status, showError, clearStatus } =
+    useOperationStatus();
 
   /**
    * Fetch preview from API
@@ -71,18 +72,27 @@ export function RefineFacesModule() {
       params.set('std_threshold', config.stdThreshold.toString());
       params.set('cluster_dist', config.clusterDist.toString());
       params.set('cluster_min', config.clusterMin.toString());
-      params.set('mahalanobis_threshold', config.mahalanobisThreshold.toString());
+      params.set(
+        'mahalanobis_threshold',
+        config.mahalanobisThreshold.toString(),
+      );
       params.set('min_encodings', config.minEncodings.toString());
 
-      const result = await api.get(`/api/v1/refinement/preview?${params.toString()}`);
+      const result = await api.get(
+        `/api/v1/refinement/preview?${params.toString()}`,
+      );
       setPreview(result);
 
       if (result.summary.total_remove === 0) {
-        showToast(t('refineFaces.messages.noEncodingsToRemove'), { type: 'info' });
+        showToast(t('refineFaces.messages.noEncodingsToRemove'), {
+          type: 'info',
+        });
       }
     } catch (err) {
       debugError('RefineFaces', 'Preview failed:', err);
-      showError(t('refineFaces.messages.previewFailed', { error: err.message }));
+      showError(
+        t('refineFaces.messages.previewFailed', { error: err.message }),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -91,84 +101,121 @@ export function RefineFacesModule() {
   /**
    * Apply filtering
    */
-  const handleApply = useCallback(async (dryRun = false) => {
-    if (!preview || preview.summary.total_remove === 0) {
-      showError(t('refineFaces.messages.runPreviewFirst'));
-      return;
-    }
-
-    const confirmKey = dryRun ? 'refineFaces.messages.simulateConfirm' : 'refineFaces.messages.removeConfirm';
-    const confirmMsg = t(confirmKey, {
-      count: preview.summary.total_remove,
-      people: preview.summary.affected_people
-    });
-
-    if (!dryRun && !(await confirm({ message: confirmMsg, variant: 'danger' }))) return;
-
-    setIsLoading(true);
-
-    try {
-      const body = {
-        mode,
-        persons: config.person.trim() ? [config.person.trim()] : null,
-        std_threshold: config.stdThreshold,
-        cluster_dist: config.clusterDist,
-        cluster_min: config.clusterMin,
-        mahalanobis_threshold: config.mahalanobisThreshold,
-        min_encodings: config.minEncodings,
-        dry_run: dryRun
-      };
-
-      const result = await api.post('/api/v1/refinement/apply', body);
-
-      if (dryRun) {
-        showToast(t('refineFaces.messages.dryRunRemoved', { count: result.removed }), { type: 'info' });
-      } else {
-        showToast(t('refineFaces.messages.removed', { count: result.removed }), { type: 'success' });
-        setPreview(null);  // Clear preview after successful apply
+  const handleApply = useCallback(
+    async (dryRun = false) => {
+      if (!preview || preview.summary.total_remove === 0) {
+        showError(t('refineFaces.messages.runPreviewFirst'));
+        return;
       }
-    } catch (err) {
-      debugError('RefineFaces', 'Apply failed:', err);
-      showError(t('refineFaces.messages.applyFailed', { error: err.message }));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [api, mode, config, preview, confirm, showToast]);
+
+      const confirmKey = dryRun
+        ? 'refineFaces.messages.simulateConfirm'
+        : 'refineFaces.messages.removeConfirm';
+      const confirmMsg = t(confirmKey, {
+        count: preview.summary.total_remove,
+        people: preview.summary.affected_people,
+      });
+
+      if (
+        !dryRun &&
+        !(await confirm({ message: confirmMsg, variant: 'danger' }))
+      )
+        return;
+
+      setIsLoading(true);
+
+      try {
+        const body = {
+          mode,
+          persons: config.person.trim() ? [config.person.trim()] : null,
+          std_threshold: config.stdThreshold,
+          cluster_dist: config.clusterDist,
+          cluster_min: config.clusterMin,
+          mahalanobis_threshold: config.mahalanobisThreshold,
+          min_encodings: config.minEncodings,
+          dry_run: dryRun,
+        };
+
+        const result = await api.post('/api/v1/refinement/apply', body);
+
+        if (dryRun) {
+          showToast(
+            t('refineFaces.messages.dryRunRemoved', { count: result.removed }),
+            { type: 'info' },
+          );
+        } else {
+          showToast(
+            t('refineFaces.messages.removed', { count: result.removed }),
+            { type: 'success' },
+          );
+          setPreview(null); // Clear preview after successful apply
+        }
+      } catch (err) {
+        debugError('RefineFaces', 'Apply failed:', err);
+        showError(
+          t('refineFaces.messages.applyFailed', { error: err.message }),
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [api, mode, config, preview, confirm, showToast],
+  );
 
   /**
    * Apply shape repair
    */
-  const handleRepairShapes = useCallback(async (dryRun = false) => {
-    setIsLoading(true);
-    clearStatus();
+  const handleRepairShapes = useCallback(
+    async (dryRun = false) => {
+      setIsLoading(true);
+      clearStatus();
 
-    try {
-      const body = {
-        persons: config.person.trim() ? [config.person.trim()] : null,
-        dry_run: dryRun
-      };
+      try {
+        const body = {
+          persons: config.person.trim() ? [config.person.trim()] : null,
+          dry_run: dryRun,
+        };
 
-      const result = await api.post('/api/v1/refinement/repair-shapes', body);
+        const result = await api.post('/api/v1/refinement/repair-shapes', body);
 
-      if (result.total_removed === 0) {
-        showToast(t('refineFaces.messages.noInconsistentShapes'), { type: 'info' });
-        return;
+        if (result.total_removed === 0) {
+          showToast(t('refineFaces.messages.noInconsistentShapes'), {
+            type: 'info',
+          });
+          return;
+        }
+
+        if (dryRun) {
+          // Show the detailed per-person breakdown in a modal (replaces alert()).
+          setRepairPreview({
+            count: result.total_removed,
+            rows: result.repaired,
+          });
+          showToast(
+            t('refineFaces.messages.dryRunWrongShape', {
+              count: result.total_removed,
+            }),
+            { type: 'info' },
+          );
+        } else {
+          showToast(
+            t('refineFaces.messages.inconsistentShapeRemoved', {
+              count: result.total_removed,
+            }),
+            { type: 'success' },
+          );
+        }
+      } catch (err) {
+        debugError('RefineFaces', 'Repair shapes failed:', err);
+        showError(
+          t('refineFaces.messages.repairFailed', { error: err.message }),
+        );
+      } finally {
+        setIsLoading(false);
       }
-
-      if (dryRun) {
-        // Show the detailed per-person breakdown in a modal (replaces alert()).
-        setRepairPreview({ count: result.total_removed, rows: result.repaired });
-        showToast(t('refineFaces.messages.dryRunWrongShape', { count: result.total_removed }), { type: 'info' });
-      } else {
-        showToast(t('refineFaces.messages.inconsistentShapeRemoved', { count: result.total_removed }), { type: 'success' });
-      }
-    } catch (err) {
-      debugError('RefineFaces', 'Repair shapes failed:', err);
-      showError(t('refineFaces.messages.repairFailed', { error: err.message }));
-    } finally {
-      setIsLoading(false);
-    }
-  }, [api, config.person, showToast]);
+    },
+    [api, config.person, showToast],
+  );
 
   return (
     <div className="module-container refine-faces">
@@ -179,7 +226,9 @@ export function RefineFacesModule() {
       <div className="module-body">
         {/* Filter Mode Selection */}
         <div className="section-card">
-          <h4 className="section-title">{t('refineFaces.sections.filterMode')}</h4>
+          <h4 className="section-title">
+            {t('refineFaces.sections.filterMode')}
+          </h4>
           <div className="mode-selection">
             <label className="mode-option">
               <input
@@ -189,8 +238,12 @@ export function RefineFacesModule() {
                 checked={mode === 'std'}
                 onChange={(e) => setMode(e.target.value)}
               />
-              <span className="mode-label">{t('refineFaces.modes.std.label')}</span>
-              <span className="mode-desc">{t('refineFaces.modes.std.desc')}</span>
+              <span className="mode-label">
+                {t('refineFaces.modes.std.label')}
+              </span>
+              <span className="mode-desc">
+                {t('refineFaces.modes.std.desc')}
+              </span>
             </label>
 
             <label className="mode-option">
@@ -201,8 +254,12 @@ export function RefineFacesModule() {
                 checked={mode === 'cluster'}
                 onChange={(e) => setMode(e.target.value)}
               />
-              <span className="mode-label">{t('refineFaces.modes.cluster.label')}</span>
-              <span className="mode-desc">{t('refineFaces.modes.cluster.desc')}</span>
+              <span className="mode-label">
+                {t('refineFaces.modes.cluster.label')}
+              </span>
+              <span className="mode-desc">
+                {t('refineFaces.modes.cluster.desc')}
+              </span>
             </label>
 
             <label className="mode-option">
@@ -213,8 +270,12 @@ export function RefineFacesModule() {
                 checked={mode === 'mahalanobis'}
                 onChange={(e) => setMode(e.target.value)}
               />
-              <span className="mode-label">{t('refineFaces.modes.mahalanobis.label')}</span>
-              <span className="mode-desc">{t('refineFaces.modes.mahalanobis.desc')}</span>
+              <span className="mode-label">
+                {t('refineFaces.modes.mahalanobis.label')}
+              </span>
+              <span className="mode-desc">
+                {t('refineFaces.modes.mahalanobis.desc')}
+              </span>
             </label>
 
             <label className="mode-option">
@@ -225,15 +286,21 @@ export function RefineFacesModule() {
                 checked={mode === 'shape'}
                 onChange={(e) => setMode(e.target.value)}
               />
-              <span className="mode-label">{t('refineFaces.modes.shape.label')}</span>
-              <span className="mode-desc">{t('refineFaces.modes.shape.desc')}</span>
+              <span className="mode-label">
+                {t('refineFaces.modes.shape.label')}
+              </span>
+              <span className="mode-desc">
+                {t('refineFaces.modes.shape.desc')}
+              </span>
             </label>
           </div>
         </div>
 
         {/* Configuration */}
         <div className="section-card">
-          <h4 className="section-title">{t('refineFaces.sections.settings')}</h4>
+          <h4 className="section-title">
+            {t('refineFaces.sections.settings')}
+          </h4>
           <div className="config-grid">
             {/* Std threshold - only for std mode */}
             {mode === 'std' && (
@@ -245,10 +312,17 @@ export function RefineFacesModule() {
                   min="0.5"
                   max="5"
                   value={config.stdThreshold}
-                  onChange={(e) => setConfig(prev => ({ ...prev, stdThreshold: parseFloat(e.target.value) || 2.0 }))}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      stdThreshold: parseFloat(e.target.value) || 2.0,
+                    }))
+                  }
                 />
                 <span className="config-unit">σ</span>
-                <span className="config-hint">{t('refineFaces.settings.stdHint')}</span>
+                <span className="config-hint">
+                  {t('refineFaces.settings.stdHint')}
+                </span>
               </div>
             )}
 
@@ -263,9 +337,16 @@ export function RefineFacesModule() {
                     min="0.1"
                     max="1.0"
                     value={config.clusterDist}
-                    onChange={(e) => setConfig(prev => ({ ...prev, clusterDist: parseFloat(e.target.value) || 0.35 }))}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        clusterDist: parseFloat(e.target.value) || 0.35,
+                      }))
+                    }
                   />
-                  <span className="config-hint">{t('refineFaces.settings.clusterDistHint')}</span>
+                  <span className="config-hint">
+                    {t('refineFaces.settings.clusterDistHint')}
+                  </span>
                 </div>
                 <div className="config-row">
                   <label>{t('refineFaces.settings.clusterMin')}</label>
@@ -274,7 +355,12 @@ export function RefineFacesModule() {
                     min="2"
                     max="20"
                     value={config.clusterMin}
-                    onChange={(e) => setConfig(prev => ({ ...prev, clusterMin: parseInt(e.target.value, 10) || 6 }))}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        clusterMin: parseInt(e.target.value, 10) || 6,
+                      }))
+                    }
                   />
                 </div>
               </>
@@ -290,9 +376,16 @@ export function RefineFacesModule() {
                   min="1"
                   max="10"
                   value={config.mahalanobisThreshold}
-                  onChange={(e) => setConfig(prev => ({ ...prev, mahalanobisThreshold: parseFloat(e.target.value) || 3.0 }))}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      mahalanobisThreshold: parseFloat(e.target.value) || 3.0,
+                    }))
+                  }
                 />
-                <span className="config-hint">{t('refineFaces.settings.mahalHint')}</span>
+                <span className="config-hint">
+                  {t('refineFaces.settings.mahalHint')}
+                </span>
               </div>
             )}
 
@@ -305,9 +398,16 @@ export function RefineFacesModule() {
                   min="2"
                   max="50"
                   value={config.minEncodings}
-                  onChange={(e) => setConfig(prev => ({ ...prev, minEncodings: parseInt(e.target.value, 10) || 8 }))}
+                  onChange={(e) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      minEncodings: parseInt(e.target.value, 10) || 8,
+                    }))
+                  }
                 />
-                <span className="config-hint">{t('refineFaces.settings.minEncodingsHint')}</span>
+                <span className="config-hint">
+                  {t('refineFaces.settings.minEncodingsHint')}
+                </span>
               </div>
             )}
 
@@ -318,7 +418,9 @@ export function RefineFacesModule() {
                 type="text"
                 placeholder={t('refineFaces.settings.personPlaceholder')}
                 value={config.person}
-                onChange={(e) => setConfig(prev => ({ ...prev, person: e.target.value }))}
+                onChange={(e) =>
+                  setConfig((prev) => ({ ...prev, person: e.target.value }))
+                }
               />
             </div>
           </div>
@@ -350,7 +452,9 @@ export function RefineFacesModule() {
                 onClick={handlePreview}
                 loading={isLoading}
               >
-                {isLoading ? t('refineFaces.buttons.loading') : t('refineFaces.buttons.preview')}
+                {isLoading
+                  ? t('refineFaces.buttons.loading')
+                  : t('refineFaces.buttons.preview')}
               </Button>
               {preview && preview.summary.total_remove > 0 && (
                 <Button
@@ -372,7 +476,9 @@ export function RefineFacesModule() {
             {preview.warnings && preview.warnings.length > 0 && (
               <div className="preview-warnings">
                 {preview.warnings.map((warning, idx) => (
-                  <Alert key={idx} variant="warning">{warning}</Alert>
+                  <Alert key={idx} variant="warning">
+                    {warning}
+                  </Alert>
                 ))}
               </div>
             )}
@@ -395,19 +501,32 @@ export function RefineFacesModule() {
                       <td className="cell-remove">{row.remove}</td>
                       <td className="cell-stats">
                         {row.stats ? (
-                          <span title={`min=${row.stats.min_dist.toFixed(4)}, max=${row.stats.max_dist.toFixed(4)}`}>
-                            μ={row.stats.mean_dist.toFixed(3)}, σ={row.stats.std_dist.toFixed(3)}
+                          <span
+                            title={`min=${row.stats.min_dist.toFixed(4)}, max=${row.stats.max_dist.toFixed(4)}`}
+                          >
+                            μ={row.stats.mean_dist.toFixed(3)}, σ=
+                            {row.stats.std_dist.toFixed(3)}
                           </span>
-                        ) : '-'}
+                        ) : (
+                          '-'
+                        )}
                       </td>
-                      <td className="cell-reason">{formatReason(row.reason)}</td>
+                      <td className="cell-reason">
+                        {formatReason(row.reason)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="preview-summary">
-              {t('refineFaces.preview.summaryPre')} <strong>{preview.summary.total_remove}</strong> {t('refineFaces.preview.summaryEncodings')} <strong>{preview.summary.affected_people}</strong> {t('refineFaces.preview.summaryOf', { total: preview.summary.total_people })}
+              {t('refineFaces.preview.summaryPre')}{' '}
+              <strong>{preview.summary.total_remove}</strong>{' '}
+              {t('refineFaces.preview.summaryEncodings')}{' '}
+              <strong>{preview.summary.affected_people}</strong>{' '}
+              {t('refineFaces.preview.summaryOf', {
+                total: preview.summary.total_people,
+              })}
             </div>
           </div>
         )}
@@ -415,7 +534,7 @@ export function RefineFacesModule() {
         {/* Persistent error status */}
         {status.message && (
           <Alert
-            variant={status.type === 'error' ? 'error' : (status.type || 'info')}
+            variant={status.type === 'error' ? 'error' : status.type || 'info'}
             onDismiss={clearStatus}
           >
             {status.message}
@@ -426,12 +545,18 @@ export function RefineFacesModule() {
         <div className="info-box">
           <h5>{t('refineFaces.about.title')}</h5>
           <p>
-            {t('refineFaces.about.supportedPre')} <strong>InsightFace</strong> {t('refineFaces.about.supportedPost')}
+            {t('refineFaces.about.supportedPre')} <strong>InsightFace</strong>{' '}
+            {t('refineFaces.about.supportedPost')}
           </p>
           <p>
-            <strong>{t('refineFaces.modes.std.label')}</strong> {t('refineFaces.about.stdText')}<br />
-            <strong>{t('refineFaces.modes.cluster.label')}</strong> {t('refineFaces.about.clusterText')}<br />
-            <strong>{t('refineFaces.modes.mahalanobis.label')}</strong> {t('refineFaces.about.mahalanobisText')}
+            <strong>{t('refineFaces.modes.std.label')}</strong>{' '}
+            {t('refineFaces.about.stdText')}
+            <br />
+            <strong>{t('refineFaces.modes.cluster.label')}</strong>{' '}
+            {t('refineFaces.about.clusterText')}
+            <br />
+            <strong>{t('refineFaces.modes.mahalanobis.label')}</strong>{' '}
+            {t('refineFaces.about.mahalanobisText')}
           </p>
         </div>
       </div>
@@ -451,7 +576,9 @@ export function RefineFacesModule() {
         {repairPreview && (
           <>
             <p className="repair-modal-summary">
-              {t('refineFaces.messages.dryRunWrongShape', { count: repairPreview.count })}
+              {t('refineFaces.messages.dryRunWrongShape', {
+                count: repairPreview.count,
+              })}
             </p>
             <ul className="repair-modal-list">
               {repairPreview.rows.map((r, idx) => (
@@ -460,7 +587,7 @@ export function RefineFacesModule() {
                     person: r.person,
                     removed: r.removed,
                     total: r.total,
-                    shape: r.kept_shape.join('x')
+                    shape: r.kept_shape.join('x'),
                   })}
                 </li>
               ))}

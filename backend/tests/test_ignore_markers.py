@@ -37,10 +37,19 @@ from core.naming import collect_persons_for_files as naming_collect_persons
 
 # Every marker, plus the case and whitespace variants a hand-typed log carries.
 MARKER_FORMS = [
-    "ignorerad", "Ignorerad", "IGNORERAD", " ignorerad ",
-    "ign", "IGN", " ign",
-    "okänt", "Okänt", "OKÄNT",
-    "okant", "Okant", " okant ",
+    "ignorerad",
+    "Ignorerad",
+    "IGNORERAD",
+    " ignorerad ",
+    "ign",
+    "IGN",
+    " ign",
+    "okänt",
+    "Okänt",
+    "OKÄNT",
+    "okant",
+    "Okant",
+    " okant ",
 ]
 
 # Names that must never count as markers. ``X ignorerad`` is the semantics
@@ -63,6 +72,7 @@ def _entry(filename, labels, file_hash="hash123"):
 # --------------------------------------------------------------------------
 # 1. The vocabulary itself
 # --------------------------------------------------------------------------
+
 
 def test_marker_set_is_the_four_markers():
     assert IGNORE_MARKERS == frozenset({"ignorerad", "ign", "okänt", "okant"})
@@ -104,6 +114,7 @@ def test_only_a_hash_digit_newline_prefix_is_stripped():
 # 2. core.db.extract_face_labels — prefixed labels only
 # --------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("marker", MARKER_FORMS)
 def test_extract_face_labels_drops_every_marker(marker):
     labels = [{"label": "#1\nElis Niemi"}, {"label": f"#2\n{marker}"}]
@@ -120,6 +131,7 @@ def test_extract_face_labels_keeps_person_names(name):
 # --------------------------------------------------------------------------
 # 3. core.naming.collect_persons_for_files
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("marker", MARKER_FORMS)
 def test_naming_collect_persons_drops_every_marker(tmp_path, marker):
@@ -149,6 +161,7 @@ def test_naming_collect_persons_keeps_person_names(tmp_path, name):
 # 4. rename path
 # --------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize("marker", MARKER_FORMS)
 def test_rename_collect_persons_drops_every_marker(tmp_path, marker):
     test_file = tmp_path / "260701_100000.NEF"
@@ -176,6 +189,7 @@ def test_rename_collect_persons_keeps_person_names(tmp_path, name):
 # --------------------------------------------------------------------------
 # 5. statistics — the path that used to undercount
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("marker", MARKER_FORMS)
 def test_calc_ignored_fraction_counts_every_prefixed_marker(marker):
@@ -217,6 +231,7 @@ def test_calc_ignored_fraction_does_not_count_person_names(name):
 # than silently absent. Unifying the forms is a behaviour change with its own
 # ROADMAP item — when it lands, these are the tests that must change.
 
+
 def test_manual_prefix_is_kept_by_naming_and_rename(tmp_path):
     """naming/rename split on the newline, so a manual name survives."""
     test_file = tmp_path / "260701_100000.NEF"
@@ -247,6 +262,7 @@ def test_manual_prefix_is_dropped_by_extract_face_labels():
 # --------------------------------------------------------------------------
 # 7. Cross-path agreement — the actual invariant
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("marker", MARKER_FORMS)
 def test_all_paths_agree_on_every_marker(tmp_path, marker):

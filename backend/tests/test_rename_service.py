@@ -158,8 +158,9 @@ class TestCollectPersonsForFiles:
             # Detected face: encoding basename matches the current filename.
             "Aryan": [{"file": "260111_080910_Aryan.NEF", "hash": "H", "encoding": [0.1]}],
             # Manual face: encoding basename has diverged, only the hash still matches.
-            "Elis": [{"file": "260111_080910.NEF", "hash": "H",
-                      "encoding": None, "is_manual": True}],
+            "Elis": [
+                {"file": "260111_080910.NEF", "hash": "H", "encoding": None, "is_manual": True}
+            ],
         }
         filelist = [str(test_file)]
 
@@ -175,8 +176,14 @@ class TestCollectPersonsForFiles:
         test_file.touch()
         known_faces = {
             "Aryan": [{"file": "260111_080910_Aryan.NEF", "hash": "H", "encoding": [0.1]}],
-            "Elis": [{"file": "260111_080910_Aryan.NEF", "hash": None,
-                      "encoding": None, "is_manual": True}],
+            "Elis": [
+                {
+                    "file": "260111_080910_Aryan.NEF",
+                    "hash": None,
+                    "encoding": None,
+                    "is_manual": True,
+                }
+            ],
         }
         filelist = [str(test_file)]
 
@@ -222,11 +229,13 @@ class TestCollectPersonsForFiles:
                 "file_hash": "hash123",
                 "used_attempt": 0,
                 "review_results": ["ok"],
-                "labels_per_attempt": [[
-                    {"label": "#1\nReal Person"},
-                    {"label": "#2\nIgnorerad"},
-                    {"label": "#3\nokänt"},
-                ]],
+                "labels_per_attempt": [
+                    [
+                        {"label": "#1\nReal Person"},
+                        {"label": "#2\nIgnorerad"},
+                        {"label": "#3\nokänt"},
+                    ]
+                ],
             },
         ]
 

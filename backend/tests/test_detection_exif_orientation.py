@@ -45,6 +45,7 @@ def test_load_image_applies_exif_orientation(tmp_path):
     assert rgb.shape[0] > rgb.shape[1], f"expected portrait, got {rgb.shape}"
     # Matches PIL's own exif_transpose — the canonical oriented result.
     from PIL import ImageOps
+
     expected = np.array(ImageOps.exif_transpose(Image.open(p)).convert("RGB"))
     assert rgb.shape == expected.shape
     assert np.array_equal(rgb, expected)

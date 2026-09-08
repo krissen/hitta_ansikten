@@ -38,6 +38,7 @@ _DLIB = _Backend("dlib", "euclidean")
 # _get_backend_thresholds
 # --------------------------------------------------------------------------
 
+
 def test_insightface_defaults_to_cosine_when_no_block():
     # Empty config -> canonical cosine defaults for the insightface backend.
     assert _get_backend_thresholds({}, _INSIGHTFACE) == COSINE_DEFAULT_THRESHOLDS
@@ -87,6 +88,7 @@ def test_manual_mode_without_block_still_uses_canonical_defaults():
 # --------------------------------------------------------------------------
 # _migrate_config
 # --------------------------------------------------------------------------
+
 
 def _legacy_config():
     # Mirrors the real-world on-disk config that motivated the fix.
@@ -146,7 +148,11 @@ def test_migration_preserves_other_backend_blocks():
     cfg = {
         "match_threshold": 0.6,
         "backend_thresholds": {
-            "dlib": {"match_threshold": 0.54, "ignore_distance": 0.48, "hard_negative_distance": 0.45}
+            "dlib": {
+                "match_threshold": 0.54,
+                "ignore_distance": 0.48,
+                "hard_negative_distance": 0.45,
+            }
         },
     }
     raw, changed = _migrate_config(cfg)
@@ -166,6 +172,7 @@ def test_migration_noop_without_flat_keys():
 # --------------------------------------------------------------------------
 # _migrate_config — v3 match_threshold 0.40 -> 0.45 (face-recognition audit)
 # --------------------------------------------------------------------------
+
 
 def _audit_era_config():
     # The owner's live v2 config: canonical block pinned to the audit-era 0.40.
@@ -249,6 +256,7 @@ def test_load_config_fresh_default_already_at_045(tmp_path, monkeypatch):
 # --------------------------------------------------------------------------
 # load_config persistence
 # --------------------------------------------------------------------------
+
 
 def test_load_config_persists_migration(tmp_path, monkeypatch):
     cfg_path = tmp_path / "config.json"

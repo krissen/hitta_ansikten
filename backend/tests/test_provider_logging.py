@@ -81,7 +81,9 @@ def test_log_actual_providers_emits_info(caplog):
         backend._log_actual_providers()
 
     messages = [r.getMessage() for r in caplog.records]
-    assert any("Actual bound providers [detection]" in m and "CPUExecutionProvider" in m for m in messages)
+    assert any(
+        "Actual bound providers [detection]" in m and "CPUExecutionProvider" in m for m in messages
+    )
     assert any("Actual bound providers [recognition]" in m for m in messages)
 
 

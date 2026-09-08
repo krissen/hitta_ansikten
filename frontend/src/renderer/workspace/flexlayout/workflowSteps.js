@@ -44,7 +44,12 @@ function moduleForStep(stepId) {
 export const WORKFLOW_STEPS = STEP_ORDER.map((step) => {
   const moduleId = moduleForStep(step);
   if (!moduleId) return null;
-  return { step, moduleId, icon: STEP_ICONS[step], requiresCard: STEP_REQUIRES_CARD.has(step) };
+  return {
+    step,
+    moduleId,
+    icon: STEP_ICONS[step],
+    requiresCard: STEP_REQUIRES_CARD.has(step),
+  };
 }).filter(Boolean);
 
 // The remaining (non-pipeline) views/tools, in the order the landing/bar list
@@ -67,8 +72,14 @@ export const WORKFLOW_TOOLS = [
 // on the moduleAPI bus (WorkflowBar emits there), and adoption downstream stays
 // opt-in — the anchor only pre-fills.
 export const CONTINUE_BY_STEP = {
-  import: { event: 'open-rename-nef', labelKey: 'startupLanding.continueRename' },
-  rename: { event: 'open-review-queue', labelKey: 'startupLanding.continueReview' },
+  import: {
+    event: 'open-rename-nef',
+    labelKey: 'startupLanding.continueRename',
+  },
+  rename: {
+    event: 'open-review-queue',
+    labelKey: 'startupLanding.continueReview',
+  },
   review: { event: 'open-count', labelKey: 'startupLanding.continueCount' },
   count: { event: 'open-culling', labelKey: 'startupLanding.continueCull' },
 };

@@ -61,6 +61,7 @@ def _service(backend_name="insightface", config=None):
 # helpers so any divergence in the index shows up as a test failure.
 # ---------------------------------------------------------------------------
 
+
 class NaiveMatcher:
     def __init__(self, backend):
         self.backend = backend
@@ -147,8 +148,7 @@ class NaiveMatcher:
                 out.append(enc)
         return out
 
-    def alternatives(self, known, ignored, encoding, top_n=9,
-                     hardneg=None, hard_neg_thr=0.45):
+    def alternatives(self, known, ignored, encoding, top_n=9, hardneg=None, hard_neg_thr=0.45):
         all_matches = []
         for name, entries in known.items():
             if self._is_hard_negative(hardneg or {}, name, encoding, hard_neg_thr):
@@ -165,13 +165,15 @@ class NaiveMatcher:
                 d = self.backend.compute_distances(np.vstack(rows), encoding)
                 md = float(np.min(d))
                 conf = max(0, min(100, int((1.0 - md) * 100)))
-                all_matches.append({"name": name, "distance": md,
-                                    "confidence": conf, "is_ignored": False})
+                all_matches.append(
+                    {"name": name, "distance": md, "confidence": conf, "is_ignored": False}
+                )
         _, ign = self.match_ignored(ignored, encoding)
         if ign is not None:
             conf = max(0, min(100, int((1.0 - ign) * 100)))
-            all_matches.append({"name": "ign", "distance": ign,
-                                "confidence": conf, "is_ignored": True})
+            all_matches.append(
+                {"name": "ign", "distance": ign, "confidence": conf, "is_ignored": True}
+            )
         all_matches.sort(key=lambda x: x["distance"])
         return all_matches[:top_n]
 
@@ -179,6 +181,7 @@ class NaiveMatcher:
 # ---------------------------------------------------------------------------
 # Synthetic databases
 # ---------------------------------------------------------------------------
+
 
 def _vec(rng, dim):
     return rng.standard_normal(dim).astype(float)
@@ -192,8 +195,7 @@ def _build_db(rng, n_people=12, dim=16, active="insightface"):
     """A varied DB: multiple encodings/person, off-backend, manual, ignored."""
     known = {}
     for p in range(n_people):
-        entries = [_entry(_vec(rng, dim), active)
-                   for _ in range(rng.integers(2, 6))]
+        entries = [_entry(_vec(rng, dim), active) for _ in range(rng.integers(2, 6))]
         # Sprinkle an off-backend entry (must be filtered out by both helpers).
         if p % 3 == 0:
             entries.append(_entry(_vec(rng, dim), "dlib"))
@@ -219,8 +221,7 @@ def test_index_matches_naive_for_all_four_helpers(active):
     svc.known_faces = known
     svc.ignored_faces = ignored
     svc.hard_negatives = hardneg
-    svc.config = {"match_threshold": 0.54, "ignore_distance": 0.48,
-                  "prefer_name_margin": 0.15}
+    svc.config = {"match_threshold": 0.54, "ignore_distance": 0.48, "prefer_name_margin": 0.15}
 
     naive = NaiveMatcher(svc.backend)
 
@@ -277,7 +278,12 @@ def test_mutation_invalidates_index_confirm_then_match():
     assert before_name != "Zoe"
 
     # Confirm the probe itself as a brand-new person via the real write path.
-    svc.encoding_cache["face_new"] = (probe, {"x": 0, "y": 0, "width": 1, "height": 1}, "hash", None)
+    svc.encoding_cache["face_new"] = (
+        probe,
+        {"x": 0, "y": 0, "width": 1, "height": 1},
+        "hash",
+        None,
+    )
     version_before = svc.store.version
     svc._confirm_identity_nosave("face_new", "Zoe", "/tmp/img.jpg")
     assert svc.store.version > version_before  # mutation bumped the version
@@ -324,8 +330,10 @@ def test_benchmark_index_vs_naive(capsys):
     """
     rng = np.random.default_rng(99)
     n_people, per_person, dim = 100, 5, 128
-    known = {f"Person{p:03d}": [_entry(_vec(rng, dim)) for _ in range(per_person)]
-             for p in range(n_people)}
+    known = {
+        f"Person{p:03d}": [_entry(_vec(rng, dim)) for _ in range(per_person)]
+        for p in range(n_people)
+    }
     ignored = [_entry(_vec(rng, dim)) for _ in range(20)]
 
     svc = _service()
@@ -356,12 +364,12 @@ def test_benchmark_index_vs_naive(capsys):
         svc._match_encoding_alternatives(probe, top_n=9)
     index_s = time.perf_counter() - t0
 
-    print(f"\n[benchmark] {n_people} people x {per_person} enc, dim={dim}, "
-          f"{len(probes)} faces (match_encoding + match_ignored + alternatives):")
-    print(f"  naive : {naive_s * 1000:8.2f} ms total  "
-          f"({naive_s / len(probes) * 1e6:7.1f} us/face)")
-    print(f"  index : {index_s * 1000:8.2f} ms total  "
-          f"({index_s / len(probes) * 1e6:7.1f} us/face)")
+    print(
+        f"\n[benchmark] {n_people} people x {per_person} enc, dim={dim}, "
+        f"{len(probes)} faces (match_encoding + match_ignored + alternatives):"
+    )
+    print(f"  naive : {naive_s * 1000:8.2f} ms total  ({naive_s / len(probes) * 1e6:7.1f} us/face)")
+    print(f"  index : {index_s * 1000:8.2f} ms total  ({index_s / len(probes) * 1e6:7.1f} us/face)")
     print(f"  speedup: {naive_s / index_s:.1f}x")
 
     assert index_s < naive_s

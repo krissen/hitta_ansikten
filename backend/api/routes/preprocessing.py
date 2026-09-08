@@ -33,6 +33,7 @@ router = APIRouter()
 # Request/Response Models
 # ============================================================================
 
+
 class CacheStatusResponse(BaseModel):
     cache_dir: str
     total_entries: int
@@ -87,6 +88,7 @@ class PreprocessResponse(BaseModel):
 # ============================================================================
 # Cache Management Endpoints
 # ============================================================================
+
 
 @router.get("/cache/status", response_model=CacheStatusResponse)
 async def get_cache_status():
@@ -159,13 +161,14 @@ async def batch_delete_cache_entries(request: BatchDeleteRequest):
         "status": "ok",
         "removed": removed,
         "removed_count": len(removed),
-        "not_found": not_found
+        "not_found": not_found,
     }
 
 
 # ============================================================================
 # Hash Computation
 # ============================================================================
+
 
 @router.post("/hash", response_model=FileHashResponse)
 async def compute_file_hash(request: FileHashRequest):
@@ -189,6 +192,7 @@ async def compute_file_hash(request: FileHashRequest):
 # Cache Check
 # ============================================================================
 
+
 @router.post("/check", response_model=CacheCheckResponse)
 async def check_cache(request: CacheCheckRequest):
     """Check what's cached for a file hash."""
@@ -205,8 +209,8 @@ async def check_cache(request: CacheCheckRequest):
     face_count = None
     if has_faces:
         faces_data = cache.get_face_detection(file_hash)
-        if faces_data and 'faces' in faces_data:
-            face_count = len(faces_data['faces'])
+        if faces_data and "faces" in faces_data:
+            face_count = len(faces_data["faces"])
 
     return CacheCheckResponse(
         file_hash=file_hash,
@@ -214,13 +218,14 @@ async def check_cache(request: CacheCheckRequest):
         has_face_detection=has_faces,
         has_thumbnails=has_thumbs,
         nef_jpg_path=nef_path,
-        face_count=face_count
+        face_count=face_count,
     )
 
 
 # ============================================================================
 # Preprocessing Endpoints
 # ============================================================================
+
 
 def _convert_nef_sync(file_path: str, file_hash: str, cache) -> dict:
     """Synchronous NEF conversion - runs in thread pool with deduplication."""
@@ -230,9 +235,11 @@ def _convert_nef_sync(file_path: str, file_hash: str, cache) -> dict:
         if not should_process:
             cached_path = cache.get_nef_conversion(file_hash)
             if cached_path:
-                logger.debug(f"[Preprocessing] NEF already converted by another thread: {file_hash[:8]}")
-                return {'status': 'completed', 'nef_jpg_path': cached_path}
-            return {'status': 'error', 'error': 'Conversion failed in another thread'}
+                logger.debug(
+                    f"[Preprocessing] NEF already converted by another thread: {file_hash[:8]}"
+                )
+                return {"status": "completed", "nef_jpg_path": cached_path}
+            return {"status": "error", "error": "Conversion failed in another thread"}
 
         jpg_path = None
         try:
@@ -240,16 +247,16 @@ def _convert_nef_sync(file_path: str, file_hash: str, cache) -> dict:
             jpg_path = convert_nef_to_jpg(file_path)
 
             if jpg_path and os.path.exists(jpg_path):
-                with open(jpg_path, 'rb') as f:
+                with open(jpg_path, "rb") as f:
                     jpg_data = f.read()
 
                 cached_path = cache.store_nef_conversion(file_hash, file_path, jpg_data)
-                return {'status': 'completed', 'nef_jpg_path': cached_path}
+                return {"status": "completed", "nef_jpg_path": cached_path}
             else:
-                return {'status': 'error', 'error': 'NEF conversion failed'}
+                return {"status": "error", "error": "NEF conversion failed"}
         except Exception as e:  # noqa: BLE001 - one file's failure is reported as status='error' for that file; libraw/PIL/cache failures must not abort the batch
             logger.error(f"[Preprocessing] NEF conversion error: {e}")
-            return {'status': 'error', 'error': str(e)}
+            return {"status": "error", "error": str(e)}
         finally:
             if jpg_path and os.path.exists(jpg_path):
                 try:
@@ -285,34 +292,25 @@ async def preprocess_nef(request: PreprocessRequest):
     cached_path = cache.get_nef_conversion(file_hash)
     if cached_path:
         logger.debug(f"[Preprocessing] NEF cache hit: {file_hash}")
-        return PreprocessResponse(
-            file_hash=file_hash,
-            status='cached',
-            nef_jpg_path=cached_path
-        )
+        return PreprocessResponse(file_hash=file_hash, status="cached", nef_jpg_path=cached_path)
 
     # Convert NEF in thread pool (non-blocking)
-    result = await loop.run_in_executor(
-        _executor, _convert_nef_sync, file_path, file_hash, cache
-    )
+    result = await loop.run_in_executor(_executor, _convert_nef_sync, file_path, file_hash, cache)
 
-    if result['status'] == 'completed':
+    if result["status"] == "completed":
         return PreprocessResponse(
-            file_hash=file_hash,
-            status='completed',
-            nef_jpg_path=result['nef_jpg_path']
+            file_hash=file_hash, status="completed", nef_jpg_path=result["nef_jpg_path"]
         )
     else:
         return PreprocessResponse(
-            file_hash=file_hash,
-            status='error',
-            error=result.get('error', 'NEF conversion failed')
+            file_hash=file_hash, status="error", error=result.get("error", "NEF conversion failed")
         )
 
 
 # ============================================================================
 # Overview (grid) Thumbnails
 # ============================================================================
+
 
 def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
     """
@@ -332,6 +330,7 @@ def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
 
     if ext in RAW_EXTENSIONS:
         import rawpy
+
         try:
             with rawpy.imread(file_path) as raw:
                 thumb = raw.extract_thumb()
@@ -356,11 +355,11 @@ def _make_preview_thumb_sync(file_path: str, size: int) -> bytes:
             img = opened.copy()
 
     img = ImageOps.exif_transpose(img)
-    img = img.convert('RGB')
+    img = img.convert("RGB")
     img.thumbnail((size, size), Image.Resampling.LANCZOS)
 
     buf = io.BytesIO()
-    img.save(buf, format='JPEG', quality=80)
+    img.save(buf, format="JPEG", quality=80)
     return buf.getvalue()
 
 
@@ -372,10 +371,10 @@ def _generate_grid_thumb(file_path: str, grid_key: str, size: int, cache) -> dic
         # eviction, which on a tiny cache could remove the file we just wrote —
         # so we never rely on re-reading it from disk.
         cache.store_grid_thumb(grid_key, file_path, jpg_data)
-        return {'status': 'completed', 'data': jpg_data}
+        return {"status": "completed", "data": jpg_data}
     except Exception as e:  # noqa: BLE001 - one thumbnail's failure is reported as status='error' for that file; the grid keeps rendering the rest
         logger.error(f"[Preprocessing] Grid thumbnail error for {file_path}: {e}")
-        return {'status': 'error', 'error': str(e)}
+        return {"status": "error", "error": str(e)}
 
 
 def _grid_thumb_sync(file_path: str, grid_key: str, size: int, cache) -> dict:
@@ -385,8 +384,8 @@ def _grid_thumb_sync(file_path: str, grid_key: str, size: int, cache) -> dict:
             cached = cache.get_grid_thumb(grid_key)
             if cached:
                 try:
-                    with open(cached, 'rb') as f:
-                        return {'status': 'completed', 'data': f.read()}
+                    with open(cached, "rb") as f:
+                        return {"status": "completed", "data": f.read()}
                 except OSError:
                     pass  # evicted between lookup and read — regenerate below
             # The other thread's result is gone (evicted on a tiny cache, or
@@ -424,12 +423,12 @@ async def get_preview_thumb(path: str, size: int = 256):
     cached = cache.get_grid_thumb(grid_key)
     if cached:
         try:
-            with open(cached, 'rb') as f:
+            with open(cached, "rb") as f:
                 data = f.read()
             return Response(
                 content=data,
                 media_type="image/jpeg",
-                headers={"Cache-Control": "public, max-age=604800", "X-Cache": "HIT"}
+                headers={"Cache-Control": "public, max-age=604800", "X-Cache": "HIT"},
             )
         except OSError:
             # Evicted between the index lookup and the read — regenerate below
@@ -439,15 +438,17 @@ async def get_preview_thumb(path: str, size: int = 256):
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(_executor, _grid_thumb_sync, path, grid_key, size, cache)
 
-    if result['status'] != 'completed':
-        raise HTTPException(status_code=500, detail=result.get('error', 'Thumbnail generation failed'))
+    if result["status"] != "completed":
+        raise HTTPException(
+            status_code=500, detail=result.get("error", "Thumbnail generation failed")
+        )
 
     # Serve the bytes the worker returned — never re-read from disk, which a
     # concurrent eviction could have removed.
     return Response(
-        content=result['data'],
+        content=result["data"],
         media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=604800", "X-Cache": "MISS"}
+        headers={"Cache-Control": "public, max-age=604800", "X-Cache": "MISS"},
     )
 
 
@@ -459,9 +460,11 @@ def _detect_faces_sync(file_path: str, file_hash: str, cache) -> dict:
         if not should_process:
             faces_data = cache.get_face_detection(file_hash)
             if faces_data:
-                logger.debug(f"[Preprocessing] Faces already detected by another thread: {file_hash[:8]}")
-                return {'status': 'completed', 'face_count': len(faces_data.get('faces', []))}
-            return {'status': 'error', 'error': 'Detection failed in another thread'}
+                logger.debug(
+                    f"[Preprocessing] Faces already detected by another thread: {file_hash[:8]}"
+                )
+                return {"status": "completed", "face_count": len(faces_data.get("faces", []))}
+            return {"status": "error", "error": "Detection failed in another thread"}
 
         try:
             logger.info(f"[Preprocessing] Detecting faces: {file_path}")
@@ -474,23 +477,23 @@ def _detect_faces_sync(file_path: str, file_hash: str, cache) -> dict:
             faces_data = detect_faces_in_image(image_path, include_encodings=False)
 
             cacheable_data = {
-                'faces': [
+                "faces": [
                     {
-                        'face_id': f.get('face_id'),
-                        'bounding_box': f.get('bounding_box'),
-                        'confidence': f.get('confidence')
+                        "face_id": f.get("face_id"),
+                        "bounding_box": f.get("bounding_box"),
+                        "confidence": f.get("confidence"),
                     }
-                    for f in faces_data.get('faces', [])
+                    for f in faces_data.get("faces", [])
                 ],
-                'image_width': faces_data.get('image_width'),
-                'image_height': faces_data.get('image_height')
+                "image_width": faces_data.get("image_width"),
+                "image_height": faces_data.get("image_height"),
             }
 
             cache.store_face_detection(file_hash, file_path, cacheable_data)
-            return {'status': 'completed', 'face_count': len(cacheable_data['faces'])}
+            return {"status": "completed", "face_count": len(cacheable_data["faces"])}
         except Exception as e:  # noqa: BLE001 - detection runs third-party models; any failure is reported as status='error' for that file rather than aborting the queue
             logger.error(f"[Preprocessing] Face detection error: {e}")
-            return {'status': 'error', 'error': str(e)}
+            return {"status": "error", "error": str(e)}
 
 
 @router.post("/faces", response_model=PreprocessResponse)
@@ -524,31 +527,24 @@ async def preprocess_faces(request: PreprocessRequest):
         logger.debug(f"[Preprocessing] Faces cache hit: {file_hash}")
         # Get face count from cached data
         faces_data = cache.get_face_detection(file_hash)
-        face_count = len(faces_data.get('faces', [])) if faces_data else None
+        face_count = len(faces_data.get("faces", [])) if faces_data else None
         return PreprocessResponse(
-            file_hash=file_hash,
-            status='cached',
-            faces_cached=True,
-            face_count=face_count
+            file_hash=file_hash, status="cached", faces_cached=True, face_count=face_count
         )
 
     # Detect faces in thread pool (non-blocking)
-    result = await loop.run_in_executor(
-        _executor, _detect_faces_sync, file_path, file_hash, cache
-    )
+    result = await loop.run_in_executor(_executor, _detect_faces_sync, file_path, file_hash, cache)
 
-    if result['status'] == 'completed':
+    if result["status"] == "completed":
         return PreprocessResponse(
             file_hash=file_hash,
-            status='completed',
+            status="completed",
             faces_cached=True,
-            face_count=result.get('face_count')
+            face_count=result.get("face_count"),
         )
     else:
         return PreprocessResponse(
-            file_hash=file_hash,
-            status='error',
-            error=result.get('error', 'Face detection failed')
+            file_hash=file_hash, status="error", error=result.get("error", "Face detection failed")
         )
 
 
@@ -559,9 +555,11 @@ def _generate_thumbnails_sync(file_path: str, file_hash: str, faces_data: dict, 
     with cache.processing_slot(file_hash, "thumbnail generation") as (should_process, attempt):
         if not should_process:
             if cache.has_thumbnails(file_hash):
-                logger.debug(f"[Preprocessing] Thumbnails already generated by another thread: {file_hash[:8]}")
-                return {'status': 'completed'}
-            return {'status': 'error', 'error': 'Thumbnail generation failed in another thread'}
+                logger.debug(
+                    f"[Preprocessing] Thumbnails already generated by another thread: {file_hash[:8]}"
+                )
+                return {"status": "completed"}
+            return {"status": "error", "error": "Thumbnail generation failed in another thread"}
 
         try:
             logger.info(f"[Preprocessing] Generating thumbnails: {file_path}")
@@ -571,18 +569,15 @@ def _generate_thumbnails_sync(file_path: str, file_hash: str, faces_data: dict, 
             if cached_jpg:
                 image_path = cached_jpg
 
-            thumbnails = generate_face_thumbnails(
-                image_path,
-                faces_data.get('faces', [])
-            )
+            thumbnails = generate_face_thumbnails(image_path, faces_data.get("faces", []))
 
             if thumbnails:
                 cache.store_thumbnails(file_hash, file_path, thumbnails)
 
-            return {'status': 'completed'}
+            return {"status": "completed"}
         except Exception as e:  # noqa: BLE001 - one file's thumbnails failing is reported as status='error' for that file; the queue continues
             logger.error(f"[Preprocessing] Thumbnail generation error: {e}")
-            return {'status': 'error', 'error': str(e)}
+            return {"status": "error", "error": str(e)}
 
 
 @router.post("/thumbnails", response_model=PreprocessResponse)
@@ -610,19 +605,15 @@ async def preprocess_thumbnails(request: PreprocessRequest):
     # Check cache first
     if cache.has_thumbnails(file_hash):
         logger.debug(f"[Preprocessing] Thumbnails cache hit: {file_hash}")
-        return PreprocessResponse(
-            file_hash=file_hash,
-            status='cached',
-            thumbnails_cached=True
-        )
+        return PreprocessResponse(file_hash=file_hash, status="cached", thumbnails_cached=True)
 
     # Need face detection first
     faces_data = cache.get_face_detection(file_hash)
     if not faces_data:
         return PreprocessResponse(
             file_hash=file_hash,
-            status='error',
-            error='Face detection required before thumbnail generation'
+            status="error",
+            error="Face detection required before thumbnail generation",
         )
 
     # Generate thumbnails in thread pool (non-blocking)
@@ -630,17 +621,13 @@ async def preprocess_thumbnails(request: PreprocessRequest):
         _executor, _generate_thumbnails_sync, file_path, file_hash, faces_data, cache
     )
 
-    if result['status'] == 'completed':
-        return PreprocessResponse(
-            file_hash=file_hash,
-            status='completed',
-            thumbnails_cached=True
-        )
+    if result["status"] == "completed":
+        return PreprocessResponse(file_hash=file_hash, status="completed", thumbnails_cached=True)
     else:
         return PreprocessResponse(
             file_hash=file_hash,
-            status='error',
-            error=result.get('error', 'Thumbnail generation failed')
+            status="error",
+            error=result.get("error", "Thumbnail generation failed"),
         )
 
 
@@ -655,7 +642,7 @@ async def preprocess_all(request: PreprocessRequest):
     # Initialize cache (used by sub-functions)
     get_cache()
     file_path = request.file_path
-    steps = request.steps or ['nef', 'faces', 'thumbs']
+    steps = request.steps or ["nef", "faces", "thumbs"]
 
     # Validate file exists
     if not os.path.exists(file_path):
@@ -669,45 +656,39 @@ async def preprocess_all(request: PreprocessRequest):
             _executor, PreprocessingCache.compute_file_hash, file_path
         )
 
-    result = PreprocessResponse(
-        file_hash=file_hash,
-        status='completed'
-    )
+    result = PreprocessResponse(file_hash=file_hash, status="completed")
 
     try:
         # Step 1: NEF conversion
-        if 'nef' in steps and file_path.lower().endswith(('.nef', '.raw', '.cr2', '.arw')):
-            nef_result = await preprocess_nef(PreprocessRequest(
-                file_path=file_path,
-                file_hash=file_hash
-            ))
+        if "nef" in steps and file_path.lower().endswith((".nef", ".raw", ".cr2", ".arw")):
+            nef_result = await preprocess_nef(
+                PreprocessRequest(file_path=file_path, file_hash=file_hash)
+            )
             result.nef_jpg_path = nef_result.nef_jpg_path
-            if nef_result.status == 'error':
-                result.status = 'error'
+            if nef_result.status == "error":
+                result.status = "error"
                 result.error = nef_result.error
                 return result
 
         # Step 2: Face detection
-        if 'faces' in steps:
-            faces_result = await preprocess_faces(PreprocessRequest(
-                file_path=file_path,
-                file_hash=file_hash
-            ))
+        if "faces" in steps:
+            faces_result = await preprocess_faces(
+                PreprocessRequest(file_path=file_path, file_hash=file_hash)
+            )
             result.faces_cached = faces_result.faces_cached
-            if faces_result.status == 'error':
-                result.status = 'error'
+            if faces_result.status == "error":
+                result.status = "error"
                 result.error = faces_result.error
                 return result
 
         # Step 3: Thumbnails
-        if 'thumbs' in steps:
-            thumbs_result = await preprocess_thumbnails(PreprocessRequest(
-                file_path=file_path,
-                file_hash=file_hash
-            ))
+        if "thumbs" in steps:
+            thumbs_result = await preprocess_thumbnails(
+                PreprocessRequest(file_path=file_path, file_hash=file_hash)
+            )
             result.thumbnails_cached = thumbs_result.thumbnails_cached
-            if thumbs_result.status == 'error':
-                result.status = 'error'
+            if thumbs_result.status == "error":
+                result.status = "error"
                 result.error = thumbs_result.error
                 return result
 
@@ -715,8 +696,4 @@ async def preprocess_all(request: PreprocessRequest):
 
     except Exception as e:  # noqa: BLE001 - request boundary for the whole pipeline: the caller gets status='error' with the reason instead of an unhandled 500
         logger.error(f"[Preprocessing] Error: {e}")
-        return PreprocessResponse(
-            file_hash=file_hash,
-            status='error',
-            error=str(e)
-        )
+        return PreprocessResponse(file_hash=file_hash, status="error", error=str(e))

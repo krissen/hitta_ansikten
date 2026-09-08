@@ -74,14 +74,24 @@ export function DatabaseManagement() {
   const [deduping, setDeduping] = useState(false);
 
   // Operation status: persistent errors only (transient receipts go to toasts).
-  const { isLoading, setIsLoading, status, showError, clearStatus } = useOperationStatus();
+  const { isLoading, setIsLoading, status, showError, clearStatus } =
+    useOperationStatus();
 
   // Form states - using useFormState hook for cleaner reset handling
   const renameForm = useFormState({ oldName: '', newName: '' });
-  const mergeForm = useFormState({ source1: '', source2: '', target: '', backend: '' });
+  const mergeForm = useFormState({
+    source1: '',
+    source2: '',
+    target: '',
+    backend: '',
+  });
   const deleteForm = useFormState({ name: '' });
   const moveToIgnoreForm = useFormState({ name: '', backend: '' });
-  const moveFromIgnoreForm = useFormState({ count: '', target: '', backend: '' });
+  const moveFromIgnoreForm = useFormState({
+    count: '',
+    target: '',
+    backend: '',
+  });
   const undoForm = useFormState({ pattern: '' });
   const purgeForm = useFormState({ name: '', count: '', backend: '' });
 
@@ -97,8 +107,8 @@ export function DatabaseManagement() {
     if (!searchTerm.trim()) return databaseState.people;
 
     return databaseState.people
-      .map(person => ({ ...person, ...fuzzyMatch(person.name, searchTerm) }))
-      .filter(p => p.match)
+      .map((person) => ({ ...person, ...fuzzyMatch(person.name, searchTerm) }))
+      .filter((p) => p.match)
       .sort((a, b) => b.score - a.score);
   }, [databaseState?.people, searchTerm]);
 
@@ -136,12 +146,20 @@ export function DatabaseManagement() {
       return;
     }
 
-    if (!(await confirm({ message: t('database.dialogs.renameConfirm', { old: oldName.trim(), new: newName.trim() }) }))) return;
+    if (
+      !(await confirm({
+        message: t('database.dialogs.renameConfirm', {
+          old: oldName.trim(),
+          new: newName.trim(),
+        }),
+      }))
+    )
+      return;
 
     try {
       const result = await api.post('/api/v1/management/rename-person', {
         old_name: oldName.trim(),
-        new_name: newName.trim()
+        new_name: newName.trim(),
       });
       showToast(result.message, { type: 'success' });
       setDatabaseState(result.new_state);
@@ -160,17 +178,27 @@ export function DatabaseManagement() {
     }
 
     const targetName = target.trim() || source1.trim();
-    const backendDesc = backend ? t('database.misc.backendOnly', { backend }) : '';
+    const backendDesc = backend
+      ? t('database.misc.backendOnly', { backend })
+      : '';
 
-    if (!(await confirm({ message: t('database.dialogs.mergeConfirm', {
-      source1: source1.trim(), source2: source2.trim(), target: targetName, backendDesc
-    }) }))) return;
+    if (
+      !(await confirm({
+        message: t('database.dialogs.mergeConfirm', {
+          source1: source1.trim(),
+          source2: source2.trim(),
+          target: targetName,
+          backendDesc,
+        }),
+      }))
+    )
+      return;
 
     try {
       const result = await api.post('/api/v1/management/merge-people', {
         source_names: [source1.trim(), source2.trim()],
         target_name: targetName,
-        backend_filter: backend || null
+        backend_filter: backend || null,
       });
       let msg = result.message;
       if (result.warning) {
@@ -193,16 +221,25 @@ export function DatabaseManagement() {
     try {
       // Guard against a cleared input (parseFloat('') → NaN), which would
       // otherwise serialize as threshold=NaN and break the JSON round-trip.
-      const threshold = Number.isFinite(duplicateThreshold) ? duplicateThreshold : 0.35;
-      const result = await api.get('/api/v1/management/find-duplicates', { threshold });
+      const threshold = Number.isFinite(duplicateThreshold)
+        ? duplicateThreshold
+        : 0.35;
+      const result = await api.get('/api/v1/management/find-duplicates', {
+        threshold,
+      });
       setDuplicatePairs(result.pairs);
-      showToast(t('database.toasts.foundDuplicates', {
-        count: result.pairs.length,
-        people: result.people_compared,
-        threshold: result.threshold
-      }), { type: 'success' });
+      showToast(
+        t('database.toasts.foundDuplicates', {
+          count: result.pairs.length,
+          people: result.people_compared,
+          threshold: result.threshold,
+        }),
+        { type: 'success' },
+      );
     } catch (err) {
-      showError(t('database.toasts.duplicateScanFailed', { error: err.message }));
+      showError(
+        t('database.toasts.duplicateScanFailed', { error: err.message }),
+      );
     } finally {
       setFindingDuplicates(false);
     }
@@ -214,13 +251,21 @@ export function DatabaseManagement() {
   const handleMergePair = async (pair, keepName) => {
     if (mergingPair) return;
     const dropName = keepName === pair.name_a ? pair.name_b : pair.name_a;
-    if (!(await confirm({ message: t('database.dialogs.mergePairConfirm', { drop: dropName, keep: keepName }) }))) return;
+    if (
+      !(await confirm({
+        message: t('database.dialogs.mergePairConfirm', {
+          drop: dropName,
+          keep: keepName,
+        }),
+      }))
+    )
+      return;
     setMergingPair(true);
     try {
       const result = await api.post('/api/v1/management/merge-people', {
         source_names: [dropName],
         target_name: keepName,
-        backend_filter: null
+        backend_filter: null,
       });
       let msg = result.message;
       if (result.warning) msg += `\n⚠️ ${result.warning}`;
@@ -260,13 +305,24 @@ export function DatabaseManagement() {
     try {
       await api.post('/api/v1/management/distinct-pair', {
         name_a: pair.name_a,
-        name_b: pair.name_b
+        name_b: pair.name_b,
       });
       setDuplicatePairs((prev) =>
-        (prev || []).filter((p) => !(p.name_a === pair.name_a && p.name_b === pair.name_b))
+        (prev || []).filter(
+          (p) => !(p.name_a === pair.name_a && p.name_b === pair.name_b),
+        ),
       );
-      setDistinctPairs((prev) => [...prev, { name_a: pair.name_a, name_b: pair.name_b }]);
-      showToast(t('database.toasts.markedNotDuplicate', { a: pair.name_a, b: pair.name_b }), { type: 'success' });
+      setDistinctPairs((prev) => [
+        ...prev,
+        { name_a: pair.name_a, name_b: pair.name_b },
+      ]);
+      showToast(
+        t('database.toasts.markedNotDuplicate', {
+          a: pair.name_a,
+          b: pair.name_b,
+        }),
+        { type: 'success' },
+      );
     } catch (err) {
       showError(t('database.toasts.excludePairFailed', { error: err.message }));
     } finally {
@@ -281,13 +337,17 @@ export function DatabaseManagement() {
     try {
       await api.post('/api/v1/management/distinct-pair/remove', {
         name_a: pair.name_a,
-        name_b: pair.name_b
+        name_b: pair.name_b,
       });
       setDistinctPairs((prev) =>
-        prev.filter((p) => !(p.name_a === pair.name_a && p.name_b === pair.name_b))
+        prev.filter(
+          (p) => !(p.name_a === pair.name_a && p.name_b === pair.name_b),
+        ),
       );
     } catch (err) {
-      showError(t('database.toasts.removeExclusionFailed', { error: err.message }));
+      showError(
+        t('database.toasts.removeExclusionFailed', { error: err.message }),
+      );
     }
   };
 
@@ -302,18 +362,29 @@ export function DatabaseManagement() {
   const handleScanRedundant = useCallback(async () => {
     setScanningRedundant(true);
     try {
-      const threshold = Number.isFinite(redundantThreshold) ? redundantThreshold : 0.0;
-      const result = await api.get('/api/v1/management/redundant-encodings', { threshold });
+      const threshold = Number.isFinite(redundantThreshold)
+        ? redundantThreshold
+        : 0.0;
+      const result = await api.get('/api/v1/management/redundant-encodings', {
+        threshold,
+      });
       setRedundantPeople(result.people);
       setScannedThreshold(result.threshold); // dedup must use the threshold shown, not the live slider
-      showToast(t('database.toasts.foundRedundant', {
-        count: result.total_redundant,
-        people: result.people.length,
-        peopleWord: t('database.misc.person', { count: result.people.length }),
-        threshold: result.threshold
-      }), { type: 'success' });
+      showToast(
+        t('database.toasts.foundRedundant', {
+          count: result.total_redundant,
+          people: result.people.length,
+          peopleWord: t('database.misc.person', {
+            count: result.people.length,
+          }),
+          threshold: result.threshold,
+        }),
+        { type: 'success' },
+      );
     } catch (err) {
-      showError(t('database.toasts.redundancyScanFailed', { error: err.message }));
+      showError(
+        t('database.toasts.redundancyScanFailed', { error: err.message }),
+      );
     } finally {
       setScanningRedundant(false);
     }
@@ -329,17 +400,27 @@ export function DatabaseManagement() {
     const totalRedundant = (redundantPeople || [])
       .filter((p) => nameSet.has(p.name))
       .reduce((sum, p) => sum + p.redundant, 0);
-    const who = names.length === 1
-      ? `'${names[0]}'`
-      : t('database.misc.peopleCount', { count: names.length });
-    if (!(await confirm({ message: t('database.dialogs.dedupConfirm', { count: totalRedundant, who }), variant: 'danger' }))) return;
+    const who =
+      names.length === 1
+        ? `'${names[0]}'`
+        : t('database.misc.peopleCount', { count: names.length });
+    if (
+      !(await confirm({
+        message: t('database.dialogs.dedupConfirm', {
+          count: totalRedundant,
+          who,
+        }),
+        variant: 'danger',
+      }))
+    )
+      return;
     setDeduping(true);
     try {
       // Use the threshold the previewed list was computed at (not the live slider),
       // so the dedup removes exactly what was shown.
       const result = await api.post('/api/v1/management/dedup-people', {
         names,
-        threshold: scannedThreshold
+        threshold: scannedThreshold,
       });
       showToast(result.message, { type: 'success' });
       setDatabaseState(result.new_state);
@@ -358,10 +439,18 @@ export function DatabaseManagement() {
       return;
     }
 
-    if (!(await confirm({ message: t('database.dialogs.deleteConfirm', { name: name.trim() }), variant: 'danger' }))) return;
+    if (
+      !(await confirm({
+        message: t('database.dialogs.deleteConfirm', { name: name.trim() }),
+        variant: 'danger',
+      }))
+    )
+      return;
 
     try {
-      const result = await api.post('/api/v1/management/delete-person', { name: name.trim() });
+      const result = await api.post('/api/v1/management/delete-person', {
+        name: name.trim(),
+      });
       showToast(result.message, { type: 'success' });
       setDatabaseState(result.new_state);
       loadDistinctPairs(); // a delete drops the person's exclusion registry entries
@@ -378,20 +467,32 @@ export function DatabaseManagement() {
       return;
     }
 
-    const backendDesc = backend ? t('database.misc.backendOnly', { backend }) : '';
-    if (!(await confirm({ message: t('database.dialogs.moveToIgnoreConfirm', { name: name.trim(), backendDesc }) }))) return;
+    const backendDesc = backend
+      ? t('database.misc.backendOnly', { backend })
+      : '';
+    if (
+      !(await confirm({
+        message: t('database.dialogs.moveToIgnoreConfirm', {
+          name: name.trim(),
+          backendDesc,
+        }),
+      }))
+    )
+      return;
 
     try {
       const result = await api.post('/api/v1/management/move-to-ignore', {
         name: name.trim(),
-        backend_filter: backend || null
+        backend_filter: backend || null,
       });
       showToast(result.message, { type: 'success' });
       setDatabaseState(result.new_state);
       loadDistinctPairs(); // moving a person to ignored can drop registry entries
       moveToIgnoreForm.reset();
     } catch (err) {
-      showError(t('database.toasts.moveToIgnoreFailed', { error: err.message }));
+      showError(
+        t('database.toasts.moveToIgnoreFailed', { error: err.message }),
+      );
     }
   };
 
@@ -404,22 +505,33 @@ export function DatabaseManagement() {
       return;
     }
 
-    const backendDesc = backend ? t('database.misc.backendOnly', { backend }) : '';
-    if (!(await confirm({ message: t('database.dialogs.moveFromIgnoreConfirm', {
-      count: countNum === -1 ? t('database.misc.all') : countNum, target: target.trim(), backendDesc
-    }) }))) return;
+    const backendDesc = backend
+      ? t('database.misc.backendOnly', { backend })
+      : '';
+    if (
+      !(await confirm({
+        message: t('database.dialogs.moveFromIgnoreConfirm', {
+          count: countNum === -1 ? t('database.misc.all') : countNum,
+          target: target.trim(),
+          backendDesc,
+        }),
+      }))
+    )
+      return;
 
     try {
       const result = await api.post('/api/v1/management/move-from-ignore', {
         count: countNum,
         target_name: target.trim(),
-        backend_filter: backend || null
+        backend_filter: backend || null,
       });
       showToast(result.message, { type: 'success' });
       setDatabaseState(result.new_state);
       moveFromIgnoreForm.reset();
     } catch (err) {
-      showError(t('database.toasts.moveFromIgnoreFailed', { error: err.message }));
+      showError(
+        t('database.toasts.moveFromIgnoreFailed', { error: err.message }),
+      );
     }
   };
 
@@ -430,13 +542,23 @@ export function DatabaseManagement() {
       return;
     }
 
-    if (!(await confirm({ message: t('database.dialogs.undoConfirm', { pattern: pattern.trim() }) }))) return;
+    if (
+      !(await confirm({
+        message: t('database.dialogs.undoConfirm', { pattern: pattern.trim() }),
+      }))
+    )
+      return;
 
     try {
-      const result = await api.post('/api/v1/management/undo-file', { filename_pattern: pattern.trim() });
+      const result = await api.post('/api/v1/management/undo-file', {
+        filename_pattern: pattern.trim(),
+      });
       let message = result.message;
       if (result.files_undone?.length) {
-        message += '\n' + t('database.toasts.filesUndone') + result.files_undone.join(', ');
+        message +=
+          '\n' +
+          t('database.toasts.filesUndone') +
+          result.files_undone.join(', ');
       }
       showToast(message, { type: 'success' });
       setDatabaseState(result.new_state);
@@ -465,14 +587,26 @@ export function DatabaseManagement() {
       return;
     }
 
-    const backendDesc = backend ? t('database.misc.backendOnly', { backend }) : '';
-    if (!(await confirm({ message: t('database.dialogs.purgeConfirm', { count: countNum, name: name.trim(), backendDesc }), variant: 'danger' }))) return;
+    const backendDesc = backend
+      ? t('database.misc.backendOnly', { backend })
+      : '';
+    if (
+      !(await confirm({
+        message: t('database.dialogs.purgeConfirm', {
+          count: countNum,
+          name: name.trim(),
+          backendDesc,
+        }),
+        variant: 'danger',
+      }))
+    )
+      return;
 
     try {
       const result = await api.post('/api/v1/management/purge-encodings', {
         name: name.trim(),
         count: countNum,
-        backend_filter: backend || null
+        backend_filter: backend || null,
       });
       showToast(result.message, { type: 'success' });
       setDatabaseState(result.new_state);
@@ -483,10 +617,13 @@ export function DatabaseManagement() {
   };
 
   // People names for autocomplete
-  const peopleNames = databaseState?.people?.map(p => p.name) || [];
+  const peopleNames = databaseState?.people?.map((p) => p.name) || [];
 
   return (
-    <div className="module-container db-management" data-keyboard-scope="isolated">
+    <div
+      className="module-container db-management"
+      data-keyboard-scope="isolated"
+    >
       <div className="module-header">
         <h3 className="module-title">{t('database.title')}</h3>
         <Button variant="secondary" size="sm" onClick={loadDatabaseState}>
@@ -495,386 +632,496 @@ export function DatabaseManagement() {
       </div>
 
       <div className="module-body">
-      {/* Database State */}
-      <div className="section-card">
-        <h4 className="section-title">{t('database.sections.currentDatabase')}</h4>
-        {isLoading ? (
-          <div className="db-stats">{t('database.stats.loading')}</div>
-        ) : databaseState ? (
-          <>
-            <div className="db-stats">
-              <strong>{databaseState.people?.length || 0}</strong> {t('database.stats.people')}{' '}
-              <strong>{databaseState.ignored_count || 0}</strong> {t('database.stats.ignored')}
-              {databaseState.ignored_by_backend && Object.keys(databaseState.ignored_by_backend).length > 1 && (
-                <span className="backend-detail"> ({formatBackendBreakdown(databaseState.ignored_by_backend)})</span>
-              )},{' '}
-              <strong>{databaseState.processed_files_count || 0}</strong> {t('database.stats.filesProcessed')}
-              {databaseState.backends_in_use?.length > 0 && (
-                <div className="backends-in-use">
-                  {t('database.stats.backends')}{databaseState.backends_in_use.join(', ')}
-                </div>
-              )}
-            </div>
-            <input
-              type="text"
-              className="people-search"
-              placeholder={t('database.placeholders.filterNames')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <div className="people-list">
-              {filteredPeople.map(person => {
-                const breakdown = formatBackendBreakdown(person.encodings_by_backend);
-                return (
-                  <div key={person.name} className="person-item">
-                    <span className="person-name">{person.name}</span>
-                    <span className="person-count">
-                      {breakdown || person.encoding_count}
+        {/* Database State */}
+        <div className="section-card">
+          <h4 className="section-title">
+            {t('database.sections.currentDatabase')}
+          </h4>
+          {isLoading ? (
+            <div className="db-stats">{t('database.stats.loading')}</div>
+          ) : databaseState ? (
+            <>
+              <div className="db-stats">
+                <strong>{databaseState.people?.length || 0}</strong>{' '}
+                {t('database.stats.people')}{' '}
+                <strong>{databaseState.ignored_count || 0}</strong>{' '}
+                {t('database.stats.ignored')}
+                {databaseState.ignored_by_backend &&
+                  Object.keys(databaseState.ignored_by_backend).length > 1 && (
+                    <span className="backend-detail">
+                      {' '}
+                      (
+                      {formatBackendBreakdown(databaseState.ignored_by_backend)}
+                      )
                     </span>
+                  )}
+                , <strong>{databaseState.processed_files_count || 0}</strong>{' '}
+                {t('database.stats.filesProcessed')}
+                {databaseState.backends_in_use?.length > 0 && (
+                  <div className="backends-in-use">
+                    {t('database.stats.backends')}
+                    {databaseState.backends_in_use.join(', ')}
                   </div>
-                );
-              })}
-              {searchTerm && filteredPeople.length === 0 && (
-                <div className="person-item no-match">{t('database.emptyStates.noMatches')}</div>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="db-stats">{t('database.stats.loadFailedInline')}</div>
-        )}
-      </div>
-
-      {/* Operations */}
-      <div className="operations-panel">
-        <h4 className="section-title">{t('database.sections.operations')}</h4>
-
-        {/* 1. Rename */}
-        <OperationForm title={t('database.ops.rename.title')} onSubmit={submit(handleRename)}>
-          <div className="form-row">
-            <NameAutocomplete
-              value={renameForm.values.oldName}
-              onChange={(v) => renameForm.setValue('oldName', v)}
-              placeholder={t('database.placeholders.currentName')}
-              names={peopleNames}
-            />
-            <span>→</span>
-            <input
-              placeholder={t('database.placeholders.newName')}
-              value={renameForm.values.newName}
-              onChange={(e) => renameForm.setValue('newName', e.target.value)}
-            />
-            <Button type="submit" variant="primary">{t('database.buttons.rename')}</Button>
-          </div>
-        </OperationForm>
-
-        {/* 2. Merge */}
-        <OperationForm title={t('database.ops.merge.title')} onSubmit={submit(handleMerge)}>
-          <div className="form-column">
-            <NameAutocomplete
-              value={mergeForm.values.source1}
-              onChange={(v) => mergeForm.setValue('source1', v)}
-              placeholder={t('database.placeholders.firstPerson')}
-              names={peopleNames}
-            />
-            <NameAutocomplete
-              value={mergeForm.values.source2}
-              onChange={(v) => mergeForm.setValue('source2', v)}
-              placeholder={t('database.placeholders.secondPerson')}
-              names={peopleNames}
-            />
-            <input
-              placeholder={t('database.placeholders.resultName')}
-              value={mergeForm.values.target}
-              onChange={(e) => mergeForm.setValue('target', e.target.value)}
-            />
-            <div className="form-row">
-              <BackendSelect
-                value={mergeForm.values.backend}
-                onChange={(v) => mergeForm.setValue('backend', v)}
-                backends={databaseState?.backends_in_use}
-              />
-              <Button type="submit" variant="primary">{t('database.buttons.merge')}</Button>
-            </div>
-          </div>
-        </OperationForm>
-
-        {/* Find duplicates: distinctly-named people who are likely the same person */}
-        <OperationForm title={t('database.ops.findDuplicates.title')} onSubmit={submit(handleFindDuplicates)}>
-          <div className="form-row">
-            <label htmlFor="dup-threshold">{t('database.labels.threshold')}</label>
-            <input
-              id="dup-threshold"
-              type="number"
-              min="0"
-              max="1"
-              step="0.01"
-              value={duplicateThreshold}
-              onChange={(e) => setDuplicateThreshold(parseFloat(e.target.value))}
-              className="db-duplicate-threshold"
-            />
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={findingDuplicates}
-            >
-              {findingDuplicates ? t('database.buttons.scanning') : t('database.buttons.find')}
-            </Button>
-          </div>
-          {duplicatePairs !== null && (
-            duplicatePairs.length === 0 ? (
-              <div className="db-duplicate-empty">{t('database.emptyStates.noDuplicates')}</div>
-            ) : (
-              <ul className="db-duplicate-list">
-                {duplicatePairs.map((p) => (
-                  <li
-                    key={`${p.name_a}|${p.name_b}`}
-                    className={`db-duplicate-row${p.likely_distinct ? ' likely-distinct' : ''}`}
-                  >
-                    <span className="db-duplicate-names" title={t('database.tooltips.centroidDistance', { distance: p.distance })}>
-                      {p.name_a} ({p.count_a}) ⟷ {p.name_b} ({p.count_b}) · {p.distance.toFixed(2)}
-                      {p.separability != null && (
-                        <span className="db-duplicate-sep">
-                          {' · '}{t('database.ops.findDuplicates.separable', { percent: Math.round(p.separability * 100) })}
-                          {p.likely_distinct ? ' ' + t('database.ops.findDuplicates.likelyDistinct') : ''}
-                        </span>
-                      )}
-                    </span>
-                    <span className="db-duplicate-actions">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleMergePair(p, p.name_a)}
-                        disabled={mergingPair || findingDuplicates}
-                      >
-                        {t('database.buttons.keep', { name: p.name_a })}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleMergePair(p, p.name_b)}
-                        disabled={mergingPair || findingDuplicates}
-                      >
-                        {t('database.buttons.keep', { name: p.name_b })}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleNotADuplicate(p)}
-                        disabled={mergingPair || findingDuplicates}
-                        title={t('database.tooltips.notADuplicate')}
-                      >
-                        {t('database.buttons.notADuplicate')}
-                      </Button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )
-          )}
-          {distinctPairs.length > 0 && (
-            <div className="db-excluded">
-              <button
-                type="button"
-                className="db-excluded-toggle"
-                aria-expanded={showExcluded}
-                onClick={() => setShowExcluded((v) => !v)}
-              >
-                {showExcluded ? '▾' : '▸'} {t('database.ops.findDuplicates.excludedPairs', { count: distinctPairs.length })}
-              </button>
-              {showExcluded && (
-                <ul className="db-excluded-list">
-                  {distinctPairs.map((p) => (
-                    <li key={`${p.name_a}|${p.name_b}`} className="db-excluded-row">
-                      <span className="db-duplicate-names">{p.name_a} ⟷ {p.name_b}</span>
-                      <IconButton
-                        icon="close"
-                        label={t('database.tooltips.allowSuggestAgain')}
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemoveDistinct(p)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </OperationForm>
-
-        {/* Remove redundant encodings within a person */}
-        <OperationForm title={t('database.ops.redundant.title')} onSubmit={submit(handleScanRedundant)}>
-          <div className="form-row">
-            <label htmlFor="redundant-threshold">{t('database.labels.threshold')}</label>
-            <input
-              id="redundant-threshold"
-              type="number"
-              min="0"
-              max="1"
-              step="0.01"
-              value={redundantThreshold}
-              onChange={(e) => setRedundantThreshold(parseFloat(e.target.value))}
-              className="db-duplicate-threshold"
-              title={t('database.tooltips.redundantThreshold')}
-            />
-            <Button type="submit" variant="primary" disabled={scanningRedundant}>
-              {scanningRedundant ? t('database.buttons.scanning') : t('database.buttons.scan')}
-            </Button>
-            {redundantPeople && redundantPeople.length > 0 && (
-              <Button
-                variant="secondary"
-                onClick={() => handleDedup(redundantPeople.map((p) => p.name))}
-                disabled={deduping || scanningRedundant}
-              >
-                {t('database.buttons.cleanAll')}
-              </Button>
-            )}
-          </div>
-          {redundantPeople !== null && (
-            redundantPeople.length === 0 ? (
-              <div className="db-duplicate-empty">{t('database.emptyStates.noRedundant')}</div>
-            ) : (
-              <ul className="db-duplicate-list">
-                {redundantPeople.map((p) => (
-                  <li key={p.name} className="db-duplicate-row">
-                    <span className="db-duplicate-names">
-                      {p.name}: {p.total} → {p.kept}
-                      <span className="db-duplicate-sep"> ({t('database.ops.redundant.redundantCount', { count: p.redundant })})</span>
-                    </span>
-                    <span className="db-duplicate-actions">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleDedup([p.name])}
-                        disabled={deduping || scanningRedundant}
-                      >
-                        {t('database.buttons.clean')}
-                      </Button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )
-          )}
-        </OperationForm>
-
-        {/* 3. Delete */}
-        <OperationForm title={t('database.ops.delete.title')} onSubmit={submit(handleDelete)}>
-          <div className="form-row">
-            <NameAutocomplete
-              value={deleteForm.values.name}
-              onChange={(v) => deleteForm.setValue('name', v)}
-              placeholder={t('database.placeholders.personToDelete')}
-              names={peopleNames}
-            />
-            <Button type="submit" variant="danger">{t('database.buttons.delete')}</Button>
-          </div>
-        </OperationForm>
-
-        {/* 4. Move to Ignore */}
-        <OperationForm title={t('database.ops.moveToIgnore.title')} onSubmit={submit(handleMoveToIgnore)}>
-          <div className="form-row">
-            <NameAutocomplete
-              value={moveToIgnoreForm.values.name}
-              onChange={(v) => moveToIgnoreForm.setValue('name', v)}
-              placeholder={t('database.placeholders.personName')}
-              names={peopleNames}
-            />
-            <BackendSelect
-              value={moveToIgnoreForm.values.backend}
-              onChange={(v) => moveToIgnoreForm.setValue('backend', v)}
-              backends={databaseState?.backends_in_use}
-            />
-            <Button type="submit" variant="primary">{t('database.buttons.moveToIgnore')}</Button>
-          </div>
-        </OperationForm>
-
-        {/* 5. Move from Ignore */}
-        <OperationForm title={t('database.ops.moveFromIgnore.title')} onSubmit={submit(handleMoveFromIgnore)}>
-          <div className="form-column">
-            <div className="form-row">
+                )}
+              </div>
               <input
-                type="number"
-                placeholder={t('database.placeholders.countAll')}
-                min="-1"
-                value={moveFromIgnoreForm.values.count}
-                onChange={(e) => moveFromIgnoreForm.setValue('count', e.target.value)}
+                type="text"
+                className="people-search"
+                placeholder={t('database.placeholders.filterNames')}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <div className="people-list">
+                {filteredPeople.map((person) => {
+                  const breakdown = formatBackendBreakdown(
+                    person.encodings_by_backend,
+                  );
+                  return (
+                    <div key={person.name} className="person-item">
+                      <span className="person-name">{person.name}</span>
+                      <span className="person-count">
+                        {breakdown || person.encoding_count}
+                      </span>
+                    </div>
+                  );
+                })}
+                {searchTerm && filteredPeople.length === 0 && (
+                  <div className="person-item no-match">
+                    {t('database.emptyStates.noMatches')}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="db-stats">
+              {t('database.stats.loadFailedInline')}
+            </div>
+          )}
+        </div>
+
+        {/* Operations */}
+        <div className="operations-panel">
+          <h4 className="section-title">{t('database.sections.operations')}</h4>
+
+          {/* 1. Rename */}
+          <OperationForm
+            title={t('database.ops.rename.title')}
+            onSubmit={submit(handleRename)}
+          >
+            <div className="form-row">
+              <NameAutocomplete
+                value={renameForm.values.oldName}
+                onChange={(v) => renameForm.setValue('oldName', v)}
+                placeholder={t('database.placeholders.currentName')}
+                names={peopleNames}
               />
               <span>→</span>
               <input
-                placeholder={t('database.placeholders.newPersonName')}
-                value={moveFromIgnoreForm.values.target}
-                onChange={(e) => moveFromIgnoreForm.setValue('target', e.target.value)}
+                placeholder={t('database.placeholders.newName')}
+                value={renameForm.values.newName}
+                onChange={(e) => renameForm.setValue('newName', e.target.value)}
               />
-            </div>
-            <div className="form-row">
-              <BackendSelect
-                value={moveFromIgnoreForm.values.backend}
-                onChange={(v) => moveFromIgnoreForm.setValue('backend', v)}
-                backends={databaseState?.backends_in_use}
-              />
-              <Button type="submit" variant="primary">{t('database.buttons.move')}</Button>
-            </div>
-          </div>
-        </OperationForm>
-
-        {/* 8/10. Undo File */}
-        <OperationForm title={t('database.ops.undo.title')} onSubmit={submit(handleUndo)}>
-          <div className="form-column">
-            <input
-              placeholder={t('database.placeholders.filenameGlob')}
-              value={undoForm.values.pattern}
-              onChange={(e) => undoForm.setValue('pattern', e.target.value)}
-            />
-            <div className="button-row">
-              <Button type="submit" variant="primary">{t('database.buttons.undo')}</Button>
-              <Button variant="secondary" onClick={handleShowRecentFiles}>
-                {t('database.buttons.showRecentFiles')}
+              <Button type="submit" variant="primary">
+                {t('database.buttons.rename')}
               </Button>
             </div>
-          </div>
-        </OperationForm>
+          </OperationForm>
 
-        {/* 9. Purge */}
-        <OperationForm title={t('database.ops.purge.title')} onSubmit={submit(handlePurge)}>
-          <div className="form-column">
-            <div className="form-row">
+          {/* 2. Merge */}
+          <OperationForm
+            title={t('database.ops.merge.title')}
+            onSubmit={submit(handleMerge)}
+          >
+            <div className="form-column">
               <NameAutocomplete
-                value={purgeForm.values.name}
-                onChange={(v) => purgeForm.setValue('name', v)}
-                placeholder={t('database.placeholders.personOrIgnore')}
+                value={mergeForm.values.source1}
+                onChange={(v) => mergeForm.setValue('source1', v)}
+                placeholder={t('database.placeholders.firstPerson')}
                 names={peopleNames}
-                extraOptions={['ignore']}
+              />
+              <NameAutocomplete
+                value={mergeForm.values.source2}
+                onChange={(v) => mergeForm.setValue('source2', v)}
+                placeholder={t('database.placeholders.secondPerson')}
+                names={peopleNames}
               />
               <input
-                type="number"
-                placeholder={t('database.placeholders.count')}
-                min="1"
-                value={purgeForm.values.count}
-                onChange={(e) => purgeForm.setValue('count', e.target.value)}
+                placeholder={t('database.placeholders.resultName')}
+                value={mergeForm.values.target}
+                onChange={(e) => mergeForm.setValue('target', e.target.value)}
               />
+              <div className="form-row">
+                <BackendSelect
+                  value={mergeForm.values.backend}
+                  onChange={(v) => mergeForm.setValue('backend', v)}
+                  backends={databaseState?.backends_in_use}
+                />
+                <Button type="submit" variant="primary">
+                  {t('database.buttons.merge')}
+                </Button>
+              </div>
             </div>
+          </OperationForm>
+
+          {/* Find duplicates: distinctly-named people who are likely the same person */}
+          <OperationForm
+            title={t('database.ops.findDuplicates.title')}
+            onSubmit={submit(handleFindDuplicates)}
+          >
             <div className="form-row">
+              <label htmlFor="dup-threshold">
+                {t('database.labels.threshold')}
+              </label>
+              <input
+                id="dup-threshold"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                value={duplicateThreshold}
+                onChange={(e) =>
+                  setDuplicateThreshold(parseFloat(e.target.value))
+                }
+                className="db-duplicate-threshold"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={findingDuplicates}
+              >
+                {findingDuplicates
+                  ? t('database.buttons.scanning')
+                  : t('database.buttons.find')}
+              </Button>
+            </div>
+            {duplicatePairs !== null &&
+              (duplicatePairs.length === 0 ? (
+                <div className="db-duplicate-empty">
+                  {t('database.emptyStates.noDuplicates')}
+                </div>
+              ) : (
+                <ul className="db-duplicate-list">
+                  {duplicatePairs.map((p) => (
+                    <li
+                      key={`${p.name_a}|${p.name_b}`}
+                      className={`db-duplicate-row${p.likely_distinct ? ' likely-distinct' : ''}`}
+                    >
+                      <span
+                        className="db-duplicate-names"
+                        title={t('database.tooltips.centroidDistance', {
+                          distance: p.distance,
+                        })}
+                      >
+                        {p.name_a} ({p.count_a}) ⟷ {p.name_b} ({p.count_b}) ·{' '}
+                        {p.distance.toFixed(2)}
+                        {p.separability != null && (
+                          <span className="db-duplicate-sep">
+                            {' · '}
+                            {t('database.ops.findDuplicates.separable', {
+                              percent: Math.round(p.separability * 100),
+                            })}
+                            {p.likely_distinct
+                              ? ' ' +
+                                t('database.ops.findDuplicates.likelyDistinct')
+                              : ''}
+                          </span>
+                        )}
+                      </span>
+                      <span className="db-duplicate-actions">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleMergePair(p, p.name_a)}
+                          disabled={mergingPair || findingDuplicates}
+                        >
+                          {t('database.buttons.keep', { name: p.name_a })}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleMergePair(p, p.name_b)}
+                          disabled={mergingPair || findingDuplicates}
+                        >
+                          {t('database.buttons.keep', { name: p.name_b })}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleNotADuplicate(p)}
+                          disabled={mergingPair || findingDuplicates}
+                          title={t('database.tooltips.notADuplicate')}
+                        >
+                          {t('database.buttons.notADuplicate')}
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ))}
+            {distinctPairs.length > 0 && (
+              <div className="db-excluded">
+                <button
+                  type="button"
+                  className="db-excluded-toggle"
+                  aria-expanded={showExcluded}
+                  onClick={() => setShowExcluded((v) => !v)}
+                >
+                  {showExcluded ? '▾' : '▸'}{' '}
+                  {t('database.ops.findDuplicates.excludedPairs', {
+                    count: distinctPairs.length,
+                  })}
+                </button>
+                {showExcluded && (
+                  <ul className="db-excluded-list">
+                    {distinctPairs.map((p) => (
+                      <li
+                        key={`${p.name_a}|${p.name_b}`}
+                        className="db-excluded-row"
+                      >
+                        <span className="db-duplicate-names">
+                          {p.name_a} ⟷ {p.name_b}
+                        </span>
+                        <IconButton
+                          icon="close"
+                          label={t('database.tooltips.allowSuggestAgain')}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveDistinct(p)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </OperationForm>
+
+          {/* Remove redundant encodings within a person */}
+          <OperationForm
+            title={t('database.ops.redundant.title')}
+            onSubmit={submit(handleScanRedundant)}
+          >
+            <div className="form-row">
+              <label htmlFor="redundant-threshold">
+                {t('database.labels.threshold')}
+              </label>
+              <input
+                id="redundant-threshold"
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                value={redundantThreshold}
+                onChange={(e) =>
+                  setRedundantThreshold(parseFloat(e.target.value))
+                }
+                className="db-duplicate-threshold"
+                title={t('database.tooltips.redundantThreshold')}
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={scanningRedundant}
+              >
+                {scanningRedundant
+                  ? t('database.buttons.scanning')
+                  : t('database.buttons.scan')}
+              </Button>
+              {redundantPeople && redundantPeople.length > 0 && (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    handleDedup(redundantPeople.map((p) => p.name))
+                  }
+                  disabled={deduping || scanningRedundant}
+                >
+                  {t('database.buttons.cleanAll')}
+                </Button>
+              )}
+            </div>
+            {redundantPeople !== null &&
+              (redundantPeople.length === 0 ? (
+                <div className="db-duplicate-empty">
+                  {t('database.emptyStates.noRedundant')}
+                </div>
+              ) : (
+                <ul className="db-duplicate-list">
+                  {redundantPeople.map((p) => (
+                    <li key={p.name} className="db-duplicate-row">
+                      <span className="db-duplicate-names">
+                        {p.name}: {p.total} → {p.kept}
+                        <span className="db-duplicate-sep">
+                          {' '}
+                          (
+                          {t('database.ops.redundant.redundantCount', {
+                            count: p.redundant,
+                          })}
+                          )
+                        </span>
+                      </span>
+                      <span className="db-duplicate-actions">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleDedup([p.name])}
+                          disabled={deduping || scanningRedundant}
+                        >
+                          {t('database.buttons.clean')}
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ))}
+          </OperationForm>
+
+          {/* 3. Delete */}
+          <OperationForm
+            title={t('database.ops.delete.title')}
+            onSubmit={submit(handleDelete)}
+          >
+            <div className="form-row">
+              <NameAutocomplete
+                value={deleteForm.values.name}
+                onChange={(v) => deleteForm.setValue('name', v)}
+                placeholder={t('database.placeholders.personToDelete')}
+                names={peopleNames}
+              />
+              <Button type="submit" variant="danger">
+                {t('database.buttons.delete')}
+              </Button>
+            </div>
+          </OperationForm>
+
+          {/* 4. Move to Ignore */}
+          <OperationForm
+            title={t('database.ops.moveToIgnore.title')}
+            onSubmit={submit(handleMoveToIgnore)}
+          >
+            <div className="form-row">
+              <NameAutocomplete
+                value={moveToIgnoreForm.values.name}
+                onChange={(v) => moveToIgnoreForm.setValue('name', v)}
+                placeholder={t('database.placeholders.personName')}
+                names={peopleNames}
+              />
               <BackendSelect
-                value={purgeForm.values.backend}
-                onChange={(v) => purgeForm.setValue('backend', v)}
+                value={moveToIgnoreForm.values.backend}
+                onChange={(v) => moveToIgnoreForm.setValue('backend', v)}
                 backends={databaseState?.backends_in_use}
               />
-              <Button type="submit" variant="danger">{t('database.buttons.purge')}</Button>
+              <Button type="submit" variant="primary">
+                {t('database.buttons.moveToIgnore')}
+              </Button>
             </div>
-          </div>
-        </OperationForm>
-      </div>
+          </OperationForm>
 
-      {/* Persistent error status */}
-      {status.message && (
-        <Alert
-          variant={status.type === 'error' ? 'error' : (status.type || 'info')}
-          onDismiss={clearStatus}
-          className="db-status"
-        >
-          {status.message}
-        </Alert>
-      )}
+          {/* 5. Move from Ignore */}
+          <OperationForm
+            title={t('database.ops.moveFromIgnore.title')}
+            onSubmit={submit(handleMoveFromIgnore)}
+          >
+            <div className="form-column">
+              <div className="form-row">
+                <input
+                  type="number"
+                  placeholder={t('database.placeholders.countAll')}
+                  min="-1"
+                  value={moveFromIgnoreForm.values.count}
+                  onChange={(e) =>
+                    moveFromIgnoreForm.setValue('count', e.target.value)
+                  }
+                />
+                <span>→</span>
+                <input
+                  placeholder={t('database.placeholders.newPersonName')}
+                  value={moveFromIgnoreForm.values.target}
+                  onChange={(e) =>
+                    moveFromIgnoreForm.setValue('target', e.target.value)
+                  }
+                />
+              </div>
+              <div className="form-row">
+                <BackendSelect
+                  value={moveFromIgnoreForm.values.backend}
+                  onChange={(v) => moveFromIgnoreForm.setValue('backend', v)}
+                  backends={databaseState?.backends_in_use}
+                />
+                <Button type="submit" variant="primary">
+                  {t('database.buttons.move')}
+                </Button>
+              </div>
+            </div>
+          </OperationForm>
+
+          {/* 8/10. Undo File */}
+          <OperationForm
+            title={t('database.ops.undo.title')}
+            onSubmit={submit(handleUndo)}
+          >
+            <div className="form-column">
+              <input
+                placeholder={t('database.placeholders.filenameGlob')}
+                value={undoForm.values.pattern}
+                onChange={(e) => undoForm.setValue('pattern', e.target.value)}
+              />
+              <div className="button-row">
+                <Button type="submit" variant="primary">
+                  {t('database.buttons.undo')}
+                </Button>
+                <Button variant="secondary" onClick={handleShowRecentFiles}>
+                  {t('database.buttons.showRecentFiles')}
+                </Button>
+              </div>
+            </div>
+          </OperationForm>
+
+          {/* 9. Purge */}
+          <OperationForm
+            title={t('database.ops.purge.title')}
+            onSubmit={submit(handlePurge)}
+          >
+            <div className="form-column">
+              <div className="form-row">
+                <NameAutocomplete
+                  value={purgeForm.values.name}
+                  onChange={(v) => purgeForm.setValue('name', v)}
+                  placeholder={t('database.placeholders.personOrIgnore')}
+                  names={peopleNames}
+                  extraOptions={['ignore']}
+                />
+                <input
+                  type="number"
+                  placeholder={t('database.placeholders.count')}
+                  min="1"
+                  value={purgeForm.values.count}
+                  onChange={(e) => purgeForm.setValue('count', e.target.value)}
+                />
+              </div>
+              <div className="form-row">
+                <BackendSelect
+                  value={purgeForm.values.backend}
+                  onChange={(v) => purgeForm.setValue('backend', v)}
+                  backends={databaseState?.backends_in_use}
+                />
+                <Button type="submit" variant="danger">
+                  {t('database.buttons.purge')}
+                </Button>
+              </div>
+            </div>
+          </OperationForm>
+        </div>
+
+        {/* Persistent error status */}
+        {status.message && (
+          <Alert
+            variant={status.type === 'error' ? 'error' : status.type || 'info'}
+            onDismiss={clearStatus}
+            className="db-status"
+          >
+            {status.message}
+          </Alert>
+        )}
       </div>
 
       {/* Recent-files list (replaces native alert) */}
@@ -896,7 +1143,9 @@ export function DatabaseManagement() {
             ))}
           </ol>
         ) : (
-          <p className="db-recent-empty">{t('database.emptyStates.noRecentFiles')}</p>
+          <p className="db-recent-empty">
+            {t('database.emptyStates.noRecentFiles')}
+          </p>
         )}
       </Modal>
     </div>
@@ -929,7 +1178,13 @@ function OperationForm({ title, onSubmit, children }) {
  * Presentation-only Autocomplete wrapper: ranks `names` (+ optional extras) by
  * the current input value and commits the picked name back to the caller.
  */
-function NameAutocomplete({ value, onChange, placeholder, names, extraOptions }) {
+function NameAutocomplete({
+  value,
+  onChange,
+  placeholder,
+  names,
+  extraOptions,
+}) {
   const extrasKey = (extraOptions || []).join('\u0000');
   const options = useMemo(() => {
     const all = [...names, ...(extraOptions || [])];
@@ -965,8 +1220,10 @@ function BackendSelect({ value, onChange, backends }) {
       onChange={(e) => onChange(e.target.value)}
     >
       <option value="">{t('database.misc.allBackends')}</option>
-      {backends.map(b => (
-        <option key={b} value={b}>{b}</option>
+      {backends.map((b) => (
+        <option key={b} value={b}>
+          {b}
+        </option>
       ))}
     </select>
   );

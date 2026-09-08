@@ -48,6 +48,7 @@ MAX_DETECTION_CACHE = 100
 MAX_ENCODING_CACHE = 1000
 MAX_IMAGE_CACHE = 10
 
+
 class DetectionService:
     """Face detection service wrapper"""
 
@@ -55,7 +56,9 @@ class DetectionService:
         logger.info("[DetectionService] Initializing...")
 
         self.config = load_config()
-        logger.info(f"[DetectionService] Loaded config: backend={self.config.get('backend', {}).get('type', 'dlib')}")
+        logger.info(
+            f"[DetectionService] Loaded config: backend={self.config.get('backend', {}).get('type', 'dlib')}"
+        )
 
         self.backend = create_backend(self.config)
         logger.info(
@@ -147,14 +150,16 @@ class DetectionService:
         # Re-pin the match-result cache to the (possibly bumped) store version.
         self._cache_db_version = self.store.version
 
-        logger.info(f"[DetectionService] Database reloaded: {people_count} people, {ignored_count} ignored faces")
+        logger.info(
+            f"[DetectionService] Database reloaded: {people_count} people, {ignored_count} ignored faces"
+        )
         logger.info(f"[DetectionService] Cleared {old_cache_size} cached detection results")
 
         return {
             "status": "success",
             "people_count": people_count,
             "ignored_count": ignored_count,
-            "cache_cleared": old_cache_size
+            "cache_cleared": old_cache_size,
         }
 
     def _get_file_hash(self, path: Path) -> str | None:
@@ -179,7 +184,7 @@ class DetectionService:
                 if cached_jpg and os.path.exists(cached_jpg):
                     logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
                     img = ImageOps.exif_transpose(Image.open(cached_jpg))
-                    return np.array(img.convert('RGB'))
+                    return np.array(img.convert("RGB"))
             except Exception as e:  # noqa: BLE001 - the rawpy path below is a complete substitute, so any cache/decode problem should degrade to it rather than fail the load
                 logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
 
@@ -196,7 +201,7 @@ class DetectionService:
             # orientation tag get faces detected in the un-rotated frame → misplaced
             # boxes and sideways thumbnail crops. RAW is unaffected (libraw orients).
             img = ImageOps.exif_transpose(Image.open(image_path))
-            return np.array(img.convert('RGB'))
+            return np.array(img.convert("RGB"))
 
     def _load_image_for_detection(self, image_path: Path) -> tuple[np.ndarray, float]:
         """Load pixels for DETECTION, allowing a fast half-size RAW decode.
@@ -221,7 +226,7 @@ class DetectionService:
                 if cached_jpg and os.path.exists(cached_jpg):
                     logger.info(f"[DetectionService] Using cached JPG for: {image_path.name}")
                     img = ImageOps.exif_transpose(Image.open(cached_jpg))
-                    return np.array(img.convert('RGB')), 1.0
+                    return np.array(img.convert("RGB")), 1.0
             except Exception as e:  # noqa: BLE001 - the rawpy path below is a complete substitute, so any cache/decode problem should degrade to it rather than fail the load
                 logger.debug(f"[DetectionService] Cache lookup failed, falling back to rawpy: {e}")
 
@@ -239,7 +244,13 @@ class DetectionService:
             return rgb, coord_scale
         return self._load_image(image_path), 1.0
 
-    def _detect_and_match_faces(self, rgb: np.ndarray, max_dimension: int = 4500, file_hash: str | None = None, coord_scale: float = 1.0) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    def _detect_and_match_faces(
+        self,
+        rgb: np.ndarray,
+        max_dimension: int = 4500,
+        file_hash: str | None = None,
+        coord_scale: float = 1.0,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """Detect faces and match against database. Returns (faces, detection_meta).
 
         ``coord_scale`` maps the supplied ``rgb``'s pixel space back to the
@@ -274,7 +285,7 @@ class DetectionService:
         }
 
         # Detect faces using configured backend
-        detection_model = self.config.get('detection_model', 'hog')
+        detection_model = self.config.get("detection_model", "hog")
         upsample = 0  # No upsampling for API (performance)
 
         scored = getattr(self.backend, "detect_faces_scored", None)
@@ -307,7 +318,7 @@ class DetectionService:
                 "x": int(left * scale_factor),
                 "y": int(top * scale_factor),
                 "width": int((right - left) * scale_factor),
-                "height": int((bottom - top) * scale_factor)
+                "height": int((bottom - top) * scale_factor),
             }
 
             # Capture proxy quality signals for the enrollment gate while the
@@ -315,9 +326,7 @@ class DetectionService:
             # detector; crop_px is the shorter box side in full-res px; sharpness
             # is variance-of-Laplacian on the detection-space crop.
             det_score = face_scores[i] if i < len(face_scores) else None
-            quality = self._compute_quality_signals(
-                rgb_resized, location, bbox, det_score
-            )
+            quality = self._compute_quality_signals(rgb_resized, location, bbox, det_score)
 
             # Single matching pass: rank the known candidates once, then derive
             # the suggested person from the SAME ranked list the accept keys use.
@@ -383,20 +392,24 @@ class DetectionService:
                 # For ign, uncertain_ign, unknown - don't pre-fill a name
                 suggested_name = None
 
-            results.append({
-                "face_id": face_id,
-                "bounding_box": bbox,
-                "confidence": float(1.0 - best_distance) if best_distance is not None else 0.0,
-                "person_name": suggested_name,
-                "match_distance": float(best_distance) if best_distance is not None else None,
-                "is_confirmed": False,
-                "match_case": match_case,
-                "ignore_distance": float(ignore_distance) if ignore_distance is not None else None,
-                "ignore_confidence": ignore_confidence,
-                "match_alternatives": match_alternatives,
-                "encoding_hash": full_encoding_hash,
-                "disambiguated": disambiguated
-            })
+            results.append(
+                {
+                    "face_id": face_id,
+                    "bounding_box": bbox,
+                    "confidence": float(1.0 - best_distance) if best_distance is not None else 0.0,
+                    "person_name": suggested_name,
+                    "match_distance": float(best_distance) if best_distance is not None else None,
+                    "is_confirmed": False,
+                    "match_case": match_case,
+                    "ignore_distance": float(ignore_distance)
+                    if ignore_distance is not None
+                    else None,
+                    "ignore_confidence": ignore_confidence,
+                    "match_alternatives": match_alternatives,
+                    "encoding_hash": full_encoding_hash,
+                    "disambiguated": disambiguated,
+                }
+            )
 
         return results, detection_meta
 
@@ -420,9 +433,7 @@ class DetectionService:
         thresholds = _get_backend_thresholds(self.config, self.backend)
         return thresholds.get("hard_negative_distance", 0.45)
 
-    def _is_hard_negative(
-        self, name: str, encoding: np.ndarray, threshold: float
-    ) -> bool:
+    def _is_hard_negative(self, name: str, encoding: np.ndarray, threshold: float) -> bool:
         """True when the probe is closer than ``threshold`` to any of ``name``'s
         hard negatives — i.e. the user explicitly rejected this identity for a
         face like this, so it must not be suggested. Mirrors the CLI's per-person
@@ -498,10 +509,7 @@ class DetectionService:
         Single source of truth so reads and writes can't drift apart, and so a
         det_size / tiling change can't serve stale detections from another
         strategy. See ``_detection_strategy_token`` for the token format."""
-        return (
-            f"{file_hash}@{self._distinct_pairs_version()}"
-            f"#{self._detection_strategy_token()}"
-        )
+        return f"{file_hash}@{self._distinct_pairs_version()}#{self._detection_strategy_token()}"
 
     def _cached_detection_meta(self, file_hash: str | None) -> tuple[dict[str, Any], float]:
         """(detection_meta, processing_time_ms) from the detection cache, or ({}, 0)."""
@@ -544,9 +552,7 @@ class DetectionService:
             return None
 
         twin_knn_k = self.config.get("twin_knn_k", 5)
-        chosen = self._disambiguate_distinct_pair(
-            encoding, top1["name"], top2["name"], twin_knn_k
-        )
+        chosen = self._disambiguate_distinct_pair(encoding, top1["name"], top2["name"], twin_knn_k)
         if chosen is None:
             return None
 
@@ -606,11 +612,7 @@ class DetectionService:
         min_distance = float(np.min(distances))
         return int(np.argmin(distances)), min_distance
 
-    def _determine_match_case(
-        self,
-        name_dist: float | None,
-        ignore_dist: float | None
-    ) -> str:
+    def _determine_match_case(self, name_dist: float | None, ignore_dist: float | None) -> str:
         """
         Determine match case based on distances (like legacy script).
 
@@ -646,9 +648,7 @@ class DetectionService:
         return "unknown"
 
     def _match_encoding_alternatives(
-        self,
-        encoding: np.ndarray,
-        top_n: int = 5
+        self, encoding: np.ndarray, top_n: int = 5
     ) -> list[dict[str, Any]]:
         """
         Return top-N match alternatives sorted by distance.
@@ -676,23 +676,27 @@ class DetectionService:
             # Convert distance to confidence (0-100)
             confidence = max(0, min(100, int((1.0 - min_distance) * 100)))
 
-            all_matches.append({
-                "name": name,
-                "distance": min_distance,
-                "confidence": confidence,
-                "is_ignored": False
-            })
+            all_matches.append(
+                {
+                    "name": name,
+                    "distance": min_distance,
+                    "confidence": confidence,
+                    "is_ignored": False,
+                }
+            )
 
         # Match against ignored faces (single "ign" entry with best distance)
         ignore_idx, ignore_dist = self._match_ignored(encoding)
         if ignore_dist is not None:
             ignore_confidence = max(0, min(100, int((1.0 - ignore_dist) * 100)))
-            all_matches.append({
-                "name": "ign",
-                "distance": ignore_dist,
-                "confidence": ignore_confidence,
-                "is_ignored": True
-            })
+            all_matches.append(
+                {
+                    "name": "ign",
+                    "distance": ignore_dist,
+                    "confidence": ignore_confidence,
+                    "is_ignored": True,
+                }
+            )
 
         # Sort by distance and return top N
         all_matches.sort(key=lambda x: x["distance"])
@@ -766,7 +770,7 @@ class DetectionService:
             "processing_time_ms": processing_time,
             "cached": False,
             "file_hash": file_hash,
-            "detection_meta": detection_meta
+            "detection_meta": detection_meta,
         }
 
         # Cache result with LRU eviction (keyed by file hash + registry
@@ -777,13 +781,16 @@ class DetectionService:
         else:
             logger.debug(
                 "[DetectionService] DB version advanced during detection — "
-                "skipping cache write for %s", image_path,
+                "skipping cache write for %s",
+                image_path,
             )
         logger.info(f"[DetectionService] Detected {len(faces)} faces in {processing_time:.1f}ms")
 
         return result
 
-    async def get_face_thumbnail(self, image_path: str, bounding_box: dict[str, int], size: int = 150) -> bytes:
+    async def get_face_thumbnail(
+        self, image_path: str, bounding_box: dict[str, int], size: int = 150
+    ) -> bytes:
         """
         Extract face thumbnail from image
 
@@ -819,10 +826,10 @@ class DetectionService:
             self._lru_put(self.image_cache, cache_key, (rgb, current_time), MAX_IMAGE_CACHE)
 
         # Extract bounding box coordinates
-        x = bounding_box['x']
-        y = bounding_box['y']
-        width = bounding_box['width']
-        height = bounding_box['height']
+        x = bounding_box["x"]
+        y = bounding_box["y"]
+        width = bounding_box["width"]
+        height = bounding_box["height"]
 
         # Get image dimensions
         img_height, img_width = rgb.shape[:2]
@@ -847,7 +854,9 @@ class DetectionService:
         if src_x2 > src_x1 and src_y2 > src_y1:
             cropped[dst_y1:dst_y2, dst_x1:dst_x2] = rgb[src_y1:src_y2, src_x1:src_x2]
         else:
-            logger.warning(f"[DetectionService] Bounding box completely outside image: ({x},{y},{width},{height})")
+            logger.warning(
+                f"[DetectionService] Bounding box completely outside image: ({x},{y},{width},{height})"
+            )
 
         # Convert to PIL Image
         img = Image.fromarray(cropped)
@@ -857,7 +866,7 @@ class DetectionService:
 
         # Encode as JPEG
         buffer = io.BytesIO()
-        img.save(buffer, format='JPEG', quality=85)
+        img.save(buffer, format="JPEG", quality=85)
         buffer.seek(0)
 
         return buffer.read()
@@ -891,9 +900,7 @@ class DetectionService:
         except Exception as e:  # noqa: BLE001 - never let quality measurement break detection
             logger.debug("[DetectionService] Sharpness computation failed: %s", e)
 
-        return QualitySignals(
-            det_score=det_score, crop_px=crop_px, sharpness=sharpness
-        ).to_dict()
+        return QualitySignals(det_score=det_score, crop_px=crop_px, sharpness=sharpness).to_dict()
 
     def _enrollment_gate(self, quality: dict[str, Any] | None):
         """Evaluate one face's cached quality against the enrollment gate."""
@@ -905,11 +912,7 @@ class DetectionService:
         return evaluate(QualitySignals.from_dict(quality), cfg)
 
     async def confirm_identity(
-        self,
-        face_id: str,
-        person_name: str,
-        image_path: str,
-        suggested_name: str | None = None
+        self, face_id: str, person_name: str, image_path: str, suggested_name: str | None = None
     ) -> dict[str, Any]:
         """
         Confirm face identity and save to database
@@ -931,7 +934,11 @@ class DetectionService:
 
             loop = asyncio.get_event_loop()
             path = Path(image_path)
-            file_hash = await loop.run_in_executor(_executor, get_file_hash, path) if path.exists() else None
+            file_hash = (
+                await loop.run_in_executor(_executor, get_file_hash, path)
+                if path.exists()
+                else None
+            )
             backend_info = self.backend.get_model_info()
 
             entry = {
@@ -943,7 +950,7 @@ class DetectionService:
                 "created_at": datetime.now().astimezone().isoformat(),
                 "encoding_hash": None,
                 "bounding_box": None,
-                "is_manual": True
+                "is_manual": True,
             }
 
             def add_manual(known, ignored, hardneg, processed):
@@ -957,11 +964,7 @@ class DetectionService:
             count = self.store.mutate(add_manual, touches={"known"})
             logger.info(f"[DetectionService] Saved manual face for {person_name} (total: {count})")
 
-            return {
-                "status": "success",
-                "person_name": person_name,
-                "encodings_count": count
-            }
+            return {"status": "success", "person_name": person_name, "encodings_count": count}
 
         # Get encoding + cached file_hash from cache
         if face_id not in self.encoding_cache:
@@ -976,7 +979,11 @@ class DetectionService:
         else:
             loop = asyncio.get_event_loop()
             path = Path(image_path)
-            file_hash = await loop.run_in_executor(_executor, get_file_hash, path) if path.exists() else None
+            file_hash = (
+                await loop.run_in_executor(_executor, get_file_hash, path)
+                if path.exists()
+                else None
+            )
 
         # Compute encoding hash
         encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
@@ -993,7 +1000,7 @@ class DetectionService:
             "backend_version": backend_info.get("version", "unknown"),
             "created_at": datetime.now().astimezone().isoformat(),
             "encoding_hash": encoding_hash,
-            "bounding_box": bbox
+            "bounding_box": bbox,
         }
 
         hard_neg_entry = None
@@ -1005,7 +1012,7 @@ class DetectionService:
                 "backend": self.backend.backend_name,
                 "backend_version": backend_info.get("version", "unknown"),
                 "created_at": datetime.now().astimezone().isoformat(),
-                "encoding_hash": encoding_hash
+                "encoding_hash": encoding_hash,
             }
 
         # Enrollment-quality gate: on failure, the confirmation still succeeds
@@ -1031,19 +1038,26 @@ class DetectionService:
         touches = ({"known"} if gate.passed else set()) | (
             {"hardneg"} if hard_neg_entry is not None else set()
         )
-        count = self.store.mutate(add_known, touches=touches) if touches else self.store.read(
-            lambda known, ignored, hardneg, processed: len(known.get(person_name, []))
+        count = (
+            self.store.mutate(add_known, touches=touches)
+            if touches
+            else self.store.read(
+                lambda known, ignored, hardneg, processed: len(known.get(person_name, []))
+            )
         )
         if hard_neg_entry is not None:
-            logger.info(f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})")
+            logger.info(
+                f"[DetectionService] Added hard negative for {suggested_name} (corrected to {person_name})"
+            )
 
         if gate.passed:
             logger.info(f"[DetectionService] Saved encoding for {person_name} (total: {count})")
         else:
             logger.info(
-                "[DetectionService] Enrollment gated for %s (not enrolled): "
-                "failing=%s signals=%s",
-                person_name, ",".join(gate.failures), gate.signals.to_dict(),
+                "[DetectionService] Enrollment gated for %s (not enrolled): failing=%s signals=%s",
+                person_name,
+                ",".join(gate.failures),
+                gate.signals.to_dict(),
             )
 
         result = {
@@ -1072,13 +1086,8 @@ class DetectionService:
         # Handle manual faces (no encoding to add to ignored list)
         if face_id.startswith("manual_"):
             logger.info("[DetectionService] Manual face ignored (no encoding to save)")
-            ignored_count = self.store.read(
-                lambda known, ignored, hardneg, processed: len(ignored)
-            )
-            return {
-                "status": "success",
-                "ignored_count": ignored_count
-            }
+            ignored_count = self.store.read(lambda known, ignored, hardneg, processed: len(ignored))
+            return {"status": "success", "ignored_count": ignored_count}
 
         # Get encoding + cached file_hash from cache
         if face_id not in self.encoding_cache:
@@ -1093,7 +1102,11 @@ class DetectionService:
         else:
             loop = asyncio.get_event_loop()
             path = Path(image_path)
-            file_hash = await loop.run_in_executor(_executor, get_file_hash, path) if path.exists() else None
+            file_hash = (
+                await loop.run_in_executor(_executor, get_file_hash, path)
+                if path.exists()
+                else None
+            )
 
         # Compute encoding hash
         encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()
@@ -1110,7 +1123,7 @@ class DetectionService:
             "backend_version": backend_info.get("version", "unknown"),
             "created_at": datetime.now().astimezone().isoformat(),
             "encoding_hash": encoding_hash,
-            "bounding_box": bbox
+            "bounding_box": bbox,
         }
 
         def add_ignored(known, ignored, hardneg, processed):
@@ -1122,17 +1135,10 @@ class DetectionService:
 
         logger.info(f"[DetectionService] Added face to ignored list (total: {ignored_count})")
 
-        return {
-            "status": "success",
-            "ignored_count": ignored_count
-        }
+        return {"status": "success", "ignored_count": ignored_count}
 
     def _confirm_identity_nosave(
-        self,
-        face_id: str,
-        person_name: str,
-        image_path: str,
-        suggested_name: str | None = None
+        self, face_id: str, person_name: str, image_path: str, suggested_name: str | None = None
     ) -> dict[str, Any]:
         """Confirm one face through the store (no explicit flush). Returns result dict.
 
@@ -1156,8 +1162,9 @@ class DetectionService:
                 "created_at": datetime.now().astimezone().isoformat(),
                 "encoding_hash": None,
                 "bounding_box": None,
-                "is_manual": True
+                "is_manual": True,
             }
+
             def add_manual(known, ignored, hardneg, processed):
                 if person_name not in known:
                     known[person_name] = []
@@ -1165,8 +1172,7 @@ class DetectionService:
                 return len(known[person_name])
 
             count = self.store.mutate(add_manual, touches={"known"})
-            return {"status": "success", "person_name": person_name,
-                    "encodings_count": count}
+            return {"status": "success", "person_name": person_name, "encodings_count": count}
 
         if face_id not in self.encoding_cache:
             raise ValueError(f"Face ID not found in cache: {face_id}. Detection may have expired.")
@@ -1185,7 +1191,7 @@ class DetectionService:
             "backend_version": backend_info.get("version", "unknown"),
             "created_at": datetime.now().astimezone().isoformat(),
             "encoding_hash": encoding_hash,
-            "bounding_box": bbox
+            "bounding_box": bbox,
         }
 
         hard_neg_entry = None
@@ -1197,7 +1203,7 @@ class DetectionService:
                 "backend": self.backend.backend_name,
                 "backend_version": backend_info.get("version", "unknown"),
                 "created_at": datetime.now().astimezone().isoformat(),
-                "encoding_hash": encoding_hash
+                "encoding_hash": encoding_hash,
             }
 
         # Enrollment-quality gate (same as confirm_identity): a gated face is
@@ -1218,17 +1224,26 @@ class DetectionService:
         touches = ({"known"} if gate.passed else set()) | (
             {"hardneg"} if hard_neg_entry is not None else set()
         )
-        count = self.store.mutate(add_known, touches=touches) if touches else self.store.read(
-            lambda known, ignored, hardneg, processed: len(known.get(person_name, []))
+        count = (
+            self.store.mutate(add_known, touches=touches)
+            if touches
+            else self.store.read(
+                lambda known, ignored, hardneg, processed: len(known.get(person_name, []))
+            )
         )
         if not gate.passed:
             logger.info(
-                "[DetectionService] Enrollment gated for %s (not enrolled): "
-                "failing=%s signals=%s",
-                person_name, ",".join(gate.failures), gate.signals.to_dict(),
+                "[DetectionService] Enrollment gated for %s (not enrolled): failing=%s signals=%s",
+                person_name,
+                ",".join(gate.failures),
+                gate.signals.to_dict(),
             )
-        result = {"status": "success", "person_name": person_name,
-                  "encodings_count": count, "enrolled": gate.passed}
+        result = {
+            "status": "success",
+            "person_name": person_name,
+            "encodings_count": count,
+            "enrolled": gate.passed,
+        }
         if not gate.passed:
             result["quality_note"] = gate.note_sv()
         return result
@@ -1236,9 +1251,7 @@ class DetectionService:
     def _ignore_face_nosave(self, face_id: str, image_path: str) -> dict[str, Any]:
         """In-memory ignore, scheduling the store's debounced save. Returns result dict."""
         if face_id.startswith("manual_"):
-            ignored_count = self.store.read(
-                lambda known, ignored, hardneg, processed: len(ignored)
-            )
+            ignored_count = self.store.read(lambda known, ignored, hardneg, processed: len(ignored))
             return {"status": "success", "ignored_count": ignored_count}
 
         if face_id not in self.encoding_cache:
@@ -1258,7 +1271,7 @@ class DetectionService:
             "backend_version": backend_info.get("version", "unknown"),
             "created_at": datetime.now().astimezone().isoformat(),
             "encoding_hash": encoding_hash,
-            "bounding_box": bbox
+            "bounding_box": bbox,
         }
 
         def add_ignored(known, ignored, hardneg, processed):
@@ -1269,9 +1282,7 @@ class DetectionService:
         return {"status": "success", "ignored_count": ignored_count}
 
     async def batch_confirm(
-        self,
-        confirmations: list[dict[str, Any]],
-        ignores: list[dict[str, Any]]
+        self, confirmations: list[dict[str, Any]], ignores: list[dict[str, Any]]
     ) -> dict[str, Any]:
         """
         Batch confirm/ignore faces with a single database save.
@@ -1290,8 +1301,7 @@ class DetectionService:
         for c in confirmations:
             try:
                 self._confirm_identity_nosave(
-                    c["face_id"], c["person_name"], c["image_path"],
-                    c.get("suggested_name")
+                    c["face_id"], c["person_name"], c["image_path"], c.get("suggested_name")
                 )
                 confirmed += 1
             except Exception as e:  # noqa: BLE001 - per-item isolation: one bad confirmation is collected in `errors`, the rest of the batch still gets saved
@@ -1308,20 +1318,19 @@ class DetectionService:
         # _flush_save): cancel the pending debounce and write now.
         await asyncio.get_event_loop().run_in_executor(_executor, self.store.flush)
 
-        logger.info(f"[DetectionService] Batch: confirmed={confirmed}, ignored={ignored}, errors={len(errors)}")
+        logger.info(
+            f"[DetectionService] Batch: confirmed={confirmed}, ignored={ignored}, errors={len(errors)}"
+        )
 
         return {
             "status": "success",
             "confirmed_count": confirmed,
             "ignored_count": ignored,
-            "errors": errors
+            "errors": errors,
         }
 
     async def mark_review_complete(
-        self,
-        image_path: str,
-        reviewed_faces: list[dict[str, Any]],
-        file_hash: str | None = None
+        self, image_path: str, reviewed_faces: list[dict[str, Any]], file_hash: str | None = None
     ) -> dict[str, Any]:
         """
         Log completed review to attempt_stats.jsonl for rename functionality.
@@ -1344,25 +1353,26 @@ class DetectionService:
         if file_hash is None:
             loop = asyncio.get_event_loop()
             path = Path(image_path)
-            file_hash = await loop.run_in_executor(_executor, get_file_hash, path) if path.exists() else None
+            file_hash = (
+                await loop.run_in_executor(_executor, get_file_hash, path)
+                if path.exists()
+                else None
+            )
         else:
             logger.debug(f"[DetectionService] Using provided file_hash: {file_hash[:8]}...")
 
         # Build labels in expected format: "#1\nPersonName" or "#1\nignorerad"
         labels = []
-        for face in sorted(reviewed_faces, key=lambda f: f.get('face_index', 0)):
-            face_index = face.get('face_index', 0)
-            if face.get('is_ignored'):
+        for face in sorted(reviewed_faces, key=lambda f: f.get("face_index", 0)):
+            face_index = face.get("face_index", 0)
+            if face.get("is_ignored"):
                 label = f"#{face_index + 1}\n{CANONICAL_IGNORE_MARKER}"
-            elif face.get('person_name'):
+            elif face.get("person_name"):
                 label = f"#{face_index + 1}\n{face['person_name']}"
             else:
                 # Skip faces without name and not ignored
                 continue
-            labels.append({
-                "label": label,
-                "hash": face.get('encoding_hash', '')
-            })
+            labels.append({"label": label, "hash": face.get("encoding_hash", "")})
 
         # Detection metadata from the cache, keyed exactly as detect_faces stores
         # it (file hash + registry version); otherwise the logged attempt stats
@@ -1371,16 +1381,18 @@ class DetectionService:
 
         # Build attempt info with backend metadata for statistics compatibility
         backend_info = self.backend.get_model_info()
-        attempts = [{
-            "face_count": len(reviewed_faces),
-            "source": "ansikten",
-            "backend": self.backend.backend_name,
-            "backend_version": backend_info.get('model', 'unknown'),
-            "upsample": 0,  # API never upsamples
-            "scale_label": detection_meta.get("scale_label", "api"),
-            "scale_px": detection_meta.get("scale_px", 0),
-            "time_seconds": round(processing_time_ms / 1000, 3),
-        }]
+        attempts = [
+            {
+                "face_count": len(reviewed_faces),
+                "source": "ansikten",
+                "backend": self.backend.backend_name,
+                "backend_version": backend_info.get("model", "unknown"),
+                "upsample": 0,  # API never upsamples
+                "scale_label": detection_meta.get("scale_label", "api"),
+                "scale_px": detection_meta.get("scale_px", 0),
+                "time_seconds": round(processing_time_ms / 1000, 3),
+            }
+        ]
 
         # Log to attempt_stats.jsonl (blocking I/O — run in thread pool)
         loop = asyncio.get_event_loop()
@@ -1393,8 +1405,8 @@ class DetectionService:
                 base_dir=BASE_DIR,
                 review_results=["ok"],
                 labels_per_attempt=[labels],
-                file_hash=file_hash
-            )
+                file_hash=file_hash,
+            ),
         )
 
         logger.info(f"[DetectionService] Logged {len(labels)} face labels to attempt_stats.jsonl")
@@ -1409,9 +1421,7 @@ class DetectionService:
             # ``previous_names``) that must not defeat the dedup and let a
             # re-reviewed / force-reprocessed file append a duplicate row.
             return any(
-                isinstance(pf, dict)
-                and pf.get("name") == file_name
-                and pf.get("hash") == file_hash
+                isinstance(pf, dict) and pf.get("name") == file_name and pf.get("hash") == file_hash
                 for pf in processed
             )
 
@@ -1422,9 +1432,13 @@ class DetectionService:
                 return True
             return False
 
-        added = self.store.mutate(add_processed, touches={"processed"}) if self.store.read(
-            lambda known, ignored, hardneg, processed: not _already_present(processed)
-        ) else False
+        added = (
+            self.store.mutate(add_processed, touches={"processed"})
+            if self.store.read(
+                lambda known, ignored, hardneg, processed: not _already_present(processed)
+            )
+            else False
+        )
         if added:
             # Immediate durable save — the review is finalized.
             await asyncio.get_event_loop().run_in_executor(_executor, self.store.flush)
@@ -1433,6 +1447,7 @@ class DetectionService:
         # Invalidate statistics cache so dashboard picks up new data
         try:
             from .statistics_service import get_statistics_service
+
             get_statistics_service().invalidate_cache()
         except Exception:  # noqa: BLE001 - the review is already saved; a stale statistics cache must not turn a successful review into an error
             pass
@@ -1440,7 +1455,7 @@ class DetectionService:
         return {
             "status": "success",
             "message": f"Review logged for {len(labels)} faces",
-            "labels_count": len(labels)
+            "labels_count": len(labels),
         }
 
 
@@ -1467,6 +1482,7 @@ def get_detection_service() -> DetectionService:
 # ============================================================================
 # Module-level helper functions for preprocessing
 # ============================================================================
+
 
 def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> str | None:
     """
@@ -1495,11 +1511,11 @@ def convert_nef_to_jpg(nef_path: str, output_path: str = None) -> str | None:
 
         # Determine output path
         if output_path is None:
-            fd, output_path = tempfile.mkstemp(suffix='.jpg', prefix='nef_')
+            fd, output_path = tempfile.mkstemp(suffix=".jpg", prefix="nef_")
             os.close(fd)
 
         # Save as JPG (high quality)
-        img.save(output_path, format='JPEG', quality=95)
+        img.save(output_path, format="JPEG", quality=95)
         logger.info(f"[convert_nef_to_jpg] Converted {path.name} -> {output_path}")
 
         return output_path
@@ -1542,11 +1558,9 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> d
         scale_factor = 1.0
 
     # Detect faces
-    detection_model = get_detection_service().config.get('detection_model', 'hog')
+    detection_model = get_detection_service().config.get("detection_model", "hog")
     face_locations, face_encodings = get_detection_service().backend.detect_faces(
-        rgb_resized,
-        model=detection_model,
-        upsample=0
+        rgb_resized, model=detection_model, upsample=0
     )
 
     faces = []
@@ -1557,28 +1571,24 @@ def detect_faces_in_image(image_path: str, include_encodings: bool = False) -> d
         # Use 16 hex chars for lower collision probability
         encoding_hash = hashlib.sha1(encoding.tobytes()).hexdigest()[:16]
         face_data = {
-            'face_id': f"face_{i}_{encoding_hash}",
-            'bounding_box': {
-                'x': int(left * scale_factor),
-                'y': int(top * scale_factor),
-                'width': int((right - left) * scale_factor),
-                'height': int((bottom - top) * scale_factor)
+            "face_id": f"face_{i}_{encoding_hash}",
+            "bounding_box": {
+                "x": int(left * scale_factor),
+                "y": int(top * scale_factor),
+                "width": int((right - left) * scale_factor),
+                "height": int((bottom - top) * scale_factor),
             },
-            'confidence': 1.0  # Detection confidence (placeholder)
+            "confidence": 1.0,  # Detection confidence (placeholder)
         }
 
         if include_encodings:
-            face_data['encoding'] = encoding.tolist()
+            face_data["encoding"] = encoding.tolist()
 
         faces.append(face_data)
 
     logger.info(f"[detect_faces_in_image] Detected {len(faces)} faces in {path.name}")
 
-    return {
-        'faces': faces,
-        'image_width': width,
-        'image_height': height
-    }
+    return {"faces": faces, "image_width": width, "image_height": height}
 
 
 def generate_face_thumbnails(image_path: str, faces: list[dict], size: int = 150) -> list[bytes]:
@@ -1605,11 +1615,11 @@ def generate_face_thumbnails(image_path: str, faces: list[dict], size: int = 150
 
     thumbnails = []
     for face in faces:
-        bbox = face.get('bounding_box', {})
-        x = bbox.get('x', 0)
-        y = bbox.get('y', 0)
-        width = bbox.get('width', 100)
-        height = bbox.get('height', 100)
+        bbox = face.get("bounding_box", {})
+        x = bbox.get("x", 0)
+        y = bbox.get("y", 0)
+        width = bbox.get("width", 100)
+        height = bbox.get("height", 100)
 
         # Handle out-of-bounds with padding
         src_x1 = max(0, x)
@@ -1632,7 +1642,7 @@ def generate_face_thumbnails(image_path: str, faces: list[dict], size: int = 150
         img.thumbnail((size, size), Image.Resampling.LANCZOS)
 
         buffer = io.BytesIO()
-        img.save(buffer, format='JPEG', quality=85)
+        img.save(buffer, format="JPEG", quality=85)
         buffer.seek(0)
         thumbnails.append(buffer.read())
 

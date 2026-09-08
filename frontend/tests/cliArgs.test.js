@@ -17,7 +17,13 @@ describe('parseCliArgs', () => {
     });
 
     it('honours --queue/--start flags without a verb', () => {
-      const r = parseCliArgs([APP, '--queue', '--start', '/photos/a.NEF', '/photos/b.NEF']);
+      const r = parseCliArgs([
+        APP,
+        '--queue',
+        '--start',
+        '/photos/a.NEF',
+        '/photos/b.NEF',
+      ]);
       expect(r.verb).toBe(null);
       expect(r.queuePosition).toBe('end');
       expect(r.startQueue).toBe(true);
@@ -61,14 +67,21 @@ describe('parseCliArgs', () => {
 
   describe('culling verb', () => {
     it('routes to culling with folder args', () => {
-      const r = parseCliArgs([APP, 'culling', '/photos/match1', '/photos/match2']);
+      const r = parseCliArgs([
+        APP,
+        'culling',
+        '/photos/match1',
+        '/photos/match2',
+      ]);
       expect(r.verb).toBe('culling');
       expect(r.files).toEqual(['/photos/match1', '/photos/match2']);
       expect(r.clear).toBe(false);
     });
 
     it('cull alias maps to culling', () => {
-      expect(parseCliArgs([APP, 'cull', '/photos/match1']).verb).toBe('culling');
+      expect(parseCliArgs([APP, 'cull', '/photos/match1']).verb).toBe(
+        'culling',
+      );
     });
 
     it('--clear with a folder (replace)', () => {
@@ -92,11 +105,15 @@ describe('parseCliArgs', () => {
     });
 
     it('defaults to non-recursive', () => {
-      expect(parseCliArgs([APP, 'culling', '/photos/match1']).recursive).toBe(false);
+      expect(parseCliArgs([APP, 'culling', '/photos/match1']).recursive).toBe(
+        false,
+      );
     });
 
     it('--recursive / -r opts in', () => {
-      expect(parseCliArgs([APP, 'culling', '--recursive', '/d']).recursive).toBe(true);
+      expect(
+        parseCliArgs([APP, 'culling', '--recursive', '/d']).recursive,
+      ).toBe(true);
       expect(parseCliArgs([APP, 'culling', '-r', '/d']).recursive).toBe(true);
     });
 
@@ -147,7 +164,13 @@ describe('parseCliArgs', () => {
     });
 
     it('skips executable / node / npx noise', () => {
-      const r = parseCliArgs(['node', '/usr/local/bin/electron', '.', 'culling', '/d']);
+      const r = parseCliArgs([
+        'node',
+        '/usr/local/bin/electron',
+        '.',
+        'culling',
+        '/d',
+      ]);
       expect(r.verb).toBe('culling');
       expect(r.files).toEqual(['/d']);
     });

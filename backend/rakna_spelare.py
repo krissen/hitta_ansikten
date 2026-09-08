@@ -130,7 +130,9 @@ def render_spark(
         else:
             return chars[3]
 
-    def render_single_span(ts_list: list[datetime], span_start: datetime, span_end: datetime, span_width: int) -> str:
+    def render_single_span(
+        ts_list: list[datetime], span_start: datetime, span_end: datetime, span_width: int
+    ) -> str:
         """Render a single time span with given width."""
         if not ts_list or span_width <= 0:
             return chars[0] * span_width
@@ -164,9 +166,7 @@ def render_spark(
         match_width_total = num_matches  # At least 1 char per match
 
     # Calculate total match duration for proportional allocation
-    total_match_duration = sum(
-        (m_end - m_start).total_seconds() for m_start, m_end in match_ranges
-    )
+    total_match_duration = sum((m_end - m_start).total_seconds() for m_start, m_end in match_ranges)
 
     spark = ""
     allocated = 0
@@ -297,9 +297,9 @@ def print_section(
     name_width = min(15, max(8, term_width - 70))
 
     if use_color:
-        header = f"{'NAMN':<{name_width}}  {'ANT':>4}      %     {'Δ%':>5}      {'ΔN':>5}  {'BAR':<{bar_width+2}}  SPARK"
+        header = f"{'NAMN':<{name_width}}  {'ANT':>4}      %     {'Δ%':>5}      {'ΔN':>5}  {'BAR':<{bar_width + 2}}  SPARK"
     else:
-        header = f"{'NAMN':<{name_width}}  {'ANT':>4}      %       {'Δ%':>5}    {'ΔN':>5}  {'BAR':<{bar_width+2}}  SPARK"
+        header = f"{'NAMN':<{name_width}}  {'ANT':>4}      %       {'Δ%':>5}    {'ΔN':>5}  {'BAR':<{bar_width + 2}}  SPARK"
     print(f"{Colors.DIM}{header}{Colors.RESET}" if use_color else header)
 
     sorted_players = sorted(players.items(), key=lambda x: x[1] - baseline, reverse=True)
@@ -440,7 +440,9 @@ def main(args: argparse.Namespace) -> None:
 
     if args.per_match:
         print()
-        for match_idx, (c, ts_map) in enumerate(zip(per_match_counters, per_match_timestamps), start=1):
+        for match_idx, (c, ts_map) in enumerate(
+            zip(per_match_counters, per_match_timestamps), start=1
+        ):
             idx_list = matcher[match_idx - 1]
             start_dt = entries[idx_list[0]][0]
             end_dt = entries[idx_list[-1]][0]
