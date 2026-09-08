@@ -11,6 +11,12 @@
 # clean here if this target only ran prek. `ruff check .` and `eslint .`
 # with no fix flag give that file a real, failing verdict instead.
 #
+# Same reasoning for gitleaks: the pre-commit hook's default `--staged`
+# scan only sees the index, so an unstaged or untracked file with a secret
+# would pass through `prek run --all-files` silently. `gitleaks dir .`
+# below sweeps the whole working tree, mirroring the CI lint job's separate
+# secrets step.
+#
 # Uses whatever `prek` is on PATH (brew) rather than CI's pinned `pipx run
 # --spec prek==0.5.2`: this target runs on a developer's own machine, which
 # already has a specific prek install to keep in sync with by hand; the
@@ -36,6 +42,9 @@ check:
 	@{ echo "== prek --all-files =="; \
 	   prek run --all-files; \
 	} >>$(LOG) 2>&1 || { tail -40 $(LOG); exit 1; }
+	@{ echo "== gitleaks dir (whole tree, including untracked/unstaged) =="; \
+	   gitleaks dir . --no-banner; \
+	} >>$(LOG) 2>&1 || { tail -30 $(LOG); exit 1; }
 	@{ echo "== ruff check (no --fix, whole tree) =="; \
 	   backend/.venv/bin/ruff check .; \
 	} >>$(LOG) 2>&1 || { tail -30 $(LOG); exit 1; }
