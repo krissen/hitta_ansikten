@@ -47,7 +47,7 @@ export function FaceCard({ face, index, isActive, imagePath, people, cardRef, in
     setTypedValue(newValue);
     // topAlternativeName drives prefillName alongside match_case; listed so a
     // changed suggestion re-syncs the input.
-  }, [face.face_id, face.match_case, topAlternativeName]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [face.face_id, face.match_case, topAlternativeName]);
 
   React.useEffect(() => {
     if (clearInputTrigger > 0) {

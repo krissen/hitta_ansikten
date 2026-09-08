@@ -93,7 +93,6 @@ export function useActiveTabset(node, options = {}) {
   return useCallback(
     () => isTabsetActive(node, { companions }),
     // companionsKey stands in for the companions array identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [node, companionsKey]
   );
 }
