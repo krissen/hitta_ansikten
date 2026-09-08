@@ -72,7 +72,7 @@ jobs:
 
       - name: Set version from tag
         working-directory: frontend
-        run: npm pkg set version=${GITHUB_REF_NAME#v}
+        run: npm pkg set version="${GITHUB_REF_NAME#v}"
 
       - name: Build Electron app
         working-directory: frontend
@@ -143,7 +143,7 @@ jobs:
 
       - name: Set version from tag
         working-directory: frontend
-        run: npm pkg set version=${GITHUB_REF_NAME#v}
+        run: npm pkg set version="${GITHUB_REF_NAME#v}"
         shell: bash
 
       - name: Build Electron app
@@ -214,7 +214,7 @@ jobs:
 
       - name: Set version from tag
         working-directory: frontend
-        run: npm pkg set version=${GITHUB_REF_NAME#v}
+        run: npm pkg set version="${GITHUB_REF_NAME#v}"
 
       - name: Build Electron app
         working-directory: frontend
