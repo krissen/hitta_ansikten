@@ -11,8 +11,8 @@ repos:
     hooks:
       # `--staged` (gitleaks' default in the hook) only sees the index, which
       # is correct for a local commit but scans zero files in a CI run where
-      # nothing is staged -- see the CI job below, which runs `gitleaks git`
-      # over the whole history separately rather than relying on this hook.
+      # nothing is staged -- see the CI lint job, which runs `gitleaks dir .`
+      # as a separate tree-wide sweep rather than relying on this hook.
       - id: gitleaks
         stages: [pre-commit]
 
@@ -84,5 +84,10 @@ repos:
           bash -c 'cd frontend &&
           exec npx eslint --fix "${@/#frontend\//}"' --
         language: system
-        files: '^frontend/(src|scripts)/.*\.(js|jsx)$'
+        # Whole frontend tree, not just src/scripts: eslint.config.mjs
+        # defines rules for frontend/tests/, main.js and *.config.{js,mjs}
+        # too, and CI no longer has a separate `npm run lint` step running
+        # `eslint .` to cover them now that this hook is the only ESLint
+        # invocation in CI.
+        files: '^frontend/.*\.(js|jsx)$'
         stages: [pre-commit]
