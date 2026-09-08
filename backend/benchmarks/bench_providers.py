@@ -283,16 +283,28 @@ def run(root: Path, num: int, seed: int) -> dict:
             "embed_coreml": round(_sum("embed_coreml"), 3),
         },
         "timing_per_face_ms": {
-            "embed_cpu": round(1000 * float(np.mean(stage["embed_cpu"])), 3) if stage["embed_cpu"] else None,
-            "embed_coreml": round(1000 * float(np.mean(stage["embed_coreml"])), 3) if stage["embed_coreml"] else None,
+            "embed_cpu": round(1000 * float(np.mean(stage["embed_cpu"])), 3)
+            if stage["embed_cpu"]
+            else None,
+            "embed_coreml": round(1000 * float(np.mean(stage["embed_coreml"])), 3)
+            if stage["embed_coreml"]
+            else None,
         },
         "timing_per_image_ms": {
-            "detect_cpu": round(1000 * float(np.mean(stage["detect_cpu"])), 3) if stage["detect_cpu"] else None,
-            "detect_coreml": round(1000 * float(np.mean(stage["detect_coreml"])), 3) if stage["detect_coreml"] else None,
+            "detect_cpu": round(1000 * float(np.mean(stage["detect_cpu"])), 3)
+            if stage["detect_cpu"]
+            else None,
+            "detect_coreml": round(1000 * float(np.mean(stage["detect_coreml"])), 3)
+            if stage["detect_coreml"]
+            else None,
         },
         "speedup_coreml_over_cpu": {
-            "detect": round(_sum("detect_cpu") / _sum("detect_coreml"), 3) if _sum("detect_coreml") else None,
-            "embed": round(_sum("embed_cpu") / _sum("embed_coreml"), 3) if _sum("embed_coreml") else None,
+            "detect": round(_sum("detect_cpu") / _sum("detect_coreml"), 3)
+            if _sum("detect_coreml")
+            else None,
+            "embed": round(_sum("embed_cpu") / _sum("embed_coreml"), 3)
+            if _sum("embed_coreml")
+            else None,
         },
         "embedding_drift_cosine": {
             "n": int(drift.size),
@@ -324,14 +336,20 @@ def print_report(r: dict) -> None:
     print(f"host        : {r['host']['platform']} ({r['host']['machine']})")
     print(f"coreml avail: {r['host']['coreml_available']}")
     print(f"root        : {c['root']}")
-    print(f"images      : {c['num_images']} NEF (seed={c['seed']}, requested={c['num_requested']}), "
-          f"{c['n_faces']} faces, det_size={tuple(c['det_size'])}")
+    print(
+        f"images      : {c['num_images']} NEF (seed={c['seed']}, requested={c['num_requested']}), "
+        f"{c['n_faces']} faces, det_size={tuple(c['det_size'])}"
+    )
     print()
     print("Actual bound providers:")
-    print(f"  cpu    : det={r['actual_providers']['cpu']['detection']}  "
-          f"rec={r['actual_providers']['cpu']['recognition']}")
-    print(f"  coreml : det={r['actual_providers']['coreml']['detection']}  "
-          f"rec={r['actual_providers']['coreml']['recognition']}")
+    print(
+        f"  cpu    : det={r['actual_providers']['cpu']['detection']}  "
+        f"rec={r['actual_providers']['cpu']['recognition']}"
+    )
+    print(
+        f"  coreml : det={r['actual_providers']['coreml']['detection']}  "
+        f"rec={r['actual_providers']['coreml']['recognition']}"
+    )
     print()
     t = r["timing_totals_s"]
     print("Wall-time totals (s), warm-up excluded:")

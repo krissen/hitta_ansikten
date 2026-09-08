@@ -18,23 +18,32 @@ import api.services.statistics_service as stats_mod
 from api.services.statistics_service import StatisticsService
 
 
-def _attempt_entry(filename, names, face_count=2, timestamp="2026-07-01T10:00:00",
-                   backend="insightface", scale_label="mid", scale_px=4500):
+def _attempt_entry(
+    filename,
+    names,
+    face_count=2,
+    timestamp="2026-07-01T10:00:00",
+    backend="insightface",
+    scale_label="mid",
+    scale_px=4500,
+):
     """A synthetic attempt-log entry as load_attempt_log would return it."""
     labels = [{"label": f"#{i + 1}\n{n}", "hash": ""} for i, n in enumerate(names)]
     return {
         "timestamp": timestamp,
         "filename": filename,
         "file_hash": "deadbeef",
-        "attempts": [{
-            "backend": backend,
-            "upsample": 0,
-            "scale_label": scale_label,
-            "scale_px": scale_px,
-            "face_count": face_count,
-            "time_seconds": 1.5,
-            "source": "ansikten",
-        }],
+        "attempts": [
+            {
+                "backend": backend,
+                "upsample": 0,
+                "scale_label": scale_label,
+                "scale_px": scale_px,
+                "face_count": face_count,
+                "time_seconds": 1.5,
+                "source": "ansikten",
+            }
+        ],
         "used_attempt": 0,
         "review_results": ["ok"],
         "labels_per_attempt": [labels],
@@ -72,7 +81,9 @@ def synthetic(monkeypatch):
     ]
     log = [
         _attempt_entry("260701_100000.NEF", ["Alice", "Bob"], timestamp="2026-07-01T10:00:00"),
-        _attempt_entry("260701_100100.NEF", ["Alice", "ignorerad"], timestamp="2026-07-01T10:01:00"),
+        _attempt_entry(
+            "260701_100100.NEF", ["Alice", "ignorerad"], timestamp="2026-07-01T10:01:00"
+        ),
     ]
     counters = {"store_reads": 0, "load_attempt_log": 0}
     fake_store = _FakeStore(known, processed, counters)
@@ -92,6 +103,7 @@ def synthetic(monkeypatch):
 # --------------------------------------------------------------------------
 # 1. get_summary output shape
 # --------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_summary_shape(synthetic):
@@ -144,6 +156,7 @@ async def test_summary_shape(synthetic):
 # cached keyed by the store version: a repeat call while the version is
 # unchanged is served from cache; bumping the version (a DB mutation) or an
 # explicit invalidate_cache() forces a recompute.
+
 
 @pytest.mark.asyncio
 async def test_summary_caches_by_store_version(synthetic):

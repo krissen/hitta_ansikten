@@ -47,6 +47,7 @@ JOURNAL_OPS = ("rename", "move", "copy", "trash", "restore")
 # Journal
 # ---------------------------------------------------------------------------
 
+
 def new_batch_id() -> str:
     """A fresh id grouping all rows written by one batch operation."""
     return uuid.uuid4().hex
@@ -79,8 +80,7 @@ def journal_path() -> Path:
     return _journal_base_dir() / "rename_journal.jsonl"
 
 
-def record(*, op: str, tool: str, batch_id: str, src, dst,
-           sidecars: Iterable[tuple] = ()) -> None:
+def record(*, op: str, tool: str, batch_id: str, src, dst, sidecars: Iterable[tuple] = ()) -> None:
     """Append one journal row. Best-effort — never raises into the caller.
 
     A row is ``{ts, op, tool, batch_id, src, dst, sidecars}`` with absolute
@@ -179,8 +179,11 @@ def group_batches(rows: Sequence[dict]) -> list[dict]:
         b = by_id.get(bid)
         if b is None:
             b = by_id[bid] = {
-                "batch_id": bid, "ts": r.get("ts"),
-                "rows": [], "tools": set(), "ops": set(),
+                "batch_id": bid,
+                "ts": r.get("ts"),
+                "rows": [],
+                "tools": set(),
+                "ops": set(),
             }
             order.append(bid)
         b["rows"].append(r)
@@ -190,15 +193,17 @@ def group_batches(rows: Sequence[dict]) -> list[dict]:
     for bid in order:
         b = by_id[bid]
         ops, tools = b["ops"], b["tools"]
-        batches.append({
-            "batch_id": bid,
-            "ts": b["ts"],
-            "tool": next(iter(tools)) if len(tools) == 1 else "mixed",
-            "op": next(iter(ops)) if len(ops) == 1 else "mixed",
-            "count": len(b["rows"]),
-            "undoable": bool(ops) and ops <= set(UNDOABLE_OPS),
-            "rows": b["rows"],
-        })
+        batches.append(
+            {
+                "batch_id": bid,
+                "ts": b["ts"],
+                "tool": next(iter(tools)) if len(tools) == 1 else "mixed",
+                "op": next(iter(ops)) if len(ops) == 1 else "mixed",
+                "count": len(b["rows"]),
+                "undoable": bool(ops) and ops <= set(UNDOABLE_OPS),
+                "rows": b["rows"],
+            }
+        )
     return batches
 
 
@@ -252,9 +257,17 @@ def _plan_revert(batch_rows: Sequence[dict]) -> list[dict]:
     units: list[dict] = []  # {"main": (frm, to), "sidecars": [(frm, to), ...]}
 
     def _emit(frm: Path, to: Path, status: str, reason):
-        plan.append({"path": str(frm), "from": str(frm), "to": str(to),
-                     "from_name": frm.name, "to_name": to.name,
-                     "status": status, "reason": reason})
+        plan.append(
+            {
+                "path": str(frm),
+                "from": str(frm),
+                "to": str(to),
+                "from_name": frm.name,
+                "to_name": to.name,
+                "status": status,
+                "reason": reason,
+            }
+        )
 
     # Eligibility + missing-file skips, in journal-row order.
     for row in batch_rows:
@@ -319,10 +332,14 @@ def preview_revert(batch_rows: Sequence[dict]) -> list[dict]:
     fully skipped rather than promising a partial revert the execute won't do.
     """
     return [
-        {"from": p["from"], "to": p["to"],
-         "from_name": p["from_name"], "to_name": p["to_name"],
-         "status": "ok" if p["status"] == "reverted" else "skip",
-         "reason": p["reason"]}
+        {
+            "from": p["from"],
+            "to": p["to"],
+            "from_name": p["from_name"],
+            "to_name": p["to_name"],
+            "status": "ok" if p["status"] == "reverted" else "skip",
+            "reason": p["reason"],
+        }
         for p in _plan_revert(batch_rows)
     ]
 
@@ -330,6 +347,7 @@ def preview_revert(batch_rows: Sequence[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Low-level move
 # ---------------------------------------------------------------------------
+
 
 def safe_swap_rename(src: Path, dst: Path) -> None:
     """Rename src→dst, handling a case-only rename cross-platform.
@@ -350,6 +368,7 @@ def safe_swap_rename(src: Path, dst: Path) -> None:
 # ---------------------------------------------------------------------------
 # Atomic unit rename (main file + sidecars, all-or-nothing)
 # ---------------------------------------------------------------------------
+
 
 def rename_with_sidecars(
     main_src: Path,
@@ -419,8 +438,14 @@ def rename_with_sidecars(
         raise
 
     # Atomic unit: on success every sidecar pair moved, so record them all.
-    record(op=journal_op, tool=tool, batch_id=batch_id or new_batch_id(),
-           src=main_src, dst=main_dst, sidecars=list(sidecar_pairs))
+    record(
+        op=journal_op,
+        tool=tool,
+        batch_id=batch_id or new_batch_id(),
+        src=main_src,
+        dst=main_dst,
+        sidecars=list(sidecar_pairs),
+    )
     return done
 
 
@@ -433,6 +458,7 @@ def _guard_target(src: Path, dst: Path) -> None:
 # ---------------------------------------------------------------------------
 # Two-pass batch rename (src→temp→dst; never-overwrite; restore on collision)
 # ---------------------------------------------------------------------------
+
 
 def two_pass_rename(
     pairs: Sequence[tuple[Path, Path]],
@@ -498,7 +524,9 @@ def two_pass_rename(
         if sidecars_for is not None:
             # Explicit literal pairs (undo): use exactly what the caller recorded.
             for sc_src, sc_dst in sidecars_for(src, dst):
-                sidecars.append((sc_src, sc_dst, sc_src.parent / f"{tmp_prefix}_{stamp}_{ctr}{sc_src.suffix}"))
+                sidecars.append(
+                    (sc_src, sc_dst, sc_src.parent / f"{tmp_prefix}_{stamp}_{ctr}{sc_src.suffix}")
+                )
                 ctr += 1
         elif sidecar_exts and find_sidecars is not None:
             for sc in find_sidecars(src, sidecar_exts):
@@ -528,8 +556,15 @@ def two_pass_rename(
 
         if strict_units:
             _place_unit_strict(
-                unit, tool=tool, journal_op=journal_op, batch_id=batch_id,
-                log_prefix=log_prefix, renamed=renamed, skipped=skipped, errors=errors)
+                unit,
+                tool=tool,
+                journal_op=journal_op,
+                batch_id=batch_id,
+                log_prefix=log_prefix,
+                renamed=renamed,
+                skipped=skipped,
+                errors=errors,
+            )
             continue
 
         if not unit["main_moved"]:
@@ -542,8 +577,12 @@ def two_pass_rename(
             if _restore_tmp(tmp, src, log_prefix):
                 skipped.append({"path": str(src), "reason": f"målnamn upptaget: {dst.name}"})
             else:
-                errors.append({"path": str(tmp),
-                               "error": f"kan ej återställa: {src.name} upptaget — fil kvar som {tmp.name}"})
+                errors.append(
+                    {
+                        "path": str(tmp),
+                        "error": f"kan ej återställa: {src.name} upptaget — fil kvar som {tmp.name}",
+                    }
+                )
             _restore_moved_sidecars(sidecars, sc_moved, log_prefix, errors)
             continue
 
@@ -554,8 +593,12 @@ def two_pass_rename(
             if _restore_tmp(tmp, src, log_prefix):
                 errors.append({"path": str(src), "error": str(e)})
             else:
-                errors.append({"path": str(tmp),
-                               "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})"})
+                errors.append(
+                    {
+                        "path": str(tmp),
+                        "error": f"{e}; kunde ej återställa (fil kvar som {tmp.name})",
+                    }
+                )
             _restore_moved_sidecars(sidecars, sc_moved, log_prefix, errors)
             continue
 
@@ -569,30 +612,44 @@ def two_pass_rename(
                 continue
             if sc_dst.exists():
                 if _restore_tmp(sc_tmp, sc_src, log_prefix):
-                    skipped.append({"path": str(sc_src), "reason": f"målnamn upptaget: {sc_dst.name}"})
+                    skipped.append(
+                        {"path": str(sc_src), "reason": f"målnamn upptaget: {sc_dst.name}"}
+                    )
                 else:
-                    errors.append({"path": str(sc_tmp),
-                                   "error": f"kan ej återställa: {sc_src.name} upptaget — fil kvar som {sc_tmp.name}"})
+                    errors.append(
+                        {
+                            "path": str(sc_tmp),
+                            "error": f"kan ej återställa: {sc_src.name} upptaget — fil kvar som {sc_tmp.name}",
+                        }
+                    )
                 continue
             try:
                 sc_tmp.rename(sc_dst)
                 renamed.append({"from": sc_src.name, "to": sc_dst.name})
                 landed_sidecars.append((sc_src, sc_dst))
             except OSError as e:
-                logger.error("[%s] sidecar to-final failed: %s -> %s: %s", log_prefix, sc_tmp, sc_dst, e)
+                logger.error(
+                    "[%s] sidecar to-final failed: %s -> %s: %s", log_prefix, sc_tmp, sc_dst, e
+                )
                 if _restore_tmp(sc_tmp, sc_src, log_prefix):
                     errors.append({"path": str(sc_src), "error": str(e)})
                 else:
-                    errors.append({"path": str(sc_tmp),
-                                   "error": f"{e}; kunde ej återställa (fil kvar som {sc_tmp.name})"})
-        record(op=journal_op, tool=tool, batch_id=batch_id, src=src, dst=dst,
-               sidecars=landed_sidecars)
+                    errors.append(
+                        {
+                            "path": str(sc_tmp),
+                            "error": f"{e}; kunde ej återställa (fil kvar som {sc_tmp.name})",
+                        }
+                    )
+        record(
+            op=journal_op, tool=tool, batch_id=batch_id, src=src, dst=dst, sidecars=landed_sidecars
+        )
 
     return {"renamed": renamed, "skipped": skipped, "errors": errors}
 
 
-def _place_unit_strict(unit, *, tool, journal_op, batch_id, log_prefix,
-                       renamed: list, skipped: list, errors: list) -> None:
+def _place_unit_strict(
+    unit, *, tool, journal_op, batch_id, log_prefix, renamed: list, skipped: list, errors: list
+) -> None:
     """Pass-2 placement for one all-or-nothing unit (main + explicit sidecars).
 
     Restores the whole unit and skips (no journal row) if any destination is
@@ -614,12 +671,15 @@ def _place_unit_strict(unit, *, tool, journal_op, batch_id, log_prefix,
         _restore_moved_sidecars(sidecars, sc_moved, log_prefix, errors)
         return
 
-    moved = [(sc_src, sc_dst, sc_tmp)
-             for (sc_src, sc_dst, sc_tmp), was in zip(sidecars, sc_moved) if was]
+    moved = [
+        (sc_src, sc_dst, sc_tmp) for (sc_src, sc_dst, sc_tmp), was in zip(sidecars, sc_moved) if was
+    ]
 
     # Every unit member as (original_src, temp) — all currently sit at their temp.
-    unit_entries: list[tuple[Path, Path]] = [(src, tmp),
-                                             *((sc_src, sc_tmp) for sc_src, _sc_dst, sc_tmp in moved)]
+    unit_entries: list[tuple[Path, Path]] = [
+        (src, tmp),
+        *((sc_src, sc_tmp) for sc_src, _sc_dst, sc_tmp in moved),
+    ]
 
     def _restore_all_temps():
         # Every member is still at its temp — move each back to its source,
@@ -631,8 +691,7 @@ def _place_unit_strict(unit, *, tool, journal_op, batch_id, log_prefix,
     # unfulfillable — restore what moved and fail the whole unit.
     if not all(sc_moved):
         _restore_all_temps()
-        errors.append({"path": str(src),
-                       "error": "kan ej ångra hela enheten — en sidecar saknas"})
+        errors.append({"path": str(src), "error": "kan ej ångra hela enheten — en sidecar saknas"})
         return
 
     # Every destination in the unit must be free before anything is placed.
@@ -703,8 +762,12 @@ def _restore_moved_sidecars(sidecars, sc_moved, log_prefix: str, errors: list) -
     """Restore every sidecar that reached its temp back to its original name."""
     for (sc_src, _sc_dst, sc_tmp), was_moved in zip(sidecars, sc_moved):
         if was_moved and not _restore_tmp(sc_tmp, sc_src, log_prefix):
-            errors.append({"path": str(sc_tmp),
-                           "error": f"kan ej återställa: {sc_src.name} — fil kvar som {sc_tmp.name}"})
+            errors.append(
+                {
+                    "path": str(sc_tmp),
+                    "error": f"kan ej återställa: {sc_src.name} — fil kvar som {sc_tmp.name}",
+                }
+            )
 
 
 def _restore_tmp(tmp: Path, src: Path, log_prefix: str) -> bool:
@@ -728,9 +791,11 @@ def _restore_tmp(tmp: Path, src: Path, log_prefix: str) -> bool:
 # Import target resolution (byte-identical skip + -N disambiguation)
 # ---------------------------------------------------------------------------
 
+
 def same_file(a: Path, b: Path) -> bool:
     """True if two files are byte-identical (filecmp short-circuits on size)."""
     import filecmp
+
     try:
         return filecmp.cmp(str(a), str(b), shallow=False)
     except OSError:
@@ -764,6 +829,7 @@ def resolve_import_target(dest: Path, name: str, src: Path) -> Path | None:
 # ---------------------------------------------------------------------------
 # Undo: replay a batch's recorded moves backwards
 # ---------------------------------------------------------------------------
+
 
 def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
     """Reverse a batch's recorded moves (``dst → src``), literally, then journal.
@@ -805,27 +871,46 @@ def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
         main_frm, main_to = Path(row["dst"]), Path(row["src"])
         if not main_frm.exists():
             # The whole row can't be reverted: report the main and its sidecars.
-            results.append({"path": str(main_frm), "status": "skipped",
-                            "reason": "filen saknas — redan flyttad eller borttagen"})
+            results.append(
+                {
+                    "path": str(main_frm),
+                    "status": "skipped",
+                    "reason": "filen saknas — redan flyttad eller borttagen",
+                }
+            )
             for sc in row.get("sidecars", []) or []:
-                results.append({"path": str(Path(sc["dst"])), "status": "skipped",
-                                "reason": "hoppas över — huvudfilen kunde inte ångras"})
+                results.append(
+                    {
+                        "path": str(Path(sc["dst"])),
+                        "status": "skipped",
+                        "reason": "hoppas över — huvudfilen kunde inte ångras",
+                    }
+                )
             continue
         sc_pairs: list[tuple[Path, Path]] = []
         for sc in row.get("sidecars", []) or []:
             sc_frm, sc_to = Path(sc["dst"]), Path(sc["src"])
             if not sc_frm.exists():
-                results.append({"path": str(sc_frm), "status": "skipped",
-                                "reason": "filen saknas — redan flyttad eller borttagen"})
+                results.append(
+                    {
+                        "path": str(sc_frm),
+                        "status": "skipped",
+                        "reason": "filen saknas — redan flyttad eller borttagen",
+                    }
+                )
                 continue
             sc_pairs.append((sc_frm, sc_to))
         main_pairs.append((main_frm, main_to))
         sidecars_by_main[str(main_frm)] = sc_pairs
 
     move_res = two_pass_rename(
-        main_pairs, tool=tool, journal_op="rename",
+        main_pairs,
+        tool=tool,
+        journal_op="rename",
         sidecars_for=lambda ms, _md: sidecars_by_main.get(str(ms), []),
-        strict_units=True, tmp_prefix=".undo_tmp", log_prefix="Undo",
+        strict_units=True,
+        tmp_prefix=".undo_tmp",
+        log_prefix="Undo",
     )
     # Strict units skip/error at the unit level, keyed on the main's source path.
     skipped_by_main = {s["path"]: s["reason"] for s in move_res["skipped"]}
@@ -845,8 +930,13 @@ def revert_batch(batch_rows: Sequence[dict], *, tool: str = "undo") -> dict:
         results.append({"path": key, "status": status, "reason": reason})
         # Sidecars share their main's fate under all-or-nothing.
         for sc_frm, _sc_to in sc_pairs:
-            results.append({"path": str(sc_frm), "status": status,
-                            "reason": None if status == "reverted" else reason})
+            results.append(
+                {
+                    "path": str(sc_frm),
+                    "status": status,
+                    "reason": None if status == "reverted" else reason,
+                }
+            )
 
     return {
         "results": results,

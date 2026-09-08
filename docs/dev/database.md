@@ -54,18 +54,18 @@ Known faces database. Dictionary mapping person names to encoding lists.
 {
     "Anna": [
         {
-            "encoding": np.ndarray,    # 512-dim (InsightFace)
+            "encoding": np.ndarray,  # 512-dim (InsightFace)
             "file": "250101_120000.NEF",
-            "hash": "abc123...",       # SHA1 hash of source file
+            "hash": "abc123...",  # SHA1 hash of source file
             "backend": "insightface",
             "backend_version": "0.7.3",
-            "created_at": "2025-01-01T12:00:00"
+            "created_at": "2025-01-01T12:00:00",
         },
         # ... more encodings
     ],
     "Bert": [
         # ...
-    ]
+    ],
 }
 ```
 
@@ -93,7 +93,7 @@ List of ignored face encodings.
         "file": "250101_120000.NEF",
         "hash": "abc123...",
         "backend": "insightface",
-        "created_at": "2025-01-01T12:00:00"
+        "created_at": "2025-01-01T12:00:00",
     },
     # ... more ignored faces
 ]
@@ -104,14 +104,7 @@ List of ignored face encodings.
 Hard negative examples - faces that should never match certain people.
 
 ```python
-{
-    "Anna": [
-        {
-            "encoding": np.ndarray,
-            "reason": "Similar but different person"
-        }
-    ]
-}
+{"Anna": [{"encoding": np.ndarray, "reason": "Similar but different person"}]}
 ```
 
 Both matching paths apply them: a person is skipped as a candidate when the
@@ -398,8 +391,8 @@ review paths.
 ```python
 from core.db import get_file_hash, load_processed_files
 
-file_hash = get_file_hash("/path/to/image.NEF")   # chunked SHA1, or None
-processed = load_processed_files()                 # [{"name":..., "hash":...}]
+file_hash = get_file_hash("/path/to/image.NEF")  # chunked SHA1, or None
+processed = load_processed_files()  # [{"name":..., "hash":...}]
 ```
 
 ---

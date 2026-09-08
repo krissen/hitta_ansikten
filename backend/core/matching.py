@@ -46,14 +46,14 @@ MatchStatusResult = tuple[str, str]
 # one-time config migration in core/config.py, which rewrites them into a
 # backend_thresholds block with correct-metric values.
 COSINE_DEFAULT_THRESHOLDS: ThresholdsDict = {
-    'match_threshold': 0.45,
-    'ignore_distance': 0.35,
-    'hard_negative_distance': 0.32,
+    "match_threshold": 0.45,
+    "ignore_distance": 0.35,
+    "hard_negative_distance": 0.32,
 }
 EUCLIDEAN_DEFAULT_THRESHOLDS: ThresholdsDict = {
-    'match_threshold': 0.6,
-    'ignore_distance': 0.5,
-    'hard_negative_distance': 0.45,
+    "match_threshold": 0.6,
+    "ignore_distance": 0.5,
+    "hard_negative_distance": 0.45,
 }
 
 
@@ -75,17 +75,17 @@ def _get_backend_thresholds(config: ConfigDict, backend: FaceBackend) -> Thresho
     Returns:
         Dict with 'match_threshold', 'ignore_distance', 'hard_negative_distance'
     """
-    backend_thresholds = config.get('backend_thresholds', {})
+    backend_thresholds = config.get("backend_thresholds", {})
     backend_specific = backend_thresholds.get(backend.backend_name)
     if backend_specific is not None:
         return backend_specific
 
     # No backend-specific block: fall back to canonical defaults for the
     # backend's distance metric. Flat top-level keys are intentionally ignored.
-    distance_metric = getattr(backend, 'distance_metric', 'euclidean')
-    is_cosine = isinstance(distance_metric, str) and 'cos' in distance_metric.lower()
+    distance_metric = getattr(backend, "distance_metric", "euclidean")
+    is_cosine = isinstance(distance_metric, str) and "cos" in distance_metric.lower()
 
-    if config.get('threshold_mode') == 'manual':
+    if config.get("threshold_mode") == "manual":
         logger.warning(
             f"Manual threshold mode: no thresholds configured for backend "
             f"'{backend.backend_name}'; falling back to canonical "
@@ -112,7 +112,7 @@ def validate_encoding_dimension(
     if encoding is None:
         return False
 
-    if not hasattr(encoding, '__len__'):
+    if not hasattr(encoding, "__len__"):
         logger.warning(f"[VALIDATION] Invalid encoding type {type(encoding).__name__} {context}")
         return False
 
@@ -254,7 +254,7 @@ def best_matches_filtered(
 
     # Get backend-appropriate thresholds
     thresholds = _get_backend_thresholds(config, backend)
-    hard_negative_thr = thresholds.get('hard_negative_distance', 0.45)
+    hard_negative_thr = thresholds.get("hard_negative_distance", 0.45)
 
     # Match against known faces
     for name, encs_array in filtered_known.items():
@@ -318,7 +318,7 @@ def best_matches(
 
     # Get backend-appropriate thresholds
     thresholds = _get_backend_thresholds(config, backend)
-    hard_negative_thr = thresholds.get('hard_negative_distance', 0.45)
+    hard_negative_thr = thresholds.get("hard_negative_distance", 0.45)
 
     # Match against known faces (with backend filtering)
     for name, entries in known_faces.items():
@@ -448,17 +448,19 @@ def get_face_match_status(
     min_conf = config.get("min_confidence", 0.4)
 
     # Confidence-filter
-    if (
-        (name_conf is not None and name_conf / 100 < min_conf) and
-        (ign_conf is not None and ign_conf / 100 < min_conf)
+    if (name_conf is not None and name_conf / 100 < min_conf) and (
+        ign_conf is not None and ign_conf / 100 < min_conf
     ):
         return "#%d\nOkänt" % (i + 1), "unknown"
 
     # Osäker mellan namn och ignore
     if (
-        best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
-        best_ignore_dist is not None and best_ignore_dist < ignore_thr and
-        abs(best_name_dist - best_ignore_dist) < margin
+        best_name is not None
+        and best_name_dist is not None
+        and best_name_dist < name_thr
+        and best_ignore_dist is not None
+        and best_ignore_dist < ignore_thr
+        and abs(best_name_dist - best_ignore_dist) < margin
     ):
         if best_name_dist < best_ignore_dist:
             return f"#%d\n{best_name} / ign" % (i + 1), "uncertain_name"
@@ -467,15 +469,18 @@ def get_face_match_status(
 
     # Namn vinner klart
     elif (
-        best_name is not None and best_name_dist is not None and best_name_dist < name_thr and
-        (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
+        best_name is not None
+        and best_name_dist is not None
+        and best_name_dist < name_thr
+        and (best_ignore_dist is None or best_name_dist < best_ignore_dist - margin)
     ):
         return f"#%d\n{best_name}" % (i + 1), "name"
 
     # Ign vinner klart
     elif (
-        best_ignore_dist is not None and best_ignore_dist < ignore_thr and
-        (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
+        best_ignore_dist is not None
+        and best_ignore_dist < ignore_thr
+        and (best_name_dist is None or best_ignore_dist < best_name_dist - margin)
     ):
         return "#%d\nign" % (i + 1), "ign"
 
@@ -510,7 +515,7 @@ def get_match_label(
         best_ignore_dist,
         ign_conf,
         config,
-        backend
+        backend,
     )
 
 
@@ -558,7 +563,7 @@ def label_preview_for_encodings(
             best_ignore_dist,
             ign_conf,
             config,
-            backend
+            backend,
         )
         labels.append(label)
     return labels

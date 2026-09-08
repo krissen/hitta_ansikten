@@ -34,28 +34,34 @@ _NAMED_REST = re.compile(r"(-\d+)?[a-zA-Z]{0,3}(_.*)?$")
 logging.basicConfig(
     level=logging.WARNING,
     format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 
 def get_exif_data(files: list[Path]) -> list[tuple[str, int, Path]]:
     if not files:
         return []
-    
+
     cmd = [
-        find_exiftool(), "-q", "-q", "-m",
-        "-if", "defined $CreateDate",
-        "-d", "%y%m%d_%H%M%S",
-        "-p", "$CreateDate|${SubSecTimeOriginal;$_||=0}|$FilePath",
+        find_exiftool(),
+        "-q",
+        "-q",
+        "-m",
+        "-if",
+        "defined $CreateDate",
+        "-d",
+        "%y%m%d_%H%M%S",
+        "-p",
+        "$CreateDate|${SubSecTimeOriginal;$_||=0}|$FilePath",
         "--",
-        *[str(f) for f in files]
+        *[str(f) for f in files],
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0 and result.stderr:
         logger.warning(f"exiftool warning: {result.stderr.strip()}")
         print(f"exiftool warning: {result.stderr}", file=sys.stderr)
-    
+
     entries = []
     for line in result.stdout.strip().split("\n"):
         if not line or "|" not in line:
@@ -69,7 +75,7 @@ def get_exif_data(files: list[Path]) -> list[tuple[str, int, Path]]:
         except ValueError:
             subsec = 0
         entries.append((timestamp, subsec, Path(filepath)))
-    
+
     entries.sort(key=lambda x: (x[0], x[1], str(x[2])))
     return entries
 
@@ -89,7 +95,7 @@ def is_already_named(name: str, ts: str) -> bool:
     stem = Path(name).stem
     if not stem.startswith(ts):
         return False
-    return _NAMED_REST.fullmatch(stem[len(ts):]) is not None
+    return _NAMED_REST.fullmatch(stem[len(ts) :]) is not None
 
 
 # Sentinel for the bare-timestamp slot (`ts.NEF`), distinct from integer -N slots.
@@ -107,7 +113,7 @@ def timestamp_slot(name: str, ts: str) -> "str | int":
 
     Returns ``_BARE_SLOT`` or the integer index. Assumes `is_already_named`.
     """
-    rest = Path(name).stem[len(ts):]
+    rest = Path(name).stem[len(ts) :]
     m = re.match(r"-(\d+)", rest)
     return int(m.group(1)) if m else _BARE_SLOT
 
@@ -191,9 +197,12 @@ def execute_renames(renames: list[tuple[Path, Path, Path]], dry_run: bool = Fals
     # original on collision (instead of the old behaviour of dropping the temp),
     # and records each rename to the app's rename journal.
     from core import fs_ops
+
     result = fs_ops.two_pass_rename(
         [(src, dst) for src, dst, _ in renames],
-        tool="rename-nef-cli", journal_op="rename", log_prefix="rename_nef",
+        tool="rename-nef-cli",
+        journal_op="rename",
+        log_prefix="rename_nef",
     )
     for item in result["renamed"]:
         print(f"{item['from']} -> {item['to']}")
@@ -208,23 +217,18 @@ def main() -> int:
         description="Döp om NEF-filer baserat på EXIF CreateDate (YYMMDD_HHMMSS)"
     )
     parser.add_argument(
-        "-n", "--dry-run",
-        action="store_true",
-        help="Visa vad som skulle göras utan att utföra"
+        "-n", "--dry-run", action="store_true", help="Visa vad som skulle göras utan att utföra"
     )
     parser.add_argument(
         "--include-named",
         action="store_true",
-        help="Döp även om redan namngivna filer (tar bort namnsuffix)"
+        help="Döp även om redan namngivna filer (tar bort namnsuffix)",
     )
     parser.add_argument(
-        "files",
-        nargs="*",
-        default=["*.NEF"],
-        help="Filer eller glob-mönster (default: *.NEF)"
+        "files", nargs="*", default=["*.NEF"], help="Filer eller glob-mönster (default: *.NEF)"
     )
     args = parser.parse_args()
-    
+
     files = []
     for pattern in args.files:
         p = Path(pattern)
@@ -232,7 +236,7 @@ def main() -> int:
             files.append(p)
         else:
             files.extend(Path(f) for f in glob(pattern) if Path(f).is_file())
-    
+
     if not files:
         print(f"Inga filer matchar: {' '.join(args.files)}")
         return 0
@@ -242,10 +246,10 @@ def main() -> int:
     if not entries:
         print(f"Inga filer med CreateDate i: {' '.join(args.files)}")
         return 0
-    
+
     renames = compute_renames(entries, include_named=args.include_named)
     execute_renames(renames, dry_run=args.dry_run)
-    
+
     return 0
 
 

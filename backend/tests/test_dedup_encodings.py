@@ -41,6 +41,7 @@ def service():
 
 # ----- _redundant_indices --------------------------------------------------
 
+
 def test_exact_duplicates_removed_keeping_one():
     base = _unit(0)
     encs = [_entry(base), _entry(base), _entry(_unit(5))]  # 0 and 1 byte-identical
@@ -50,8 +51,8 @@ def test_exact_duplicates_removed_keeping_one():
 def test_near_duplicates_only_above_threshold():
     base = _unit(0)
     encs = [_entry(base), _entry(base + 0.01 * _unit(1)), _entry(_unit(5))]
-    assert _redundant_indices(encs, 0.0, "insightface") == set()      # near ≠ exact
-    assert _redundant_indices(encs, 0.1, "insightface") == {1}        # within threshold
+    assert _redundant_indices(encs, 0.0, "insightface") == set()  # near ≠ exact
+    assert _redundant_indices(encs, 0.1, "insightface") == {1}  # within threshold
 
 
 def test_manual_and_other_backend_never_removed():
@@ -73,6 +74,7 @@ def test_redundant_indices_computes_missing_hash():
 
 
 # ----- find_redundant_encodings / dedup_people -----------------------------
+
 
 @pytest.mark.asyncio
 async def test_find_lists_only_people_with_redundancy(service):

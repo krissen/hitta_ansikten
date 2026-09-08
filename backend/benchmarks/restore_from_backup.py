@@ -32,6 +32,7 @@ Usage (from anywhere)::
    so a rebuilt worklist resumes rather than restarting: entries already
    verified there are skipped.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -54,8 +55,8 @@ STAGING = os.path.join(HOME, ".local/share/faceid/benchmark_staging")
 SSH_HOST = "kailash"
 RESTIC = (
     "restic -r rclone:hetzner:restic-repo "
-    "--password-file=\"$HOME/.config/restic-password\" "
-    "-o rclone.args=\"serve restic --stdio --low-level-retries 30 --retries 5\" "
+    '--password-file="$HOME/.config/restic-password" '
+    '-o rclone.args="serve restic --stdio --low-level-retries 30 --retries 5" '
     "--no-lock"
 )
 DUMP_RETRIES = 3
@@ -89,8 +90,15 @@ def dump_to(snapshot: str, archive_path: str, dest_tmp: str) -> tuple[bool, str]
         try:
             with open(dest_tmp, "wb") as out:
                 proc = subprocess.run(
-                    ["ssh", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
-                     SSH_HOST, remote],
+                    [
+                        "ssh",
+                        "-o",
+                        "ServerAliveInterval=15",
+                        "-o",
+                        "ServerAliveCountMax=3",
+                        SSH_HOST,
+                        remote,
+                    ],
                     stdout=out,
                     stderr=subprocess.PIPE,
                     timeout=600,
@@ -120,7 +128,8 @@ class Manifest:
 
     def verified_sha1s(self) -> set[str]:
         return {
-            s for s, r in self.by_sha1.items()
+            s
+            for s, r in self.by_sha1.items()
             if r.get("verified") and r.get("staged_path") and os.path.exists(r["staged_path"])
         }
 
@@ -170,10 +179,16 @@ def process_entry(entry: dict, manifest: Manifest, counters: dict, clock: dict) 
         last_cand = cand
         if got == sha1:
             rec = {
-                "sha1": sha1, "basename": basename, "staged_path": dest,
-                "expected_sha1": sha1, "restored_sha1": got, "verified": True,
-                "bytes": last_bytes, "face_count": entry["face_count"],
-                "archive_path": cand["path"], "snapshot": cand["snapshot"],
+                "sha1": sha1,
+                "basename": basename,
+                "staged_path": dest,
+                "expected_sha1": sha1,
+                "restored_sha1": got,
+                "verified": True,
+                "bytes": last_bytes,
+                "face_count": entry["face_count"],
+                "archive_path": cand["path"],
+                "snapshot": cand["snapshot"],
             }
             manifest.update(rec)
             with manifest.lock:
@@ -189,17 +204,29 @@ def process_entry(entry: dict, manifest: Manifest, counters: dict, clock: dict) 
         os.remove(tmp)
     if last_hash is not None:
         rec = {
-            "sha1": sha1, "basename": basename, "staged_path": dest,
-            "expected_sha1": sha1, "restored_sha1": last_hash, "verified": False,
-            "bytes": last_bytes, "face_count": entry["face_count"],
-            "archive_path": last_cand["path"], "snapshot": last_cand["snapshot"],
+            "sha1": sha1,
+            "basename": basename,
+            "staged_path": dest,
+            "expected_sha1": sha1,
+            "restored_sha1": last_hash,
+            "verified": False,
+            "bytes": last_bytes,
+            "face_count": entry["face_count"],
+            "archive_path": last_cand["path"],
+            "snapshot": last_cand["snapshot"],
             "note": "hash_mismatch",
         }
     else:
         rec = {
-            "sha1": sha1, "basename": basename, "staged_path": None,
-            "expected_sha1": sha1, "restored_sha1": None, "verified": False,
-            "bytes": 0, "face_count": entry["face_count"], "note": "dump_failed",
+            "sha1": sha1,
+            "basename": basename,
+            "staged_path": None,
+            "expected_sha1": sha1,
+            "restored_sha1": None,
+            "verified": False,
+            "bytes": 0,
+            "face_count": entry["face_count"],
+            "note": "dump_failed",
         }
     manifest.update(rec)
     with manifest.lock:
@@ -218,7 +245,7 @@ def _progress(counters: dict, clock: dict, entry: dict) -> None:
         print(
             f"[{done}/{counters['total']}] verified={counters['verified']} "
             f"failed={counters['failed']} {gb:.1f}GB "
-            f"{rate*60:.1f} files/min ETA {remaining/60:.0f}min",
+            f"{rate * 60:.1f} files/min ETA {remaining / 60:.0f}min",
             flush=True,
         )
 
@@ -239,8 +266,11 @@ def main(argv=None) -> int:
     if args.limit:
         todo = todo[: args.limit]
 
-    print(f"worklist={len(worklist)} already_verified={len(already)} todo={len(todo)} "
-          f"workers={args.workers}", flush=True)
+    print(
+        f"worklist={len(worklist)} already_verified={len(already)} todo={len(todo)} "
+        f"workers={args.workers}",
+        flush=True,
+    )
     if args.dry_run:
         for e in todo[:5]:
             print("would restore", e["sha1"][:12], e["recorded_basenames"][0])
@@ -263,9 +293,12 @@ def main(argv=None) -> int:
     manifest.flush()
 
     elapsed = time.time() - clock["start"]
-    print(f"DONE in {elapsed/60:.1f}min verified={counters['verified']} "
-          f"failed={counters['failed']} crashed={crashed} bytes={counters['bytes']} "
-          f"({counters['bytes']/1e9:.1f}GB)", flush=True)
+    print(
+        f"DONE in {elapsed / 60:.1f}min verified={counters['verified']} "
+        f"failed={counters['failed']} crashed={crashed} bytes={counters['bytes']} "
+        f"({counters['bytes'] / 1e9:.1f}GB)",
+        flush=True,
+    )
     # Non-zero when anything did not land verified, so a caller (or a shell
     # loop resuming the restore) can tell a clean run from a partial one.
     return 0 if crashed == 0 and counters["failed"] == 0 else 1

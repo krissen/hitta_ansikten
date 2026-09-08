@@ -15,12 +15,8 @@ def test_returns_path_from_which(monkeypatch):
 def test_falls_back_to_known_location(monkeypatch):
     """With no PATH hit, a runnable well-known location is returned."""
     monkeypatch.setattr(exiftool_mod.shutil, "which", lambda _: None)
-    monkeypatch.setattr(
-        exiftool_mod, "_FALLBACK_PATHS", ("/opt/homebrew/bin/exiftool",)
-    )
-    monkeypatch.setattr(
-        exiftool_mod.os.path, "isfile", lambda p: p == "/opt/homebrew/bin/exiftool"
-    )
+    monkeypatch.setattr(exiftool_mod, "_FALLBACK_PATHS", ("/opt/homebrew/bin/exiftool",))
+    monkeypatch.setattr(exiftool_mod.os.path, "isfile", lambda p: p == "/opt/homebrew/bin/exiftool")
     monkeypatch.setattr(exiftool_mod.os, "access", lambda p, mode: True)
 
     assert find_exiftool() == "/opt/homebrew/bin/exiftool"

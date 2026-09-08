@@ -26,30 +26,31 @@ class RestrictedUnpickler(pickle.Unpickler):
     Prevents arbitrary code execution from malicious pickle files by
     whitelisting only necessary classes (numpy arrays, basic Python types).
     """
+
     # Whitelist of allowed modules and classes
     ALLOWED_CLASSES = {
-        ('numpy', 'ndarray'),
-        ('numpy', 'dtype'),
+        ("numpy", "ndarray"),
+        ("numpy", "dtype"),
         # Support both old (numpy.core) and new (numpy._core) module paths
-        ('numpy.core.multiarray', '_reconstruct'),
-        ('numpy.core.multiarray', 'scalar'),
-        ('numpy._core.multiarray', '_reconstruct'),  # numpy >= 1.20
-        ('numpy._core.multiarray', 'scalar'),        # numpy >= 1.20
+        ("numpy.core.multiarray", "_reconstruct"),
+        ("numpy.core.multiarray", "scalar"),
+        ("numpy._core.multiarray", "_reconstruct"),  # numpy >= 1.20
+        ("numpy._core.multiarray", "scalar"),  # numpy >= 1.20
         # numpy 2.x reconstructs arrays via _frombuffer instead of _reconstruct
-        ('numpy.core.numeric', '_frombuffer'),
-        ('numpy._core.numeric', '_frombuffer'),
-        ('builtins', 'dict'),
-        ('builtins', 'list'),
-        ('builtins', 'tuple'),
-        ('builtins', 'str'),
-        ('builtins', 'int'),
-        ('builtins', 'float'),
-        ('builtins', 'bool'),
-        ('builtins', 'NoneType'),
-        ('builtins', 'set'),
-        ('builtins', 'frozenset'),
-        ('collections', 'OrderedDict'),
-        ('collections', 'defaultdict'),
+        ("numpy.core.numeric", "_frombuffer"),
+        ("numpy._core.numeric", "_frombuffer"),
+        ("builtins", "dict"),
+        ("builtins", "list"),
+        ("builtins", "tuple"),
+        ("builtins", "str"),
+        ("builtins", "int"),
+        ("builtins", "float"),
+        ("builtins", "bool"),
+        ("builtins", "NoneType"),
+        ("builtins", "set"),
+        ("builtins", "frozenset"),
+        ("collections", "OrderedDict"),
+        ("collections", "defaultdict"),
     }
 
     def find_class(self, module: str, name: str) -> type:
@@ -90,12 +91,14 @@ LOGGING_PATH = BASE_DIR / "ansikten.log"
 DB_SCHEMA_VERSION = 2
 
 # Log rotation settings
-MAX_PROCESSED_ENTRIES = 50000    # Max entries in processed_files.jsonl
-MAX_ATTEMPT_ENTRIES = 10000      # Max entries in attempt_stats.jsonl
-MAX_LOG_SIZE_MB = 10             # Max size of ansikten.log in MB
+MAX_PROCESSED_ENTRIES = 50000  # Max entries in processed_files.jsonl
+MAX_ATTEMPT_ENTRIES = 10000  # Max entries in attempt_stats.jsonl
+MAX_LOG_SIZE_MB = 10  # Max size of ansikten.log in MB
 
 
-def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend: str = "dlib") -> dict[str, Any] | None:
+def normalize_encoding_entry(
+    entry: np.ndarray | dict[str, Any], default_backend: str = "dlib"
+) -> dict[str, Any] | None:
     """
     Normalize encoding entry to dict format with backend metadata.
 
@@ -134,7 +137,7 @@ def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend
             "backend": default_backend,
             "backend_version": "unknown",
             "created_at": None,
-            "encoding_hash": encoding_hash
+            "encoding_hash": encoding_hash,
         }
     elif isinstance(entry, dict):
         # Ensure all required fields exist
@@ -147,7 +150,7 @@ def normalize_encoding_entry(entry: np.ndarray | dict[str, Any], default_backend
         if "encoding_hash" not in entry and entry.get("encoding") is not None:
             try:
                 enc = entry["encoding"]
-                if hasattr(enc, 'tobytes'):
+                if hasattr(enc, "tobytes"):
                     entry["encoding_hash"] = hashlib.sha1(enc.tobytes()).hexdigest()
                 else:
                     entry["encoding_hash"] = None
@@ -248,7 +251,12 @@ def _write_schema_marker() -> None:
                 pass
 
 
-def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]], dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+def load_database() -> tuple[
+    dict[str, list[dict[str, Any]]],
+    list[dict[str, Any]],
+    dict[str, list[dict[str, Any]]],
+    list[dict[str, Any]],
+]:
     """
     Load database with file locking to ensure consistency.
 
@@ -361,7 +369,9 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
             if hn_migrated:
                 only.add("hardneg")
             try:
-                save_database(known_faces, ignored_faces, hard_negatives, processed_files, only=only)
+                save_database(
+                    known_faces, ignored_faces, hard_negatives, processed_files, only=only
+                )
             except Exception as e:  # noqa: BLE001
                 # Migration save failed — leave the on-disk data as-is and do
                 # NOT mark; the next load retries the migration.
@@ -378,7 +388,7 @@ def load_database() -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any
 
 def _atomic_pickle_write(data, target_path):
     """Write pickle file atomically with exclusive lock."""
-    temp_path = target_path.with_suffix('.tmp')
+    temp_path = target_path.with_suffix(".tmp")
     try:
         with open(temp_path, "wb") as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -392,7 +402,7 @@ def _atomic_pickle_write(data, target_path):
 
 def _atomic_jsonl_write(entries, target_path):
     """Write JSONL file atomically with exclusive lock."""
-    temp_path = target_path.with_suffix('.tmp')
+    temp_path = target_path.with_suffix(".tmp")
     try:
         with open(temp_path, "w", encoding="utf-8") as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
@@ -581,7 +591,9 @@ def rotate_logs() -> None:
                 with open(PROCESSED_PATH, "w", encoding="utf-8") as f:
                     for entry in entries:
                         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-                logger.info(f"[LogRotation] Trimmed processed_files.jsonl to {len(entries)} entries")
+                logger.info(
+                    f"[LogRotation] Trimmed processed_files.jsonl to {len(entries)} entries"
+                )
         except Exception as e:  # noqa: BLE001 - rotation runs at startup; failing to trim a log must never prevent the app from starting
             logger.warning(f"[LogRotation] Failed to rotate processed_files.jsonl: {e}")
 
@@ -599,7 +611,9 @@ def rotate_logs() -> None:
             if len(entries) > MAX_ATTEMPT_ENTRIES:
                 # Archive old entries
                 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-                archive_name = f"attempt_stats_{datetime.now().astimezone().strftime('%Y%m%d_%H%M%S')}.jsonl"
+                archive_name = (
+                    f"attempt_stats_{datetime.now().astimezone().strftime('%Y%m%d_%H%M%S')}.jsonl"
+                )
                 archive_path = ARCHIVE_DIR / archive_name
 
                 # Write old entries to archive
@@ -614,7 +628,9 @@ def rotate_logs() -> None:
                     for entry in recent_entries:
                         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-                logger.info(f"[LogRotation] Archived {len(old_entries)} attempt entries to {archive_name}")
+                logger.info(
+                    f"[LogRotation] Archived {len(old_entries)} attempt entries to {archive_name}"
+                )
         except Exception as e:  # noqa: BLE001 - rotation runs at startup; failing to archive attempts must never prevent the app from starting
             logger.warning(f"[LogRotation] Failed to rotate attempt_stats.jsonl: {e}")
 
@@ -625,7 +641,9 @@ def rotate_logs() -> None:
             if size_mb > MAX_LOG_SIZE_MB:
                 # Rotate to archive
                 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-                archive_name = f"ansikten_{datetime.now().astimezone().strftime('%Y%m%d_%H%M%S')}.log"
+                archive_name = (
+                    f"ansikten_{datetime.now().astimezone().strftime('%Y%m%d_%H%M%S')}.log"
+                )
                 archive_path = ARCHIVE_DIR / archive_name
 
                 # Move current log to archive

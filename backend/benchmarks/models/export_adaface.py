@@ -131,9 +131,7 @@ def _load_backbone(checkpoint: Path):
     blob = torch.load(str(checkpoint), map_location="cpu", weights_only=False)
     statedict = blob["state_dict"] if isinstance(blob, dict) and "state_dict" in blob else blob
     # Upstream wraps the backbone as ``model.`` in the LightningModule state.
-    model_statedict = {
-        k[6:]: v for k, v in statedict.items() if k.startswith("model.")
-    }
+    model_statedict = {k[6:]: v for k, v in statedict.items() if k.startswith("model.")}
     if not model_statedict:
         # Some mirrors store the bare backbone state_dict without the prefix.
         model_statedict = statedict
@@ -295,17 +293,29 @@ def write_manifest_entry(onnx_path: Path, checkpoint: Path) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", default=None,
-                    help="Local checkpoint path (else download the HF mirror).")
-    ap.add_argument("--out", default=None,
-                    help="Output ONNX path (default _data/models/adaface_ir101/adaface_ir101.onnx).")
-    ap.add_argument("--threshold", type=float, default=0.999,
-                    help="Min torch-vs-ONNX cosine to accept (default 0.999).")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--checkpoint", default=None, help="Local checkpoint path (else download the HF mirror)."
+    )
+    ap.add_argument(
+        "--out",
+        default=None,
+        help="Output ONNX path (default _data/models/adaface_ir101/adaface_ir101.onnx).",
+    )
+    ap.add_argument(
+        "--threshold",
+        type=float,
+        default=0.999,
+        help="Min torch-vs-ONNX cosine to accept (default 0.999).",
+    )
     ap.add_argument("--n", type=int, default=4, help="Random parity samples (default 4).")
-    ap.add_argument("--skip-verify", action="store_true",
-                    help="Export without the parity gate (not recommended).")
+    ap.add_argument(
+        "--skip-verify",
+        action="store_true",
+        help="Export without the parity gate (not recommended).",
+    )
     args = ap.parse_args(argv)
 
     try:

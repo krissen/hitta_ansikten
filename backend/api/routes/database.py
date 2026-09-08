@@ -20,16 +20,19 @@ from api.services.db_store import get_db_store
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 # Response models
 class PersonProfile(BaseModel):
     person_id: str
     name: str
     face_count: int
     first_seen: str  # ISO timestamp
-    last_seen: str   # ISO timestamp
+    last_seen: str  # ISO timestamp
+
 
 class PersonName(BaseModel):
     name: str
+
 
 @router.get("/database/people", response_model=list[PersonProfile])
 async def get_people():
@@ -46,6 +49,7 @@ async def get_people():
     except Exception as e:  # noqa: BLE001 - request boundary: any failure becomes a 500 JSON body, never a bare traceback
         logger.error(f"[Database] Error fetching people: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/database/people/names", response_model=list[str])
 async def get_people_names():

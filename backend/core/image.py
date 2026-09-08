@@ -38,8 +38,9 @@ def load_and_resize_raw(image_path: str | Path, max_dim: int | None = None) -> N
         rgb = raw.postprocess()
     if max_dim and max(rgb.shape[0], rgb.shape[1]) > max_dim:
         scale = max_dim / max(rgb.shape[0], rgb.shape[1])
-        rgb = (Image.fromarray(rgb)
-               .resize((int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.Resampling.LANCZOS))
+        rgb = Image.fromarray(rgb).resize(
+            (int(rgb.shape[1] * scale), int(rgb.shape[0] * scale)), Image.Resampling.LANCZOS
+        )
         rgb = np.array(rgb)
     return rgb
 
@@ -52,10 +53,12 @@ def box_overlaps_with_buffer(
     """Check if two boxes overlap with a buffer zone."""
     l1, t1, r1, b1_ = b1
     l2, t2, r2, b2_ = b2
-    return not (r1 + buffer <= l2 - buffer or
-                l1 - buffer >= r2 + buffer or
-                b1_ + buffer <= t2 - buffer or
-                t1 - buffer >= b2_ + buffer)
+    return not (
+        r1 + buffer <= l2 - buffer
+        or l1 - buffer >= r2 + buffer
+        or b1_ + buffer <= t2 - buffer
+        or t1 - buffer >= b2_ + buffer
+    )
 
 
 def robust_word_wrap(
@@ -121,7 +124,11 @@ def create_labeled_image(
         face_box = (left, top, right, bottom)
         placed_boxes.append(face_box)
 
-        label_text = "{} {}".format(labels[i].split('\n')[0], labels[i].split('\n')[1]) if "\n" in labels[i] else labels[i]
+        label_text = (
+            "{} {}".format(labels[i].split("\n")[0], labels[i].split("\n")[1])
+            if "\n" in labels[i]
+            else labels[i]
+        )
         lines = robust_word_wrap(label_text, max_label_width, draw_temp, font)
         line_sizes = [draw_temp.textbbox((0, 0), line, font=font) for line in lines]
         text_width = int(max(b[2] - b[0] for b in line_sizes) + 10)
@@ -130,7 +137,7 @@ def create_labeled_image(
         # Siffran, ovanför ansiktslådan om plats
         num_font_size = max(12, font_size // 2)
         num_font = ImageFont.truetype(font_path, num_font_size)
-        num_text = f"#{i+1}"
+        num_text = f"#{i + 1}"
         num_text_bbox = draw_temp.textbbox((0, 0), num_text, font=num_font)
         num_text_w = num_text_bbox[2] - num_text_bbox[0]
         num_text_h = num_text_bbox[3] - num_text_bbox[1]
@@ -145,7 +152,9 @@ def create_labeled_image(
         lx = -text_width - margin
         ly = -text_height - margin
         label_box: tuple[int, int, int, int] = (lx, ly, lx + text_width, ly + text_height)
-        for radius in range(max((bottom-top), (right-left)) + margin, max(orig_width, orig_height) * 2, 25):
+        for radius in range(
+            max((bottom - top), (right - left)) + margin, max(orig_width, orig_height) * 2, 25
+        ):
             for angle in range(0, 360, 10):
                 radians = math.radians(angle)
                 lx = int(cx + radius * math.cos(radians) - text_width // 2)
@@ -166,17 +175,19 @@ def create_labeled_image(
             ly = -text_height - margin
             label_box = (lx, ly, lx + text_width, ly + text_height)
         placed_boxes.append(label_box)
-        placements.append({
-            "face_box": face_box,
-            "label_box": label_box,
-            "num_box": num_box,
-            "lines": lines,
-            "num_text": num_text,
-            "num_font": num_font,
-            "text_width": text_width,
-            "text_height": text_height,
-            "label_pos": (lx, ly),
-        })
+        placements.append(
+            {
+                "face_box": face_box,
+                "label_box": label_box,
+                "num_box": num_box,
+                "lines": lines,
+                "num_text": num_text,
+                "num_font": num_font,
+                "text_width": text_width,
+                "text_height": text_height,
+                "label_pos": (lx, ly),
+            }
+        )
 
     # Beräkna nödvändigt canvas-storlek
     min_x = 0
@@ -201,10 +212,17 @@ def create_labeled_image(
     # Rita allt på canvasen
     for p in placements:
         # Ansiktslåda
-        face_box = tuple(x + offset if i % 2 == 0 else x + offset_y for i, (x, offset) in enumerate(zip(p["face_box"], (offset_x, offset_y, offset_x, offset_y))))
-        draw.rectangle([face_box[0], face_box[1], face_box[2], face_box[3]],
-                       outline="red",
-                       width=config.get("rectangle_thickness", 6))
+        face_box = tuple(
+            x + offset if i % 2 == 0 else x + offset_y
+            for i, (x, offset) in enumerate(
+                zip(p["face_box"], (offset_x, offset_y, offset_x, offset_y))
+            )
+        )
+        draw.rectangle(
+            [face_box[0], face_box[1], face_box[2], face_box[3]],
+            outline="red",
+            width=config.get("rectangle_thickness", 6),
+        )
 
         # Etikett
         lx, ly = p["label_pos"]
@@ -220,7 +238,7 @@ def create_labeled_image(
         nb = p["num_box"]
         nb_off = (nb[0] + offset_x, nb[1] + offset_y, nb[2] + offset_x, nb[3] + offset_y)
         draw.rectangle(nb_off, fill=(0, 0, 0, 180))
-        draw.text((nb_off[0], nb_off[1]), p["num_text"], fill=(255,255,0), font=p["num_font"])
+        draw.text((nb_off[0], nb_off[1]), p["num_text"], fill=(255, 255, 0), font=p["num_font"])
 
         # Pil
         face_cx = (face_box[0] + face_box[2]) // 2
@@ -233,7 +251,9 @@ def create_labeled_image(
     temp_prefix = "ansikten_preview"
     temp_suffix = f"{suffix}.jpg" if suffix else ".jpg"
 
-    with tempfile.NamedTemporaryFile(prefix=temp_prefix, suffix=temp_suffix, dir=temp_dir, delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(
+        prefix=temp_prefix, suffix=temp_suffix, dir=temp_dir, delete=False
+    ) as tmp:
         canvas.save(tmp.name, format="JPEG")
         return tmp.name
 
@@ -251,12 +271,14 @@ def export_and_show_original(image_path: str | Path, config: dict[str, Any]) -> 
         img = Image.fromarray(rgb)
         img.save(export_path, format="JPEG", quality=98)
 
-        status_path = Path.home() / "Library" / "Application Support" / "ansikten" / "original_status.json"
+        status_path = (
+            Path.home() / "Library" / "Application Support" / "ansikten" / "original_status.json"
+        )
         status = {
             "timestamp": time.time(),
             "source_nef": str(image_path),
             "exported_jpg": str(export_path),
-            "exported": "true"
+            "exported": "true",
         }
         with open(status_path, "w", encoding="utf-8") as f:
             json.dump(status, f, indent=2)
@@ -287,12 +309,14 @@ def show_temp_image(
 
     # Skriv original_status.json
     orig_path = str(image_path) if image_path else str(preview_path)
-    status_origjson_path = Path.home() / "Library" / "Application Support" / "ansikten" / "original_status.json"
+    status_origjson_path = (
+        Path.home() / "Library" / "Application Support" / "ansikten" / "original_status.json"
+    )
     status_origjson = {
         "timestamp": time.time(),
         "source_nef": orig_path,
         "exported_jpg": None,
-        "exported": "false"
+        "exported": "false",
     }
     with open(status_origjson_path, "w") as f:
         json.dump(status_origjson, f, indent=2)
@@ -311,7 +335,9 @@ def show_temp_image(
                         logger.debug(f"[ANSIKTEN] Appen visar redan rätt fil: {expected_path}")
                     else:
                         should_open = True
-                        logger.debug(f"[ANSIKTEN] Appen kör men visar annan fil ({current_file}), öppnar {expected_path}")
+                        logger.debug(
+                            f"[ANSIKTEN] Appen kör men visar annan fil ({current_file}), öppnar {expected_path}"
+                        )
                 except (OSError, ValueError):
                     should_open = True
                     logger.debug(f"[ANSIKTEN] Kan inte jämföra filer, öppnar {expected_path}")
@@ -320,12 +346,16 @@ def show_temp_image(
                 logger.debug("[ANSIKTEN] Appen har avslutats, kommer öppna bild")
                 should_open = True
             else:
-                logger.debug(f"[ANSIKTEN] App-status: {app_status} inte behandlad, kommer öppna bild")
+                logger.debug(
+                    f"[ANSIKTEN] App-status: {app_status} inte behandlad, kommer öppna bild"
+                )
                 should_open = True
         # OSError: unreadable file. ValueError: not JSON. AttributeError: JSON
         # that parses to something other than an object, so .get() is missing.
         except (OSError, ValueError, AttributeError) as e:
-            logger.debug(f"[ANSIKTEN] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild")
+            logger.debug(
+                f"[ANSIKTEN] Misslyckades läsa statusfilen: {status_path} ({e}), kommer öppna bild"
+            )
             should_open = True
 
     if should_open:
@@ -333,7 +363,10 @@ def show_temp_image(
         safe_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.")
         if not viewer_app or not all(c in safe_chars for c in viewer_app):
             logger.error(f"[SECURITY] Invalid viewer app name: {viewer_app}")
-            print(f"⚠️  Säkerhetsvarning: Ogiltig bildvisarapp '{viewer_app}', hoppar över", file=sys.stderr)
+            print(
+                f"⚠️  Säkerhetsvarning: Ogiltig bildvisarapp '{viewer_app}', hoppar över",
+                file=sys.stderr,
+            )
             return
 
         logger.debug(f"[ANSIKTEN] Öppnar bild i visare: {expected_path}")

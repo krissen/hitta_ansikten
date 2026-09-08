@@ -51,8 +51,8 @@ def test_cxcywh_to_xyxy():
 def test_nms_suppresses_overlap_keeps_distinct():
     boxes = np.array(
         [
-            [0, 0, 10, 10],     # A (best)
-            [1, 1, 11, 11],     # heavily overlaps A -> suppressed
+            [0, 0, 10, 10],  # A (best)
+            [1, 1, 11, 11],  # heavily overlaps A -> suppressed
             [100, 100, 110, 110],  # far away -> kept
         ],
         dtype=np.float32,
@@ -79,7 +79,7 @@ def test_nms_orders_by_score():
 def _raw_column(cx, cy, w, h, score, kps_xy):
     """Build one raw-head column: [cx,cy,w,h, score, (x,y,vis)*5]."""
     col = [cx, cy, w, h, score]
-    for (x, y) in kps_xy:
+    for x, y in kps_xy:
         col += [x, y, 1.0]
     return col
 
@@ -87,7 +87,7 @@ def _raw_column(cx, cy, w, h, score, kps_xy):
 def test_decode_raw_filters_and_shapes():
     K = 5
     kps = [(i, i + 1) for i in range(K)]
-    strong = _raw_column(100, 200, 40, 60, 0.9, kps)   # cx,cy,w,h
+    strong = _raw_column(100, 200, 40, 60, 0.9, kps)  # cx,cy,w,h
     weak = _raw_column(10, 10, 4, 4, 0.1, [(0, 0)] * K)
     # channels-first: (1, 4+1+15=20, N=2)
     arr = np.array([strong, weak], dtype=np.float32).T[None]  # (1, 20, 2)
@@ -123,7 +123,7 @@ def test_decode_raw_rejects_too_few_channels():
 # --------------------------------------------------------------------------
 def _baked_row(x1, y1, x2, y2, score, kps_xy):
     row = [x1, y1, x2, y2, score, 0.0]  # +class
-    for (x, y) in kps_xy:
+    for x, y in kps_xy:
         row += [x, y, 1.0]
     return row
 

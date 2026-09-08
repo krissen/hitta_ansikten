@@ -25,8 +25,20 @@ try:
     from core.files import SUPPORTED_EXTENSIONS as _CORE_EXTENSIONS
 except ImportError:  # pragma: no cover - fallback if run outside the backend tree
     _CORE_EXTENSIONS = (
-        ".nef", ".cr2", ".cr3", ".arw", ".dng", ".raw", ".raf", ".orf", ".rw2",
-        ".jpg", ".jpeg", ".tiff", ".tif", ".png",
+        ".nef",
+        ".cr2",
+        ".cr3",
+        ".arw",
+        ".dng",
+        ".raw",
+        ".raf",
+        ".orf",
+        ".rw2",
+        ".jpg",
+        ".jpeg",
+        ".tiff",
+        ".tif",
+        ".png",
     )
 
 # Lowercase, dot-prefixed. Membership tests must lower-case the candidate first.
@@ -83,11 +95,11 @@ class IndexEntry:
 class BuildStats:
     """Outcome counters for a single ``build`` pass."""
 
-    scanned: int = 0          # image files encountered on disk
-    hashed: int = 0           # files (re)hashed this pass
-    reused: int = 0           # files served from cache (unchanged)
-    errors: int = 0           # files that could not be hashed
-    pruned: int = 0           # cache entries dropped (file gone)
+    scanned: int = 0  # image files encountered on disk
+    hashed: int = 0  # files (re)hashed this pass
+    reused: int = 0  # files served from cache (unchanged)
+    errors: int = 0  # files that could not be hashed
+    pruned: int = 0  # cache entries dropped (file gone)
     roots: list[str] = field(default_factory=list)
 
 
@@ -234,7 +246,7 @@ class Resolution:
     resolved: bool
     current_paths: list[str]
     recorded_basenames: list[str]  # distinct basenames the DB recorded for this hash
-    face_count: int                # encodings referencing this source image
+    face_count: int  # encodings referencing this source image
 
 
 def resolve_hashes(

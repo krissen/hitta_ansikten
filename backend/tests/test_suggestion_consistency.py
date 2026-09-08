@@ -105,9 +105,7 @@ def test_person_name_equals_first_non_ignored_alternative():
     face = _detect_one(svc, _entry(real + 0.02 * _unit(2))["encoding"])
 
     assert face["match_case"] in ("name", "uncertain_name")
-    first_named = next(
-        a for a in face["match_alternatives"] if not a["is_ignored"]
-    )
+    first_named = next(a for a in face["match_alternatives"] if not a["is_ignored"])
     assert face["person_name"] == first_named["name"]
     assert face["person_name"] == "Real"
 
@@ -140,9 +138,7 @@ def test_lenient_only_entries_never_become_person_name():
     assert face["person_name"] == face["match_alternatives"][0]["name"]
 
 
-def test_twin_disambiguation_keeps_person_name_and_alternatives_aligned(
-    tmp_path, monkeypatch
-):
+def test_twin_disambiguation_keeps_person_name_and_alternatives_aligned(tmp_path, monkeypatch):
     """After the twin tie-break reorders the alternatives, person_name still
     equals alternatives[0] (both become the disambiguated choice).
 

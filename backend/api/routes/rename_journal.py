@@ -41,8 +41,7 @@ class UndoRequest(BaseModel):
 async def undo(request: UndoRequest):
     """Preview or perform the reversal of one batch's recorded moves."""
     try:
-        return await get_undo_service().undo(
-            batch_id=request.batch_id, execute=request.execute)
+        return await get_undo_service().undo(batch_id=request.batch_id, execute=request.execute)
     except ValueError as e:
         # "not found" vs "not undoable" both surface as a client error; the
         # message distinguishes them for the UI.

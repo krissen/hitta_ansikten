@@ -195,10 +195,13 @@ class FaceDBStore:
                 version=self._version,
             )
 
-    def read(self, fn: Callable[
-        [dict[str, Any], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]],
-        Any,
-    ]) -> Any:
+    def read(
+        self,
+        fn: Callable[
+            [dict[str, Any], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]],
+            Any,
+        ],
+    ) -> Any:
         """Run a read-only ``fn`` over the live collections under the lock.
 
         ``fn`` is called as ``fn(known_faces, ignored_faces, hard_negatives,
@@ -217,10 +220,14 @@ class FaceDBStore:
                 self._processed_files,
             )
 
-    def mutate(self, fn: Callable[
-        [dict[str, Any], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]],
-        Any,
-    ], touches: set[str] | None = None) -> Any:
+    def mutate(
+        self,
+        fn: Callable[
+            [dict[str, Any], list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]],
+            Any,
+        ],
+        touches: set[str] | None = None,
+    ) -> Any:
         """Apply a mutation to the live collections under the store lock.
 
         ``fn`` is called as ``fn(known_faces, ignored_faces, hard_negatives,

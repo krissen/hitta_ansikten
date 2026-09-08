@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheEntry:
     """Metadata for a cached item."""
+
     file_hash: str
     original_path: str
     created_at: str
@@ -62,7 +63,7 @@ class PreprocessingCache:
         └── {grid_key}.jpg
     """
 
-    DEFAULT_CACHE_DIR = Path.home() / '.cache' / 'ansikten'
+    DEFAULT_CACHE_DIR = Path.home() / ".cache" / "ansikten"
     DEFAULT_MAX_SIZE_MB = 1024  # 1 GB
     INDEX_SAVE_INTERVAL = 5.0  # Seconds between index saves
     PROCESSING_TIMEOUT = 20.0  # Seconds to wait for another thread
@@ -71,13 +72,13 @@ class PreprocessingCache:
     def __init__(self, cache_dir: Path | None = None, max_size_mb: int = DEFAULT_MAX_SIZE_MB):
         self.cache_dir = Path(cache_dir) if cache_dir else self.DEFAULT_CACHE_DIR
         self.max_size_bytes = max_size_mb * 1024 * 1024
-        self.index_path = self.cache_dir / 'index.json'
+        self.index_path = self.cache_dir / "index.json"
 
         # Subdirectories
-        self.nef_dir = self.cache_dir / 'nef'
-        self.faces_dir = self.cache_dir / 'faces'
-        self.thumbs_dir = self.cache_dir / 'thumbs'
-        self.grid_dir = self.cache_dir / 'grid'
+        self.nef_dir = self.cache_dir / "nef"
+        self.faces_dir = self.cache_dir / "faces"
+        self.thumbs_dir = self.cache_dir / "thumbs"
+        self.grid_dir = self.cache_dir / "grid"
 
         # Index buffering state
         self._index_dirty = False
@@ -96,12 +97,20 @@ class PreprocessingCache:
         # Load or create index
         self.index: dict[str, CacheEntry] = self._load_index()
 
-        logger.info(f"[PreprocessingCache] Initialized: {self.cache_dir}, "
-                   f"max_size={max_size_mb}MB, entries={len(self.index)}")
+        logger.info(
+            f"[PreprocessingCache] Initialized: {self.cache_dir}, "
+            f"max_size={max_size_mb}MB, entries={len(self.index)}"
+        )
 
     def _ensure_dirs(self):
         """Create cache directories if they don't exist."""
-        for dir_path in [self.cache_dir, self.nef_dir, self.faces_dir, self.thumbs_dir, self.grid_dir]:
+        for dir_path in [
+            self.cache_dir,
+            self.nef_dir,
+            self.faces_dir,
+            self.thumbs_dir,
+            self.grid_dir,
+        ]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
     def _load_index(self) -> dict[str, CacheEntry]:
@@ -110,7 +119,7 @@ class PreprocessingCache:
             return {}
 
         try:
-            with open(self.index_path, 'r') as f:
+            with open(self.index_path, "r") as f:
                 data = json.load(f)
 
             # Convert dicts to CacheEntry objects
@@ -143,8 +152,8 @@ class PreprocessingCache:
 
         try:
             # Write to temp file first
-            temp_path = self.index_path.with_suffix('.tmp')
-            with open(temp_path, 'w') as f:
+            temp_path = self.index_path.with_suffix(".tmp")
+            with open(temp_path, "w") as f:
                 data = {k: asdict(v) for k, v in self.index.items()}
                 json.dump(data, f, indent=2)
 
@@ -226,7 +235,9 @@ class PreprocessingCache:
                         self._in_progress[file_hash][0].set()
                         del self._in_progress[file_hash]
 
-        logger.error(f"[PreprocessingCache] Max retries ({self.MAX_RETRIES}) exceeded for {file_hash[:8]}")
+        logger.error(
+            f"[PreprocessingCache] Max retries ({self.MAX_RETRIES}) exceeded for {file_hash[:8]}"
+        )
         yield (False, attempt)
 
     @staticmethod
@@ -249,7 +260,7 @@ class PreprocessingCache:
         """
         st = os.stat(file_path)
         raw = f"{os.path.abspath(file_path)}|{st.st_mtime_ns}|{st.st_size}|{size}"
-        return "grid_" + hashlib.sha1(raw.encode('utf-8')).hexdigest()
+        return "grid_" + hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
     def has_grid_thumb(self, grid_key: str) -> bool:
         """Check if an overview thumbnail exists in cache."""
@@ -267,9 +278,9 @@ class PreprocessingCache:
 
     def store_grid_thumb(self, grid_key: str, original_path: str, jpg_data: bytes) -> str:
         """Store an overview thumbnail in cache."""
-        jpg_path = self.grid_dir / f'{grid_key}.jpg'
+        jpg_path = self.grid_dir / f"{grid_key}.jpg"
 
-        with open(jpg_path, 'wb') as f:
+        with open(jpg_path, "wb") as f:
             f.write(jpg_data)
 
         self._update_entry(grid_key, original_path, grid_thumb_path=str(jpg_path))
@@ -302,9 +313,9 @@ class PreprocessingCache:
 
     def store_nef_conversion(self, file_hash: str, original_path: str, jpg_data: bytes) -> str:
         """Store NEF conversion in cache."""
-        jpg_path = self.nef_dir / f'{file_hash}.jpg'
+        jpg_path = self.nef_dir / f"{file_hash}.jpg"
 
-        with open(jpg_path, 'wb') as f:
+        with open(jpg_path, "wb") as f:
             f.write(jpg_data)
 
         self._update_entry(file_hash, original_path, nef_jpg_path=str(jpg_path))
@@ -324,15 +335,15 @@ class PreprocessingCache:
         """Get cached face detection results."""
         entry = self.get_entry(file_hash)
         if entry and entry.faces_json_path and Path(entry.faces_json_path).exists():
-            with open(entry.faces_json_path, 'r') as f:
+            with open(entry.faces_json_path, "r") as f:
                 return json.load(f)
         return None
 
     def store_face_detection(self, file_hash: str, original_path: str, faces_data: dict) -> str:
         """Store face detection results in cache."""
-        json_path = self.faces_dir / f'{file_hash}.json'
+        json_path = self.faces_dir / f"{file_hash}.json"
 
-        with open(json_path, 'w') as f:
+        with open(json_path, "w") as f:
             json.dump(faces_data, f)
 
         self._update_entry(file_hash, original_path, faces_json_path=str(json_path))
@@ -357,15 +368,17 @@ class PreprocessingCache:
                 return existing
         return None
 
-    def store_thumbnails(self, file_hash: str, original_path: str, thumbnails: list[bytes]) -> list[str]:
+    def store_thumbnails(
+        self, file_hash: str, original_path: str, thumbnails: list[bytes]
+    ) -> list[str]:
         """Store face thumbnails in cache."""
         thumb_dir = self.thumbs_dir / file_hash
         thumb_dir.mkdir(parents=True, exist_ok=True)
 
         paths = []
         for i, thumb_data in enumerate(thumbnails):
-            thumb_path = thumb_dir / f'face_{i}.jpg'
-            with open(thumb_path, 'wb') as f:
+            thumb_path = thumb_dir / f"face_{i}.jpg"
+            with open(thumb_path, "wb") as f:
                 f.write(thumb_data)
             paths.append(str(thumb_path))
 
@@ -396,7 +409,7 @@ class PreprocessingCache:
                 created_at=now,
                 last_accessed=now,
                 size_bytes=0,
-                **kwargs
+                **kwargs,
             )
             self.index[file_hash] = entry
 
@@ -432,12 +445,14 @@ class PreprocessingCache:
         """Get cache status information."""
         total_size = self.get_total_size()
         return {
-            'cache_dir': str(self.cache_dir),
-            'total_entries': len(self.index),
-            'total_size_bytes': total_size,
-            'total_size_mb': round(total_size / (1024 * 1024), 2),
-            'max_size_mb': round(self.max_size_bytes / (1024 * 1024), 2),
-            'usage_percent': round((total_size / self.max_size_bytes) * 100, 1) if self.max_size_bytes > 0 else 0
+            "cache_dir": str(self.cache_dir),
+            "total_entries": len(self.index),
+            "total_size_bytes": total_size,
+            "total_size_mb": round(total_size / (1024 * 1024), 2),
+            "max_size_mb": round(self.max_size_bytes / (1024 * 1024), 2),
+            "usage_percent": round((total_size / self.max_size_bytes) * 100, 1)
+            if self.max_size_bytes > 0
+            else 0,
         }
 
     def set_priority_hashes(self, hashes: list[str]):
@@ -475,7 +490,9 @@ class PreprocessingCache:
             removed_count += 1
 
         if priority_evicted > 0:
-            logger.warning(f"[PreprocessingCache] Had to evict {priority_evicted} priority files - consider increasing cache size")
+            logger.warning(
+                f"[PreprocessingCache] Had to evict {priority_evicted} priority files - consider increasing cache size"
+            )
         if removed_count > 0:
             logger.info(f"[PreprocessingCache] LRU eviction: removed {removed_count} entries")
             self._save_index(force=True)
@@ -549,7 +566,9 @@ class PreprocessingCache:
 _cache_instance: PreprocessingCache | None = None
 
 
-def get_cache(cache_dir: Path | None = None, max_size_mb: int = PreprocessingCache.DEFAULT_MAX_SIZE_MB) -> PreprocessingCache:
+def get_cache(
+    cache_dir: Path | None = None, max_size_mb: int = PreprocessingCache.DEFAULT_MAX_SIZE_MB
+) -> PreprocessingCache:
     """Get or create the singleton cache instance."""
     global _cache_instance
 

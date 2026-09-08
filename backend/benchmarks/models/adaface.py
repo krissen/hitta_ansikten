@@ -162,7 +162,7 @@ class AdaFaceRecognition(RecognitionModelBase):
         if self._static_batch and self._static_batch > 0:
             rows = []
             for start in range(0, len(tensors), self._static_batch):
-                chunk = tensors[start:start + self._static_batch]
+                chunk = tensors[start : start + self._static_batch]
                 if len(chunk) < self._static_batch:
                     pad = self._static_batch - len(chunk)
                     chunk = np.concatenate(

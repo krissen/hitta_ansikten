@@ -85,11 +85,9 @@ DEFAULT_CONFIG = {
     "auto_ignore": False,
     # Vid --fix: ignoreras ansikten under tröskeln automatiskt
     "auto_ignore_on_fix": True,
-
     # === Modell & detektering ===
     # Modell för ansiktsdetektion: "hog" (snabb, CPU) eller "cnn" (noggrann, GPU)
     "detection_model": "hog",
-
     # === Bildskalor och prestanda ===
     # Max-bredd/höjd för lågupplöst försök (snabb men mindre detaljer)
     "max_downsample_px": 2800,
@@ -101,7 +99,6 @@ DEFAULT_CONFIG = {
     "num_workers": 1,
     # Maxlängd på kön mellan workers och huvudtråd
     "max_queue": MAX_QUEUE,
-
     # === Utseende: etiketter & fönster ===
     # Skalningsfaktor för etikett-textstorlek
     "font_size_factor": 45,
@@ -117,7 +114,6 @@ DEFAULT_CONFIG = {
     "padding": 15,
     # Linjetjocklek för markeringsruta (pixlar)
     "rectangle_thickness": 6,
-
     # === Matchningsparametrar (justera för träffsäkerhet) ===
     # Match/ignore/hard-negative-trösklarna bor i backend_thresholds nedan
     # (en källa till sanning, per backend och distansmetrik). De gamla platta
@@ -127,7 +123,6 @@ DEFAULT_CONFIG = {
     "min_confidence": 0.5,
     # Namn måste vara så här mycket bättre än ignore för att vinna automatiskt
     "prefer_name_margin": 0.15,
-
     # === Tvilling-disambiguering (bekräftat-olika par, t.ex. tvillingar) ===
     # När topp-2-kandidaterna är ett registrerat "distinct"-par och deras
     # avstånd till proben skiljer mindre än detta, bryt oavgjort med k-NN-röstning
@@ -135,7 +130,6 @@ DEFAULT_CONFIG = {
     "twin_margin": 0.1,
     # Antal grannar i k-NN-röstningen (faktiskt k = min(detta, antal per person)).
     "twin_knn_k": 5,
-
     # === Backend configuration (face recognition engine) ===
     # NOTE: dlib backend is DEPRECATED and no longer supported.
     # Only "insightface" should be used. Existing dlib encodings will be removed.
@@ -151,28 +145,25 @@ DEFAULT_CONFIG = {
             # at 1.2-1.75x wall time, so the default stays 640 until the benchmark
             # track (B3) provides ground truth. Accepts [w, h] or a single int
             # (square).
-            "det_size": [640, 640]
-        }
+            "det_size": [640, 640],
+        },
     },
-
     # Threshold mode: "auto" uses match_threshold/ignore_distance for active backend
     # "manual" uses backend-specific thresholds below
     "threshold_mode": "auto",
-
     # Backend-specific distance thresholds (used if threshold_mode="manual")
     "backend_thresholds": {
         "dlib": {
             "match_threshold": 0.54,  # Euclidean distance threshold
             "ignore_distance": 0.48,
-            "hard_negative_distance": 0.45
+            "hard_negative_distance": 0.45,
         },
         "insightface": {
             "match_threshold": 0.45,  # Cosine distance threshold (typically lower)
             "ignore_distance": 0.35,
-            "hard_negative_distance": 0.32
-        }
+            "hard_negative_distance": 0.32,
+        },
     },
-
     # === Enrollment-quality gate (FIQA proxy) ===
     # Keeps clearly-bad face crops out of the gallery (encodings.pkl) so a poor
     # embedding can't poison future matching. Applies ONLY to enrollment — the
@@ -190,11 +181,9 @@ DEFAULT_CONFIG = {
         # Minimum variance-of-Laplacian sharpness (near-flat-crop floor).
         "min_sharpness": 15.0,
     },
-
     # === App trash (Gallra) ===
     # Auto-purge trashed files older than this many days. 0 = keep forever.
     "trash_retention_days": 30,
-
     # Schema version. Bumped by migrations in _migrate_config(); a fresh config
     # is written at the current version and never needs migrating.
     "config_version": CONFIG_VERSION,
@@ -202,9 +191,7 @@ DEFAULT_CONFIG = {
 
 
 def init_logging(
-    level: int = logging.INFO,
-    logfile: Path = LOGGING_PATH,
-    replace_handlers: bool = False
+    level: int = logging.INFO, logfile: Path = LOGGING_PATH, replace_handlers: bool = False
 ) -> None:
     """
     Initialize logging for Ansikten.
@@ -294,17 +281,13 @@ def _migrate_config(raw: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         # 0.40 default up to the new canonical 0.45. Runs only when the v2 step
         # above did not (a v2 rewrite already writes the current 0.45 canonical).
         insightface = (
-            backend_thresholds.get("insightface")
-            if isinstance(backend_thresholds, dict)
-            else None
+            backend_thresholds.get("insightface") if isinstance(backend_thresholds, dict) else None
         )
         if (
             isinstance(insightface, dict)
             and insightface.get("match_threshold") == _V2_INSIGHTFACE_MATCH_THRESHOLD
         ):
-            new_threshold = DEFAULT_CONFIG["backend_thresholds"]["insightface"][
-                "match_threshold"
-            ]
+            new_threshold = DEFAULT_CONFIG["backend_thresholds"]["insightface"]["match_threshold"]
             insightface["match_threshold"] = new_threshold
             raw["config_version"] = CONFIG_VERSION
             changed = True
@@ -361,8 +344,7 @@ def save_config(updates: dict[str, Any]) -> dict[str, Any]:
 
 
 def get_attempt_setting_defs(
-    config: dict[str, Any],
-    backend: FaceBackend | None = None
+    config: dict[str, Any], backend: FaceBackend | None = None
 ) -> list[dict[str, Any]]:
     """
     Returnerar alla attempt settings utan rgb_img.
@@ -376,24 +358,74 @@ def get_attempt_setting_defs(
     """
     # InsightFace: Enklare nivåer (model/upsample ignoreras ändå)
     # Bara variera upplösning - InsightFace är bra nog att klara de flesta fall
-    if backend and backend.backend_name == 'insightface':
+    if backend and backend.backend_name == "insightface":
         # Use actual model name from backend for clarity in logs/stats
-        model_name = backend.get_model_info().get('model', 'buffalo_l')
+        model_name = backend.get_model_info().get("model", "buffalo_l")
         return [
-            {"model": model_name, "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
-            {"model": model_name, "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
-            {"model": model_name, "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
+            {
+                "model": model_name,
+                "upsample": 0,
+                "scale_label": "mid",
+                "scale_px": config["max_midsample_px"],
+            },
+            {
+                "model": model_name,
+                "upsample": 0,
+                "scale_label": "full",
+                "scale_px": config["max_fullres_px"],
+            },
+            {
+                "model": model_name,
+                "upsample": 0,
+                "scale_label": "down",
+                "scale_px": config["max_downsample_px"],
+            },
         ]
 
     # Dlib: Behåll alla variationer med model och upsample (deprecated)
     return [
-        {"model": "cnn", "upsample": 0, "scale_label": "down", "scale_px": config["max_downsample_px"]},
-        {"model": "cnn", "upsample": 0, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
-        {"model": "cnn", "upsample": 1, "scale_label": "down", "scale_px": config["max_downsample_px"]},
-        {"model": "hog", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
-        {"model": "cnn", "upsample": 0, "scale_label": "full", "scale_px": config["max_fullres_px"]},
-        {"model": "cnn", "upsample": 1, "scale_label": "mid",  "scale_px": config["max_midsample_px"]},
-        {"model": "cnn", "upsample": 1, "scale_label": "full", "scale_px": config["max_fullres_px"]},
+        {
+            "model": "cnn",
+            "upsample": 0,
+            "scale_label": "down",
+            "scale_px": config["max_downsample_px"],
+        },
+        {
+            "model": "cnn",
+            "upsample": 0,
+            "scale_label": "mid",
+            "scale_px": config["max_midsample_px"],
+        },
+        {
+            "model": "cnn",
+            "upsample": 1,
+            "scale_label": "down",
+            "scale_px": config["max_downsample_px"],
+        },
+        {
+            "model": "hog",
+            "upsample": 0,
+            "scale_label": "full",
+            "scale_px": config["max_fullres_px"],
+        },
+        {
+            "model": "cnn",
+            "upsample": 0,
+            "scale_label": "full",
+            "scale_px": config["max_fullres_px"],
+        },
+        {
+            "model": "cnn",
+            "upsample": 1,
+            "scale_label": "mid",
+            "scale_px": config["max_midsample_px"],
+        },
+        {
+            "model": "cnn",
+            "upsample": 1,
+            "scale_label": "full",
+            "scale_px": config["max_fullres_px"],
+        },
     ]
 
 
@@ -402,7 +434,7 @@ def get_attempt_settings(
     rgb_down: np.ndarray,
     rgb_mid: np.ndarray,
     rgb_full: np.ndarray,
-    backend: FaceBackend | None = None
+    backend: FaceBackend | None = None,
 ) -> list[dict[str, Any]]:
     """
     Kopplar rgb_img enligt scale_label.
@@ -425,10 +457,7 @@ def get_attempt_settings(
     return settings
 
 
-def get_max_possible_attempts(
-    config: dict[str, Any],
-    backend: FaceBackend | None = None
-) -> int:
+def get_max_possible_attempts(config: dict[str, Any], backend: FaceBackend | None = None) -> int:
     """Returns max number of attempts for current backend."""
     return len(get_attempt_setting_defs(config, backend))
 
@@ -436,10 +465,9 @@ def get_max_possible_attempts(
 def get_settings_signature(attempt_settings: list[dict[str, Any]]) -> str:
     """Generate a signature hash for attempt settings (for cache invalidation)."""
     # Serialiserbar och ordningsoberoende
-    as_json = json.dumps([
-        {k: v for k, v in s.items() if k != "rgb_img"}
-        for s in attempt_settings
-    ], sort_keys=True)
+    as_json = json.dumps(
+        [{k: v for k, v in s.items() if k != "rgb_img"} for s in attempt_settings], sort_keys=True
+    )
     return hashlib.md5(as_json.encode("utf-8")).hexdigest()
 
 

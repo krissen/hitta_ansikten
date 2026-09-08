@@ -35,9 +35,9 @@ def _make(tmp_path, name, n, start=1):
 
 
 def test_dropdown_excludes_group_marker_and_below_threshold(service, tmp_path):
-    _make(tmp_path, "Anna", DROPDOWN_MIN_IMAGES, start=1)          # a real player
-    _make(tmp_path, "FBK", DROPDOWN_MIN_IMAGES, start=20)          # group marker
-    _make(tmp_path, "Kim", DROPDOWN_MIN_IMAGES - 1, start=40)      # below threshold
+    _make(tmp_path, "Anna", DROPDOWN_MIN_IMAGES, start=1)  # a real player
+    _make(tmp_path, "FBK", DROPDOWN_MIN_IMAGES, start=20)  # group marker
+    _make(tmp_path, "Kim", DROPDOWN_MIN_IMAGES - 1, start=40)  # below threshold
 
     result = service.list_files(roots=[str(tmp_path)], recursive=False)
 

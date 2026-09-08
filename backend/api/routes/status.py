@@ -15,7 +15,12 @@ from ..websocket.progress import set_log_categories
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-LOG_LEVELS = {"debug": logging.DEBUG, "info": logging.INFO, "warn": logging.WARNING, "error": logging.ERROR}
+LOG_LEVELS = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warn": logging.WARNING,
+    "error": logging.ERROR,
+}
 
 
 class LogLevelRequest(BaseModel):
@@ -39,6 +44,7 @@ async def update_log_categories(request: LogCategoriesRequest):
     set_log_categories(set(request.categories))
     return {"status": "ok", "categories": request.categories}
 
+
 # Response models
 class ImageStatus(BaseModel):
     image_path: str
@@ -46,6 +52,7 @@ class ImageStatus(BaseModel):
     faces_count: int
     confirmed_count: int
     last_processed: str | None = None  # ISO timestamp
+
 
 @router.get("/status/{image_path:path}", response_model=ImageStatus)
 async def get_image_status(image_path: str):
@@ -63,7 +70,7 @@ async def get_image_status(image_path: str):
             is_processed=False,
             faces_count=0,
             confirmed_count=0,
-            last_processed=None
+            last_processed=None,
         )
     except Exception as e:  # noqa: BLE001 - request boundary: any failure becomes a 500 JSON body, never a bare traceback
         logger.error(f"[Status] Error checking status: {e}")

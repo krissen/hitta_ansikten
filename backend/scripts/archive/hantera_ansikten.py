@@ -136,9 +136,7 @@ def undo_file_by_name(
 
     log = load_attempt_log()
     removed_total = 0
-    names_to_remove = set(
-        pf["name"] if isinstance(pf, dict) else pf for pf in matched_files
-    )
+    names_to_remove = set(pf["name"] if isinstance(pf, dict) else pf for pf in matched_files)
     processed_new = [
         pf
         for pf in processed
@@ -256,7 +254,7 @@ def main() -> None:
             for enc in encodings:
                 # Get encoding hash for deduplication
                 if isinstance(enc, dict):
-                    enc_hash = enc.get('encoding_hash')
+                    enc_hash = enc.get("encoding_hash")
                 else:
                     # Legacy numpy array - compute hash
                     try:
@@ -288,9 +286,7 @@ def main() -> None:
             save_database(known, ignored, hard_negatives, processed)
         elif val == "4":
             print_known(known)
-            name = name_input(
-                known, "Flytta vilket namn till ignore? (namn eller nummer): "
-            )
+            name = name_input(known, "Flytta vilket namn till ignore? (namn eller nummer): ")
             if name not in known:
                 print("Namn hittades ej.")
                 continue

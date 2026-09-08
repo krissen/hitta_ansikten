@@ -35,6 +35,7 @@ def log_attempt_stats(
     :param file_hash: (str, optional) SHA1-hash av filen som behandlas.
     """
     from pathlib import Path
+
     if base_dir is None:
         base_dir = Path(".")
     log_entry = {
@@ -46,7 +47,7 @@ def log_attempt_stats(
         "filename": str(image_path),
         "file_hash": file_hash,
         "attempts": attempts,
-        "used_attempt": used_attempt_idx
+        "used_attempt": used_attempt_idx,
     }
     if review_results is not None:
         log_entry["review_results"] = review_results

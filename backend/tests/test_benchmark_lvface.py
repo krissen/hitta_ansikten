@@ -79,7 +79,7 @@ def _crop(seed: int) -> np.ndarray:
 def test_preprocess_channel_order_and_norm():
     # A crop where B/G/R are distinct constants lets us assert the BGR->RGB swap.
     crop = np.zeros((112, 112, 3), dtype=np.uint8)
-    crop[..., 0] = 0    # B
+    crop[..., 0] = 0  # B
     crop[..., 1] = 128  # G
     crop[..., 2] = 255  # R
     t = LVFaceRecognition._preprocess(crop)
@@ -102,7 +102,7 @@ def test_preprocess_rejects_bad_shape():
 def test_embed_shape_and_normalized(fake_onnx):
     rec = LVFaceRecognition(model_path=fake_onnx, auto_download=False)
     vec = rec.embed(_crop(1))
-    assert vec.shape == (8,)                       # dim picked up from the ONNX
+    assert vec.shape == (8,)  # dim picked up from the ONNX
     assert rec.dim == 8
     assert np.isclose(np.linalg.norm(vec), 1.0, atol=1e-5)
 

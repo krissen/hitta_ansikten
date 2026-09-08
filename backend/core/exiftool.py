@@ -33,6 +33,4 @@ def find_exiftool() -> str:
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
 
-    raise FileNotFoundError(
-        "exiftool not found on PATH or in /opt/homebrew/bin, /usr/local/bin"
-    )
+    raise FileNotFoundError("exiftool not found on PATH or in /opt/homebrew/bin, /usr/local/bin")

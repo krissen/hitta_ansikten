@@ -128,10 +128,9 @@ def build_dataset(
     rows: list[DatasetFace] = []
     for sha1, recs in by_hash.items():
         paths = h2p.get(sha1, [])
+
         def db_id_for(r):
-            return r.encoding_hash or cache.deterministic_face_id(
-                sha1, r.bbox_xyxy or (0, 0, 0, 0)
-            )
+            return r.encoding_hash or cache.deterministic_face_id(sha1, r.bbox_xyxy or (0, 0, 0, 0))
 
         if not paths:
             for r in recs:
@@ -166,10 +165,18 @@ def build_dataset(
             if db_box is None:
                 rows.append(
                     DatasetFace(
-                        identity=r.identity, image_hash=sha1, bucket=DETECTOR_MISSED,
-                        face_id=db_id_for(r), db_bbox_xyxy=None, det_bbox_xyxy=None,
-                        kps=None, score=None, iou=None, path=path,
-                        is_manual=r.is_manual, has_encoding=r.encoding is not None,
+                        identity=r.identity,
+                        image_hash=sha1,
+                        bucket=DETECTOR_MISSED,
+                        face_id=db_id_for(r),
+                        db_bbox_xyxy=None,
+                        det_bbox_xyxy=None,
+                        kps=None,
+                        score=None,
+                        iou=None,
+                        path=path,
+                        is_manual=r.is_manual,
+                        has_encoding=r.encoding is not None,
                     )
                 )
                 continue
@@ -177,22 +184,34 @@ def build_dataset(
             if idx is None:
                 rows.append(
                     DatasetFace(
-                        identity=r.identity, image_hash=sha1, bucket=DETECTOR_MISSED,
-                        face_id=db_id_for(r), db_bbox_xyxy=list(db_box),
-                        det_bbox_xyxy=None, kps=None, score=None, iou=round(score, 4),
-                        path=path, is_manual=r.is_manual,
+                        identity=r.identity,
+                        image_hash=sha1,
+                        bucket=DETECTOR_MISSED,
+                        face_id=db_id_for(r),
+                        db_bbox_xyxy=list(db_box),
+                        det_bbox_xyxy=None,
+                        kps=None,
+                        score=None,
+                        iou=round(score, 4),
+                        path=path,
+                        is_manual=r.is_manual,
                         has_encoding=r.encoding is not None,
                     )
                 )
             else:
                 rows.append(
                     DatasetFace(
-                        identity=r.identity, image_hash=sha1, bucket=MATCHED,
-                        face_id=db_id_for(r), db_bbox_xyxy=list(db_box),
+                        identity=r.identity,
+                        image_hash=sha1,
+                        bucket=MATCHED,
+                        face_id=db_id_for(r),
+                        db_bbox_xyxy=list(db_box),
                         det_bbox_xyxy=[float(v) for v in det.bboxes[idx]],
                         kps=det.kps[idx].tolist(),
-                        score=float(det.scores[idx]), iou=round(score, 4),
-                        path=path, is_manual=r.is_manual,
+                        score=float(det.scores[idx]),
+                        iou=round(score, 4),
+                        path=path,
+                        is_manual=r.is_manual,
                         has_encoding=r.encoding is not None,
                     )
                 )
@@ -228,7 +247,9 @@ def main(argv=None) -> int:
     ap.add_argument("--config", default=None, help="Path to a roots.json config.")
     ap.add_argument("--cache", default=str(cfg.CACHE_PATH), help="Index cache path.")
     ap.add_argument("--db", default=str(DEFAULT_DB_PATH), help="encodings.pkl path.")
-    ap.add_argument("--det-size", type=int, default=DEFAULT_DET_SIZE[0], help="SCRFD det_size (square).")
+    ap.add_argument(
+        "--det-size", type=int, default=DEFAULT_DET_SIZE[0], help="SCRFD det_size (square)."
+    )
     ap.add_argument("--force", action="store_true", help="Recompute cached detections.")
     args = ap.parse_args(argv)
 

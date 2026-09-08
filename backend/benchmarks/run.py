@@ -223,9 +223,7 @@ def run_model(
     rec_by_id = {r.encoding_hash: r for r in records if r.encoding_hash}
 
     t0 = time.perf_counter()
-    faces = compute_embeddings(
-        rows, recognition, detector_name=detector.name, force=force
-    )
+    faces = compute_embeddings(rows, recognition, detector_name=detector.name, force=force)
     timings["embeddings"] = time.perf_counter() - t0
 
     E, labels = stack_embeddings(faces)
@@ -234,9 +232,7 @@ def run_model(
 
     twin_pair = distinct_pairs[0] if distinct_pairs else None
     twin_present = (
-        twin_pair is not None
-        and twin_pair[0] in set(labels)
-        and twin_pair[1] in set(labels)
+        twin_pair is not None and twin_pair[0] in set(labels) and twin_pair[1] in set(labels)
     )
 
     t0 = time.perf_counter()
@@ -283,11 +279,9 @@ def run_model(
     face_strata = R.assign_face_strata(faces, twin_pair=twin_pair)
     for i, f in enumerate(faces):
         rec = rec_by_id.get(f.face_id)
-        face_strata[i]["event"] = (rec.event_prefix if rec and rec.event_prefix else "(unknown)")
+        face_strata[i]["event"] = rec.event_prefix if rec and rec.event_prefix else "(unknown)"
         base = rec.basename if rec else None
-        face_strata[i]["hardness"] = _hardness_bucket(
-            hardness.get(base) if base else None
-        )
+        face_strata[i]["hardness"] = _hardness_bucket(hardness.get(base) if base else None)
 
     rank1_strata = R.rank1_by_stratum(closed_maxsim, face_strata)
 
@@ -320,7 +314,8 @@ def _detection_recall_strata(det_rows, rec_by_id, hardness, twin_pair) -> dict:
     twins = set(twin_pair or [])
     areas = [
         int(abs((r.db_bbox_xyxy[2] - r.db_bbox_xyxy[0]) * (r.db_bbox_xyxy[3] - r.db_bbox_xyxy[1])))
-        for r in det_rows if r.db_bbox_xyxy
+        for r in det_rows
+        if r.db_bbox_xyxy
     ]
     thr = quartile_thresholds(areas)
 
@@ -357,6 +352,7 @@ def _detection_recall_strata(det_rows, rec_by_id, hardness, twin_pair) -> dict:
                 base = rec.basename if rec else None
                 return _hardness_bucket(hardness.get(base) if base else None)
             return "(n/a)"
+
         return key
 
     out = {}
@@ -381,15 +377,19 @@ def main(argv=None) -> int:
     from .resolve import build_index
 
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--models", default="buffalo_l",
-                    help="Comma-separated models to evaluate "
-                         f"(available: {', '.join(MODEL_FACTORIES)}).")
+    ap.add_argument(
+        "--models",
+        default="buffalo_l",
+        help=f"Comma-separated models to evaluate (available: {', '.join(MODEL_FACTORIES)}).",
+    )
     ap.add_argument("roots", nargs="*", help="Photo roots to scan (override config).")
     ap.add_argument("--config", default=None, help="Path to a roots.json config.")
     ap.add_argument("--cache", default=str(cfg.CACHE_PATH), help="Index cache path.")
     ap.add_argument("--db", default=str(DEFAULT_DB_PATH), help="encodings.pkl path.")
     ap.add_argument("--distinct-pairs", default=str(DEFAULT_DISTINCT_PAIRS_PATH))
-    ap.add_argument("--attempts", default=str(Path("~/.local/share/faceid/attempt_stats.jsonl").expanduser()))
+    ap.add_argument(
+        "--attempts", default=str(Path("~/.local/share/faceid/attempt_stats.jsonl").expanduser())
+    )
     ap.add_argument("--det-size", type=int, default=640, help="SCRFD det_size (square).")
     ap.add_argument("--seed", type=int, default=1234, help="RNG seed for any sampling.")
     ap.add_argument("--max-impostor-pairs", type=int, default=200_000)
@@ -398,8 +398,9 @@ def main(argv=None) -> int:
     ap.add_argument("--out-md", default=str(cfg.DATA_DIR / "report.md"))
     ap.add_argument("--out-csv", default=str(cfg.DATA_DIR / "report.csv"))
     ap.add_argument("--plots-dir", default=str(cfg.DATA_DIR / R.PLOTS_DIRNAME))
-    ap.add_argument("--partial", action="store_true",
-                    help="Flag the report as partial (restore still running).")
+    ap.add_argument(
+        "--partial", action="store_true", help="Flag the report as partial (restore still running)."
+    )
     args = ap.parse_args(argv)
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -431,7 +432,9 @@ def main(argv=None) -> int:
     for model_name in models:
         print(f"[{model_name}] building dataset + embeddings ...", file=sys.stderr)
         result, faces, face_strata, rank1_maps = run_model(
-            model_name, records, index,
+            model_name,
+            records,
+            index,
             det_size=args.det_size,
             distinct_pairs=distinct_pairs,
             hardness=hardness,
@@ -449,8 +452,11 @@ def main(argv=None) -> int:
                 f"detector_missed={result.det_recall_overall['detector_missed']}, "
                 f"unresolved(faces)~= (see feasibility report)"
             )
-        print(f"[{model_name}] faces={result.n_faces} ids={result.n_identities} "
-              f"rank1(maxsim)={result.closed_maxsim.rank1:.3f}", file=sys.stderr)
+        print(
+            f"[{model_name}] faces={result.n_faces} ids={result.n_identities} "
+            f"rank1(maxsim)={result.closed_maxsim.rank1:.3f}",
+            file=sys.stderr,
+        )
 
     meta = {
         "generated": R.now_iso(),

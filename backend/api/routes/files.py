@@ -26,8 +26,10 @@ router = APIRouter()
 
 # Request/Response models
 
+
 class RenameConfig(BaseModel):
     """Configuration for rename operations."""
+
     # Prefix source: 'filename', 'exif', 'filedate'
     prefixSource: str | None = None
     # Fallback if EXIF missing: 'filedate', 'skip', 'original'
@@ -62,7 +64,9 @@ class RenamePreviewItem(BaseModel):
     original_name: str
     new_name: str | None = None
     persons: list[str]
-    status: str  # 'ok', 'no_persons', 'already_renamed', 'conflict', 'file_not_found', 'build_failed'
+    status: (
+        str  # 'ok', 'no_persons', 'already_renamed', 'conflict', 'file_not_found', 'build_failed'
+    )
     conflict_with: str | None = None
     sidecars: list[str] = []  # List of sidecar files that will be renamed
 
@@ -108,24 +112,28 @@ class RenameExecuteResponse(BaseModel):
 
 class RenameConfigResponse(BaseModel):
     """Response containing default rename configuration."""
+
     config: dict[str, Any]
     presets: dict[str, dict[str, str]]
 
 
 class ManualSuffixRequest(BaseModel):
     """Set/clear a free-text filename suffix for a single image."""
+
     image_path: str
     suffix: str
 
 
 class ManualSuffixResponse(BaseModel):
     """Stored suffix state plus the normalized preview."""
+
     hash: str | None = None
     suffix: str  # normalized (filesystem-safe) form
-    raw: str     # stored raw text (empty when cleared)
+    raw: str  # stored raw text (empty when cleared)
 
 
 # Endpoints
+
 
 @router.get("/files/rename-config")
 async def get_rename_config():
@@ -156,7 +164,7 @@ async def get_rename_config():
             "_": "Underscore: Anna_Bert",
             "-": "Dash: Anna-Bert",
             "_och_": "Swedish 'och': Anna_och_Bert",
-        }
+        },
     }
 
     return RenameConfigResponse(config=config, presets=presets)
@@ -179,14 +187,12 @@ async def rename_preview(request: RenamePreviewRequest):
             config_dict = {k: v for k, v in request.config.model_dump().items() if v is not None}
 
         result = rename_service.preview_rename(
-            request.file_paths,
-            allow_renamed=request.allow_renamed,
-            config=config_dict
+            request.file_paths, allow_renamed=request.allow_renamed, config=config_dict
         )
 
         return RenamePreviewResponse(
             items=[RenamePreviewItem(**item) for item in result["items"]],
-            name_map=result["name_map"]
+            name_map=result["name_map"],
         )
     except Exception as e:
         logger.exception(f"[Files] Error generating rename preview: {e}")
@@ -210,16 +216,14 @@ async def rename_files(request: RenameExecuteRequest):
             config_dict = {k: v for k, v in request.config.model_dump().items() if v is not None}
 
         result = rename_service.execute_rename(
-            request.file_paths,
-            allow_renamed=request.allow_renamed,
-            config=config_dict
+            request.file_paths, allow_renamed=request.allow_renamed, config=config_dict
         )
 
         return RenameExecuteResponse(
             renamed=[RenameResult(**r) for r in result["renamed"]],
             skipped=[SkippedFile(**s) for s in result["skipped"]],
             errors=[ErrorFile(**e) for e in result["errors"]],
-            db_entries_updated=result.get("db_entries_updated", 0)
+            db_entries_updated=result.get("db_entries_updated", 0),
         )
     except Exception as e:
         logger.exception(f"[Files] Error executing rename: {e}")

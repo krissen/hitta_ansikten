@@ -33,7 +33,7 @@ class ComponentStatus:
 
 
 class StartupState:
-    _instance: Optional['StartupState'] = None
+    _instance: Optional["StartupState"] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -45,7 +45,7 @@ class StartupState:
         if self._initialized:
             return
         self._initialized = True
-        
+
         # Components shown in startup toast (order matters for display)
         self.components: dict[str, ComponentStatus] = {
             "backend": ComponentStatus(state=LoadingState.READY, message="Connected"),
@@ -55,27 +55,32 @@ class StartupState:
         self._listeners: list[Callable] = []
         logger.info("[StartupState] Initialized")
 
-    def set_state(self, component: str, state: LoadingState, 
-                  message: str | None = None, progress: float | None = None, 
-                  error: str | None = None):
+    def set_state(
+        self,
+        component: str,
+        state: LoadingState,
+        message: str | None = None,
+        progress: float | None = None,
+        error: str | None = None,
+    ):
         if component not in self.components:
             self.components[component] = ComponentStatus()
-        
+
         status = self.components[component]
         status.state = state
-        
+
         if message:
             status.message = message
         if progress is not None:
             status.progress = progress
         if error:
             status.error = error
-            
+
         if state == LoadingState.LOADING and not status.started_at:
             status.started_at = datetime.now(timezone.utc)
         elif state in (LoadingState.READY, LoadingState.ERROR):
             status.completed_at = datetime.now(timezone.utc)
-            
+
         logger.info(f"[StartupState] {component}: {state.value} - {status.message}")
         self._notify_listeners()
 
@@ -88,10 +93,10 @@ class StartupState:
                 "progress": status.progress,
                 "error": status.error,
             }
-        
+
         all_ready = all(s.state == LoadingState.READY for s in self.components.values())
         any_error = any(s.state == LoadingState.ERROR for s in self.components.values())
-        
+
         return {
             "items": items,
             "allReady": all_ready,

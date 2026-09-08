@@ -130,8 +130,7 @@ def evaluate_detector(name, factory, records, index, *, det_size, force):
 
 def _fmt_recall(rec: dict) -> str:
     return (
-        f"{rec['recall'] * 100:5.1f}%  "
-        f"({rec['matched']}/{rec['matched'] + rec['detector_missed']})"
+        f"{rec['recall'] * 100:5.1f}%  ({rec['matched']}/{rec['matched'] + rec['detector_missed']})"
     )
 
 
@@ -150,16 +149,22 @@ def main(argv=None) -> int:
     ap.add_argument("--cache", default=str(cfg.CACHE_PATH), help="Index cache path.")
     ap.add_argument("--db", default=str(DEFAULT_DB_PATH), help="encodings.pkl path.")
     ap.add_argument("--det-size", type=int, default=640, help="Square detector input.")
-    ap.add_argument("--new-face-conf", type=float, default=0.5,
-                    help="Confidence floor for counting a detection as a new face.")
+    ap.add_argument(
+        "--new-face-conf",
+        type=float,
+        default=0.5,
+        help="Confidence floor for counting a detection as a new face.",
+    )
     ap.add_argument("--limit", type=int, default=None, help="Cap DB records (quick runs).")
     ap.add_argument("--force", action="store_true", help="Ignore caches, recompute.")
     args = ap.parse_args(argv)
 
     unknown = [d for d in args.detectors if d not in DETECTOR_FACTORIES]
     if unknown:
-        print(f"Unknown detector(s): {unknown}. Available: {list(DETECTOR_FACTORIES)}",
-              file=sys.stderr)
+        print(
+            f"Unknown detector(s): {unknown}. Available: {list(DETECTOR_FACTORIES)}",
+            file=sys.stderr,
+        )
         return 2
 
     cfg.ensure_data_dir()
@@ -182,8 +187,12 @@ def main(argv=None) -> int:
     for name in args.detectors:
         print(f"[{name}] running detection over dataset ...", file=sys.stderr)
         rows, detector = evaluate_detector(
-            name, DETECTOR_FACTORIES[name], records, index,
-            det_size=args.det_size, force=args.force,
+            name,
+            DETECTOR_FACTORIES[name],
+            records,
+            index,
+            det_size=args.det_size,
+            force=args.force,
         )
         det_rows = [r for r in rows if r.bucket in (ds.MATCHED, ds.DETECTOR_MISSED)]
         overall = M.detection_recall(r.bucket for r in det_rows)
@@ -197,9 +206,7 @@ def main(argv=None) -> int:
             lambda r: r.bucket,
             lambda r: "manual" if r.is_manual else "detected",
         )
-        new_faces, images = count_new_faces(
-            rows, detector, index, conf=args.new_face_conf
-        )
+        new_faces, images = count_new_faces(rows, detector, index, conf=args.new_face_conf)
         per_detector[name] = {
             "overall": overall,
             "by_quartile": by_quartile,
@@ -237,7 +244,7 @@ def _print_report(per_detector: dict, args) -> None:
         cells = ""
         for name in names:
             rec = per_detector[name]["by_quartile"].get(q)
-            cells += (f"{_fmt_recall(rec):>26s}" if rec else f"{'-':>26s}")
+            cells += f"{_fmt_recall(rec):>26s}" if rec else f"{'-':>26s}"
         print("  " + q.ljust(14) + cells)
 
     print("\nDetection recall by manual vs detected origin")
@@ -246,7 +253,7 @@ def _print_report(per_detector: dict, args) -> None:
         cells = ""
         for name in names:
             rec = per_detector[name]["by_manual"].get(o)
-            cells += (f"{_fmt_recall(rec):>26s}" if rec else f"{'-':>26s}")
+            cells += f"{_fmt_recall(rec):>26s}" if rec else f"{'-':>26s}"
         print("  " + o.ljust(14) + cells)
 
     print("\nNew faces found (detections overlapping NO DB box; count-only)")

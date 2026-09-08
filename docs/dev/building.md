@@ -219,7 +219,7 @@ Add to `hiddenimports` in `ansikten-backend.spec`:
 ```python
 hiddenimports = [
     # ... existing
-    'missing_module',
+    "missing_module",
 ]
 ```
 
@@ -228,9 +228,9 @@ hiddenimports = [
 Add unused modules to `excludes`:
 
 ```python
-excludes=[
-    'tkinter',
-    'matplotlib',
+excludes = [
+    "tkinter",
+    "matplotlib",
     # ...
 ]
 ```

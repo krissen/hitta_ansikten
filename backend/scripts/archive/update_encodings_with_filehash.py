@@ -67,9 +67,7 @@ def main(patterns: list[str]) -> None:
     for namn, entries in known_faces.items():
         for entry in entries:
             if not isinstance(entry, dict):
-                print(
-                    f"[DEBUG] Entry i {namn} är EJ dict, typ: {type(entry)}. Skippas."
-                )
+                print(f"[DEBUG] Entry i {namn} är EJ dict, typ: {type(entry)}. Skippas.")
                 continue
             hash_field = entry.get("hash")
             file_field = entry.get("file")
@@ -82,13 +80,9 @@ def main(patterns: list[str]) -> None:
                 print(f"[DEBUG] {namn}: Ingen 'file' i entry – skippas.")
                 continue
             file_basename = Path(file_field).name
-            print(
-                f"[DEBUG] Kollar: {namn}, file={file_field} (basename={file_basename})"
-            )
+            print(f"[DEBUG] Kollar: {namn}, file={file_field} (basename={file_basename})")
             if file_basename not in files:
-                print(
-                    f"    [DEBUG] {file_basename} är EJ i bearbetningslistan, skippas."
-                )
+                print(f"    [DEBUG] {file_basename} är EJ i bearbetningslistan, skippas.")
                 continue
             hashval = filehash_map.get(file_basename)
             if hashval:
@@ -108,9 +102,7 @@ def main(patterns: list[str]) -> None:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(
-            "Användning: python update_encodings_with_filehash.py <glob1> [<glob2> ...]"
-        )
+        print("Användning: python update_encodings_with_filehash.py <glob1> [<glob2> ...]")
         print("Exempel: python update_encodings_with_filehash.py '2024*.NEF'")
         sys.exit(1)
     main(sys.argv[1:])

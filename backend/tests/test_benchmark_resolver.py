@@ -178,7 +178,11 @@ def test_resolve_join(tmp_path):
 def test_records_from_db_flattens_and_skips_hashless():
     db = {
         "Alice Alpha": [
-            {"file": "/x/250101_1_Alice.NEF", "hash": "h1", "bounding_box": {"x": 0, "y": 0, "width": 10, "height": 20}},
+            {
+                "file": "/x/250101_1_Alice.NEF",
+                "hash": "h1",
+                "bounding_box": {"x": 0, "y": 0, "width": 10, "height": 20},
+            },
             {"file": "250101_2_Alice.NEF", "hash": "h2", "is_manual": True},
             {"file": "no-hash.NEF"},  # skipped (no hash)
         ],
@@ -224,8 +228,18 @@ def test_surname_extraction():
 
 def test_stratify_manual_events_and_twins():
     recs = [
-        _mkrec("Max Björneholt", "h1", basename="260627_1.NEF", bbox={"x": 0, "y": 0, "width": 5, "height": 5}),
-        _mkrec("Vilmer Björneholt", "h2", basename="260627_2.NEF", bbox={"x": 0, "y": 0, "width": 50, "height": 50}),
+        _mkrec(
+            "Max Björneholt",
+            "h1",
+            basename="260627_1.NEF",
+            bbox={"x": 0, "y": 0, "width": 5, "height": 5},
+        ),
+        _mkrec(
+            "Vilmer Björneholt",
+            "h2",
+            basename="260627_2.NEF",
+            bbox={"x": 0, "y": 0, "width": 50, "height": 50},
+        ),
         _mkrec("Solo Person", "h3", basename="250101_1.NEF", is_manual=True),
     ]
     resolved = {"h1", "h3"}

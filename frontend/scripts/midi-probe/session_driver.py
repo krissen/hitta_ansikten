@@ -90,8 +90,7 @@ def main():
         status = ""
         for _ in range(40):
             status = page.locator("#status").inner_text()
-            if ("Ansluten" in status or "nekades" in status
-                    or "saknas" in status):
+            if "Ansluten" in status or "nekades" in status or "saknas" in status:
                 break
             page.wait_for_timeout(250)
         # Subtract the placeholder row: with no device the probe renders one
@@ -112,10 +111,12 @@ def main():
             " return {input: rows.some(c => c[0] === 'input'),"
             " output: rows.some(c => c[0] === 'output')}; })()"
         )
-        if ("Ansluten" not in status or "ingen enhet" in status
-                or not (pair["input"] and pair["output"])):
-            emit({"ok": False, "phase": "ready", "status": status,
-                  "ports": ports, "pair": pair})
+        if (
+            "Ansluten" not in status
+            or "ingen enhet" in status
+            or not (pair["input"] and pair["output"])
+        ):
+            emit({"ok": False, "phase": "ready", "status": status, "ports": ports, "pair": pair})
             browser.close()
             return 1
         # The probe leaves the first enumerated output selected. Web MIDI
@@ -131,8 +132,14 @@ def main():
             " return row ? row[6] : null; })()"
         )
         if not connected_out_id:
-            emit({"ok": False, "phase": "ready", "status": status,
-                  "error": "ingen ansluten X-TOUCH-utgång hittad"})
+            emit(
+                {
+                    "ok": False,
+                    "phase": "ready",
+                    "status": status,
+                    "error": "ingen ansluten X-TOUCH-utgång hittad",
+                }
+            )
             browser.close()
             return 1
         page.select_option("#outPort", value=connected_out_id)
@@ -161,8 +168,7 @@ def main():
                                     break
                                 page.wait_for_timeout(250)
                                 waited += 250
-                            emit({"ok": True, "result": result,
-                                  "waitedMs": waited})
+                            emit({"ok": True, "result": result, "waitedMs": waited})
                         elif op == "shot":
                             page.screenshot(path=cmd["path"], full_page=True)
                             emit({"ok": True})
@@ -176,8 +182,7 @@ def main():
                         # not kill the driver (and with it the live MIDI
                         # connection); report the failure and keep serving
                         # the pipe. page.evaluate raises arbitrary errors.
-                        emit({"ok": False,
-                              "error": traceback.format_exc(limit=3)})
+                        emit({"ok": False, "error": traceback.format_exc(limit=3)})
 
 
 if __name__ == "__main__":

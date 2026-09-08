@@ -80,6 +80,7 @@ def _known_entry(vec, backend="insightface"):
 # (cosine) backend yields the canonical defaults match_threshold=0.45,
 # ignore_distance=0.35; prefer_name_margin defaults to 0.15.
 
+
 def _case(name_dist, ignore_dist, config=None):
     return _service(config)._determine_match_case(name_dist, ignore_dist)
 
@@ -151,6 +152,7 @@ def test_match_case_ignores_legacy_flat_keys():
 # 2. Single-nearest matching (_match_encoding)
 # --------------------------------------------------------------------------
 
+
 def test_match_encoding_picks_nearest_person():
     svc = _service()
     svc.known_faces = {
@@ -189,6 +191,7 @@ def test_match_encoding_empty_db_returns_none():
 # 3. Detection-cache keying
 # --------------------------------------------------------------------------
 
+
 def test_cache_key_without_registry_uses_version_zero(tmp_path, monkeypatch):
     # No distinct_pairs.json on disk -> version component is 0.
     monkeypatch.setattr(det_mod, "DISTINCT_PAIRS_PATH", tmp_path / "distinct_pairs.json")
@@ -217,6 +220,7 @@ def test_cache_key_changes_when_registry_changes(tmp_path, monkeypatch):
     key1 = svc._detection_cache_key("h")
     # A registry edit (new mtime) invalidates cached suggestions.
     import os
+
     # Bump by a full second so even coarse-mtime filesystems register the change.
     bumped = reg.stat().st_mtime_ns + 1_000_000_000
     os.utime(reg, ns=(bumped, bumped))
@@ -277,6 +281,7 @@ def test_cached_detection_meta_missing_returns_empty(tmp_path, monkeypatch):
 # having reloaded fresh data and assert the endpoint clears caches + reports the
 # store's live counts, re-pinning the match-result cache to the store version.
 
+
 def test_reload_database_clears_caches_and_reports_store_counts():
     svc = _service()
     svc.cache["k"] = {"faces": []}
@@ -305,15 +310,25 @@ def test_reload_database_clears_caches_and_reports_store_counts():
 # 5. confirm-identity mutation path (_confirm_identity_nosave, detected face)
 # --------------------------------------------------------------------------
 
+
 def test_confirm_detected_face_writes_entry():
     svc = _service()
     encoding = np.array([1.0, 2.0, 3.0])
-    svc.encoding_cache["face_0"] = (encoding, {"x": 1, "y": 2, "width": 3, "height": 4}, "filehash123", None)
+    svc.encoding_cache["face_0"] = (
+        encoding,
+        {"x": 1, "y": 2, "width": 3, "height": 4},
+        "filehash123",
+        None,
+    )
 
     out = svc._confirm_identity_nosave("face_0", "Alice", "/photos/a.NEF")
 
-    assert out == {"status": "success", "person_name": "Alice",
-                   "encodings_count": 1, "enrolled": True}
+    assert out == {
+        "status": "success",
+        "person_name": "Alice",
+        "encodings_count": 1,
+        "enrolled": True,
+    }
     entry = svc.known_faces["Alice"][0]
     assert entry["hash"] == "filehash123"  # cached file hash reused
     assert entry["file"] == "/photos/a.NEF"
@@ -436,6 +451,7 @@ async def test_single_confirm_schedules_save_without_flush():
 
 def _write_probe_jpg(tmp_path):
     from PIL import Image
+
     img_path = tmp_path / "probe.jpg"
     Image.new("RGB", (32, 32), color=(128, 128, 128)).save(img_path, "JPEG")
     return img_path
@@ -448,6 +464,7 @@ def _detect_backend(svc, mutate_during_compute):
     captured version_at_compute, before the cache write — reproducing a confirm
     landing while another detect is computing.
     """
+
     class Backend(FakeBackend):
         def detect_faces(self, rgb, model=None, upsample=0):
             if mutate_during_compute:
@@ -529,6 +546,7 @@ def test_coord_scale_folds_into_bounding_box():
 
 def test_load_image_for_detection_standard_format_scale_one(tmp_path):
     from PIL import Image
+
     p = tmp_path / "img.jpg"
     Image.new("RGB", (32, 24), color=(10, 20, 30)).save(p, "JPEG")
 

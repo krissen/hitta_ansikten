@@ -153,10 +153,7 @@ class GateResult:
         }
         parts = [reasons.get(f, f) for f in self.failures]
         detail = ", ".join(parts) if parts else "låg bildkvalitet"
-        return (
-            "Namnet sparades, men ansiktet lades inte till i ansiktsbanken "
-            f"({detail})."
-        )
+        return f"Namnet sparades, men ansiktet lades inte till i ansiktsbanken ({detail})."
 
 
 def evaluate(signals: QualitySignals, cfg: GateConfig) -> GateResult:

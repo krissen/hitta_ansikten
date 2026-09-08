@@ -15,21 +15,26 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 def get_detection_service():
     """Lazy import + lazy construction to avoid loading ML libs at startup"""
     from ..services.detection_service import get_detection_service as _get
+
     return _get()
+
 
 # Request/Response models
 class DetectionRequest(BaseModel):
     image_path: str
     force_reprocess: bool = False
 
+
 class BoundingBox(BaseModel):
     x: int
     y: int
     width: int
     height: int
+
 
 class MatchAlternative(BaseModel):
     name: str
@@ -51,6 +56,7 @@ class DetectedFace(BaseModel):
     encoding_hash: str | None = None
     disambiguated: dict[str, Any] | None = None
 
+
 class DetectionResult(BaseModel):
     image_path: str
     faces: list[DetectedFace]
@@ -58,15 +64,18 @@ class DetectionResult(BaseModel):
     cached: bool = False
     file_hash: str | None = None  # SHA1 hash of file (for reuse in mark-review-complete)
 
+
 class ConfirmIdentityRequest(BaseModel):
     face_id: str
     person_name: str
     image_path: str
     suggested_name: str | None = None
 
+
 class IgnoreFaceRequest(BaseModel):
     face_id: str
     image_path: str
+
 
 class ConfirmIdentityResponse(BaseModel):
     status: str
@@ -78,9 +87,11 @@ class ConfirmIdentityResponse(BaseModel):
     # Swedish note shown to the user when a face was confirmed-but-not-enrolled.
     quality_note: str | None = None
 
+
 class IgnoreFaceResponse(BaseModel):
     status: str
     ignored_count: int
+
 
 class ReloadDatabaseResponse(BaseModel):
     status: str
@@ -95,13 +106,16 @@ class BatchConfirmItem(BaseModel):
     image_path: str
     suggested_name: str | None = None
 
+
 class BatchIgnoreItem(BaseModel):
     face_id: str
     image_path: str
 
+
 class BatchConfirmRequest(BaseModel):
     confirmations: list[BatchConfirmItem] = []
     ignores: list[BatchIgnoreItem] = []
+
 
 class BatchConfirmResponse(BaseModel):
     status: str
@@ -129,6 +143,7 @@ class MarkReviewCompleteResponse(BaseModel):
     message: str
     labels_count: int
 
+
 @router.post("/reload-database", response_model=ReloadDatabaseResponse)
 async def reload_database():
     """
@@ -146,6 +161,7 @@ async def reload_database():
         logger.exception(f"[Detection] Error reloading database: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.post("/detect-faces", response_model=DetectionResult)
 async def detect_faces(request: DetectionRequest):
     """
@@ -159,8 +175,7 @@ async def detect_faces(request: DetectionRequest):
     try:
         # Use real detection service
         result = await get_detection_service().detect_faces(
-            request.image_path,
-            force_reprocess=request.force_reprocess
+            request.image_path, force_reprocess=request.force_reprocess
         )
 
         # Convert to response model
@@ -178,17 +193,18 @@ async def detect_faces(request: DetectionRequest):
                     ignore_distance=face.get("ignore_distance"),
                     ignore_confidence=face.get("ignore_confidence"),
                     match_alternatives=[
-                        MatchAlternative(**alt)
-                        for alt in face.get("match_alternatives", [])
-                    ] if face.get("match_alternatives") else None,
+                        MatchAlternative(**alt) for alt in face.get("match_alternatives", [])
+                    ]
+                    if face.get("match_alternatives")
+                    else None,
                     encoding_hash=face.get("encoding_hash"),
-                    disambiguated=face.get("disambiguated")
+                    disambiguated=face.get("disambiguated"),
                 )
                 for face in result["faces"]
             ],
             processing_time_ms=result["processing_time_ms"],
             cached=result.get("cached", False),
-            file_hash=result.get("file_hash")
+            file_hash=result.get("file_hash"),
         )
     except FileNotFoundError as e:
         logger.error(f"[Detection] File not found: {e}")
@@ -199,7 +215,9 @@ async def detect_faces(request: DetectionRequest):
 
 
 @router.get("/face-thumbnail")
-async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height: int, size: int = 150):
+async def get_face_thumbnail(
+    image_path: str, x: int, y: int, width: int, height: int, size: int = 150
+):
     """
     Get thumbnail image of a detected face
 
@@ -231,44 +249,45 @@ async def get_face_thumbnail(image_path: str, x: int, y: int, width: int, height
         # Check if we have cached thumbnails and face detection data
         if cache.has_thumbnails(file_hash):
             faces_data = cache.get_face_detection(file_hash)
-            if faces_data and 'faces' in faces_data:
+            if faces_data and "faces" in faces_data:
                 # Find matching face by bounding box
-                for i, face in enumerate(faces_data['faces']):
-                    bbox = face.get('bounding_box', {})
-                    if (bbox.get('x') == x and bbox.get('y') == y and
-                        bbox.get('width') == width and bbox.get('height') == height):
+                for i, face in enumerate(faces_data["faces"]):
+                    bbox = face.get("bounding_box", {})
+                    if (
+                        bbox.get("x") == x
+                        and bbox.get("y") == y
+                        and bbox.get("width") == width
+                        and bbox.get("height") == height
+                    ):
                         # Found matching face - serve cached thumbnail
                         thumb_paths = cache.get_thumbnails(file_hash)
                         if thumb_paths and i < len(thumb_paths):
                             thumb_path = Path(thumb_paths[i])
                             if thumb_path.exists():
-                                logger.debug(f"[Detection] Serving cached thumbnail: {thumb_path.name}")
-                                with open(thumb_path, 'rb') as f:
+                                logger.debug(
+                                    f"[Detection] Serving cached thumbnail: {thumb_path.name}"
+                                )
+                                with open(thumb_path, "rb") as f:
                                     thumbnail_bytes = f.read()
                                 return Response(
                                     content=thumbnail_bytes,
                                     media_type="image/jpeg",
                                     headers={
                                         "Cache-Control": "public, max-age=604800",
-                                        "X-Cache": "HIT"
-                                    }
+                                        "X-Cache": "HIT",
+                                    },
                                 )
 
         # Fall back to on-demand generation
         logger.debug(f"[Detection] Generating thumbnail on-demand for {Path(image_path).name}")
         thumbnail_bytes = await get_detection_service().get_face_thumbnail(
-            image_path,
-            bounding_box,
-            size=size
+            image_path, bounding_box, size=size
         )
 
         return Response(
             content=thumbnail_bytes,
             media_type="image/jpeg",
-            headers={
-                "Cache-Control": "public, max-age=604800",
-                "X-Cache": "MISS"
-            }
+            headers={"Cache-Control": "public, max-age=604800", "X-Cache": "MISS"},
         )
     except FileNotFoundError as e:
         logger.error(f"[Detection] File not found: {e}")
@@ -292,7 +311,7 @@ async def confirm_identity(request: ConfirmIdentityRequest):
             request.face_id,
             request.person_name,
             request.image_path,
-            suggested_name=request.suggested_name
+            suggested_name=request.suggested_name,
         )
 
         return ConfirmIdentityResponse(**result)
@@ -314,10 +333,7 @@ async def ignore_face(request: IgnoreFaceRequest):
     logger.info(f"[Detection] Ignoring face: {request.face_id}")
 
     try:
-        result = await get_detection_service().ignore_face(
-            request.face_id,
-            request.image_path
-        )
+        result = await get_detection_service().ignore_face(request.face_id, request.image_path)
 
         return IgnoreFaceResponse(**result)
     except ValueError as e:
@@ -336,12 +352,14 @@ async def batch_confirm(request: BatchConfirmRequest):
     More efficient than individual confirm/ignore calls when processing
     all faces in an image at once.
     """
-    logger.info(f"[Detection] Batch confirm: {len(request.confirmations)} confirms, {len(request.ignores)} ignores")
+    logger.info(
+        f"[Detection] Batch confirm: {len(request.confirmations)} confirms, {len(request.ignores)} ignores"
+    )
 
     try:
         result = await get_detection_service().batch_confirm(
             [c.model_dump() for c in request.confirmations],
-            [i.model_dump() for i in request.ignores]
+            [i.model_dump() for i in request.ignores],
         )
         return BatchConfirmResponse(**result)
     except Exception as e:
@@ -363,7 +381,7 @@ async def mark_review_complete(request: MarkReviewCompleteRequest):
         result = await get_detection_service().mark_review_complete(
             request.image_path,
             [face.model_dump() for face in request.reviewed_faces],
-            file_hash=request.file_hash
+            file_hash=request.file_hash,
         )
 
         return MarkReviewCompleteResponse(**result)

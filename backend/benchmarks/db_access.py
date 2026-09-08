@@ -24,9 +24,7 @@ from typing import Any
 
 # Canonical location of the confirmed-faces database (read-only).
 DEFAULT_DB_PATH = Path(os.path.expanduser("~/.local/share/faceid/encodings.pkl"))
-DEFAULT_DISTINCT_PAIRS_PATH = Path(
-    os.path.expanduser("~/.local/share/faceid/distinct_pairs.json")
-)
+DEFAULT_DISTINCT_PAIRS_PATH = Path(os.path.expanduser("~/.local/share/faceid/distinct_pairs.json"))
 
 
 @dataclass
@@ -34,13 +32,13 @@ class FaceRecord:
     """One confirmed encoding, flattened for benchmark analysis."""
 
     identity: str
-    recorded_file: str            # value of the DB ``file`` field (path or basename)
-    basename: str                 # os.path.basename(recorded_file)
-    sha1: str                     # source-file SHA1 (DB ``hash``)
-    bbox: dict | None             # {x, y, width, height} or None
+    recorded_file: str  # value of the DB ``file`` field (path or basename)
+    basename: str  # os.path.basename(recorded_file)
+    sha1: str  # source-file SHA1 (DB ``hash``)
+    bbox: dict | None  # {x, y, width, height} or None
     is_manual: bool
     created_at: str | None
-    encoding: Any = None          # stored L2-normalized embedding (np.ndarray) or None
+    encoding: Any = None  # stored L2-normalized embedding (np.ndarray) or None
     encoding_hash: str | None = None  # SHA1 of encoding.tobytes(); face-level id
 
     @property

@@ -29,10 +29,12 @@ def extract_prefix_suffix(fname: str) -> tuple[str | None, str | None]:
         return None, None
     return m.group(1), m.group(2)
 
+
 def is_unrenamed(fname: str) -> bool:
     """Returnera True om filnamn är YYMMDD_HHMMSS.NEF eller YYMMDD_HHMMSS-1.NEF etc."""
     prefix, suffix = extract_prefix_suffix(fname)
     return bool(prefix and suffix)
+
 
 def record_previous_name(entry: dict, old_name: str) -> None:
     """Preserve an overwritten ``name`` in a processed_files entry.
@@ -96,7 +98,11 @@ def collect_persons_for_files(
 
     if processed_files is None:
         processed_files = []
-    processed_name_to_hash = {Path(x['name']).name: x.get('hash') for x in processed_files if isinstance(x, dict) and x.get('name')}
+    processed_name_to_hash = {
+        Path(x["name"]).name: x.get("hash")
+        for x in processed_files
+        if isinstance(x, dict) and x.get("name")
+    }
 
     if attempt_log is None:
         attempt_log = load_attempt_log()
@@ -158,6 +164,7 @@ def collect_persons_for_files(
         result[fname] = persons
     return result
 
+
 def normalize_name(name: str) -> str:
     """
     Normalize name by removing diacritics and sanitizing for safe filename use.
@@ -165,14 +172,15 @@ def normalize_name(name: str) -> str:
     Security: Replaces path separators and null bytes to prevent path traversal.
     """
     # Remove diacritics (Källa → Kalla, François → Francois)
-    n = unicodedata.normalize('NFKD', name)
+    n = unicodedata.normalize("NFKD", name)
     n = "".join(c for c in n if not unicodedata.combining(c))
 
     # Sanitize for filesystem safety: remove path separators and null bytes
     # Replace / and \ with _ to prevent directory traversal
-    n = n.replace('/', '_').replace('\\', '_').replace('\0', '_')
+    n = n.replace("/", "_").replace("\\", "_").replace("\0", "_")
 
     return n
+
 
 def split_fornamn_efternamn(namn: str) -> tuple[str, str]:
     # "Edvin Twedmark" => "Edvin", "Twedmark"
@@ -180,6 +188,7 @@ def split_fornamn_efternamn(namn: str) -> tuple[str, str]:
     if len(parts) < 2:
         return parts[0], ""
     return parts[0], " ".join(parts[1:])
+
 
 def resolve_fornamn_dubletter(all_persons: list[str]) -> dict[str, str]:
     """
@@ -211,6 +220,7 @@ def resolve_fornamn_dubletter(all_persons: list[str]) -> dict[str, str]:
             kortnamn[namn] = fornamn + (efternamn[:prefixlen] if efternamn else "")
     return kortnamn
 
+
 def build_new_filename(fname: str, personer: list[str], namnmap: dict[str, str]) -> str | None:
     """
     Build new filename with person names.
@@ -231,7 +241,7 @@ def build_new_filename(fname: str, personer: list[str], namnmap: dict[str, str])
     new_name = f"{prefix}_{namnstr}{suffix}"
 
     # Security: Validate no path traversal attempts
-    if '..' in new_name or '/' in new_name or '\\' in new_name or '\0' in new_name:
+    if ".." in new_name or "/" in new_name or "\\" in new_name or "\0" in new_name:
         logger.error(f"[SECURITY] Rejected unsafe filename: {new_name}")
         return None
 
