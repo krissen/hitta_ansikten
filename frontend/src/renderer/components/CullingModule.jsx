@@ -677,7 +677,7 @@ export function CullingModule({ node }) {
       if (base) dirs.add(base);
     }
     updateWatches(dirs);
-     
+
   }, []);
 
   // ----- cull loop ----------------------------------------------------
@@ -1199,7 +1199,7 @@ export function CullingModule({ node }) {
     if (!body) return;
     const max = Math.max(STATS_WIDTH_MIN, body.getBoundingClientRect().width - 300);
     setStatsWidth((w) => Math.min(w, max));
-     
+
   }, []);
 
   const current = currentIndex >= 0 ? files[currentIndex] : null;

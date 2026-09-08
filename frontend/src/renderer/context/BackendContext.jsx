@@ -37,10 +37,10 @@ export function BackendProvider({ children }) {
       await apiClient.connectWebSocket();
       setIsConnected(true);
       debug('Backend', 'Connected to backend');
-      
+
       const logLevel = preferences.get('ui.logLevel') || 'info';
       apiClient.setLogLevel(logLevel);
-      
+
       const categories = getCategories();
       const enabledBackendCategories = Object.entries(categories)
         .filter(([_, enabled]) => enabled)

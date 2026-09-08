@@ -1097,8 +1097,8 @@ Exempel:
   hitta_ansikten.py --fix 250612_153040.NEF
       Nollställer all mappning för filen, och bearbetar om den från början.
 
-Notera:  
-- Filnamnformat som förväntas: YYMMDD_HHMMSS[ev. -N][ev. _namn].NEF  
+Notera:
+- Filnamnformat som förväntas: YYMMDD_HHMMSS[ev. -N][ev. _namn].NEF
 - Personnamn extraheras från ansiktsdatabasen, och omdöpning utförs först när hela batchen är processad.
 
 """

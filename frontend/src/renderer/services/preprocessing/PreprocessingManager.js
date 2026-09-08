@@ -457,7 +457,7 @@ export class PreprocessingManager {
       fileHash = hashResult.file_hash;
       debug('Preprocessing', `Hash computed: ${filePath} -> ${fileHash.substring(0, 8)}...`);
       this.emit('hash-computed', { filePath, hash: fileHash });
-      
+
       if (this.isHashAlreadyProcessed(fileHash)) {
         debug('Preprocessing', `Hash already processed, skipping: ${filePath}`);
         this.emit('already-processed', { filePath, hash: fileHash });

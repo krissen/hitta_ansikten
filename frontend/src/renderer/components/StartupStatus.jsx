@@ -51,7 +51,7 @@ export function StartupStatus() {
 
   const handleStatusUpdate = useCallback((data) => {
     setStatus(data);
-    
+
     if (data.allReady && !readyTimerRef.current) {
       readyTimerRef.current = setTimeout(() => {
         setFadeOut(true);
@@ -59,7 +59,7 @@ export function StartupStatus() {
       }, 2000);
     }
   }, []);
-  
+
   const handleDismiss = useCallback(() => {
     setFadeOut(true);
     setTimeout(() => setDismissed(true), 500);
@@ -80,7 +80,7 @@ export function StartupStatus() {
 
   useEffect(() => {
     if (dismissed || !isConnected) return;
-    
+
     setStatus(prev => ({
       ...prev,
       items: {
@@ -99,17 +99,17 @@ export function StartupStatus() {
   if (dismissed) return null;
 
   const { items, allReady, hasError } = status;
-  const anyLoading = Object.values(items).some(item => 
+  const anyLoading = Object.values(items).some(item =>
     item.state === 'loading' || item.state === 'pending'
   );
   const startupDone = allReady || (!anyLoading && hasError);
-  
+
   let headerText = t('startupStatus.status.starting');
   if (allReady) headerText = t('startupStatus.status.ready');
   else if (startupDone && hasError) headerText = t('startupStatus.status.error');
 
   return (
-    <div 
+    <div
       className={`startup-status ${fadeOut ? 'fade-out' : ''} ${allReady ? 'all-ready' : ''} ${startupDone && hasError ? 'has-error' : ''}`}
       onClick={handleDismiss}
       title={t('startupStatus.dismiss')}

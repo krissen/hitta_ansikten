@@ -243,21 +243,21 @@ export function FileQueueModule({ node }) {
   const statsFetchedRef = useRef(new Set());
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0) return;
-    
+
     queueActions.markProcessedByNames(processedFiles);
   }, [processedFilesLoaded, processedFiles, queueActions]);
 
   useEffect(() => {
     if (!processedFilesLoaded || processedFiles.size === 0 || !api) return;
-    
-    const itemsNeedingStats = queue.filter(item => 
+
+    const itemsNeedingStats = queue.filter(item =>
       item.isAlreadyProcessed && !statsFetchedRef.current.has(item.filePath)
     );
-    
+
     if (itemsNeedingStats.length === 0) return;
-    
+
     itemsNeedingStats.forEach(item => statsFetchedRef.current.add(item.filePath));
-    
+
     const filepaths = itemsNeedingStats.map(item => item.filePath);
     debug('FileQueue', 'Fetching stats via hash for', filepaths.length, 'files');
     api.post('/api/v1/statistics/file-stats', { filepaths })
@@ -791,7 +791,7 @@ export function FileQueueModule({ node }) {
     const item = currentQueue[index];
     const currentProcessedFiles = processedFilesRef.current;
     const inSetCheck = currentProcessedFiles.has(item.fileName);
-    
+
     debug('FileQueue', '>>> loadFile checks', {
       fileName: item.fileName,
       'item.isAlreadyProcessed': item.isAlreadyProcessed,
@@ -802,7 +802,7 @@ export function FileQueueModule({ node }) {
 
     const fileIsProcessed = item.isAlreadyProcessed || inSetCheck;
     const skipAutoDetect = !fixModeRef.current && fileIsProcessed;
-    
+
     debug('FileQueue', '>>> loadFile decision', {
       fileIsProcessed,
       skipAutoDetect,
@@ -972,7 +972,7 @@ export function FileQueueModule({ node }) {
 
   const advanceToNext = useCallback(() => {
     const currentQueue = queueRef.current;
-    const nextIndex = currentQueue.findIndex((item, i) => 
+    const nextIndex = currentQueue.findIndex((item, i) =>
       i !== currentIndex && isFileEligible(item)
     );
 
@@ -1011,7 +1011,7 @@ export function FileQueueModule({ node }) {
       const fileName = imagePath.split('/').pop();
       const faceCount = reviewedFaces?.length || 0;
 
-      const nextIdx = currentQueue.findIndex((item) => 
+      const nextIdx = currentQueue.findIndex((item) =>
         item.filePath !== imagePath && isFileEligible(item)
       );
 

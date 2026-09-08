@@ -172,11 +172,11 @@ class ThemeManager {
       if (!prefsStr) return;
 
       const prefs = JSON.parse(prefsStr);
-      
+
       // Apply toast opacity if saved (user preference)
       if (prefs.notifications?.toastOpacity !== undefined) {
         document.documentElement.style.setProperty(
-          '--toast-opacity', 
+          '--toast-opacity',
           String(prefs.notifications.toastOpacity)
         );
       }

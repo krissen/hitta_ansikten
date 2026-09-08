@@ -263,7 +263,7 @@ export function PlayerCountModule() {
     };
     setInput(adopted);
     submitWith(adopted, perMatch);
-     
+
   }, []);
 
   // Select/checkbox changes from the InputBar apply immediately, but only once a

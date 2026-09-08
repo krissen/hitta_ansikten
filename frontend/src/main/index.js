@@ -432,16 +432,16 @@ app.whenReady().then(async () => {
     updateSplashStatus(t("dialogs.splash.loadingInterface"), 90);
   } catch (err) {
     console.error("[Main] Failed to start backend:", err);
-    
+
     if (splashWindow && !splashWindow.isDestroyed()) {
       splashWindow.close();
     }
-    
+
     const isPackaged = app.isPackaged;
     const suggestion = isPackaged
       ? "Försök installera om appen. Om problemet kvarstår, kontakta support."
       : t("dialogs.backendStartFailedSuggestion");
-    
+
     await dialog.showMessageBox({
       type: "error",
       title: "Kunde inte starta backend",
@@ -449,7 +449,7 @@ app.whenReady().then(async () => {
       detail: `${err.message}\n\n${suggestion}`,
       buttons: ["Avsluta"],
     });
-    
+
     app.quit();
     return;
   }

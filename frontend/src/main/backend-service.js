@@ -127,7 +127,7 @@ class BackendService {
 
       const { execSync } = require('child_process');
       let pythonPath = null;
-      
+
       for (const p of pythonPaths) {
         try {
           if (p.includes('/')) {
@@ -187,7 +187,7 @@ class BackendService {
     this.startTime = Date.now();
     this.childExited = false;
     this.startupLogs = [];
-    
+
     console.log(`[BackendService] [${this._timestamp()}] Starting FastAPI backend...`);
 
     const config = this.getBackendConfig();
