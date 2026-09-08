@@ -42,6 +42,9 @@ check:
 	@{ echo "== eslint (no --fix) =="; \
 	   cd frontend && npx eslint .; \
 	} >>$(LOG) 2>&1 || { tail -30 $(LOG); exit 1; }
+	@{ echo "== prettier --check (no --write) =="; \
+	   cd frontend && npx prettier --check 'src/**/*.{js,jsx}' 'scripts/**/*.js' 'tests/**/*.{js,jsx}' 'main.js' '*.config.{js,mjs}' package.json '**/*.css' '**/*.html'; \
+	} >>$(LOG) 2>&1 || { tail -30 $(LOG); exit 1; }
 	@{ echo "== backend pytest =="; \
 	   cd backend && .venv/bin/python -m pytest -q; \
 	} >>$(LOG) 2>&1 || { tail -30 $(LOG); exit 1; }
