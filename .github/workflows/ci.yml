@@ -98,10 +98,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # setup-python puts the requested interpreter first on PATH; uv's
+      # --system flag resolves against whatever `python3` is there. Without
+      # this step, `uv pip install --system` silently installs into the
+      # runner's own default Python (3.12, externally-managed, and not the
+      # 3.11 this repo targets) instead.
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
           enable-cache: true
           cache-dependency-glob: 'backend/pyproject.toml'
 
