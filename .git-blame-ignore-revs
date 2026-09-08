@@ -8,3 +8,5 @@
 c4f76c3143d4979d06407591c3e27137c6c8c80b
 # style(repo): fix trailing whitespace and missing final newlines
 fc740882ad47bca66c64cfc686af0d75a84187fb
+# style(frontend): apply prettier
+4fce06934eb9d6acb3a332550476d9286bfb6590
