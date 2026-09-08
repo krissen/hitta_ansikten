@@ -64,6 +64,24 @@ repos:
       - id: actionlint
         stages: [pre-commit]
 
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.9.6
+    hooks:
+      # rbubley/mirrors-prettier, not the official pre-commit/mirrors-prettier:
+      # the official mirror stopped tagging releases after v3.1.0 (checked
+      # 2026-09-08), a `language: node` hook with its own pinned
+      # `additional_dependencies: ["prettier@X"]` -- unlike the eslint hook
+      # above, prettier carries no project-specific plugins, so a portable
+      # mirror works cleanly here. `frontend/.prettierrc.json` (singleQuote)
+      # keeps the diff to line-wrapping only; the codebase already used
+      # single quotes throughout, and eslint-config-prettier (see
+      # eslint.config.mjs) turns off any eslint stylistic rule that could
+      # fight this formatting.
+      - id: prettier
+        files: '^frontend/.*\.(js|jsx|mjs|css|html|json)$'
+        exclude: '^frontend/package-lock\.json$'
+        stages: [pre-commit]
+
   - repo: local
     hooks:
       # `language: system`, not a portable mirror: the repo's flat eslint
