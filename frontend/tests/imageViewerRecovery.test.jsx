@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from 'vitest';
 import { render, act, cleanup } from '@testing-library/react';
 import { settle } from './helpers/settle.js';
 import React, { useEffect } from 'react';
@@ -33,7 +41,10 @@ vi.mock('../src/renderer/shared/api-client.js', () => ({
 
 import { ImageViewer } from '../src/renderer/components/ImageViewer.jsx';
 import { ModuleAPIProvider } from '../src/renderer/context/ModuleAPIContext.jsx';
-import { useEmitEvent, useModuleEvent } from '../src/renderer/hooks/useModuleEvent.js';
+import {
+  useEmitEvent,
+  useModuleEvent,
+} from '../src/renderer/hooks/useModuleEvent.js';
 
 beforeAll(() => {
   // jsdom stubs for the browser bits ImageViewer touches on mount/draw.
@@ -45,7 +56,13 @@ beforeAll(() => {
   globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(0), 0);
   globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
   if (!window.matchMedia) {
-    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+    window.matchMedia = () => ({
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+    });
   }
   // A permissive 2D context: every method is a no-op, every property reads 0.
   const ctx = new Proxy({}, { get: () => () => {} });
@@ -53,10 +70,21 @@ beforeAll(() => {
 
   // Image that "loads" as soon as src is assigned (onload is wired first).
   globalThis.Image = class {
-    constructor() { this.width = 120; this.height = 90; this.onload = null; this.onerror = null; }
-    set src(_v) { queueMicrotask(() => this.onload && this.onload()); }
-    get src() { return this._src; }
-    decode() { return Promise.resolve(); }
+    constructor() {
+      this.width = 120;
+      this.height = 90;
+      this.onload = null;
+      this.onerror = null;
+    }
+    set src(_v) {
+      queueMicrotask(() => this.onload && this.onload());
+    }
+    get src() {
+      return this._src;
+    }
+    decode() {
+      return Promise.resolve();
+    }
   };
   // Force the HTMLImageElement fallback path in loadImage (no ImageBitmap).
   delete globalThis.createImageBitmap;
@@ -67,8 +95,16 @@ beforeAll(() => {
 const bus = { emit: null, loaded: [] };
 function Probe() {
   const emit = useEmitEvent();
-  useEffect(() => { bus.emit = emit; }, [emit]);
-  useModuleEvent('image-loaded', (data) => { bus.loaded.push(data); }, []);
+  useEffect(() => {
+    bus.emit = emit;
+  }, [emit]);
+  useModuleEvent(
+    'image-loaded',
+    (data) => {
+      bus.loaded.push(data);
+    },
+    [],
+  );
   return null;
 }
 
@@ -104,7 +140,12 @@ describe('ImageViewer — late-mount recovery (request-current-image)', () => {
     expect(bus.emit).toBeTypeOf('function');
 
     // Load an image after mount (the real load-image → loadImage → image-loaded path).
-    await act(async () => { bus.emit('load-image', { imagePath: '/photos/a.jpg', skipAutoDetect: false }); });
+    await act(async () => {
+      bus.emit('load-image', {
+        imagePath: '/photos/a.jpg',
+        skipAutoDetect: false,
+      });
+    });
     await flush();
 
     const initial = bus.loaded.filter((d) => d?.imagePath === '/photos/a.jpg');
@@ -113,7 +154,9 @@ describe('ImageViewer — late-mount recovery (request-current-image)', () => {
     // Now the recovery request (as Review emits on late mount). The handler must
     // see the CURRENT image, not the mount-time null.
     bus.loaded = [];
-    await act(async () => { bus.emit('request-current-image'); });
+    await act(async () => {
+      bus.emit('request-current-image');
+    });
     await flush();
 
     expect(bus.loaded.length).toBeGreaterThanOrEqual(1);
@@ -123,7 +166,9 @@ describe('ImageViewer — late-mount recovery (request-current-image)', () => {
   it('re-emits nothing when no image has been loaded yet', async () => {
     await mountViewer();
     bus.loaded = [];
-    await act(async () => { bus.emit('request-current-image'); });
+    await act(async () => {
+      bus.emit('request-current-image');
+    });
     await flush();
     expect(bus.loaded).toHaveLength(0);
   });

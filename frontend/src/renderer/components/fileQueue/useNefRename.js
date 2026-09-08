@@ -16,7 +16,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { debug, debugError } from '../../shared/debug.js';
 import { t } from '../../../i18n/index.js';
 import { PreprocessingStatus } from '../../services/preprocessing/index.js';
-import { getRenameConfig, getRequireRenameConfirmation } from './fileQueuePrefs.js';
+import {
+  getRenameConfig,
+  getRequireRenameConfirmation,
+} from './fileQueuePrefs.js';
 import {
   selectRenamePaths,
   buildPreviewLookup,
@@ -84,7 +87,11 @@ export function useNefRename({
 
     // Show loading indicator for large batches
     if (eligiblePaths.length > 5) {
-      showToast(t('fileQueue.toasts.generatingNames', { count: eligiblePaths.length }), 'info', 2000);
+      showToast(
+        t('fileQueue.toasts.generatingNames', { count: eligiblePaths.length }),
+        'info',
+        2000,
+      );
     }
 
     // Get rename config from preferences
@@ -93,11 +100,16 @@ export function useNefRename({
     try {
       const result = await api.post('/api/v1/files/rename-preview', {
         file_paths: eligiblePaths,
-        config: renameConfig
+        config: renameConfig,
       });
 
       setPreviewData(buildPreviewLookup(result.items));
-      debug('FileQueue', 'Fetched rename preview for', eligiblePaths.length, 'files');
+      debug(
+        'FileQueue',
+        'Fetched rename preview for',
+        eligiblePaths.length,
+        'files',
+      );
     } catch (err) {
       debugError('FileQueue', 'Failed to fetch rename preview:', err);
       setPreviewData({});
@@ -108,17 +120,20 @@ export function useNefRename({
   const initialPreviewFetchedRef = useRef(false);
 
   // Handle preview toggle
-  const handlePreviewToggle = useCallback(async (e) => {
-    const show = e.target.checked;
-    setShowPreviewNames(show);
+  const handlePreviewToggle = useCallback(
+    async (e) => {
+      const show = e.target.checked;
+      setShowPreviewNames(show);
 
-    // Always fetch fresh preview when toggling on to avoid stale data
-    if (show) {
-      // Mark as fetched to prevent useEffect from also triggering fetch
-      initialPreviewFetchedRef.current = true;
-      await fetchRenamePreview();
-    }
-  }, [fetchRenamePreview]);
+      // Always fetch fresh preview when toggling on to avoid stale data
+      if (show) {
+        // Mark as fetched to prevent useEffect from also triggering fetch
+        initialPreviewFetchedRef.current = true;
+        await fetchRenamePreview();
+      }
+    },
+    [fetchRenamePreview],
+  );
 
   // Fetch preview on startup if showPreviewNames was restored as true
   // Wait for preprocessing to complete so backend has the data
@@ -129,21 +144,33 @@ export function useNefRename({
     if (!isConnected) return;
 
     // Check if we have eligible files (completed or already-processed)
-    const hasEligibleFiles = queue.some(q =>
-      q.status === 'completed' || (!fixMode && q.isAlreadyProcessed)
+    const hasEligibleFiles = queue.some(
+      (q) => q.status === 'completed' || (!fixMode && q.isAlreadyProcessed),
     );
     if (!hasEligibleFiles) return;
 
     // Check if preprocessing is done for at least some files
-    const hasPreprocessedFiles = queue.some(q =>
-      preprocessingStatus[q.filePath]?.status === PreprocessingStatus.COMPLETED
+    const hasPreprocessedFiles = queue.some(
+      (q) =>
+        preprocessingStatus[q.filePath]?.status ===
+        PreprocessingStatus.COMPLETED,
     );
     if (!hasPreprocessedFiles && queue.length > 0) return; // Wait for preprocessing
 
     initialPreviewFetchedRef.current = true;
-    debug('FileQueue', 'Fetching preview on startup (showPreviewNames was saved as true)');
+    debug(
+      'FileQueue',
+      'Fetching preview on startup (showPreviewNames was saved as true)',
+    );
     fetchRenamePreview();
-  }, [showPreviewNames, isConnected, queue, fixMode, preprocessingStatus, fetchRenamePreview]);
+  }, [
+    showPreviewNames,
+    isConnected,
+    queue,
+    fixMode,
+    preprocessingStatus,
+    fetchRenamePreview,
+  ]);
 
   // Handle rename action
   const handleRename = useCallback(async () => {
@@ -162,11 +189,13 @@ export function useNefRename({
     const requireConfirmation = getRequireRenameConfirmation();
 
     if (requireConfirmation) {
-      const selectionNote = hasSelection ? t('fileQueue.dialogs.renameConfirmSelection') : '';
+      const selectionNote = hasSelection
+        ? t('fileQueue.dialogs.renameConfirmSelection')
+        : '';
       const confirmed = await confirm({
         message: t('fileQueue.dialogs.renameConfirm', {
           count: eligiblePaths.length,
-          selection: selectionNote
+          selection: selectionNote,
         }),
       });
       if (!confirmed) return;
@@ -175,7 +204,11 @@ export function useNefRename({
     setRenameInProgress(true);
 
     // Show progress toast
-    showToast(t('fileQueue.toasts.renaming', { count: eligiblePaths.length }), 'info', null);
+    showToast(
+      t('fileQueue.toasts.renaming', { count: eligiblePaths.length }),
+      'info',
+      null,
+    );
 
     // Get rename config from preferences
     const renameConfig = getRenameConfig();
@@ -183,12 +216,13 @@ export function useNefRename({
     try {
       const result = await api.post('/api/v1/files/rename', {
         file_paths: eligiblePaths,
-        config: renameConfig
+        config: renameConfig,
       });
 
       debug('FileQueue', 'Rename result:', result);
 
-      const { renamedCount, skippedCount, errorCount } = renameSummaryCounts(result);
+      const { renamedCount, skippedCount, errorCount } =
+        renameSummaryCounts(result);
 
       // Update queue with new filenames
       if (renamedCount > 0) {
@@ -199,7 +233,8 @@ export function useNefRename({
         // Update preprocessingManager state for renamed files
         if (preprocessingManager.current) {
           for (const [oldPath, newPath] of Object.entries(renamedMap)) {
-            const cachedData = preprocessingManager.current.getCachedData(oldPath);
+            const cachedData =
+              preprocessingManager.current.getCachedData(oldPath);
             if (cachedData) {
               preprocessingManager.current.removeFile(oldPath);
               preprocessingManager.current.completed.set(newPath, cachedData);
@@ -208,7 +243,7 @@ export function useNefRename({
         }
 
         // Update React preprocessingStatus state
-        setPreprocessingStatus(prev => remapPathKeys(prev, renamedMap));
+        setPreprocessingStatus((prev) => remapPathKeys(prev, renamedMap));
       }
 
       // Refresh preview data to get updated info for renamed files
@@ -220,19 +255,37 @@ export function useNefRename({
 
       // Show toast notification
       let message = t('fileQueue.toasts.renamed', { count: renamedCount });
-      if (skippedCount > 0) message += t('fileQueue.toasts.renamedSkippedSuffix', { count: skippedCount });
-      if (errorCount > 0) message += t('fileQueue.toasts.renamedErrorSuffix', { count: errorCount });
+      if (skippedCount > 0)
+        message += t('fileQueue.toasts.renamedSkippedSuffix', {
+          count: skippedCount,
+        });
+      if (errorCount > 0)
+        message += t('fileQueue.toasts.renamedErrorSuffix', {
+          count: errorCount,
+        });
       showToast(message, errorCount > 0 ? 'warning' : 'success');
-
     } catch (err) {
       debugError('FileQueue', 'Rename failed:', err);
-      showToast(t('fileQueue.toasts.renameFailed', { message: err.message }), 'error');
+      showToast(
+        t('fileQueue.toasts.renameFailed', { message: err.message }),
+        'error',
+      );
     } finally {
       setRenameInProgress(false);
     }
   }, [
-    queue, api, showPreviewNames, fetchRenamePreview, showToast, confirm, selectedFiles,
-    fixModeRef, dirtyPathsRef, visibleIdsRef, preprocessingManager, applyRename,
+    queue,
+    api,
+    showPreviewNames,
+    fetchRenamePreview,
+    showToast,
+    confirm,
+    selectedFiles,
+    fixModeRef,
+    dirtyPathsRef,
+    visibleIdsRef,
+    preprocessingManager,
+    applyRename,
     setPreprocessingStatus,
   ]);
 

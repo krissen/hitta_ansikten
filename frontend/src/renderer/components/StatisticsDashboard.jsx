@@ -28,14 +28,20 @@ export function StatisticsDashboard() {
   // State
   const [attemptStats, setAttemptStats] = useState(null);
   const [topFaces, setTopFaces] = useState([]);
-  const [ignoredStats, setIgnoredStats] = useState({ count: 0, total: 0, fraction: 0 });
+  const [ignoredStats, setIgnoredStats] = useState({
+    count: 0,
+    total: 0,
+    fraction: 0,
+  });
   const [recentImages, setRecentImages] = useState([]);
   const [recentLogs, setRecentLogs] = useState([]);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Dashboard preferences
-  const [dashboardPrefs, setDashboardPrefs] = useState(() => preferences.get('dashboard') || {});
+  const [dashboardPrefs, setDashboardPrefs] = useState(
+    () => preferences.get('dashboard') || {},
+  );
 
   // Refresh interval from prefs (stable reference)
   const refreshInterval = dashboardPrefs.refreshInterval ?? 5000;
@@ -48,10 +54,10 @@ export function StatisticsDashboard() {
     const logLineCount = dashboardPrefs.logLineCount ?? 5;
     const buffer = getLogBuffer();
     // Get last N entries
-    const logs = buffer.slice(-logLineCount).map(entry => ({
+    const logs = buffer.slice(-logLineCount).map((entry) => ({
       level: entry.level || 'info',
       message: `[${entry.category}] ${entry.args?.join(' ') || entry.message || ''}`,
-      timestamp: entry.timestamp
+      timestamp: entry.timestamp,
     }));
     setRecentLogs(logs);
   }, [dashboardPrefs.logLineCount]);
@@ -69,7 +75,7 @@ export function StatisticsDashboard() {
       setIgnoredStats({
         count: data.ignored_count || 0,
         total: data.ignored_total || 0,
-        fraction: data.ignored_fraction || 0
+        fraction: data.ignored_fraction || 0,
       });
       setRecentImages(data.recent_images || []);
       // Logs now come from frontend buffer, not backend
@@ -84,10 +90,14 @@ export function StatisticsDashboard() {
   }, [api, getLogsFromBuffer]);
 
   // Use auto-refresh hook - use returned controls instead of separate state
-  const { isEnabled: autoRefresh, setEnabled: setAutoRefresh, refresh } = useAutoRefresh(fetchStatistics, {
+  const {
+    isEnabled: autoRefresh,
+    setEnabled: setAutoRefresh,
+    refresh,
+  } = useAutoRefresh(fetchStatistics, {
     interval: refreshInterval,
     initialEnabled: initialAutoRefresh,
-    refreshOnMount: true
+    refreshOnMount: true,
   });
 
   // Local state for refresh rate selector (to update interval)
@@ -100,7 +110,8 @@ export function StatisticsDashboard() {
       setDashboardPrefs(newPrefs);
     };
     window.addEventListener('preferences-changed', handlePrefsChanged);
-    return () => window.removeEventListener('preferences-changed', handlePrefsChanged);
+    return () =>
+      window.removeEventListener('preferences-changed', handlePrefsChanged);
   }, []);
 
   // Check which sections to show (defaults to true for backwards compatibility)
@@ -139,7 +150,11 @@ export function StatisticsDashboard() {
       </div>
 
       <div className="module-body stats-body">
-        {error && <Alert variant="error">{t('statistics.errorPrefix')} {error}</Alert>}
+        {error && (
+          <Alert variant="error">
+            {t('statistics.errorPrefix')} {error}
+          </Alert>
+        )}
 
         {/* Attempt Statistics Table */}
         {showAttemptStats && (
@@ -166,12 +181,16 @@ export function StatisticsDashboard() {
         )}
 
         {/* Show message if all sections are hidden */}
-        {!showAttemptStats && !showTopFaces && !showRecentImages && !showRecentLogs && (
-          <div className="empty-state">
-            {t('statistics.emptyState.line1')}<br/>
-            {t('statistics.emptyState.line2')}
-          </div>
-        )}
+        {!showAttemptStats &&
+          !showTopFaces &&
+          !showRecentImages &&
+          !showRecentLogs && (
+            <div className="empty-state">
+              {t('statistics.emptyState.line1')}
+              <br />
+              {t('statistics.emptyState.line2')}
+            </div>
+          )}
       </div>
     </div>
   );
@@ -184,7 +203,9 @@ function AttemptStatsSection({ stats, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">{t('statistics.sections.attemptStats')}</h4>
+        <h4 className="section-title">
+          {t('statistics.sections.attemptStats')}
+        </h4>
         <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
@@ -193,8 +214,12 @@ function AttemptStatsSection({ stats, isLoading }) {
   if (!stats || stats.length === 0) {
     return (
       <div className="section-card">
-        <h4 className="section-title">{t('statistics.sections.attemptStats')}</h4>
-        <div className="empty-state compact">{t('statistics.empty.attemptStats')}</div>
+        <h4 className="section-title">
+          {t('statistics.sections.attemptStats')}
+        </h4>
+        <div className="empty-state compact">
+          {t('statistics.empty.attemptStats')}
+        </div>
       </div>
     );
   }
@@ -215,9 +240,10 @@ function AttemptStatsSection({ stats, isLoading }) {
         </thead>
         <tbody>
           {stats.map((stat, idx) => {
-            const settings = stat.backend === 'dlib'
-              ? `${stat.backend}, up=${stat.upsample}, ${stat.scale_label} (${stat.scale_px}px)`
-              : `${stat.backend}, ${stat.scale_label} (${stat.scale_px}px)`;
+            const settings =
+              stat.backend === 'dlib'
+                ? `${stat.backend}, up=${stat.upsample}, ${stat.scale_label} (${stat.scale_px}px)`
+                : `${stat.backend}, ${stat.scale_label} (${stat.scale_px}px)`;
 
             return (
               <tr key={idx}>
@@ -243,7 +269,9 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">{t('statistics.sections.topFaces', { count: 19 })}</h4>
+        <h4 className="section-title">
+          {t('statistics.sections.topFaces', { count: 19 })}
+        </h4>
         <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
@@ -258,9 +286,10 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
   // Add the ignored-faces summary as the 20th cell. Flagged with `isIgnored`
   // rather than a magic name so the label comes from the catalog, never a
   // hardcoded string that could leak to the UI.
-  const ignoredText = ignoredStats.total > 0
-    ? `(${ignoredStats.count}/${ignoredStats.total}, ${(ignoredStats.fraction * 100).toFixed(1)}%)`
-    : '(0)';
+  const ignoredText =
+    ignoredStats.total > 0
+      ? `(${ignoredStats.count}/${ignoredStats.total}, ${(ignoredStats.fraction * 100).toFixed(1)}%)`
+      : '(0)';
   items.push({ name: '', face_count: ignoredText, isIgnored: true });
 
   // Column-major order (fill columns top to bottom, left to right)
@@ -279,10 +308,17 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
 
   return (
     <div className="section-card">
-      <h4 className="section-title">{t('statistics.sections.topFaces', { count: 19 })}</h4>
+      <h4 className="section-title">
+        {t('statistics.sections.topFaces', { count: 19 })}
+      </h4>
       <div className="top-faces-grid">
         {gridItems.map((item, idx) => {
-          if (!item) return <div key={idx} className="face-cell">—</div>;
+          if (!item)
+            return (
+              <div key={idx} className="face-cell">
+                —
+              </div>
+            );
 
           const className = `face-cell ${item.isIgnored ? 'ignored' : ''}`;
           let content = '—';
@@ -291,7 +327,8 @@ function TopFacesSection({ faces, ignoredStats, isLoading }) {
             content = `${t('statistics.ignored')} ${item.face_count}`;
           } else if (item.name) {
             // Show count and percentage (e.g., "Elton (259, 15%)")
-            const pct = item.percentage !== undefined ? `, ${item.percentage}%` : '';
+            const pct =
+              item.percentage !== undefined ? `, ${item.percentage}%` : '';
             content = `${item.name} (${item.face_count}${pct})`;
           }
 
@@ -313,7 +350,9 @@ function RecentImagesSection({ images, isLoading }) {
   if (isLoading) {
     return (
       <div className="section-card">
-        <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
+        <h4 className="section-title">
+          {t('statistics.sections.recentImages')}
+        </h4>
         <div className="empty-state compact">{t('statistics.loading')}</div>
       </div>
     );
@@ -322,8 +361,12 @@ function RecentImagesSection({ images, isLoading }) {
   if (!images || images.length === 0) {
     return (
       <div className="section-card">
-        <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
-        <div className="empty-state compact">{t('statistics.empty.recentImages')}</div>
+        <h4 className="section-title">
+          {t('statistics.sections.recentImages')}
+        </h4>
+        <div className="empty-state compact">
+          {t('statistics.empty.recentImages')}
+        </div>
       </div>
     );
   }
@@ -333,10 +376,15 @@ function RecentImagesSection({ images, isLoading }) {
       <h4 className="section-title">{t('statistics.sections.recentImages')}</h4>
       <div className="recent-images-list">
         {images.map((img, idx) => (
-          <div key={idx} className={`image-entry ${img.source === 'ansikten' ? 'source-ansikten' : 'source-cli'}`}>
+          <div
+            key={idx}
+            className={`image-entry ${img.source === 'ansikten' ? 'source-ansikten' : 'source-cli'}`}
+          >
             <span className="image-filename">
               {img.filename}
-              {img.source === 'cli' && <span className="source-badge cli">CLI</span>}
+              {img.source === 'cli' && (
+                <span className="source-badge cli">CLI</span>
+              )}
             </span>
             <span className="image-names">
               {img.person_names && img.person_names.length > 0
@@ -367,7 +415,9 @@ function RecentLogsSection({ logs, isLoading }) {
     return (
       <div className="section-card">
         <h4 className="section-title">{t('statistics.sections.recentLogs')}</h4>
-        <div className="empty-state compact">{t('statistics.empty.recentLogs')}</div>
+        <div className="empty-state compact">
+          {t('statistics.empty.recentLogs')}
+        </div>
       </div>
     );
   }

@@ -37,14 +37,28 @@ describe('statsScopeFromQuery', () => {
   });
 
   it('omits baseline/min_images when no countSettings are given', () => {
-    const q = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null };
+    const q = {
+      roots: ['/a'],
+      globs: [],
+      extension_preset: 'jpg',
+      recursive: true,
+      date_from: null,
+      date_to: null,
+    };
     const scope = statsScopeFromQuery(q);
     expect(scope).not.toHaveProperty('baseline');
     expect(scope).not.toHaveProperty('min_images');
   });
 
   it('folds baseline and min_images in from countSettings', () => {
-    const q = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null };
+    const q = {
+      roots: ['/a'],
+      globs: [],
+      extension_preset: 'jpg',
+      recursive: true,
+      date_from: null,
+      date_to: null,
+    };
     expect(statsScopeFromQuery(q, { baseline: 'mean', minImages: 5 })).toEqual({
       roots: ['/a'],
       globs: [],
@@ -65,16 +79,37 @@ describe('scanScopeKey', () => {
   });
 
   it('keys equal for scopes differing only in baseline/min_images (counting options)', () => {
-    const base = statsScopeFromQuery({ roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null });
+    const base = statsScopeFromQuery({
+      roots: ['/a'],
+      globs: [],
+      extension_preset: 'jpg',
+      recursive: true,
+      date_from: null,
+      date_to: null,
+    });
     const withCounts = statsScopeFromQuery(
-      { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null },
-      { baseline: 'mean', minImages: 9 }
+      {
+        roots: ['/a'],
+        globs: [],
+        extension_preset: 'jpg',
+        recursive: true,
+        date_from: null,
+        date_to: null,
+      },
+      { baseline: 'mean', minImages: 9 },
     );
     expect(scanScopeKey(withCounts)).toBe(scanScopeKey(base));
   });
 
   it('keys differ when a scan field changes (roots / preset / recursive / dates / globs)', () => {
-    const s = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null };
+    const s = {
+      roots: ['/a'],
+      globs: [],
+      extension_preset: 'jpg',
+      recursive: true,
+      date_from: null,
+      date_to: null,
+    };
     const k = scanScopeKey(s);
     expect(scanScopeKey({ ...s, roots: ['/b'] })).not.toBe(k);
     expect(scanScopeKey({ ...s, globs: ['*.jpg'] })).not.toBe(k);
@@ -85,8 +120,20 @@ describe('scanScopeKey', () => {
   });
 
   it('normalizes a missing field to null so absent vs. explicit-null key the same', () => {
-    const withNull = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true, date_from: null, date_to: null };
-    const missing = { roots: ['/a'], globs: [], extension_preset: 'jpg', recursive: true };
+    const withNull = {
+      roots: ['/a'],
+      globs: [],
+      extension_preset: 'jpg',
+      recursive: true,
+      date_from: null,
+      date_to: null,
+    };
+    const missing = {
+      roots: ['/a'],
+      globs: [],
+      extension_preset: 'jpg',
+      recursive: true,
+    };
     expect(scanScopeKey(missing)).toBe(scanScopeKey(withNull));
   });
 });

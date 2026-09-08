@@ -33,7 +33,13 @@ export function clampZoom(value, min = MIN_ZOOM, max = MAX_ZOOM) {
  * @param {{ min?: number, max?: number }} [bounds]
  * @returns {{ zoomFactor: number, pan: {x: number, y: number} }}
  */
-export function computeZoom(state, factor, centerX = null, centerY = null, bounds = {}) {
+export function computeZoom(
+  state,
+  factor,
+  centerX = null,
+  centerY = null,
+  bounds = {},
+) {
   const { min = MIN_ZOOM, max = MAX_ZOOM } = bounds;
   const oldZoom = state.zoomFactor;
   const newZoom = clampZoom(oldZoom * factor, min, max);
@@ -43,7 +49,7 @@ export function computeZoom(state, factor, centerX = null, centerY = null, bound
     const ratio = newZoom / oldZoom;
     pan = {
       x: centerX - (centerX - state.pan.x) * ratio,
-      y: centerY - (centerY - state.pan.y) * ratio
+      y: centerY - (centerY - state.pan.y) * ratio,
     };
   }
 
@@ -65,6 +71,6 @@ export function centerPan(rect, zoomFactor, viewportWidth, viewportHeight) {
   const centerY = rect.y + rect.height / 2;
   return {
     x: viewportWidth / 2 - centerX * zoomFactor,
-    y: viewportHeight / 2 - centerY * zoomFactor
+    y: viewportHeight / 2 - centerY * zoomFactor,
   };
 }

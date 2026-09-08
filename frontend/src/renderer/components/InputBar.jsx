@@ -48,11 +48,11 @@ export function InputBar({
       onChange(next);
       onAutoApply?.(next);
     },
-    [value, onChange, onAutoApply]
+    [value, onChange, onAutoApply],
   );
   const patch = useCallback(
     (partial) => onChange({ ...value, ...partial }),
-    [value, onChange]
+    [value, onChange],
   );
 
   const addFolders = useCallback(async () => {
@@ -71,10 +71,11 @@ export function InputBar({
   // never publish an empty scope: the parent would keep the last non-empty one.
   const removeRoot = useCallback(
     (root) => patchAndApply({ roots: value.roots.filter((r) => r !== root) }),
-    [value.roots, patchAndApply]
+    [value.roots, patchAndApply],
   );
 
-  const canSubmit = !busy && (value.roots.length > 0 || value.glob.trim() !== '');
+  const canSubmit =
+    !busy && (value.roots.length > 0 || value.glob.trim() !== '');
 
   const submit = useCallback(() => {
     if (canSubmit) onSubmit();
@@ -84,7 +85,7 @@ export function InputBar({
     (e) => {
       if (e.key === 'Enter') submit();
     },
-    [submit]
+    [submit],
   );
 
   return (

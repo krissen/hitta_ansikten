@@ -17,8 +17,11 @@
   font-weight: 500;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background var(--transition-base), transform var(--transition-fast),
-    border-color var(--transition-base), filter var(--transition-base);
+  transition:
+    background var(--transition-base),
+    transform var(--transition-fast),
+    border-color var(--transition-base),
+    filter var(--transition-base);
 }
 
 .btn:active:not(:disabled) {
@@ -120,8 +123,11 @@
   cursor: pointer;
   color: var(--text-primary);
   background: transparent;
-  transition: background var(--transition-base), transform var(--transition-fast),
-    box-shadow var(--transition-base), color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    transform var(--transition-fast),
+    box-shadow var(--transition-base),
+    color var(--transition-base);
 }
 
 .icon-btn:active:not(:disabled) {
@@ -286,7 +292,8 @@
 .alert__dismiss {
   flex-shrink: 0;
   color: inherit;
-  margin: calc(-1 * var(--space-xs)) calc(-1 * var(--space-xs)) calc(-1 * var(--space-xs)) 0;
+  margin: calc(-1 * var(--space-xs)) calc(-1 * var(--space-xs))
+    calc(-1 * var(--space-xs)) 0;
 }
 
 .alert--success {

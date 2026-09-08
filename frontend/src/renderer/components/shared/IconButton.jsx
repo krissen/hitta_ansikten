@@ -38,7 +38,10 @@ export function IconButton({
   ...rest
 }) {
   if (!label) {
-    debugWarn('IconButton', `Missing required "label" prop for icon "${icon}" (needed for aria-label + title)`);
+    debugWarn(
+      'IconButton',
+      `Missing required "label" prop for icon "${icon}" (needed for aria-label + title)`,
+    );
   }
 
   const classes = [
@@ -46,7 +49,9 @@ export function IconButton({
     `icon-btn--${variant}`,
     `icon-btn--${size}`,
     className,
-  ].filter(Boolean).join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   // Icon scales with the button size; sm renders a slightly smaller glyph.
   const iconSize = size === 'sm' ? 14 : 16;

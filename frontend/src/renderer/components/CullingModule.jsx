@@ -12,7 +12,13 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { t } from '../../i18n/index.js';
-import { Alert, Button, IconButton, EmptyState, Modal } from './shared/index.js';
+import {
+  Alert,
+  Button,
+  IconButton,
+  EmptyState,
+  Modal,
+} from './shared/index.js';
 import { useBackend } from '../context/BackendContext.jsx';
 import { useModuleEvent } from '../hooks/useModuleEvent.js';
 import { usePersistedValue } from '../hooks/usePersistedValue.js';
@@ -21,12 +27,28 @@ import { TrashPanel } from './TrashPanel.jsx';
 import { CullingGrid } from './CullingGrid.jsx';
 import { gridThumbnailCache } from '../shared/grid-thumbnail-cache.js';
 import { gridNavTarget } from './culling-grid-nav.js';
-import { preferences, DEFAULT_EXTERNAL_EDITOR } from '../workspace/preferences.js';
-import { getScanScope, setScanScope, scanScopeHasSelection, takeExternalLoad } from '../shared/scanScope.js';
+import {
+  preferences,
+  DEFAULT_EXTERNAL_EDITOR,
+} from '../workspace/preferences.js';
+import {
+  getScanScope,
+  setScanScope,
+  scanScopeHasSelection,
+  takeExternalLoad,
+} from '../shared/scanScope.js';
 import { getWorkingFolder } from '../shared/workingFolder.js';
 import { isTabsetActive } from '../hooks/useActiveTabset.js';
 import { extOf } from '../shared/fileExts.js';
-import { statsScopeFromQuery, scanScopeKey, isRaw, globBaseDir, basename, stripExt, cullingPresetFrom } from './culling/cullingQueryUtils.js';
+import {
+  statsScopeFromQuery,
+  scanScopeKey,
+  isRaw,
+  globBaseDir,
+  basename,
+  stripExt,
+  cullingPresetFrom,
+} from './culling/cullingQueryUtils.js';
 import { CullingStats } from './culling/StatsPanel.jsx';
 import { useCullingPreview } from './culling/useCullingPreview.js';
 import { useDecodedImage } from '../hooks/useDecodedImage.js';
@@ -120,12 +142,22 @@ export function CullingModule({ node }) {
   // leftWidthPct is clamped to the drag range on read; statsWidth gets a lower
   // bound here and is additionally clamped against the live window width on
   // mount (a width saved on a wide window must not squash a narrow one).
-  const [statsWidth, setStatsWidth] = usePersistedValue(STATS_WIDTH_KEY, STATS_WIDTH_DEFAULT, {
-    parse: (raw) => Math.max(STATS_WIDTH_MIN, parseStoredNumber(raw, STATS_WIDTH_DEFAULT)),
-  });
-  const [leftWidthPct, setLeftWidthPct] = usePersistedValue(LIST_PCT_KEY, LIST_PCT_DEFAULT, {
-    parse: (raw) => Math.min(70, Math.max(15, parseStoredNumber(raw, LIST_PCT_DEFAULT))),
-  });
+  const [statsWidth, setStatsWidth] = usePersistedValue(
+    STATS_WIDTH_KEY,
+    STATS_WIDTH_DEFAULT,
+    {
+      parse: (raw) =>
+        Math.max(STATS_WIDTH_MIN, parseStoredNumber(raw, STATS_WIDTH_DEFAULT)),
+    },
+  );
+  const [leftWidthPct, setLeftWidthPct] = usePersistedValue(
+    LIST_PCT_KEY,
+    LIST_PCT_DEFAULT,
+    {
+      parse: (raw) =>
+        Math.min(70, Math.max(15, parseStoredNumber(raw, LIST_PCT_DEFAULT))),
+    },
+  );
 
   // View mode: 'single' (loupe, default) or 'grid' (thumbnail overview). Persisted.
   const [viewMode, setViewMode] = usePersistedValue(VIEW_MODE_KEY, 'single', {
@@ -198,7 +230,7 @@ export function CullingModule({ node }) {
       name_glob: glob.trim() || null,
       ...overrides,
     }),
-    [roots, carriedGlobs, preset, recursive, dateFrom, dateTo, player, glob]
+    [roots, carriedGlobs, preset, recursive, dateFrom, dateTo, player, glob],
   );
 
   // ----- folder watching (live refresh) ------------------------------
@@ -321,10 +353,11 @@ export function CullingModule({ node }) {
           // (filtered out) → the next item already slid into prev's slot, stay.
           if (advanceTo) {
             const j = data.files.findIndex((f) => f.path === advanceTo);
-            const target = j >= 0 ? j + 1 : (prev >= 0 ? prev : 0);
+            const target = j >= 0 ? j + 1 : prev >= 0 ? prev : 0;
             return Math.min(target, data.files.length - 1);
           }
-          if (keepIndex && prev >= 0) return Math.min(prev, data.files.length - 1);
+          if (keepIndex && prev >= 0)
+            return Math.min(prev, data.files.length - 1);
           return 0;
         });
       } catch (err) {
@@ -338,7 +371,7 @@ export function CullingModule({ node }) {
         }
       }
     },
-    [api]
+    [api],
   );
 
   // Live per-player counts for the scan scope (no player filter), so the panel
@@ -375,7 +408,7 @@ export function CullingModule({ node }) {
         if (seq === statsSeqRef.current) setStatsLoading(false);
       }
     },
-    [api]
+    [api],
   );
 
   // Trailing-debounced stats refresh for the mutation paths (cull/restore), so
@@ -383,7 +416,9 @@ export function CullingModule({ node }) {
   const refreshStatsDebounced = useCallback(() => {
     if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
     statsDebounceRef.current = setTimeout(() => {
-      loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
+      loadStats(
+        statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current),
+      );
     }, REFRESH_DEBOUNCE_MS);
   }, [loadStats]);
 
@@ -392,9 +427,12 @@ export function CullingModule({ node }) {
   useEffect(
     () =>
       subscribePlayerSession(() => {
-        if (lastQueryRef.current) loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
+        if (lastQueryRef.current)
+          loadStats(
+            statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current),
+          );
       }),
-    [loadStats]
+    [loadStats],
   );
 
   // Refetch the stats column when the shared counting settings change (baseline
@@ -408,15 +446,22 @@ export function CullingModule({ node }) {
   useEffect(() => {
     if (lastCountSettingsRef.current === countSettings) return;
     lastCountSettingsRef.current = countSettings;
-    if (lastQueryRef.current) loadStatsRef.current(statsScopeFromQuery(lastQueryRef.current, countSettings));
+    if (lastQueryRef.current)
+      loadStatsRef.current(
+        statsScopeFromQuery(lastQueryRef.current, countSettings),
+      );
   }, [countSettings]);
 
   // Right-click on a name in the stats column: session bucket moves +
   // permanent publik (shared semantics with Räkna spelare).
-  const { menu: nameMenu, openMenu: openNameMenu, closeMenu: closeNameMenu } = useContextMenu();
+  const {
+    menu: nameMenu,
+    openMenu: openNameMenu,
+    closeMenu: closeNameMenu,
+  } = useContextMenu();
   const handleNameContextMenu = useCallback(
     (e, name, bucket) => openNameMenu(e, { name, bucket }),
-    [openNameMenu]
+    [openNameMenu],
   );
   const makePublikPermanent = useCallback(
     async (name) => {
@@ -426,17 +471,22 @@ export function CullingModule({ node }) {
         setError(err.message || String(err));
       }
     },
-    [api]
+    [api],
   );
-  const nameMenuItems = nameMenu ? buildPlayerMenuItems(nameMenu.bucket, makePublikPermanent) : [];
+  const nameMenuItems = nameMenu
+    ? buildPlayerMenuItems(nameMenu.bucket, makePublikPermanent)
+    : [];
 
-  const runFilter = useCallback((overrides = {}) => {
-    const query = buildQuery(overrides);
-    lastQueryRef.current = query;
-    loadList(query);
-    loadStats(statsScopeFromQuery(query, countSettingsRef.current));
-    updateWatches(watchDirs());
-  }, [buildQuery, loadList, loadStats, updateWatches, watchDirs]);
+  const runFilter = useCallback(
+    (overrides = {}) => {
+      const query = buildQuery(overrides);
+      lastQueryRef.current = query;
+      loadList(query);
+      loadStats(statsScopeFromQuery(query, countSettingsRef.current));
+      updateWatches(watchDirs());
+    },
+    [buildQuery, loadList, loadStats, updateWatches, watchDirs],
+  );
 
   // Remove one folder chip and re-scan with the remaining scan sources (same
   // failure class as the stats module's chips, which used to only setRoots
@@ -447,25 +497,36 @@ export function CullingModule({ node }) {
   // must keep scanning the glob, not discard the selection. The re-scan is
   // skipped until a query has actually run — while the user is still assembling
   // the folder set (e.g. a working-folder prefill) there's nothing to recompute.
-  const removeRoot = useCallback((r) => {
-    const remaining = roots.filter((x) => x !== r);
-    if (remaining.length === 0 && carriedGlobs.length === 0) {
-      clearWorkspace();
-      return;
-    }
-    setRoots(remaining);
-    if (!lastQueryRef.current) return;
-    const query = buildQuery({ roots: remaining });
-    lastQueryRef.current = query;
-    loadList(query);
-    loadStats(statsScopeFromQuery(query, countSettingsRef.current));
-    const dirs = new Set(remaining);
-    for (const g of carriedGlobs) {
-      const base = globBaseDir(g);
-      if (base) dirs.add(base);
-    }
-    updateWatches(dirs);
-  }, [roots, carriedGlobs, buildQuery, loadList, loadStats, updateWatches, clearWorkspace]);
+  const removeRoot = useCallback(
+    (r) => {
+      const remaining = roots.filter((x) => x !== r);
+      if (remaining.length === 0 && carriedGlobs.length === 0) {
+        clearWorkspace();
+        return;
+      }
+      setRoots(remaining);
+      if (!lastQueryRef.current) return;
+      const query = buildQuery({ roots: remaining });
+      lastQueryRef.current = query;
+      loadList(query);
+      loadStats(statsScopeFromQuery(query, countSettingsRef.current));
+      const dirs = new Set(remaining);
+      for (const g of carriedGlobs) {
+        const base = globBaseDir(g);
+        if (base) dirs.add(base);
+      }
+      updateWatches(dirs);
+    },
+    [
+      roots,
+      carriedGlobs,
+      buildQuery,
+      loadList,
+      loadStats,
+      updateWatches,
+      clearWorkspace,
+    ],
+  );
 
   // Auto-refresh on folder change.
   useEffect(() => {
@@ -474,7 +535,9 @@ export function CullingModule({ node }) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         loadList(lastQueryRef.current, { keepIndex: true });
-        loadStats(statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current));
+        loadStats(
+          statsScopeFromQuery(lastQueryRef.current, countSettingsRef.current),
+        );
         // Re-check the current file too — if it was re-exported in place, the
         // preview needs to reload the new bytes (same path, changed content).
         bumpPreview();
@@ -484,7 +547,8 @@ export function CullingModule({ node }) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       if (statsDebounceRef.current) clearTimeout(statsDebounceRef.current);
       if (unsubscribe) unsubscribe();
-      for (const dir of watchedDirsRef.current) window.ansiktenAPI.unwatchFolder?.(dir);
+      for (const dir of watchedDirsRef.current)
+        window.ansiktenAPI.unwatchFolder?.(dir);
       watchedDirsRef.current = new Set();
       // Free the overview grid's blob URLs on teardown (all tabs stay mounted —
       // enableRenderOnDemand:false — so this runs only on genuine close, not a
@@ -518,13 +582,16 @@ export function CullingModule({ node }) {
   // Filter the file list to a player (stats-row click, loupe mode; and grid
   // double-click). Selecting the already-active player clears the filter — same
   // hand-off as the player dropdown.
-  const filterToPlayer = useCallback((name) => {
-    selectPlayer(name);
-    if (lastQueryRef.current) {
-      const g = name ? `*${name}*` : '';
-      runFilter({ player: name || null, name_glob: g || null });
-    }
-  }, [selectPlayer, runFilter]);
+  const filterToPlayer = useCallback(
+    (name) => {
+      selectPlayer(name);
+      if (lastQueryRef.current) {
+        const g = name ? `*${name}*` : '';
+        runFilter({ player: name || null, name_glob: g || null });
+      }
+    },
+    [selectPlayer, runFilter],
+  );
 
   // Open filtered to a player from the stats module, honouring the count's full
   // scope: folders OR path-globs, the date span, and the recursion flag.
@@ -575,7 +642,7 @@ export function CullingModule({ node }) {
       }
       updateWatches(dirs);
     },
-    [loadList, loadStats, updateWatches]
+    [loadList, loadStats, updateWatches],
   );
 
   // CLI hand-off (`ansikten culling DIR`): set the folder scope and run.
@@ -625,7 +692,7 @@ export function CullingModule({ node }) {
       loadStats(statsScopeFromQuery(query, countSettingsRef.current));
       updateWatches(new Set(nextRoots));
     },
-    [roots, preset, loadList, loadStats, updateWatches, clearWorkspace]
+    [roots, preset, loadList, loadStats, updateWatches, clearWorkspace],
   );
 
   // On open, adopt the shared scan scope (e.g. coming from Räkna spelare) when
@@ -672,46 +739,55 @@ export function CullingModule({ node }) {
     // Watch roots AND each path-glob's base dir, so a glob-only mirrored scope
     // (e.g. adopted from Räkna spelare) still auto-refreshes on file changes.
     const dirs = new Set(s.roots || []);
-    for (const g of (s.globs || [])) {
+    for (const g of s.globs || []) {
       const base = globBaseDir(g);
       if (base) dirs.add(base);
     }
     updateWatches(dirs);
-
   }, []);
 
   // ----- cull loop ----------------------------------------------------
-  const trashIndex = useCallback(async (index) => {
-    if (index < 0 || index >= files.length) return;
-    const victim = files[index];
-    // Optimistic: drop from list, advance.
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-    setCurrentIndex((prev) => {
-      const nextLen = files.length - 1;
-      if (nextLen === 0) return -1;
-      return Math.min(prev, nextLen - 1);
-    });
-    try {
-      const res = await api.post('/api/v1/culling/trash', { paths: [victim.path] });
-      const id = res.trashed?.[0]?.id;
-      if (id) {
-        undoStackRef.current.push(id);
-        // Reflect the removed image in the live counts (debounced for fast culling).
-        refreshStatsDebounced();
-      } else {
-        // 200 with errors[] (permission/lock/race): the file is still on disk, so
-        // roll the optimistic removal back by reloading and surface the reason.
-        setError(res.errors?.[0]?.error || t('culling.errors.trashFailed'));
-        if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
+  const trashIndex = useCallback(
+    async (index) => {
+      if (index < 0 || index >= files.length) return;
+      const victim = files[index];
+      // Optimistic: drop from list, advance.
+      setFiles((prev) => prev.filter((_, i) => i !== index));
+      setCurrentIndex((prev) => {
+        const nextLen = files.length - 1;
+        if (nextLen === 0) return -1;
+        return Math.min(prev, nextLen - 1);
+      });
+      try {
+        const res = await api.post('/api/v1/culling/trash', {
+          paths: [victim.path],
+        });
+        const id = res.trashed?.[0]?.id;
+        if (id) {
+          undoStackRef.current.push(id);
+          // Reflect the removed image in the live counts (debounced for fast culling).
+          refreshStatsDebounced();
+        } else {
+          // 200 with errors[] (permission/lock/race): the file is still on disk, so
+          // roll the optimistic removal back by reloading and surface the reason.
+          setError(res.errors?.[0]?.error || t('culling.errors.trashFailed'));
+          if (lastQueryRef.current)
+            loadList(lastQueryRef.current, { keepIndex: true });
+        }
+      } catch (err) {
+        setError(err.message || String(err));
+        // Re-fetch to recover correct state on failure.
+        if (lastQueryRef.current)
+          loadList(lastQueryRef.current, { keepIndex: true });
       }
-    } catch (err) {
-      setError(err.message || String(err));
-      // Re-fetch to recover correct state on failure.
-      if (lastQueryRef.current) loadList(lastQueryRef.current, { keepIndex: true });
-    }
-  }, [api, files, loadList, refreshStatsDebounced]);
+    },
+    [api, files, loadList, refreshStatsDebounced],
+  );
 
-  const trashCurrent = useCallback(() => trashIndex(currentIndex), [trashIndex, currentIndex]);
+  const trashCurrent = useCallback(
+    () => trashIndex(currentIndex),
+    [trashIndex, currentIndex],
+  );
 
   const undoTrash = useCallback(async () => {
     // Pop until a still-trashed id restores - ids restored via the trash view
@@ -738,13 +814,16 @@ export function CullingModule({ node }) {
   // ----- inline rename -----------------------------------------------
   // Edit the filename without its extension (Finder-style); the extension is
   // re-appended on commit so the YYMMDD_HHMMSS… format / suffix is preserved.
-  const beginEdit = useCallback((index) => {
-    const f = files[index];
-    if (!f) return;
-    setCurrentIndex(index);
-    setEditValue(stripExt(f.basename));
-    setEditPath(f.path);
-  }, [files]);
+  const beginEdit = useCallback(
+    (index) => {
+      const f = files[index];
+      if (!f) return;
+      setCurrentIndex(index);
+      setEditValue(stripExt(f.basename));
+      setEditPath(f.path);
+    },
+    [files],
+  );
 
   const cancelEdit = useCallback(() => setEditPath(null), []);
 
@@ -754,19 +833,22 @@ export function CullingModule({ node }) {
   // loadList, so a rename that drops the file from a player/glob filter doesn't
   // skip the file that slides into its slot. The pending ref makes it robust to
   // a racing folder-watch refresh.
-  const reloadAfterRename = useCallback((newPath) => {
-    if (!lastQueryRef.current) return;
-    if (preferences.get('culling.autoAdvanceAfterRename') !== false) {
-      pendingAdvanceRef.current = newPath;
-      loadList(lastQueryRef.current, { advancePastPath: newPath });
-    } else {
-      loadList(lastQueryRef.current, { keepIndex: true });
-    }
-    // Return focus to the list so keyboard nav continues without a click — the
-    // inline rename input has unmounted and a name-overlay checkbox would
-    // otherwise keep focus and swallow arrow keys.
-    focusList();
-  }, [loadList, focusList]);
+  const reloadAfterRename = useCallback(
+    (newPath) => {
+      if (!lastQueryRef.current) return;
+      if (preferences.get('culling.autoAdvanceAfterRename') !== false) {
+        pendingAdvanceRef.current = newPath;
+        loadList(lastQueryRef.current, { advancePastPath: newPath });
+      } else {
+        loadList(lastQueryRef.current, { keepIndex: true });
+      }
+      // Return focus to the list so keyboard nav continues without a click — the
+      // inline rename input has unmounted and a name-overlay checkbox would
+      // otherwise keep focus and swallow arrow keys.
+      focusList();
+    },
+    [loadList, focusList],
+  );
 
   const commitEdit = useCallback(async () => {
     const path = editPath;
@@ -778,7 +860,10 @@ export function CullingModule({ node }) {
     const newBasename = next + extOf(basename(path));
     if (!next || newBasename === basename(path)) return; // no-op
     try {
-      const res = await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      const res = await api.post('/api/v1/culling/rename', {
+        path,
+        new_basename: newBasename,
+      });
       // Use the backend's actual new path (native separators) for identity;
       // fall back to a separator-agnostic dir swap if absent.
       const newPath = res?.path || path.replace(/[^/\\]+$/, '') + newBasename;
@@ -866,7 +951,14 @@ export function CullingModule({ node }) {
 
       // Navigation. In the grid, arrows/j/k move in 2-D (up/down by a full row);
       // in the loupe, movement is 1-D (next/previous). Alt pages either way.
-      const navKeys = ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'j', 'k'];
+      const navKeys = [
+        'ArrowDown',
+        'ArrowUp',
+        'ArrowLeft',
+        'ArrowRight',
+        'j',
+        'k',
+      ];
       if (navKeys.includes(e.key)) {
         e.preventDefault();
         if (viewModeRef.current === 'grid') {
@@ -877,20 +969,35 @@ export function CullingModule({ node }) {
           else if (e.key === 'ArrowDown' || e.key === 'j') dir = 'down';
           else dir = 'up'; // ArrowUp or k
           guardedNavigate(() =>
-            setCurrentIndex((i) => gridNavTarget(i, cols, files.length, dir, e.altKey))
+            setCurrentIndex((i) =>
+              gridNavTarget(i, cols, files.length, dir, e.altKey),
+            ),
           );
         } else {
           const step = e.altKey ? PAGE_STEP : 1;
-          if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'j') {
-            guardedNavigate(() => setCurrentIndex((i) => Math.min(i + step, files.length - 1)));
+          if (
+            e.key === 'ArrowDown' ||
+            e.key === 'ArrowRight' ||
+            e.key === 'j'
+          ) {
+            guardedNavigate(() =>
+              setCurrentIndex((i) => Math.min(i + step, files.length - 1)),
+            );
           } else {
-            guardedNavigate(() => setCurrentIndex((i) => Math.max(i - step, 0)));
+            guardedNavigate(() =>
+              setCurrentIndex((i) => Math.max(i - step, 0)),
+            );
           }
         }
         return;
       }
 
-      if (!e.altKey && (e.key === 'Delete' || e.key === 'Backspace' || e.key.toLowerCase() === 'x')) {
+      if (
+        !e.altKey &&
+        (e.key === 'Delete' ||
+          e.key === 'Backspace' ||
+          e.key.toLowerCase() === 'x')
+      ) {
         // Ignore the cull shortcut while a query is loading — `files` still
         // holds the previous filter, so culling now would trash the wrong file.
         e.preventDefault();
@@ -979,7 +1086,12 @@ export function CullingModule({ node }) {
       // Text fields (rename input, glob, dropdown) handle these keys themselves
       // and already stop their own propagation; don't intercept them. A checkbox
       // in the name overlay is fine to intercept.
-      if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (
+        (tag === 'INPUT' && e.target.type !== 'checkbox') ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT'
+      )
+        return;
       // A focused clickable stats row (role="button", accessibility.md §2) owns
       // Enter/Space itself — yield so a keyed Enter there filters to the player
       // instead of starting a rename. Guarded for non-elements (document/body)
@@ -1050,7 +1162,8 @@ export function CullingModule({ node }) {
   // like ImageViewer's).
   useEffect(() => {
     const onZoomKeyCapture = (e) => {
-      if (e.key !== '+' && e.key !== '-' && e.key !== '=' && e.key !== '0') return;
+      if (e.key !== '+' && e.key !== '-' && e.key !== '=' && e.key !== '0')
+        return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (!isTabsetActive(node)) return;
       if (showTrash) return;
@@ -1058,7 +1171,12 @@ export function CullingModule({ node }) {
       const tag = e.target?.tagName;
       // Text entry (rename input, glob, dropdown) must keep the keys — "+",
       // "-", "0" and "=" are all typeable characters there.
-      if ((tag === 'INPUT' && e.target.type !== 'checkbox') || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (
+        (tag === 'INPUT' && e.target.type !== 'checkbox') ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT'
+      )
+        return;
       if (viewModeRef.current !== 'single' || !loupeImageRef.current) return;
 
       e.preventDefault();
@@ -1073,7 +1191,8 @@ export function CullingModule({ node }) {
       }
     };
     document.addEventListener('keydown', onZoomKeyCapture, true);
-    return () => document.removeEventListener('keydown', onZoomKeyCapture, true);
+    return () =>
+      document.removeEventListener('keydown', onZoomKeyCapture, true);
   }, [node, showTrash]);
 
   // Dismiss the context menu on any click, a fresh right-click elsewhere,
@@ -1123,7 +1242,7 @@ export function CullingModule({ node }) {
         refreshStatsDebounced();
       }
     },
-    [loadList, refreshStatsDebounced]
+    [loadList, refreshStatsDebounced],
   );
 
   // ----- divider drag ------------------------------------------------
@@ -1181,7 +1300,10 @@ export function CullingModule({ node }) {
     if (!el) return;
     const compute = () => {
       const w = el.clientWidth - GRID_GAP * 2; // grid has GRID_GAP padding both sides
-      colsRef.current = Math.max(1, Math.floor((w + GRID_GAP) / (GRID_CELL_MIN + GRID_GAP)));
+      colsRef.current = Math.max(
+        1,
+        Math.floor((w + GRID_GAP) / (GRID_CELL_MIN + GRID_GAP)),
+      );
     };
     compute();
     const ro = new ResizeObserver(compute);
@@ -1197,9 +1319,11 @@ export function CullingModule({ node }) {
   useEffect(() => {
     const body = bodyRef.current;
     if (!body) return;
-    const max = Math.max(STATS_WIDTH_MIN, body.getBoundingClientRect().width - 300);
+    const max = Math.max(
+      STATS_WIDTH_MIN,
+      body.getBoundingClientRect().width - 300,
+    );
     setStatsWidth((w) => Math.min(w, max));
-
   }, []);
 
   const current = currentIndex >= 0 ? files[currentIndex] : null;
@@ -1210,12 +1334,16 @@ export function CullingModule({ node }) {
   // are declared earlier (above the keyboard + dialog effects that list them in
   // their dependency arrays). Reset the toggle when the selected file changes —
   // overrides are per file.
-  useEffect(() => { setRemovedNames(new Set()); }, [current?.path]);
+  useEffect(() => {
+    setRemovedNames(new Set());
+  }, [current?.path]);
 
   const currentNames = current ? namesInBasename(current.basename) : [];
-  const previewBasename = current && removedNames.size
-    ? (removeNamesFromBasename(current.basename, removedNames) || current.basename)
-    : (current?.basename || '');
+  const previewBasename =
+    current && removedNames.size
+      ? removeNamesFromBasename(current.basename, removedNames) ||
+        current.basename
+      : current?.basename || '';
   const namePreviewPending = !!current && previewBasename !== current.basename;
 
   const toggleName = useCallback((name) => {
@@ -1235,7 +1363,10 @@ export function CullingModule({ node }) {
     if (!newBasename || newBasename === current.basename) return;
     const path = current.path;
     try {
-      const res = await api.post('/api/v1/culling/rename', { path, new_basename: newBasename });
+      const res = await api.post('/api/v1/culling/rename', {
+        path,
+        new_basename: newBasename,
+      });
       setRemovedNames(new Set());
       // Use the backend's actual new path (native separators) for identity;
       // fall back to a separator-agnostic dir swap if absent.
@@ -1261,24 +1392,38 @@ export function CullingModule({ node }) {
     // Defaults here too so the scanned root, the IPC payload, and any error
     // message all agree even if a preference is unset or cleared.
     const rawRoot = preferences.get('paths.rawRoot') || '~/Pictures/nerladdat';
-    const editor = preferences.get('paths.externalEditor') || DEFAULT_EXTERNAL_EDITOR;
+    const editor =
+      preferences.get('paths.externalEditor') || DEFAULT_EXTERNAL_EDITOR;
     try {
-      const res = await window.ansiktenAPI?.invoke('open-raw-in-lightroom', { imagePath, rawRoot, editor });
+      const res = await window.ansiktenAPI?.invoke('open-raw-in-lightroom', {
+        imagePath,
+        rawRoot,
+        editor,
+      });
       if (res?.ok) return;
       const reason = res?.reason;
       if (reason === 'not-found') {
-        setError(t('culling.errors.nefNotFound', { token: res.token, rawRoot }));
+        setError(
+          t('culling.errors.nefNotFound', { token: res.token, rawRoot }),
+        );
       } else if (reason === 'no-timestamp') {
         setError(t('culling.errors.noTimestamp'));
       } else if (reason === 'scan-error') {
-        setError(t('culling.errors.scanError', { rawRoot, detail: res?.error ? `: ${res.error}` : '' }));
+        setError(
+          t('culling.errors.scanError', {
+            rawRoot,
+            detail: res?.error ? `: ${res.error}` : '',
+          }),
+        );
       } else if (reason === 'unsupported-platform') {
         setError(t('culling.errors.unsupportedPlatform'));
       } else {
-        setError(t('culling.errors.editorFailed', {
-          editor: res?.editor || editor,
-          detail: res?.error ? `: ${res.error}` : ''
-        }));
+        setError(
+          t('culling.errors.editorFailed', {
+            editor: res?.editor || editor,
+            detail: res?.error ? `: ${res.error}` : '',
+          }),
+        );
       }
     } catch (err) {
       setError(err.message || String(err));
@@ -1303,8 +1448,11 @@ export function CullingModule({ node }) {
   // loupe, so decoding is suspended there (null URL) — otherwise every grid
   // click/arrow would decode a full-res image nobody sees. Entering single view
   // hands the current URL back in and the decode runs then.
-  const { image: loupeImage, loading: decodeLoading, error: decodeError } =
-    useDecodedImage(viewMode === 'single' ? previewUrl : null);
+  const {
+    image: loupeImage,
+    loading: decodeLoading,
+    error: decodeError,
+  } = useDecodedImage(viewMode === 'single' ? previewUrl : null);
 
   // Imperative handle to the loupe viewer; reset to auto-fit when a new FILE's
   // image arrives (matches ImageViewer's load). Keyed on currentPath, not on
@@ -1331,7 +1479,13 @@ export function CullingModule({ node }) {
       <CullingFilterBar
         addFolders={addFolders}
         clearWorkspace={clearWorkspace}
-        canClear={roots.length > 0 || carriedGlobs.length > 0 || hasRun || files.length > 0 || isLoading}
+        canClear={
+          roots.length > 0 ||
+          carriedGlobs.length > 0 ||
+          hasRun ||
+          files.length > 0 ||
+          isLoading
+        }
         preset={preset}
         setPreset={setPreset}
         runFilter={runFilter}
@@ -1370,7 +1524,11 @@ export function CullingModule({ node }) {
       )}
 
       {error && (
-        <Alert variant="error" onDismiss={() => setError(null)} className="culling-error">
+        <Alert
+          variant="error"
+          onDismiss={() => setError(null)}
+          className="culling-error"
+        >
           {error}
         </Alert>
       )}
@@ -1409,129 +1567,167 @@ export function CullingModule({ node }) {
           />
           <div className="culling-stats-divider" onMouseDown={startStatsDrag} />
           {viewMode === 'single' ? (
-          <div className="culling-main" ref={mainRef}>
-          <div className="culling-list" style={{ width: `${leftWidthPct}%` }}>
-            <div className="culling-list-header">
-              {t('culling.list.count', { count: files.length })}{player ? t('culling.list.playerSuffix', { player }) : ''}
-            </div>
-            {!hasRun && !isLoading && (
-              <EmptyState title={<>{t('culling.empty.pickFolder')} <strong>{t('culling.filterBar.show')}</strong>.</>} />
-            )}
-            {hasRun && files.length === 0 && !isLoading && (
-              <EmptyState title={t('culling.empty.noImages')} />
-            )}
-            <ul
-              className="culling-files"
-              ref={listRef}
-              tabIndex={-1}
-              role="listbox"
-              aria-label={t('culling.list.label')}
-              aria-activedescendant={currentIndex >= 0 ? `culling-file-row-${currentIndex}` : undefined}
-            >
-              {files.map((f, i) => (
-                <li
-                  key={f.path}
-                  id={`culling-file-row-${i}`}
-                  role="option"
-                  aria-selected={i === currentIndex}
-                  className={`${i === currentIndex ? 'active row-selected' : ''}${i === currentIndex && namePreviewPending ? ' pending' : ''}`}
-                  onClick={() => guardedNavigate(() => setCurrentIndex(i))}
-                  onDoubleClick={() => beginEdit(i)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setCurrentIndex(i);
-                    setMenu({ x: e.clientX, y: e.clientY, path: f.path });
-                  }}
-                >
-                  {editPath === f.path ? (
-                    <input
-                      className="culling-rename-input"
-                      value={editValue}
-                      autoFocus
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => {
-                        // Keep editing keystrokes inside the input: stop them
-                        // bubbling to document-level handlers (e.g. ReviewModule
-                        // confirming a face from the rename draft in a split view).
-                        e.stopPropagation();
-                        if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
-                        else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
-                      }}
-                      onBlur={cancelEdit}
-                    />
-                  ) : (
-                    // The current row previews the toggled-off name live (orange
-                    // while uncommitted); other rows show their real basename.
-                    <span className="culling-file-name">
-                      {i === currentIndex && namePreviewPending ? previewBasename : f.basename}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="culling-divider" onMouseDown={startDrag} />
-
-          <div className="culling-preview">
-            {current && currentNames.length > 0 && (
-              <div className="culling-name-overlay">
-                <div className="culling-name-chips">
-                  {currentNames.map((name) => {
-                    const removed = removedNames.has(name);
-                    return (
-                      <label
-                        key={name}
-                        className={`culling-name-chip${removed ? ' removed' : ''}`}
-                        title={removed ? t('culling.names.restore', { name }) : t('culling.names.remove', { name })}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!removed}
-                          onChange={() => toggleName(name)}
-                        />
-                        <span>{name}</span>
-                      </label>
-                    );
-                  })}
+            <div className="culling-main" ref={mainRef}>
+              <div
+                className="culling-list"
+                style={{ width: `${leftWidthPct}%` }}
+              >
+                <div className="culling-list-header">
+                  {t('culling.list.count', { count: files.length })}
+                  {player ? t('culling.list.playerSuffix', { player }) : ''}
                 </div>
-                {namePreviewPending && (
-                  <div className="culling-name-hint">
-                    <kbd>⌘</kbd><kbd>↵</kbd> {t('culling.names.hintRename')} · <kbd>↵</kbd> {t('culling.names.hintUndo')}
+                {!hasRun && !isLoading && (
+                  <EmptyState
+                    title={
+                      <>
+                        {t('culling.empty.pickFolder')}{' '}
+                        <strong>{t('culling.filterBar.show')}</strong>.
+                      </>
+                    }
+                  />
+                )}
+                {hasRun && files.length === 0 && !isLoading && (
+                  <EmptyState title={t('culling.empty.noImages')} />
+                )}
+                <ul
+                  className="culling-files"
+                  ref={listRef}
+                  tabIndex={-1}
+                  role="listbox"
+                  aria-label={t('culling.list.label')}
+                  aria-activedescendant={
+                    currentIndex >= 0
+                      ? `culling-file-row-${currentIndex}`
+                      : undefined
+                  }
+                >
+                  {files.map((f, i) => (
+                    <li
+                      key={f.path}
+                      id={`culling-file-row-${i}`}
+                      role="option"
+                      aria-selected={i === currentIndex}
+                      className={`${i === currentIndex ? 'active row-selected' : ''}${i === currentIndex && namePreviewPending ? ' pending' : ''}`}
+                      onClick={() => guardedNavigate(() => setCurrentIndex(i))}
+                      onDoubleClick={() => beginEdit(i)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCurrentIndex(i);
+                        setMenu({ x: e.clientX, y: e.clientY, path: f.path });
+                      }}
+                    >
+                      {editPath === f.path ? (
+                        <input
+                          className="culling-rename-input"
+                          value={editValue}
+                          autoFocus
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            // Keep editing keystrokes inside the input: stop them
+                            // bubbling to document-level handlers (e.g. ReviewModule
+                            // confirming a face from the rename draft in a split view).
+                            e.stopPropagation();
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              commitEdit();
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              cancelEdit();
+                            }
+                          }}
+                          onBlur={cancelEdit}
+                        />
+                      ) : (
+                        // The current row previews the toggled-off name live (orange
+                        // while uncommitted); other rows show their real basename.
+                        <span className="culling-file-name">
+                          {i === currentIndex && namePreviewPending
+                            ? previewBasename
+                            : f.basename}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="culling-divider" onMouseDown={startDrag} />
+
+              <div className="culling-preview">
+                {current && currentNames.length > 0 && (
+                  <div className="culling-name-overlay">
+                    <div className="culling-name-chips">
+                      {currentNames.map((name) => {
+                        const removed = removedNames.has(name);
+                        return (
+                          <label
+                            key={name}
+                            className={`culling-name-chip${removed ? ' removed' : ''}`}
+                            title={
+                              removed
+                                ? t('culling.names.restore', { name })
+                                : t('culling.names.remove', { name })
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={!removed}
+                              onChange={() => toggleName(name)}
+                            />
+                            <span>{name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {namePreviewPending && (
+                      <div className="culling-name-hint">
+                        <kbd>⌘</kbd>
+                        <kbd>↵</kbd> {t('culling.names.hintRename')} ·{' '}
+                        <kbd>↵</kbd> {t('culling.names.hintUndo')}
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-            {/* Canvas loupe: stays mounted across file steps so its ref (and
+                {/* Canvas loupe: stays mounted across file steps so its ref (and
                 zoom/pan state) persist. The overlays below layer on top for the
                 empty/error/loading states; the canvas is transparent when it has
                 no image. */}
-            {current && (
-              <CanvasImageView
-                ref={loupeViewRef}
-                image={loupeImage}
-                ariaLabel={current.basename}
-              />
-            )}
-            {!current ? (
-              <EmptyState title={t('culling.empty.noImageSelected')} />
-            ) : previewError ? (
-              <Alert variant="error" className="culling-preview-error">{previewError}</Alert>
-            ) : previewLoading ? (
-              <EmptyState title={isRaw(currentPath) ? t('culling.preview.converting') : t('culling.preview.loading')} />
-            ) : decodeError ? (
-              <Alert variant="error" className="culling-preview-error">{t('culling.errors.imageLoadFailed')}</Alert>
-            ) : decodeLoading && !loupeImage ? (
-              // Decode in flight with nothing on screen yet (first image after a
-              // mount or view switch). A seamless step keeps the previous frame
-              // (loupeImage non-null), so no placeholder flashes then.
-              <EmptyState title={t('culling.preview.loading')} />
-            ) : null}
-          </div>
-          </div>
+                {current && (
+                  <CanvasImageView
+                    ref={loupeViewRef}
+                    image={loupeImage}
+                    ariaLabel={current.basename}
+                  />
+                )}
+                {!current ? (
+                  <EmptyState title={t('culling.empty.noImageSelected')} />
+                ) : previewError ? (
+                  <Alert variant="error" className="culling-preview-error">
+                    {previewError}
+                  </Alert>
+                ) : previewLoading ? (
+                  <EmptyState
+                    title={
+                      isRaw(currentPath)
+                        ? t('culling.preview.converting')
+                        : t('culling.preview.loading')
+                    }
+                  />
+                ) : decodeError ? (
+                  <Alert variant="error" className="culling-preview-error">
+                    {t('culling.errors.imageLoadFailed')}
+                  </Alert>
+                ) : decodeLoading && !loupeImage ? (
+                  // Decode in flight with nothing on screen yet (first image after a
+                  // mount or view switch). A seamless step keeps the previous frame
+                  // (loupeImage non-null), so no placeholder flashes then.
+                  <EmptyState title={t('culling.preview.loading')} />
+                ) : null}
+              </div>
+            </div>
           ) : (
             <CullingGrid
               files={files}
@@ -1539,7 +1735,10 @@ export function CullingModule({ node }) {
               highlightPlayer={highlightPlayer}
               gridRef={gridRef}
               onSelect={(i) => guardedNavigate(() => setCurrentIndex(i))}
-              onOpen={(i) => { setCurrentIndex(i); setViewMode('single'); }}
+              onOpen={(i) => {
+                setCurrentIndex(i);
+                setViewMode('single');
+              }}
               onContextMenu={(e, i, f) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1567,7 +1766,11 @@ export function CullingModule({ node }) {
 
       {/* Right-click menu on a name in the stats column (session moves +
           permanent publik, shared with Räkna spelare). */}
-      <ContextMenu menu={nameMenu} items={nameMenuItems} onClose={closeNameMenu} />
+      <ContextMenu
+        menu={nameMenu}
+        items={nameMenuItems}
+        onClose={closeNameMenu}
+      />
 
       {/* Unsaved name-change confirm dialog. Built on the shared Modal base for
           top-layer rendering + backdrop; its bespoke keyboard semantics (⌘↵ save,
@@ -1587,19 +1790,37 @@ export function CullingModule({ node }) {
           <>
             <Button
               variant="primary"
-              onClick={() => { commitNameToggleRef.current?.(); setConfirmNav(null); }}
+              onClick={() => {
+                commitNameToggleRef.current?.();
+                setConfirmNav(null);
+              }}
             >
-              {t('culling.confirmNav.save')} <span className="culling-menu-keys"><kbd>⌘</kbd><kbd>↵</kbd></span>
+              {t('culling.confirmNav.save')}{' '}
+              <span className="culling-menu-keys">
+                <kbd>⌘</kbd>
+                <kbd>↵</kbd>
+              </span>
             </Button>
             <Button
               variant="secondary"
               ref={discardBtnRef}
-              onClick={() => { setRemovedNames(new Set()); const run = confirmNav?.run; setConfirmNav(null); run?.(); }}
+              onClick={() => {
+                setRemovedNames(new Set());
+                const run = confirmNav?.run;
+                setConfirmNav(null);
+                run?.();
+              }}
             >
-              {t('culling.confirmNav.discard')} <span className="culling-menu-keys"><kbd>↵</kbd></span>
+              {t('culling.confirmNav.discard')}{' '}
+              <span className="culling-menu-keys">
+                <kbd>↵</kbd>
+              </span>
             </Button>
             <Button variant="ghost" onClick={() => setConfirmNav(null)}>
-              {t('culling.confirmNav.cancel')} <span className="culling-menu-keys"><kbd>Esc</kbd></span>
+              {t('culling.confirmNav.cancel')}{' '}
+              <span className="culling-menu-keys">
+                <kbd>Esc</kbd>
+              </span>
             </Button>
           </>
         }

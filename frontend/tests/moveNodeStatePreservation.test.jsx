@@ -32,9 +32,20 @@ beforeAll(() => {
       disconnect() {}
     };
   }
-  HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
-    return { x: 0, y: 0, top: 0, left: 0, right: 1200, bottom: 800, width: 1200, height: 800, toJSON() {} };
-  };
+  HTMLElement.prototype.getBoundingClientRect =
+    function getBoundingClientRect() {
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 1200,
+        bottom: 800,
+        width: 1200,
+        height: 800,
+        toJSON() {},
+      };
+    };
 });
 
 // Module-scoped observers so the probe can report across renders/moves.
@@ -47,12 +58,18 @@ function Probe() {
     // Mount-only effect: a genuine unmount+remount runs this again.
     spy.mounts += 1;
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
   // Publish the live setter + value so the test can mutate and read state.
   spy.setCounter = setCounter;
   spy.latestCounter = counter;
-  return <div className="probe" data-testid="probe">{counter}</div>;
+  return (
+    <div className="probe" data-testid="probe">
+      {counter}
+    </div>
+  );
 }
 
 function twoTabsetModel() {
@@ -72,7 +89,13 @@ function twoTabsetModel() {
           id: 'ts-left',
           weight: 50,
           children: [
-            { type: 'tab', id: 'probe-tab', name: 'Probe', component: 'probe', config: {} },
+            {
+              type: 'tab',
+              id: 'probe-tab',
+              name: 'Probe',
+              component: 'probe',
+              config: {},
+            },
           ],
         },
         {
@@ -80,7 +103,13 @@ function twoTabsetModel() {
           id: 'ts-right',
           weight: 50,
           children: [
-            { type: 'tab', id: 'other-tab', name: 'Other', component: 'other', config: {} },
+            {
+              type: 'tab',
+              id: 'other-tab',
+              name: 'Other',
+              component: 'other',
+              config: {},
+            },
           ],
         },
       ],
@@ -111,12 +140,16 @@ describe('SPIKE: Actions.moveNode preserves component state (flexlayout-react 0.
     expect(spy.latestCounter).toBe(0);
 
     // Mutate internal state — a remount would reset this back to 0.
-    await act(async () => { spy.setCounter(42); });
+    await act(async () => {
+      spy.setCounter(42);
+    });
     expect(spy.latestCounter).toBe(42);
 
     // Morph: move the probe tab into the right tabset (same node id retained).
     await act(async () => {
-      model.doAction(Actions.moveNode('probe-tab', 'ts-right', DockLocation.CENTER, -1));
+      model.doAction(
+        Actions.moveNode('probe-tab', 'ts-right', DockLocation.CENTER, -1),
+      );
     });
     await settle();
 
@@ -140,12 +173,16 @@ describe('SPIKE: Actions.moveNode preserves component state (flexlayout-react 0.
     });
     await settle();
     expect(spy.mounts).toBe(1);
-    await act(async () => { spy.setCounter(7); });
+    await act(async () => {
+      spy.setCounter(7);
+    });
 
     // Move the probe tab to a fresh split off the right tabset (RIGHT creates a
     // new tabset). This is the "addNode/moveNode into a new pane" morph shape.
     await act(async () => {
-      model.doAction(Actions.moveNode('probe-tab', 'ts-right', DockLocation.RIGHT, -1));
+      model.doAction(
+        Actions.moveNode('probe-tab', 'ts-right', DockLocation.RIGHT, -1),
+      );
     });
     await settle();
 

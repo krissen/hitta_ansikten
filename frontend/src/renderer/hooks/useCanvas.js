@@ -87,7 +87,7 @@ export function useAnimationFrame(renderFn, deps = []) {
   return {
     start,
     stop,
-    isRunning: isRunningRef.current
+    isRunning: isRunningRef.current,
   };
 }
 
@@ -132,7 +132,7 @@ export function useCanvas(canvasRef, containerRef) {
   return {
     dimensions,
     requestRender,
-    needsRender: needsRenderRef
+    needsRender: needsRenderRef,
   };
 }
 

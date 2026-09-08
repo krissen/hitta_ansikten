@@ -46,8 +46,22 @@ const UNDO_PREVIEW = {
   to_revert: 1,
   to_skip: 1,
   items: [
-    { from: '/p/250601_101500.NEF', to: '/p/DSC_1.NEF', from_name: '250601_101500.NEF', to_name: 'DSC_1.NEF', status: 'ok', reason: null },
-    { from: '/p/250601_101600.NEF', to: '/p/DSC_2.NEF', from_name: '250601_101600.NEF', to_name: 'DSC_2.NEF', status: 'skip', reason: 'filen saknas' },
+    {
+      from: '/p/250601_101500.NEF',
+      to: '/p/DSC_1.NEF',
+      from_name: '250601_101500.NEF',
+      to_name: 'DSC_1.NEF',
+      status: 'ok',
+      reason: null,
+    },
+    {
+      from: '/p/250601_101600.NEF',
+      to: '/p/DSC_2.NEF',
+      from_name: '250601_101600.NEF',
+      to_name: 'DSC_2.NEF',
+      status: 'skip',
+      reason: 'filen saknas',
+    },
   ],
 };
 
@@ -60,18 +74,39 @@ beforeEach(() => {
   h.api.get.mockReset();
   h.api.get.mockResolvedValue({
     batches: [
-      { batch_id: 'b1', ts: '2026-07-14T08:15:00+00:00', tool: 'rename-nef', op: 'rename', count: 2, undoable: true },
-      { batch_id: 'b0', ts: '2026-07-13T08:15:00+00:00', tool: 'import', op: 'copy', count: 3, undoable: false },
+      {
+        batch_id: 'b1',
+        ts: '2026-07-14T08:15:00+00:00',
+        tool: 'rename-nef',
+        op: 'rename',
+        count: 2,
+        undoable: true,
+      },
+      {
+        batch_id: 'b0',
+        ts: '2026-07-13T08:15:00+00:00',
+        tool: 'import',
+        op: 'copy',
+        count: 3,
+        undoable: false,
+      },
     ],
   });
   h.api.post.mockImplementation((path, body) => {
     if (path.includes('/rename-journal/undo')) {
       if (body.execute) {
         return Promise.resolve({
-          batch_id: 'b1', reverted: 1, skipped: 1, errors: 0,
+          batch_id: 'b1',
+          reverted: 1,
+          skipped: 1,
+          errors: 0,
           results: [
             { path: '/p/250601_101500.NEF', status: 'reverted', reason: null },
-            { path: '/p/250601_101600.NEF', status: 'skipped', reason: 'filen saknas' },
+            {
+              path: '/p/250601_101600.NEF',
+              status: 'skipped',
+              reason: 'filen saknas',
+            },
           ],
         });
       }
@@ -111,7 +146,9 @@ async function mountRename() {
 }
 
 async function clickButton(container, label) {
-  const btn = [...container.querySelectorAll('button')].find((b) => b.textContent === label);
+  const btn = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === label,
+  );
   if (!btn) throw new Error(`button not found: ${label}`);
   await act(async () => {
     fireEvent.click(btn);
@@ -145,10 +182,10 @@ describe('RenameNefModule — undo flow', () => {
     await clickButton(container, t('renameNef.undo'));
     await clickButton(container, t('renameNef.undoExecute'));
 
-    expect(h.api.post).toHaveBeenCalledWith(
-      '/api/v1/rename-journal/undo',
-      { batch_id: 'b1', execute: true },
-    );
+    expect(h.api.post).toHaveBeenCalledWith('/api/v1/rename-journal/undo', {
+      batch_id: 'b1',
+      execute: true,
+    });
     expect(container.textContent).toContain(t('renameNef.undone'));
     expect(h.showToast).toHaveBeenCalled();
   });
@@ -157,7 +194,16 @@ describe('RenameNefModule — undo flow', () => {
     // Only rename batches are undoable; an import move is filtered out, so the
     // flow shows the "nothing to undo" toast and no preview.
     h.api.get.mockResolvedValue({
-      batches: [{ batch_id: 'mv', ts: '2026-07-14T09:00:00+00:00', tool: 'import', op: 'move', count: 4, undoable: false }],
+      batches: [
+        {
+          batch_id: 'mv',
+          ts: '2026-07-14T09:00:00+00:00',
+          tool: 'import',
+          op: 'move',
+          count: 4,
+          undoable: false,
+        },
+      ],
     });
     const { container } = await mountRename();
     await clickButton(container, t('renameNef.undo'));
@@ -169,7 +215,16 @@ describe('RenameNefModule — undo flow', () => {
 
   it('shows a toast and no preview when there is no undoable batch', async () => {
     h.api.get.mockResolvedValue({
-      batches: [{ batch_id: 'b0', ts: '2026-07-13T08:15:00+00:00', tool: 'import', op: 'copy', count: 3, undoable: false }],
+      batches: [
+        {
+          batch_id: 'b0',
+          ts: '2026-07-13T08:15:00+00:00',
+          tool: 'import',
+          op: 'copy',
+          count: 3,
+          undoable: false,
+        },
+      ],
     });
     const { container } = await mountRename();
     await clickButton(container, t('renameNef.undo'));

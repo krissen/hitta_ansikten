@@ -77,8 +77,12 @@
   font-size: 0.9em;
 }
 
-.import-ok { color: var(--color-success); }
-.import-warn { color: var(--color-warning); }
+.import-ok {
+  color: var(--color-success);
+}
+.import-warn {
+  color: var(--color-warning);
+}
 
 .import-dest-used {
   font-size: 0.85em;

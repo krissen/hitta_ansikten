@@ -10,7 +10,7 @@ const TITLES = {
   'image-viewer': 'Bildvisare',
   'file-queue': 'Filkö',
   'review-module': 'Granska ansikten',
-  'culling': 'Gallra spelare',
+  culling: 'Gallra spelare',
 };
 
 describe('retranslateTabNames', () => {
@@ -19,8 +19,18 @@ describe('retranslateTabNames', () => {
       layout: {
         type: 'row',
         children: [
-          { type: 'tabset', children: [{ type: 'tab', name: 'Image Viewer', component: 'image-viewer' }] },
-          { type: 'tabset', children: [{ type: 'tab', name: 'File Queue', component: 'file-queue' }] },
+          {
+            type: 'tabset',
+            children: [
+              { type: 'tab', name: 'Image Viewer', component: 'image-viewer' },
+            ],
+          },
+          {
+            type: 'tabset',
+            children: [
+              { type: 'tab', name: 'File Queue', component: 'file-queue' },
+            ],
+          },
         ],
       },
     };
@@ -39,19 +49,33 @@ describe('retranslateTabNames', () => {
           {
             type: 'row',
             children: [
-              { type: 'tabset', children: [{ type: 'tab', name: 'Face Review', component: 'review-module' }] },
+              {
+                type: 'tabset',
+                children: [
+                  {
+                    type: 'tab',
+                    name: 'Face Review',
+                    component: 'review-module',
+                  },
+                ],
+              },
             ],
           },
         ],
       },
       borders: [
-        { type: 'border', children: [{ type: 'tab', name: 'Culling', component: 'culling' }] },
+        {
+          type: 'border',
+          children: [{ type: 'tab', name: 'Culling', component: 'culling' }],
+        },
       ],
     };
 
     retranslateTabNames(config, TITLES);
 
-    expect(config.layout.children[0].children[0].children[0].name).toBe('Granska ansikten');
+    expect(config.layout.children[0].children[0].children[0].name).toBe(
+      'Granska ansikten',
+    );
     expect(config.borders[0].children[0].name).toBe('Gallra spelare');
   });
 
@@ -59,7 +83,13 @@ describe('retranslateTabNames', () => {
     const config = {
       layout: {
         type: 'row',
-        children: [{ type: 'tab', name: 'Image Viewer', config: { moduleId: 'image-viewer' } }],
+        children: [
+          {
+            type: 'tab',
+            name: 'Image Viewer',
+            config: { moduleId: 'image-viewer' },
+          },
+        ],
       },
     };
 
@@ -72,7 +102,9 @@ describe('retranslateTabNames', () => {
     const config = {
       layout: {
         type: 'row',
-        children: [{ type: 'tab', name: 'My Custom Tab', component: 'not-a-module' }],
+        children: [
+          { type: 'tab', name: 'My Custom Tab', component: 'not-a-module' },
+        ],
       },
     };
 

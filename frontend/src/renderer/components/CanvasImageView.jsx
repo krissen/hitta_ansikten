@@ -41,7 +41,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useImperativeHandle
+  useImperativeHandle,
 } from 'react';
 import { useCanvasDimensions } from '../hooks/useCanvas.js';
 import { computeFitTransform } from '../shared/fitTransform.js';
@@ -50,7 +50,7 @@ import './CanvasImageView.css';
 
 export const CanvasImageView = forwardRef(function CanvasImageView(
   { image, drawOverlay, className, ariaLabel },
-  ref
+  ref,
 ) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
@@ -76,46 +76,62 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
   // Zoom / pan operations
   // ============================================
 
-  const zoom = useCallback((factor, centerX, centerY) => {
-    if (!image) return;
+  const zoom = useCallback(
+    (factor, centerX, centerY) => {
+      if (!image) return;
 
-    // Default the focal point to the last known mouse position over the canvas,
-    // matching wheel/keyboard zoom behavior.
-    const cx = centerX === undefined ? mousePosRef.current.x : centerX;
-    const cy = centerY === undefined ? mousePosRef.current.y : centerY;
+      // Default the focal point to the last known mouse position over the canvas,
+      // matching wheel/keyboard zoom behavior.
+      const cx = centerX === undefined ? mousePosRef.current.x : centerX;
+      const cy = centerY === undefined ? mousePosRef.current.y : centerY;
 
-    // Establish the current effective transform. In auto-fit mode the effective
-    // scale/offset come from the contain-fit; switching to manual pins them so
-    // the zoom is continuous.
-    let baseZoom = zoomFactor;
-    let basePan = pan;
-    if (zoomMode === 'auto') {
-      const fit = computeFitTransform(image.width, image.height, dimensions.width, dimensions.height);
-      baseZoom = fit.scale;
-      basePan = { x: fit.x, y: fit.y };
-    }
+      // Establish the current effective transform. In auto-fit mode the effective
+      // scale/offset come from the contain-fit; switching to manual pins them so
+      // the zoom is continuous.
+      let baseZoom = zoomFactor;
+      let basePan = pan;
+      if (zoomMode === 'auto') {
+        const fit = computeFitTransform(
+          image.width,
+          image.height,
+          dimensions.width,
+          dimensions.height,
+        );
+        baseZoom = fit.scale;
+        basePan = { x: fit.x, y: fit.y };
+      }
 
-    const next = computeZoom({ zoomFactor: baseZoom, pan: basePan }, factor, cx, cy);
-    setZoomMode('manual');
-    setZoomFactor(next.zoomFactor);
-    setPan(next.pan);
-  }, [image, zoomMode, zoomFactor, pan, dimensions]);
+      const next = computeZoom(
+        { zoomFactor: baseZoom, pan: basePan },
+        factor,
+        cx,
+        cy,
+      );
+      setZoomMode('manual');
+      setZoomFactor(next.zoomFactor);
+      setPan(next.pan);
+    },
+    [image, zoomMode, zoomFactor, pan, dimensions],
+  );
 
-  const resetZoom = useCallback((centerRect = null) => {
-    if (!image) return;
+  const resetZoom = useCallback(
+    (centerRect = null) => {
+      if (!image) return;
 
-    setZoomMode('manual');
-    setZoomFactor(1);
+      setZoomMode('manual');
+      setZoomFactor(1);
 
-    if (centerRect) {
-      setPan(centerPan(centerRect, 1, dimensions.width, dimensions.height));
-    } else {
-      setPan({
-        x: (dimensions.width - image.width) / 2,
-        y: (dimensions.height - image.height) / 2
-      });
-    }
-  }, [image, dimensions]);
+      if (centerRect) {
+        setPan(centerPan(centerRect, 1, dimensions.width, dimensions.height));
+      } else {
+        setPan({
+          x: (dimensions.width - image.width) / 2,
+          y: (dimensions.height - image.height) / 2,
+        });
+      }
+    },
+    [image, dimensions],
+  );
 
   const autoFit = useCallback(() => {
     // Also reset the manual zoom factor: it is never read while in auto mode,
@@ -126,17 +142,23 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
     setPan({ x: 0, y: 0 });
   }, []);
 
-  const centerOnRect = useCallback((rect) => {
-    // Centering only applies in manual mode (auto-fit always centers the image).
-    if (!image || zoomMode === 'auto' || !rect) return;
-    setPan(centerPan(rect, zoomFactor, dimensions.width, dimensions.height));
-  }, [image, zoomMode, zoomFactor, dimensions]);
+  const centerOnRect = useCallback(
+    (rect) => {
+      // Centering only applies in manual mode (auto-fit always centers the image).
+      if (!image || zoomMode === 'auto' || !rect) return;
+      setPan(centerPan(rect, zoomFactor, dimensions.width, dimensions.height));
+    },
+    [image, zoomMode, zoomFactor, dimensions],
+  );
 
-  const applyTransform = useCallback(({ zoomFactor: nextZoom, pan: nextPan } = {}) => {
-    setZoomMode('manual');
-    if (nextZoom !== undefined && nextZoom !== null) setZoomFactor(nextZoom);
-    if (nextPan) setPan(nextPan);
-  }, []);
+  const applyTransform = useCallback(
+    ({ zoomFactor: nextZoom, pan: nextPan } = {}) => {
+      setZoomMode('manual');
+      if (nextZoom !== undefined && nextZoom !== null) setZoomFactor(nextZoom);
+      if (nextPan) setPan(nextPan);
+    },
+    [],
+  );
 
   const setPanExternal = useCallback((nextPan) => {
     setPan(nextPan);
@@ -144,21 +166,52 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
 
   const getTransform = useCallback(() => {
     if (zoomMode === 'auto' && image) {
-      const fit = computeFitTransform(image.width, image.height, dimensions.width, dimensions.height);
-      return { zoomMode, zoomFactor: fit.scale, pan: { x: fit.x, y: fit.y }, scale: fit.scale, x: fit.x, y: fit.y };
+      const fit = computeFitTransform(
+        image.width,
+        image.height,
+        dimensions.width,
+        dimensions.height,
+      );
+      return {
+        zoomMode,
+        zoomFactor: fit.scale,
+        pan: { x: fit.x, y: fit.y },
+        scale: fit.scale,
+        x: fit.x,
+        y: fit.y,
+      };
     }
-    return { zoomMode, zoomFactor, pan: { ...pan }, scale: zoomFactor, x: pan.x, y: pan.y };
+    return {
+      zoomMode,
+      zoomFactor,
+      pan: { ...pan },
+      scale: zoomFactor,
+      x: pan.x,
+      y: pan.y,
+    };
   }, [zoomMode, zoomFactor, pan, image, dimensions]);
 
-  useImperativeHandle(ref, () => ({
-    zoom,
-    resetZoom,
-    autoFit,
-    setPan: setPanExternal,
-    getTransform,
-    centerOnRect,
-    applyTransform
-  }), [zoom, resetZoom, autoFit, setPanExternal, getTransform, centerOnRect, applyTransform]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      zoom,
+      resetZoom,
+      autoFit,
+      setPan: setPanExternal,
+      getTransform,
+      centerOnRect,
+      applyTransform,
+    }),
+    [
+      zoom,
+      resetZoom,
+      autoFit,
+      setPanExternal,
+      getTransform,
+      centerOnRect,
+      applyTransform,
+    ],
+  );
 
   // ============================================
   // Rendering
@@ -188,7 +241,12 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
 
     let scale, x, y;
     if (zoomMode === 'auto') {
-      const fit = computeFitTransform(image.width, image.height, canvasWidth, canvasHeight);
+      const fit = computeFitTransform(
+        image.width,
+        image.height,
+        canvasWidth,
+        canvasHeight,
+      );
       scale = fit.scale;
       x = fit.x;
       y = fit.y;
@@ -246,13 +304,16 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
 
     const handleMouseMove = (e) => {
       const rect = canvas.getBoundingClientRect();
-      mousePosRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      mousePosRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      };
 
       if (isPanningRef.current && lastPanPointRef.current) {
         const dx = e.clientX - lastPanPointRef.current.x;
         const dy = e.clientY - lastPanPointRef.current.y;
 
-        setPan(p => ({ x: p.x + dx, y: p.y + dy }));
+        setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
         lastPanPointRef.current = { x: e.clientX, y: e.clientY };
       }
     };
@@ -299,15 +360,24 @@ export const CanvasImageView = forwardRef(function CanvasImageView(
     };
     const arm = () => {
       if (mql) mql.removeEventListener('change', listener);
-      mql = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+      mql = window.matchMedia(
+        `(resolution: ${window.devicePixelRatio || 1}dppx)`,
+      );
       mql.addEventListener('change', listener);
     };
     arm();
-    return () => { if (mql) mql.removeEventListener('change', listener); };
+    return () => {
+      if (mql) mql.removeEventListener('change', listener);
+    };
   }, []);
 
   return (
-    <div ref={containerRef} className={className ? `canvas-image-view ${className}` : 'canvas-image-view'}>
+    <div
+      ref={containerRef}
+      className={
+        className ? `canvas-image-view ${className}` : 'canvas-image-view'
+      }
+    >
       <canvas
         ref={canvasRef}
         role={ariaLabel ? 'img' : undefined}

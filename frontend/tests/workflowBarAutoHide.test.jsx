@@ -14,7 +14,9 @@ function setup(initial) {
     delay: WORKFLOW_BAR_HIDE_DELAY,
     ...initial,
   };
-  const hook = renderHook((p) => useWorkflowBarAutoHide(p), { initialProps: props });
+  const hook = renderHook((p) => useWorkflowBarAutoHide(p), {
+    initialProps: props,
+  });
   return hook;
 }
 
@@ -98,7 +100,12 @@ describe('useWorkflowBarAutoHide', () => {
       expect(result.current.revealed).toBe(true);
 
       // A view opens → autohide becomes active and the timer arms.
-      rerender({ enabled: true, paused: false, activeStep: null, hasContent: true });
+      rerender({
+        enabled: true,
+        paused: false,
+        activeStep: null,
+        hasContent: true,
+      });
       act(() => vi.advanceTimersByTime(WORKFLOW_BAR_HIDE_DELAY));
       expect(result.current.revealed).toBe(false);
     });
@@ -109,7 +116,12 @@ describe('useWorkflowBarAutoHide', () => {
       expect(result.current.revealed).toBe(false);
 
       // Last view closes (welcome card returns) → the bar must not stay hidden.
-      rerender({ enabled: true, paused: false, activeStep: null, hasContent: false });
+      rerender({
+        enabled: true,
+        paused: false,
+        activeStep: null,
+        hasContent: false,
+      });
       expect(result.current.revealed).toBe(true);
     });
   });

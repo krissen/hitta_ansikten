@@ -54,16 +54,21 @@ export function resolveFirstNameCollisions(names) {
   for (const [name, { firstName, lastName }] of nameMap) {
     const lastNameSet = firstNameMap.get(firstName);
     // Filter out empty strings for collision detection
-    const nonEmptyLastNames = [...lastNameSet].filter(ln => ln);
+    const nonEmptyLastNames = [...lastNameSet].filter((ln) => ln);
     const hasCollision = nonEmptyLastNames.length > 1;
 
     let prefixLen = 1;
     if (hasCollision && lastName) {
-      const otherLastNames = nonEmptyLastNames.filter(ln => ln !== lastName);
+      const otherLastNames = nonEmptyLastNames.filter((ln) => ln !== lastName);
       // Find minimum prefix length to disambiguate
-      while (otherLastNames.some(other =>
-        other && lastName.slice(0, prefixLen).toLowerCase() === other.slice(0, prefixLen).toLowerCase()
-      )) {
+      while (
+        otherLastNames.some(
+          (other) =>
+            other &&
+            lastName.slice(0, prefixLen).toLowerCase() ===
+              other.slice(0, prefixLen).toLowerCase(),
+        )
+      ) {
         prefixLen++;
         if (prefixLen > lastName.length) break;
       }
@@ -73,7 +78,7 @@ export function resolveFirstNameCollisions(names) {
       firstName,
       lastName,
       needsDisambig: hasCollision,
-      prefixLen
+      prefixLen,
     });
   }
 
@@ -87,7 +92,8 @@ export function resolveFirstNameCollisions(names) {
  * @returns {number}
  */
 function measureTextWidth(text, font) {
-  const canvas = measureTextWidth._canvas ||
+  const canvas =
+    measureTextWidth._canvas ||
     (measureTextWidth._canvas = document.createElement('canvas'));
   const ctx = canvas.getContext('2d');
   ctx.font = font;
@@ -106,8 +112,9 @@ function resolveInitialCollisions(names) {
   // First pass: count initial occurrences
   for (const name of names) {
     const { firstName, lastName } = splitName(name);
-    const initials = (firstName[0] || '').toUpperCase() +
-                     (lastName ? lastName[0].toUpperCase() : '');
+    const initials =
+      (firstName[0] || '').toUpperCase() +
+      (lastName ? lastName[0].toUpperCase() : '');
     initialsCount.set(initials, (initialsCount.get(initials) || 0) + 1);
   }
 
@@ -115,8 +122,9 @@ function resolveInitialCollisions(names) {
   const seenInOutput = new Map();
   for (const name of names) {
     const { firstName, lastName } = splitName(name);
-    let initials = (firstName[0] || '').toUpperCase() +
-                   (lastName ? lastName[0].toUpperCase() : '');
+    let initials =
+      (firstName[0] || '').toUpperCase() +
+      (lastName ? lastName[0].toUpperCase() : '');
 
     // Check if this initials has collision
     if (initialsCount.get(initials) > 1 && lastName) {
@@ -164,7 +172,7 @@ export function formatNamesToFit(names, maxWidthPx, font) {
   }
 
   // Level 2: First + initial "Arvid W., Elis"
-  const level2Parts = uniqueNames.map(name => {
+  const level2Parts = uniqueNames.map((name) => {
     const info = collisions.get(name);
     if (!info) return name;
     if (info.needsDisambig && info.lastName) {
@@ -178,7 +186,7 @@ export function formatNamesToFit(names, maxWidthPx, font) {
   }
 
   // Level 3: Compact "ArvidW, Elis"
-  const level3Parts = uniqueNames.map(name => {
+  const level3Parts = uniqueNames.map((name) => {
     const info = collisions.get(name);
     if (!info) return name;
     if (info.needsDisambig && info.lastName) {
@@ -198,7 +206,7 @@ export function formatNamesToFit(names, maxWidthPx, font) {
   }
 
   // Level 5: Initials "AW, EN"
-  const initials = uniqueNames.map(name => {
+  const initials = uniqueNames.map((name) => {
     const { firstName, lastName } = splitName(name);
     const fi = firstName ? firstName[0].toUpperCase() : '';
     const li = lastName ? lastName[0].toUpperCase() : '';

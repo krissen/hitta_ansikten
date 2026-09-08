@@ -29,9 +29,15 @@ export function EmptyState({
 
   return (
     <div className={classes} {...rest}>
-      {icon && <div className="empty-state__icon" aria-hidden="true">{icon}</div>}
+      {icon && (
+        <div className="empty-state__icon" aria-hidden="true">
+          {icon}
+        </div>
+      )}
       {title && <div className="empty-state__title">{title}</div>}
-      {description && <div className="empty-state__description hint">{description}</div>}
+      {description && (
+        <div className="empty-state__description hint">{description}</div>
+      )}
       {action && <div className="empty-state__action">{action}</div>}
     </div>
   );

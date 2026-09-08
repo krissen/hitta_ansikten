@@ -18,7 +18,9 @@ const STATS = {
 
 describe('CullingStats', () => {
   it('puts the deltaTitle tooltip on the Δ% header and cells', () => {
-    const { container } = render(<CullingStats stats={STATS} width={200} mode="loupe" />);
+    const { container } = render(
+      <CullingStats stats={STATS} width={200} mode="loupe" />,
+    );
     const tooltip = t('culling.stats.deltaTitle');
     const titled = [...container.querySelectorAll(`[title="${tooltip}"]`)];
     // One header cell + one per player row.
@@ -27,19 +29,19 @@ describe('CullingStats', () => {
 
   it('shows the spinner only while loading', () => {
     const { container: idle } = render(
-      <CullingStats stats={STATS} width={200} mode="loupe" loading={false} />
+      <CullingStats stats={STATS} width={200} mode="loupe" loading={false} />,
     );
     expect(idle.querySelector('.loading-spinner')).toBeNull();
 
     const { container: busy } = render(
-      <CullingStats stats={STATS} width={200} mode="loupe" loading={true} />
+      <CullingStats stats={STATS} width={200} mode="loupe" loading={true} />,
     );
     expect(busy.querySelector('.loading-spinner')).not.toBeNull();
   });
 
   it('keeps the fixed-size spinner slot present even when idle (no layout shift)', () => {
     const { container } = render(
-      <CullingStats stats={STATS} width={200} mode="loupe" loading={false} />
+      <CullingStats stats={STATS} width={200} mode="loupe" loading={false} />,
     );
     // Slot always rendered; only its spinner child toggles.
     expect(container.querySelector('.culling-stats-loading')).not.toBeNull();

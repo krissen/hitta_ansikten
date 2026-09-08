@@ -94,7 +94,11 @@ export function useKeyboardShortcuts(shortcuts, options = {}, deps = []) {
  *   - doubleTapDelay: ms window for double-tap detection (default: 300)
  */
 export function useKeyHold(key, callbacks, options = {}) {
-  const { holdDelay = 200, repeatInterval = 16, doubleTapDelay = 300 } = options;
+  const {
+    holdDelay = 200,
+    repeatInterval = 16,
+    doubleTapDelay = 300,
+  } = options;
 
   // Use refs to store latest callbacks to avoid re-subscribing on every render
   const callbacksRef = useRef(callbacks);
@@ -187,7 +191,8 @@ export function useKeyHold(key, callbacks, options = {}) {
       // Match by physical key code (event.code) instead of event.key to handle
       // cases where modifier release changes the key identity (e.g. releasing
       // Shift before '=' turns '+' keyup into '=' keyup)
-      if (!activeCodeRef.current || event.code !== activeCodeRef.current) return;
+      if (!activeCodeRef.current || event.code !== activeCodeRef.current)
+        return;
       activeCodeRef.current = null;
 
       // Clear hold timers
@@ -247,8 +252,10 @@ export function useKeyHold(key, callbacks, options = {}) {
 
       // Cleanup timers
       if (holdTimeoutRef.current) clearTimeout(holdTimeoutRef.current);
-      if (repeatIntervalRef.current) cancelAnimationFrame(repeatIntervalRef.current);
-      if (doubleTapTimeoutRef.current) clearTimeout(doubleTapTimeoutRef.current);
+      if (repeatIntervalRef.current)
+        cancelAnimationFrame(repeatIntervalRef.current);
+      if (doubleTapTimeoutRef.current)
+        clearTimeout(doubleTapTimeoutRef.current);
     };
   }, [key, holdDelay, repeatInterval, doubleTapDelay]); // Only re-subscribe when key or timing options change
 }

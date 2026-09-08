@@ -39,7 +39,9 @@ vi.mock('../src/renderer/hooks/useWebSocket.js', () => ({
 vi.mock('../src/renderer/workspace/preferences.js', () => ({
   preferences: {
     get: (key) => (key === 'renameNef.recursive' ? h.recursive : h.dest),
-    set: (key, val) => { if (key === 'renameNef.recursive') h.recursive = val; },
+    set: (key, val) => {
+      if (key === 'renameNef.recursive') h.recursive = val;
+    },
   },
 }));
 
@@ -56,10 +58,23 @@ beforeEach(() => {
   h.recursive = false;
   h.api.post.mockImplementation((path) => {
     if (path.includes('/rename-nef/preview')) {
-      return Promise.resolve({ to_rename: 2, already_named: 0, no_date: [], items: [
-        { original_path: '/events/cupen/DSC_1.NEF', original: 'DSC_1.NEF', new_name: '250601_101500.NEF' },
-        { original_path: '/events/cupen/DSC_2.NEF', original: 'DSC_2.NEF', new_name: '250601_101600.NEF' },
-      ] });
+      return Promise.resolve({
+        to_rename: 2,
+        already_named: 0,
+        no_date: [],
+        items: [
+          {
+            original_path: '/events/cupen/DSC_1.NEF',
+            original: 'DSC_1.NEF',
+            new_name: '250601_101500.NEF',
+          },
+          {
+            original_path: '/events/cupen/DSC_2.NEF',
+            original: 'DSC_2.NEF',
+            new_name: '250601_101600.NEF',
+          },
+        ],
+      });
     }
     if (path.includes('/rename-nef/execute')) {
       return Promise.resolve({ renamed: ['a', 'b'], skipped: [], errors: [] });
@@ -99,7 +114,9 @@ async function mountRename() {
 
 // Click a <button> by its exact text label.
 async function clickButton(container, label) {
-  const btn = [...container.querySelectorAll('button')].find((b) => b.textContent === label);
+  const btn = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === label,
+  );
   if (!btn) throw new Error(`button not found: ${label}`);
   await act(async () => {
     fireEvent.click(btn);
@@ -123,7 +140,9 @@ describe('RenameNefModule — Review hand-off', () => {
     expect(reviewBtn).toBeTruthy();
 
     await clickButton(container, t('renameNef.reviewFaces'));
-    expect(h.emit).toHaveBeenCalledWith('open-review-queue', { roots: ['/events/cupen'] });
+    expect(h.emit).toHaveBeenCalledWith('open-review-queue', {
+      roots: ['/events/cupen'],
+    });
   });
 
   it('freezes the hand-off roots at execute-start (editing the selection afterwards does not change them)', async () => {
@@ -141,7 +160,9 @@ describe('RenameNefModule — Review hand-off', () => {
 
     await clickButton(container, t('renameNef.reviewFaces'));
     // Still the folder the rename actually ran on, not the now-empty selection.
-    expect(h.emit).toHaveBeenCalledWith('open-review-queue', { roots: ['/events/cupen'] });
+    expect(h.emit).toHaveBeenCalledWith('open-review-queue', {
+      roots: ['/events/cupen'],
+    });
   });
 
   it('does not offer Review before any rename has run', async () => {
@@ -155,7 +176,9 @@ describe('RenameNefModule — Review hand-off', () => {
 
 // Toggle a checkbox by the visible label text on its wrapping <label>.
 function toggleCheckbox(container, labelText) {
-  const label = [...container.querySelectorAll('label')].find((l) => l.textContent.includes(labelText));
+  const label = [...container.querySelectorAll('label')].find((l) =>
+    l.textContent.includes(labelText),
+  );
   if (!label) throw new Error(`checkbox not found: ${labelText}`);
   const box = label.querySelector('input[type="checkbox"]');
   fireEvent.click(box);
@@ -163,7 +186,9 @@ function toggleCheckbox(container, labelText) {
 }
 
 function lastPost(pathFragment) {
-  const call = [...h.api.post.mock.calls].reverse().find(([p]) => p.includes(pathFragment));
+  const call = [...h.api.post.mock.calls]
+    .reverse()
+    .find(([p]) => p.includes(pathFragment));
   return call ? call[1] : null;
 }
 
@@ -171,15 +196,28 @@ describe('RenameNefModule — protect named files', () => {
   it('sends include_named=false and recursive=false by default', async () => {
     const { container } = await mountRename();
     await clickButton(container, t('renameNef.preview'));
-    expect(lastPost('/rename-nef/preview')).toMatchObject({ include_named: false, recursive: false });
+    expect(lastPost('/rename-nef/preview')).toMatchObject({
+      include_named: false,
+      recursive: false,
+    });
   });
 
   it('opts in to renaming named files when the danger checkbox is ticked', async () => {
     h.api.post.mockImplementation((path) => {
       if (path.includes('/rename-nef/preview')) {
-        return Promise.resolve({ to_rename: 1, already_named: 0, named_affected: 1, no_date: [], items: [
-          { original_path: '/events/cupen/250601_101500_Elis.NEF', original: '250601_101500_Elis.NEF', new_name: '250601_101500.NEF' },
-        ] });
+        return Promise.resolve({
+          to_rename: 1,
+          already_named: 0,
+          named_affected: 1,
+          no_date: [],
+          items: [
+            {
+              original_path: '/events/cupen/250601_101500_Elis.NEF',
+              original: '250601_101500_Elis.NEF',
+              new_name: '250601_101500.NEF',
+            },
+          ],
+        });
       }
       return Promise.resolve({});
     });
@@ -187,9 +225,13 @@ describe('RenameNefModule — protect named files', () => {
     toggleCheckbox(container, t('renameNef.includeNamedLabel'));
     await settle();
     await clickButton(container, t('renameNef.preview'));
-    expect(lastPost('/rename-nef/preview')).toMatchObject({ include_named: true });
+    expect(lastPost('/rename-nef/preview')).toMatchObject({
+      include_named: true,
+    });
     // The stripping warning surfaces with the affected count.
-    expect(container.textContent).toContain(t('renameNef.namedAffectedWarning', { count: 1 }));
+    expect(container.textContent).toContain(
+      t('renameNef.namedAffectedWarning', { count: 1 }),
+    );
   });
 
   it('persists the recursive toggle and forwards it', async () => {
@@ -206,12 +248,28 @@ describe('RenameNefModule — restore names', () => {
   beforeEach(() => {
     h.api.post.mockImplementation((path) => {
       if (path.includes('/restore-names/preview')) {
-        return Promise.resolve({ total_files: 1, to_restore: 1, already_correct: 0, no_record: [], items: [
-          { original_path: '/events/cupen/250601_101500.NEF', original: '250601_101500.NEF', new_name: '250601_101500_Elis.NEF' },
-        ] });
+        return Promise.resolve({
+          total_files: 1,
+          to_restore: 1,
+          already_correct: 0,
+          no_record: [],
+          items: [
+            {
+              original_path: '/events/cupen/250601_101500.NEF',
+              original: '250601_101500.NEF',
+              new_name: '250601_101500_Elis.NEF',
+            },
+          ],
+        });
       }
       if (path.includes('/restore-names/execute')) {
-        return Promise.resolve({ renamed: [{ from: '250601_101500.NEF', to: '250601_101500_Elis.NEF' }], skipped: [], errors: [] });
+        return Promise.resolve({
+          renamed: [
+            { from: '250601_101500.NEF', to: '250601_101500_Elis.NEF' },
+          ],
+          skipped: [],
+          errors: [],
+        });
       }
       return Promise.resolve({});
     });
@@ -220,7 +278,9 @@ describe('RenameNefModule — restore names', () => {
   it('previews then executes the SHA1 restore flow', async () => {
     const { container } = await mountRename();
     await clickButton(container, t('renameNef.restore'));
-    expect(lastPost('/restore-names/preview')).toMatchObject({ recursive: false });
+    expect(lastPost('/restore-names/preview')).toMatchObject({
+      recursive: false,
+    });
     expect(container.textContent).toContain('250601_101500_Elis.NEF');
 
     await clickButton(container, t('renameNef.restoreExecute'));

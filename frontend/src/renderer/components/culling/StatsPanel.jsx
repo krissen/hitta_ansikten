@@ -20,32 +20,49 @@ const EXCLUDED_KEYS = ['tranare', 'grupp', 'publik', 'below_threshold'];
 function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
   if (!excluded) return null;
   const groups = EXCLUDED_KEYS.filter(
-    (key) => excluded[key] && excluded[key].length > 0
+    (key) => excluded[key] && excluded[key].length > 0,
   );
   if (groups.length === 0) return null;
   return (
     <div className="culling-stats-excluded">
       {groups.map((key) => (
         <details key={key} className="culling-stats-group">
-          <summary>{t('culling.stats.groupSummary', { label: t(`culling.stats.excludedLabels.${key}`), count: excluded[key].length })}</summary>
+          <summary>
+            {t('culling.stats.groupSummary', {
+              label: t(`culling.stats.excludedLabels.${key}`),
+              count: excluded[key].length,
+            })}
+          </summary>
           <ul>
             {excluded[key].map((e) => (
               <li
                 key={e.name}
                 className={onSelect ? 'clickable' : undefined}
                 onClick={onSelect ? () => onSelect(e.name) : undefined}
-                onContextMenu={onNameContextMenu ? (ev) => onNameContextMenu(ev, e.name, key) : undefined}
+                onContextMenu={
+                  onNameContextMenu
+                    ? (ev) => onNameContextMenu(ev, e.name, key)
+                    : undefined
+                }
                 role={onSelect ? 'button' : undefined}
                 tabIndex={onSelect ? 0 : undefined}
-                onKeyDown={onSelect ? (ev) => {
-                  if (ev.key === 'Enter' || ev.key === ' ') {
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    onSelect(e.name);
-                  }
-                } : undefined}
+                onKeyDown={
+                  onSelect
+                    ? (ev) => {
+                        if (ev.key === 'Enter' || ev.key === ' ') {
+                          ev.preventDefault();
+                          ev.stopPropagation();
+                          onSelect(e.name);
+                        }
+                      }
+                    : undefined
+                }
               >
-                {t('culling.stats.excludedItem', { name: e.name, count: e.count, pct: e.pct })}
+                {t('culling.stats.excludedItem', {
+                  name: e.name,
+                  count: e.count,
+                  pct: e.pct,
+                })}
               </li>
             ))}
           </ul>
@@ -77,7 +94,20 @@ function CullingExcluded({ excluded, onSelect, onNameContextMenu }) {
  * capture-phase Enter/Esc handler yields to a focused role="button" so a keyed
  * Enter here filters instead of starting a rename.
  */
-export function CullingStats({ stats, loading, selected, onSelect, onActivate, mode, width, baseline, onBaselineChange, minImages, onMinImagesChange, onNameContextMenu }) {
+export function CullingStats({
+  stats,
+  loading,
+  selected,
+  onSelect,
+  onActivate,
+  mode,
+  width,
+  baseline,
+  onBaselineChange,
+  minImages,
+  onMinImagesChange,
+  onNameContextMenu,
+}) {
   const players = stats?.players || [];
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const clickTimerRef = useRef(null);
@@ -109,7 +139,10 @@ export function CullingStats({ stats, loading, selected, onSelect, onActivate, m
   // Loupe: fire immediately (no double-click role). Grid: debounce so a double
   // click (filter) can cancel the pending single click (highlight).
   const handleRowClick = (name) => {
-    if (mode !== 'grid') { onSelect?.(name); return; }
+    if (mode !== 'grid') {
+      onSelect?.(name);
+      return;
+    }
     clearTimeout(clickTimerRef.current);
     clickTimerRef.current = setTimeout(() => {
       clickTimerRef.current = null;
@@ -125,7 +158,8 @@ export function CullingStats({ stats, loading, selected, onSelect, onActivate, m
   // or after culling everyone below min_images) — otherwise the section this
   // change is meant to surface would be hidden behind the empty "—".
   const excluded = stats?.excluded || null;
-  const hasExcluded = !!excluded &&
+  const hasExcluded =
+    !!excluded &&
     EXCLUDED_KEYS.some((k) => excluded[k] && excluded[k].length > 0);
   return (
     <div className="culling-stats" style={{ flex: `0 0 ${width}px` }}>
@@ -164,7 +198,10 @@ export function CullingStats({ stats, loading, selected, onSelect, onActivate, m
           />
         )}
         {stats?.baseline != null && (
-          <span className="culling-stats-baseline" title={t('culling.stats.baselineTitle')}>
+          <span
+            className="culling-stats-baseline"
+            title={t('culling.stats.baselineTitle')}
+          >
             ~{Math.round(stats.baseline)}
           </span>
         )}
@@ -174,68 +211,97 @@ export function CullingStats({ stats, loading, selected, onSelect, onActivate, m
       ) : (
         <div className="culling-stats-scroll">
           {players.length > 0 && (
-          <table className="culling-stats-table">
-            <thead>
-              <tr>
-                <th>{t('culling.stats.columns.name')}</th>
-                <th className="num">{t('culling.stats.columns.count')}</th>
-                <th className="num">{t('culling.stats.columns.pct')}</th>
-                <th className="num" title={t('culling.stats.deltaTitle')}>{t('culling.stats.columns.delta')}</th>
-                <th className="bar-col">{t('culling.stats.columns.distribution')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((p) => {
-                const title = !onSelect
-                  ? t('culling.stats.rowTitle.count', { name: p.name, count: p.count })
-                  : mode === 'grid'
-                    ? t('culling.stats.rowTitle.gridSelect', { name: p.name })
-                    : t('culling.stats.rowTitle.loupeFilter', { name: p.name });
-                const activate = onSelect
-                  ? () => handleRowClick(p.name === selected ? '' : p.name)
-                  : undefined;
-                return (
-                <tr
-                  key={p.name}
-                  className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active row-selected' : ''}`}
-                  onClick={activate}
-                  onDoubleClick={mode === 'grid' && onActivate ? () => handleRowDouble(p.name) : undefined}
-                  role={onSelect ? 'button' : undefined}
-                  tabIndex={onSelect ? 0 : undefined}
-                  aria-label={onSelect ? title : undefined}
-                  onKeyDown={onSelect ? (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      activate?.();
-                    }
-                  } : undefined}
-                  onContextMenu={onNameContextMenu ? (e) => onNameContextMenu(e, p.name, 'players') : undefined}
-                  title={title}
-                >
-                  <td className="culling-stat-name">{p.name}</td>
-                  <td className="num">{p.count}</td>
-                  <td className="num">{p.pct}%</td>
-                  <td className={`num delta delta-${p.level || 'ok'}`} title={t('culling.stats.deltaTitle')}>
-                    {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
-                  </td>
-                  <td className="bar-col">
-                    <div className="culling-bar-track">
-                      <div
-                        className={`culling-bar-fill level-${p.level || 'ok'}`}
-                        style={{ width: `${(p.count / maxCount) * 100}%` }}
-                      />
-                    </div>
-                  </td>
+            <table className="culling-stats-table">
+              <thead>
+                <tr>
+                  <th>{t('culling.stats.columns.name')}</th>
+                  <th className="num">{t('culling.stats.columns.count')}</th>
+                  <th className="num">{t('culling.stats.columns.pct')}</th>
+                  <th className="num" title={t('culling.stats.deltaTitle')}>
+                    {t('culling.stats.columns.delta')}
+                  </th>
+                  <th className="bar-col">
+                    {t('culling.stats.columns.distribution')}
+                  </th>
                 </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {players.map((p) => {
+                  const title = !onSelect
+                    ? t('culling.stats.rowTitle.count', {
+                        name: p.name,
+                        count: p.count,
+                      })
+                    : mode === 'grid'
+                      ? t('culling.stats.rowTitle.gridSelect', { name: p.name })
+                      : t('culling.stats.rowTitle.loupeFilter', {
+                          name: p.name,
+                        });
+                  const activate = onSelect
+                    ? () => handleRowClick(p.name === selected ? '' : p.name)
+                    : undefined;
+                  return (
+                    <tr
+                      key={p.name}
+                      className={`culling-stat-row${onSelect ? ' clickable' : ''}${p.name === selected ? ' active row-selected' : ''}`}
+                      onClick={activate}
+                      onDoubleClick={
+                        mode === 'grid' && onActivate
+                          ? () => handleRowDouble(p.name)
+                          : undefined
+                      }
+                      role={onSelect ? 'button' : undefined}
+                      tabIndex={onSelect ? 0 : undefined}
+                      aria-label={onSelect ? title : undefined}
+                      onKeyDown={
+                        onSelect
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                activate?.();
+                              }
+                            }
+                          : undefined
+                      }
+                      onContextMenu={
+                        onNameContextMenu
+                          ? (e) => onNameContextMenu(e, p.name, 'players')
+                          : undefined
+                      }
+                      title={title}
+                    >
+                      <td className="culling-stat-name">{p.name}</td>
+                      <td className="num">{p.count}</td>
+                      <td className="num">{p.pct}%</td>
+                      <td
+                        className={`num delta delta-${p.level || 'ok'}`}
+                        title={t('culling.stats.deltaTitle')}
+                      >
+                        {p.delta_pct > 0 ? '+' : ''}
+                        {p.delta_pct}%
+                      </td>
+                      <td className="bar-col">
+                        <div className="culling-bar-track">
+                          <div
+                            className={`culling-bar-fill level-${p.level || 'ok'}`}
+                            style={{ width: `${(p.count / maxCount) * 100}%` }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
           <CullingExcluded
             excluded={excluded}
-            onSelect={onSelect ? (name) => handleRowClick(name === selected ? '' : name) : undefined}
+            onSelect={
+              onSelect
+                ? (name) => handleRowClick(name === selected ? '' : name)
+                : undefined
+            }
             onNameContextMenu={onNameContextMenu}
           />
         </div>

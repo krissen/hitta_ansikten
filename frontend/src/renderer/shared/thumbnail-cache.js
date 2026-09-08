@@ -72,7 +72,10 @@ class ThumbnailCache {
       // Store in cache
       this.cache.set(key, blobUrl);
       this.accessOrder.push(key);
-      debug('ThumbnailCache', `Cached: ${key.slice(0, 40)}... (${this.cache.size}/${this.maxSize})`);
+      debug(
+        'ThumbnailCache',
+        `Cached: ${key.slice(0, 40)}... (${this.cache.size}/${this.maxSize})`,
+      );
 
       return blobUrl;
     } catch (err) {
@@ -125,7 +128,7 @@ class ThumbnailCache {
   getStats() {
     return {
       size: this.cache.size,
-      maxSize: this.maxSize
+      maxSize: this.maxSize,
     };
   }
 }
@@ -152,15 +155,16 @@ export function useThumbnail(imagePath, bbox, size = 150) {
     }
 
     let cancelled = false;
-    setState(prev => ({ ...prev, loading: true, error: null }));
+    setState((prev) => ({ ...prev, loading: true, error: null }));
 
-    thumbnailCache.getThumbnail(imagePath, bbox, size)
-      .then(url => {
+    thumbnailCache
+      .getThumbnail(imagePath, bbox, size)
+      .then((url) => {
         if (!cancelled) {
           setState({ url, loading: false, error: null });
         }
       })
-      .catch(error => {
+      .catch((error) => {
         if (!cancelled) {
           setState({ url: null, loading: false, error });
         }

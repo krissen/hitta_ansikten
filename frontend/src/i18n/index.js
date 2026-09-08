@@ -26,7 +26,7 @@ function resolve(obj, key) {
 
 function interpolate(str, vars) {
   return String(str).replace(/\{(\w+)\}/g, (_, name) =>
-    vars[name] != null ? String(vars[name]) : `{${name}}`
+    vars[name] != null ? String(vars[name]) : `{${name}}`,
   );
 }
 
@@ -51,7 +51,8 @@ function t(key, vars = {}) {
       // Pick by count, but fall back to whichever plural form exists so a
       // half-defined entry can't render as the literal "undefined".
       const picked = vars.count === 1 ? entry.one : entry.other;
-      entry = picked != null ? picked : entry.other != null ? entry.other : entry.one;
+      entry =
+        picked != null ? picked : entry.other != null ? entry.other : entry.one;
     } else {
       // A namespace object, not a leaf string — treat as a missing key.
       return key;

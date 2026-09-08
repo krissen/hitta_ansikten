@@ -75,7 +75,7 @@ export function TrashPanel({ onAfterChange }) {
         setError(err.message || String(err));
       }
     },
-    [api, onAfterChange]
+    [api, onAfterChange],
   );
 
   // Empty the trash. With no ids, clears everything; with ids, deletes just
@@ -106,11 +106,13 @@ export function TrashPanel({ onAfterChange }) {
         setError(err.message || String(err));
       }
     },
-    [api, confirm, items.length, onAfterChange]
+    [api, confirm, items.length, onAfterChange],
   );
 
   const filtered =
-    filter === 'all' ? items : items.filter((it) => trashGroup(it.basename) === filter);
+    filter === 'all'
+      ? items
+      : items.filter((it) => trashGroup(it.basename) === filter);
 
   return (
     <div className="trash-panel">
@@ -118,7 +120,10 @@ export function TrashPanel({ onAfterChange }) {
         <span>
           {filter === 'all'
             ? t('trash.countAll', { count: items.length })
-            : t('trash.countFiltered', { filtered: filtered.length, total: items.length })}
+            : t('trash.countFiltered', {
+                filtered: filtered.length,
+                total: items.length,
+              })}
         </span>
         {items.length > 0 && (
           <>
@@ -135,10 +140,14 @@ export function TrashPanel({ onAfterChange }) {
             <Button
               variant="danger"
               size="sm"
-              onClick={() => empty(filter === 'all' ? null : filtered.map((it) => it.id))}
+              onClick={() =>
+                empty(filter === 'all' ? null : filtered.map((it) => it.id))
+              }
               disabled={filtered.length === 0}
             >
-              {filter === 'all' ? t('trash.empty') : t('trash.emptyN', { count: filtered.length })}
+              {filter === 'all'
+                ? t('trash.empty')
+                : t('trash.emptyN', { count: filtered.length })}
             </Button>
           </>
         )}
@@ -161,7 +170,11 @@ export function TrashPanel({ onAfterChange }) {
               <span className="trash-name" title={it.original_path}>
                 {it.basename}
               </span>
-              <Button variant="secondary" size="sm" onClick={() => restore(it.id)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => restore(it.id)}
+              >
                 {t('trash.restore')}
               </Button>
             </li>

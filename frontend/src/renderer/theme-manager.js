@@ -66,9 +66,8 @@ class ThemeManager {
    * @param {Object} options - { persist: boolean }
    */
   applyFromPreference(options = { persist: true }) {
-    const theme = this.preference === 'system'
-      ? this.getSystemTheme()
-      : this.preference;
+    const theme =
+      this.preference === 'system' ? this.getSystemTheme() : this.preference;
     this.applyTheme(theme, options);
   }
 
@@ -88,12 +87,14 @@ class ThemeManager {
     }
 
     // Dispatch event for modules that need to react to theme changes
-    window.dispatchEvent(new CustomEvent('theme-changed', {
-      detail: {
-        theme,
-        preference: this.preference
-      }
-    }));
+    window.dispatchEvent(
+      new CustomEvent('theme-changed', {
+        detail: {
+          theme,
+          preference: this.preference,
+        },
+      }),
+    );
   }
 
   /**
@@ -122,9 +123,7 @@ class ThemeManager {
       return;
     }
 
-    const theme = preference === 'system'
-      ? this.getSystemTheme()
-      : preference;
+    const theme = preference === 'system' ? this.getSystemTheme() : preference;
 
     // Apply visually but don't persist or modify stored preference
     this.applyTheme(theme, { persist: false });
@@ -177,7 +176,7 @@ class ThemeManager {
       if (prefs.notifications?.toastOpacity !== undefined) {
         document.documentElement.style.setProperty(
           '--toast-opacity',
-          String(prefs.notifications.toastOpacity)
+          String(prefs.notifications.toastOpacity),
         );
       }
 

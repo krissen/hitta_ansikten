@@ -59,57 +59,65 @@ function createApplicationMenu(mainWindow) {
   };
 
   const versionInfo = getVersionInfo();
-  const versionString = versionInfo.isTag ? versionInfo.version : `commit ${versionInfo.version}`;
+  const versionString = versionInfo.isTag
+    ? versionInfo.version
+    : `commit ${versionInfo.version}`;
 
   const template = [
-    ...(isMac ? [{
-      label: 'Ansikten',
-      submenu: [
-        {
-          label: t('menu.app.about'),
-          click: () => {
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: t('menu.app.about'),
-              message: 'Ansikten',
-              detail: t('menu.app.aboutDetail', { version: versionString }),
-              buttons: ['OK']
-            });
-          }
-        },
-        { type: 'separator' },
-        {
-          // Cmd+, is the macOS convention for preferences. Literal 'Cmd' rather
-          // than 'CmdOrCtrl': this whole submenu is mac-only, so the OrCtrl half
-          // would be unreachable and would read as if non-mac were covered here.
-          // Windows/Linux get the same key from the Arkiv menu (see below).
-          // Moduler keeps Cmd+Shift+P as a second route on every platform.
-          label: t('menu.app.preferences'),
-          accelerator: 'Cmd+,',
-          click: () => {
-            sendMenuCommand('open-preferences');
-          }
-        },
-        { type: 'separator' },
-        {
-          label: t('menu.app.hide'),
-          role: 'hide'
-        },
-        {
-          label: t('menu.app.hideOthers'),
-          role: 'hideOthers'
-        },
-        {
-          label: t('menu.app.showAll'),
-          role: 'unhide'
-        },
-        { type: 'separator' },
-        {
-          label: t('menu.app.quit'),
-          role: 'quit'
-        }
-      ]
-    }] : []),
+    ...(isMac
+      ? [
+          {
+            label: 'Ansikten',
+            submenu: [
+              {
+                label: t('menu.app.about'),
+                click: () => {
+                  dialog.showMessageBox(mainWindow, {
+                    type: 'info',
+                    title: t('menu.app.about'),
+                    message: 'Ansikten',
+                    detail: t('menu.app.aboutDetail', {
+                      version: versionString,
+                    }),
+                    buttons: ['OK'],
+                  });
+                },
+              },
+              { type: 'separator' },
+              {
+                // Cmd+, is the macOS convention for preferences. Literal 'Cmd' rather
+                // than 'CmdOrCtrl': this whole submenu is mac-only, so the OrCtrl half
+                // would be unreachable and would read as if non-mac were covered here.
+                // Windows/Linux get the same key from the Arkiv menu (see below).
+                // Moduler keeps Cmd+Shift+P as a second route on every platform.
+                label: t('menu.app.preferences'),
+                accelerator: 'Cmd+,',
+                click: () => {
+                  sendMenuCommand('open-preferences');
+                },
+              },
+              { type: 'separator' },
+              {
+                label: t('menu.app.hide'),
+                role: 'hide',
+              },
+              {
+                label: t('menu.app.hideOthers'),
+                role: 'hideOthers',
+              },
+              {
+                label: t('menu.app.showAll'),
+                role: 'unhide',
+              },
+              { type: 'separator' },
+              {
+                label: t('menu.app.quit'),
+                role: 'quit',
+              },
+            ],
+          },
+        ]
+      : []),
 
     {
       label: t('menu.edit.title'),
@@ -122,7 +130,7 @@ function createApplicationMenu(mainWindow) {
           accelerator: 'CmdOrCtrl+Shift+Z',
           click: () => {
             sendMenuCommand('undo-face-action');
-          }
+          },
         },
         {
           // No accelerator: Cmd+Shift+Backspace is handled by the visible review
@@ -132,7 +140,7 @@ function createApplicationMenu(mainWindow) {
           label: t('menu.edit.undoDelete'),
           click: () => {
             sendMenuCommand('undo-delete-file');
-          }
+          },
         },
         { type: 'separator' },
         { role: 'cut', label: t('menu.edit.cut') },
@@ -140,8 +148,8 @@ function createApplicationMenu(mainWindow) {
         { role: 'paste', label: t('menu.edit.paste') },
         { role: 'delete', label: t('menu.edit.delete') },
         { type: 'separator' },
-        { role: 'selectAll', label: t('menu.edit.selectAll') }
-      ]
+        { role: 'selectAll', label: t('menu.edit.selectAll') },
+      ],
     },
 
     // File menu
@@ -152,23 +160,23 @@ function createApplicationMenu(mainWindow) {
           label: t('menu.file.openImage'),
           accelerator: 'CmdOrCtrl+O',
           click: () => {
-            sendMenuCommand( 'open-file');
-          }
+            sendMenuCommand('open-file');
+          },
         },
         { type: 'separator' },
         {
           label: t('menu.file.saveAll'),
           accelerator: 'CmdOrCtrl+S',
           click: () => {
-            sendMenuCommand( 'save-all-changes');
-          }
+            sendMenuCommand('save-all-changes');
+          },
         },
         {
           label: t('menu.file.discard'),
           accelerator: 'Escape',
           click: () => {
-            sendMenuCommand( 'discard-changes');
-          }
+            sendMenuCommand('discard-changes');
+          },
         },
         { type: 'separator' },
         {
@@ -184,7 +192,7 @@ function createApplicationMenu(mainWindow) {
           label: t('menu.file.openInLightroom'),
           click: () => {
             sendMenuCommand('open-raw-in-lightroom');
-          }
+          },
         },
         { type: 'separator' },
         {
@@ -196,29 +204,31 @@ function createApplicationMenu(mainWindow) {
           label: t('menu.file.deleteToTrash'),
           click: () => {
             sendMenuCommand('delete-current-file');
-          }
+          },
         },
         { type: 'separator' },
-        ...(!isMac ? [
-          {
-            // Windows/Linux counterpart to the mac app menu's Inställningar.
-            // Ctrl+, is the preferences convention there too (VS Code, GNOME),
-            // and without this entry the key would be bound to nothing at all
-            // once it moved off Visa → Bildvisare.
-            label: t('menu.app.preferences'),
-            accelerator: 'Ctrl+,',
-            click: () => {
-              sendMenuCommand('open-preferences');
-            }
-          },
-          { type: 'separator' },
-          {
-            label: t('menu.file.quit'),
-            accelerator: 'CmdOrCtrl+Q',
-            role: 'quit'
-          }
-        ] : [])
-      ]
+        ...(!isMac
+          ? [
+              {
+                // Windows/Linux counterpart to the mac app menu's Inställningar.
+                // Ctrl+, is the preferences convention there too (VS Code, GNOME),
+                // and without this entry the key would be bound to nothing at all
+                // once it moved off Visa → Bildvisare.
+                label: t('menu.app.preferences'),
+                accelerator: 'Ctrl+,',
+                click: () => {
+                  sendMenuCommand('open-preferences');
+                },
+              },
+              { type: 'separator' },
+              {
+                label: t('menu.file.quit'),
+                accelerator: 'CmdOrCtrl+Q',
+                role: 'quit',
+              },
+            ]
+          : []),
+      ],
     },
 
     // View menu
@@ -231,7 +241,7 @@ function createApplicationMenu(mainWindow) {
           label: t('modules.image-viewer'),
           click: () => {
             sendMenuCommand('open-image-viewer');
-          }
+          },
         },
         { type: 'separator' },
         {
@@ -242,7 +252,7 @@ function createApplicationMenu(mainWindow) {
           checked: true, // Default: visible
           click: (menuItem) => {
             sendMenuCommand(menuItem.checked ? 'boxes-show' : 'boxes-hide');
-          }
+          },
         },
         {
           id: 'boxes-all-faces',
@@ -252,36 +262,36 @@ function createApplicationMenu(mainWindow) {
           checked: true, // Default: all faces (unchecked = single face)
           click: (menuItem) => {
             sendMenuCommand(menuItem.checked ? 'boxes-all' : 'boxes-single');
-          }
+          },
         },
         { type: 'separator' },
         {
           label: t('menu.view.zoomIn'),
           accelerator: 'CmdOrCtrl+Plus',
           click: () => {
-            sendMenuCommand( 'zoom-in');
-          }
+            sendMenuCommand('zoom-in');
+          },
         },
         {
           label: t('menu.view.zoomOut'),
           accelerator: 'CmdOrCtrl+-',
           click: () => {
-            sendMenuCommand( 'zoom-out');
-          }
+            sendMenuCommand('zoom-out');
+          },
         },
         {
           label: t('menu.view.resetZoom'),
           accelerator: 'CmdOrCtrl+=',
           click: () => {
-            sendMenuCommand( 'reset-zoom');
-          }
+            sendMenuCommand('reset-zoom');
+          },
         },
         {
           label: t('menu.view.autoFit'),
           accelerator: 'CmdOrCtrl+0',
           click: () => {
-            sendMenuCommand( 'auto-fit');
-          }
+            sendMenuCommand('auto-fit');
+          },
         },
         { type: 'separator' },
         {
@@ -291,8 +301,10 @@ function createApplicationMenu(mainWindow) {
           type: 'checkbox',
           checked: true,
           click: (menuItem) => {
-            sendMenuCommand(menuItem.checked ? 'auto-center-enable' : 'auto-center-disable');
-          }
+            sendMenuCommand(
+              menuItem.checked ? 'auto-center-enable' : 'auto-center-disable',
+            );
+          },
         },
         {
           id: 'show-file-info',
@@ -301,100 +313,102 @@ function createApplicationMenu(mainWindow) {
           type: 'checkbox',
           checked: true,
           click: (menuItem) => {
-            sendMenuCommand(menuItem.checked ? 'file-info-show' : 'file-info-hide');
-          }
+            sendMenuCommand(
+              menuItem.checked ? 'file-info-show' : 'file-info-hide',
+            );
+          },
         },
         { type: 'separator' },
         {
           label: t('menu.view.openOriginalView'),
           accelerator: 'CmdOrCtrl+Shift+O',
           click: () => {
-            sendMenuCommand( 'open-original-view');
-          }
+            sendMenuCommand('open-original-view');
+          },
         },
         {
           label: t('menu.view.openLogViewer'),
           accelerator: 'CmdOrCtrl+L',
           click: () => {
-            sendMenuCommand( 'open-log-viewer');
-          }
+            sendMenuCommand('open-log-viewer');
+          },
         },
         {
           label: t('menu.view.openReviewModule'),
           accelerator: 'CmdOrCtrl+Shift+F',
           click: () => {
-            sendMenuCommand( 'open-review-module');
-          }
+            sendMenuCommand('open-review-module');
+          },
         },
         { type: 'separator' },
         {
           label: t('modules.statistics-dashboard'),
           accelerator: 'CmdOrCtrl+Shift+S',
           click: () => {
-            sendMenuCommand( 'open-statistics-dashboard');
-          }
+            sendMenuCommand('open-statistics-dashboard');
+          },
         },
         {
           label: t('modules.import'),
           accelerator: 'CmdOrCtrl+Shift+I',
           click: () => {
             sendMenuCommand('open-import');
-          }
+          },
         },
         {
           label: t('modules.rename-nef'),
           accelerator: 'CmdOrCtrl+Shift+B',
           click: () => {
             sendMenuCommand('open-rename-nef');
-          }
+          },
         },
         {
           label: t('modules.player-count'),
           accelerator: 'CmdOrCtrl+Shift+K',
           click: () => {
             sendMenuCommand('open-player-count');
-          }
+          },
         },
         {
           label: t('modules.culling'),
           accelerator: 'CmdOrCtrl+Shift+G',
           click: () => {
             sendMenuCommand('open-culling');
-          }
+          },
         },
         {
           label: t('menu.view.openTrash'),
           click: () => {
             sendMenuCommand('open-trash');
-          }
+          },
         },
         {
           label: t('modules.database-management'),
           accelerator: 'CmdOrCtrl+Shift+D',
           click: () => {
-            sendMenuCommand( 'open-database-management');
-          }
+            sendMenuCommand('open-database-management');
+          },
         },
         {
           label: t('modules.refine-faces'),
           accelerator: 'CmdOrCtrl+Shift+E',
           click: () => {
             sendMenuCommand('open-refine-faces');
-          }
+          },
         },
         {
           label: t('modules.file-queue'),
           accelerator: 'CmdOrCtrl+Shift+U',
           click: () => {
             sendMenuCommand('open-file-queue');
-          }
+          },
         },
         {
           label: t('modules.preferences'),
           accelerator: 'CmdOrCtrl+Shift+P',
           click: () => {
             sendMenuCommand('open-preferences');
-          }
+          },
         },
         { type: 'separator' },
         {
@@ -405,28 +419,28 @@ function createApplicationMenu(mainWindow) {
               accelerator: 'CmdOrCtrl+Shift+T',
               click: () => {
                 sendMenuCommand('open-theme-editor');
-              }
+              },
             },
             { type: 'separator' },
             {
               label: t('menu.theme.light'),
               click: () => {
                 sendMenuCommand('theme-light');
-              }
+              },
             },
             {
               label: t('menu.theme.dark'),
               click: () => {
                 sendMenuCommand('theme-dark');
-              }
+              },
             },
             {
               label: t('menu.theme.followSystem'),
               click: () => {
                 sendMenuCommand('theme-system');
-              }
-            }
-          ]
+              },
+            },
+          ],
         },
         { type: 'separator' },
         {
@@ -434,16 +448,16 @@ function createApplicationMenu(mainWindow) {
           accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
           click: () => {
             mainWindow.webContents.toggleDevTools();
-          }
+          },
         },
         {
           label: t('menu.view.reload'),
           accelerator: 'CmdOrCtrl+Shift+R',
           click: () => {
             mainWindow.webContents.reload();
-          }
-        }
-      ]
+          },
+        },
+      ],
     },
 
     // Window menu
@@ -462,37 +476,37 @@ function createApplicationMenu(mainWindow) {
               accelerator: 'CmdOrCtrl+1',
               click: () => {
                 sendMenuCommand('workflow-step-import');
-              }
+              },
             },
             {
               label: t('modules.rename-nef'),
               accelerator: 'CmdOrCtrl+2',
               click: () => {
                 sendMenuCommand('workflow-step-rename');
-              }
+              },
             },
             {
               label: t('modules.review-module'),
               accelerator: 'CmdOrCtrl+3',
               click: () => {
                 sendMenuCommand('workflow-step-review');
-              }
+              },
             },
             {
               label: t('modules.player-count'),
               accelerator: 'CmdOrCtrl+4',
               click: () => {
                 sendMenuCommand('workflow-step-count');
-              }
+              },
             },
             {
               label: t('modules.culling'),
               accelerator: 'CmdOrCtrl+5',
               click: () => {
                 sendMenuCommand('workflow-step-culling');
-              }
-            }
-          ]
+              },
+            },
+          ],
         },
         {
           // Secondary layout templates — no accelerators (Cmd+1..5 now drive the
@@ -509,15 +523,15 @@ function createApplicationMenu(mainWindow) {
               label: t('menu.window.comparisonMode'),
               click: () => {
                 sendMenuCommand('layout-template-comparison');
-              }
+              },
             },
             {
               label: t('menu.window.statsMode'),
               click: () => {
                 sendMenuCommand('layout-template-stats');
-              }
-            }
-          ]
+              },
+            },
+          ],
         },
         { type: 'separator' },
         {
@@ -528,14 +542,14 @@ function createApplicationMenu(mainWindow) {
               accelerator: 'CmdOrCtrl+Shift+]',
               click: () => {
                 sendMenuCommand('layout-add-column');
-              }
+              },
             },
             {
               label: t('menu.window.removeColumn'),
               accelerator: 'CmdOrCtrl+Shift+[',
               click: () => {
                 sendMenuCommand('layout-remove-column');
-              }
+              },
             },
             { type: 'separator' },
             {
@@ -543,14 +557,14 @@ function createApplicationMenu(mainWindow) {
               accelerator: 'CmdOrCtrl+Shift+}',
               click: () => {
                 sendMenuCommand('layout-add-row');
-              }
+              },
             },
             {
               label: t('menu.window.removeRow'),
               accelerator: 'CmdOrCtrl+Shift+{',
               click: () => {
                 sendMenuCommand('layout-remove-row');
-              }
+              },
             },
             { type: 'separator' },
             {
@@ -558,63 +572,65 @@ function createApplicationMenu(mainWindow) {
               accelerator: 'CmdOrCtrl+Alt+Left',
               click: () => {
                 sendMenuCommand('layout-move-new-left');
-              }
+              },
             },
             {
               label: t('menu.window.moveRight'),
               accelerator: 'CmdOrCtrl+Alt+Right',
               click: () => {
                 sendMenuCommand('layout-move-new-right');
-              }
+              },
             },
             {
               label: t('menu.window.moveAbove'),
               accelerator: 'CmdOrCtrl+Alt+Up',
               click: () => {
                 sendMenuCommand('layout-move-new-above');
-              }
+              },
             },
             {
               label: t('menu.window.moveBelow'),
               accelerator: 'CmdOrCtrl+Alt+Down',
               click: () => {
                 sendMenuCommand('layout-move-new-below');
-              }
-            }
-          ]
+              },
+            },
+          ],
         },
         { type: 'separator' },
         {
           label: t('menu.window.resetLayout'),
           accelerator: 'CmdOrCtrl+Shift+L',
           click: () => {
-            sendMenuCommand( 'reset-layout');
-          }
+            sendMenuCommand('reset-layout');
+          },
         },
         {
           label: t('menu.window.resetAllLayouts'),
           click: () => {
-            sendMenuCommand( 'reset-all-layouts');
-          }
+            sendMenuCommand('reset-all-layouts');
+          },
         },
         { type: 'separator' },
         {
           label: t('menu.window.minimize'),
-          role: 'minimize'
+          role: 'minimize',
         },
         {
           label: t('menu.window.close'),
           accelerator: 'CmdOrCtrl+W',
-          role: 'close'
+          role: 'close',
         },
-        ...(isMac ? [
-          { type: 'separator' },
-          {
-            label: t('menu.window.bringAllToFront'),
-            role: 'front'
-          }
-        ] : [])
-      ]
+        ...(isMac
+          ? [
+              { type: 'separator' },
+              {
+                label: t('menu.window.bringAllToFront'),
+                role: 'front',
+              },
+            ]
+          : []),
+      ],
     },
 
     // Help menu
@@ -626,57 +642,67 @@ function createApplicationMenu(mainWindow) {
           accelerator: 'CmdOrCtrl+/',
           click: () => {
             sendMenuCommand('show-keyboard-shortcuts');
-          }
+          },
         },
         {
           label: t('menu.help.showWelcome'),
           click: () => {
             sendMenuCommand('show-welcome');
-          }
+          },
         },
         { type: 'separator' },
         {
           label: t('menu.help.documentation'),
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/ansikten#readme');
-          }
+            await shell.openExternal(
+              'https://github.com/krissen/ansikten#readme',
+            );
+          },
         },
         {
           label: t('menu.help.userGuide'),
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/ansikten/blob/main/docs/user/getting-started.md');
-          }
+            await shell.openExternal(
+              'https://github.com/krissen/ansikten/blob/main/docs/user/getting-started.md',
+            );
+          },
         },
         {
           label: t('menu.help.reportIssue'),
           click: async () => {
-            await shell.openExternal('https://github.com/krissen/ansikten/issues/new');
-          }
+            await shell.openExternal(
+              'https://github.com/krissen/ansikten/issues/new',
+            );
+          },
         },
         { type: 'separator' },
         {
           label: t('menu.help.githubRepo'),
           click: async () => {
             await shell.openExternal('https://github.com/krissen/ansikten');
-          }
+          },
         },
-        ...(!isMac ? [
-          { type: 'separator' },
-          {
-            label: t('menu.app.about'),
-            click: () => {
-              dialog.showMessageBox(mainWindow, {
-                type: 'info',
-                title: t('menu.app.about'),
-                message: 'Ansikten',
-                detail: t('menu.app.aboutDetail', { version: versionString }),
-                buttons: ['OK']
-              });
-            }
-          }
-        ] : [])
-      ]
-    }
+        ...(!isMac
+          ? [
+              { type: 'separator' },
+              {
+                label: t('menu.app.about'),
+                click: () => {
+                  dialog.showMessageBox(mainWindow, {
+                    type: 'info',
+                    title: t('menu.app.about'),
+                    message: 'Ansikten',
+                    detail: t('menu.app.aboutDetail', {
+                      version: versionString,
+                    }),
+                    buttons: ['OK'],
+                  });
+                },
+              },
+            ]
+          : []),
+      ],
+    },
   ];
 
   const menu = Menu.buildFromTemplate(template);

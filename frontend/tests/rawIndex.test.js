@@ -20,8 +20,13 @@ describe('createRawIndexCache.buildIndex', () => {
     const cache = createRawIndexCache({ readdir: async () => entries });
     const index = await cache.buildIndex('/raw');
 
-    expect([...index.keys()].sort()).toEqual(['260626_194742', '260627_173803']);
-    expect(index.get('260626_194742')).toEqual(['/raw/a/260626_194742_ArvidJ.NEF']);
+    expect([...index.keys()].sort()).toEqual([
+      '260626_194742',
+      '260627_173803',
+    ]);
+    expect(index.get('260626_194742')).toEqual([
+      '/raw/a/260626_194742_ArvidJ.NEF',
+    ]);
     expect(index.get('260627_173803')).toEqual(['/raw/b/260627_173803.NEF']);
   });
 });
@@ -35,7 +40,9 @@ describe('createRawIndexCache.lookup', () => {
       dirent('/raw', '260626_194742_b.NEF'),
     ];
     const cache = createRawIndexCache({ readdir: async () => entries });
-    expect(await cache.lookup('/raw', '260626_194742')).toBe('/raw/260626_194742_a.NEF');
+    expect(await cache.lookup('/raw', '260626_194742')).toBe(
+      '/raw/260626_194742_a.NEF',
+    );
   });
 
   it('distinguishes a plain token from its burst counterpart (exact token equality)', async () => {
@@ -44,20 +51,30 @@ describe('createRawIndexCache.lookup', () => {
       dirent('/raw', '260627_173803-1.NEF'),
     ];
     const cache = createRawIndexCache({ readdir: async () => entries });
-    expect(await cache.lookup('/raw', '260627_173803')).toBe('/raw/260627_173803.NEF');
-    expect(await cache.lookup('/raw', '260627_173803-1')).toBe('/raw/260627_173803-1.NEF');
+    expect(await cache.lookup('/raw', '260627_173803')).toBe(
+      '/raw/260627_173803.NEF',
+    );
+    expect(await cache.lookup('/raw', '260627_173803-1')).toBe(
+      '/raw/260627_173803-1.NEF',
+    );
   });
 
   it('returns null for an unknown token and for a falsy token', async () => {
-    const cache = createRawIndexCache({ readdir: async () => [dirent('/raw', '260626_194742.NEF')] });
+    const cache = createRawIndexCache({
+      readdir: async () => [dirent('/raw', '260626_194742.NEF')],
+    });
     expect(await cache.lookup('/raw', '999999_999999')).toBeNull();
     expect(await cache.lookup('/raw', null)).toBeNull();
     expect(await cache.lookup('/raw', '')).toBeNull();
   });
 
   it('is case-insensitive on the RAW extension', async () => {
-    const cache = createRawIndexCache({ readdir: async () => [dirent('/raw', '260626_194742_x.nef')] });
-    expect(await cache.lookup('/raw', '260626_194742')).toBe('/raw/260626_194742_x.nef');
+    const cache = createRawIndexCache({
+      readdir: async () => [dirent('/raw', '260626_194742_x.nef')],
+    });
+    expect(await cache.lookup('/raw', '260626_194742')).toBe(
+      '/raw/260626_194742_x.nef',
+    );
   });
 });
 
@@ -65,7 +82,11 @@ describe('createRawIndexCache caching + TTL', () => {
   it('scans once across a keystroke burst, then rescans after the TTL expires', async () => {
     let clock = 1000;
     const readdir = vi.fn(async () => [dirent('/raw', '260626_194742.NEF')]);
-    const cache = createRawIndexCache({ readdir, ttlMs: 30_000, now: () => clock });
+    const cache = createRawIndexCache({
+      readdir,
+      ttlMs: 30_000,
+      now: () => clock,
+    });
 
     // Burst of lookups within the TTL window -> a single scan.
     await cache.lookup('/raw', '260626_194742');
@@ -88,7 +109,9 @@ describe('createRawIndexCache caching + TTL', () => {
     await cache.lookup('/raw/two', '260626_194742');
     await cache.lookup('/raw/one', '260626_194742');
     expect(readdir).toHaveBeenCalledTimes(2);
-    expect(await cache.lookup('/raw/two', '260626_194742')).toBe('/raw/two/260626_194742.NEF');
+    expect(await cache.lookup('/raw/two', '260626_194742')).toBe(
+      '/raw/two/260626_194742.NEF',
+    );
   });
 
   it('invalidate() forces a rescan', async () => {

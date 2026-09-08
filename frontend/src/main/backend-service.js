@@ -84,7 +84,10 @@ class BackendService {
     if (isPackaged) {
       // Production: Use bundled PyInstaller directory (--onedir mode for fast startup)
       const resourcesPath = process.resourcesPath;
-      const execName = process.platform === 'win32' ? 'ansikten-backend.exe' : 'ansikten-backend';
+      const execName =
+        process.platform === 'win32'
+          ? 'ansikten-backend.exe'
+          : 'ansikten-backend';
       const backendDir = path.join(resourcesPath, 'backend');
       const backendPath = path.join(backendDir, execName);
 
@@ -98,31 +101,29 @@ class BackendService {
 
       return {
         executable: backendPath,
-        args: [
-          '--host', this.host,
-          '--port', this.port.toString()
-        ],
+        args: ['--host', this.host, '--port', this.port.toString()],
         cwd: backendDir,
         env: {
           ...process.env,
           PATH: augmentPath(process.env.PATH),
-          ANSIKTEN_PORT: this.port.toString()
-        }
+          ANSIKTEN_PORT: this.port.toString(),
+        },
       };
     } else {
       // Development: Use system Python with uvicorn
       const backendDir = path.join(__dirname, '../../../backend');
 
       // Try to find Python in common locations (convention-based)
-      const venvPython = process.platform === 'win32'
-        ? path.join(backendDir, '.venv', 'Scripts', 'python.exe')
-        : path.join(backendDir, '.venv', 'bin', 'python3');
+      const venvPython =
+        process.platform === 'win32'
+          ? path.join(backendDir, '.venv', 'Scripts', 'python.exe')
+          : path.join(backendDir, '.venv', 'bin', 'python3');
 
       const pythonPaths = [
-        process.env.ANSIKTEN_PYTHON,  // Custom path via env var
-        venvPython,                    // Project venv in backend/.venv
-        'python3',                     // System Python
-        'python',                      // Fallback
+        process.env.ANSIKTEN_PYTHON, // Custom path via env var
+        venvPython, // Project venv in backend/.venv
+        'python3', // System Python
+        'python', // Fallback
       ].filter(Boolean);
 
       const { execSync } = require('child_process');
@@ -146,7 +147,9 @@ class BackendService {
       }
 
       if (!pythonPath) {
-        throw new Error('No Python interpreter found. Set ANSIKTEN_PYTHON env var or install python3.');
+        throw new Error(
+          'No Python interpreter found. Set ANSIKTEN_PYTHON env var or install python3.',
+        );
       }
 
       console.log('[BackendService] Running in development mode');
@@ -156,11 +159,15 @@ class BackendService {
       return {
         executable: pythonPath,
         args: [
-          '-m', 'uvicorn',
+          '-m',
+          'uvicorn',
           'api.server:app',
-          '--host', this.host,
-          '--port', this.port.toString(),
-          '--log-level', logLevel
+          '--host',
+          this.host,
+          '--port',
+          this.port.toString(),
+          '--log-level',
+          logLevel,
         ],
         cwd: backendDir,
         env: {
@@ -168,8 +175,8 @@ class BackendService {
           PATH: augmentPath(process.env.PATH),
           PYTHONPATH: backendDir,
           ANSIKTEN_PORT: this.port.toString(),
-          ANSIKTEN_LOG_LEVEL: logLevel
-        }
+          ANSIKTEN_LOG_LEVEL: logLevel,
+        },
       };
     }
   }
@@ -188,20 +195,18 @@ class BackendService {
     this.childExited = false;
     this.startupLogs = [];
 
-    console.log(`[BackendService] [${this._timestamp()}] Starting FastAPI backend...`);
+    console.log(
+      `[BackendService] [${this._timestamp()}] Starting FastAPI backend...`,
+    );
 
     const config = this.getBackendConfig();
     this._addLog(`Spawning: ${config.executable} ${config.args.join(' ')}`);
 
-    this.process = spawn(
-      config.executable,
-      config.args,
-      {
-        cwd: config.cwd,
-        env: { ...config.env, PYTHONUNBUFFERED: '1' },
-        stdio: 'pipe'
-      }
-    );
+    this.process = spawn(config.executable, config.args, {
+      cwd: config.cwd,
+      env: { ...config.env, PYTHONUNBUFFERED: '1' },
+      stdio: 'pipe',
+    });
 
     this._addLog(`Process spawned with PID ${this.process.pid}`);
 
@@ -209,7 +214,10 @@ class BackendService {
       const output = data.toString().trim();
       this._addLog(`stdout: ${output}`);
       if (DEBUG) {
-        if (output.includes('GET /api/statistics/summary') && output.includes('200')) {
+        if (
+          output.includes('GET /api/statistics/summary') &&
+          output.includes('200')
+        ) {
           return;
         }
         console.log(`[Backend] ${output}`);
@@ -229,7 +237,9 @@ class BackendService {
 
     this.process.on('exit', (code, signal) => {
       this._addLog(`Process exited: code=${code}, signal=${signal}`);
-      console.log(`[BackendService] [${this._timestamp()}] Server exited (code: ${code}, signal: ${signal})`);
+      console.log(
+        `[BackendService] [${this._timestamp()}] Server exited (code: ${code}, signal: ${signal})`,
+      );
       this.childExited = true;
       this.process = null;
     });
@@ -243,7 +253,9 @@ class BackendService {
    * @returns {Promise<void>}
    */
   async waitForReady() {
-    console.log(`[BackendService] [${this._timestamp()}] Starting health check polling...`);
+    console.log(
+      `[BackendService] [${this._timestamp()}] Starting health check polling...`,
+    );
     this._updateStatus(t('dialogs.splash.initializingPython'), 10);
 
     // Poll immediately, then retry. The backend takes time to boot, so early
@@ -251,12 +263,16 @@ class BackendService {
     for (let i = 0; i < this.maxRetries; i++) {
       if (this.childExited) {
         const logs = this.startupLogs.slice(-20).join('\n');
-        throw new Error(`Backend process exited during startup.\n\nLast logs:\n${logs}`);
+        throw new Error(
+          `Backend process exited during startup.\n\nLast logs:\n${logs}`,
+        );
       }
 
       const isHealthy = await this.checkHealth();
       if (isHealthy) {
-        console.log(`[BackendService] [${this._timestamp()}] Backend ready after ${i + 1} attempts`);
+        console.log(
+          `[BackendService] [${this._timestamp()}] Backend ready after ${i + 1} attempts`,
+        );
         this._updateStatus(t('dialogs.splash.serverReady'), 80);
         return;
       }
@@ -269,18 +285,28 @@ class BackendService {
       } else if (i === 6) {
         this._updateStatus(t('dialogs.splash.startingWebServer'), progress);
       } else if (i > 10) {
-        this._updateStatus(t('dialogs.splash.waitingForBackend', { current: i, total: this.maxRetries }), progress);
+        this._updateStatus(
+          t('dialogs.splash.waitingForBackend', {
+            current: i,
+            total: this.maxRetries,
+          }),
+          progress,
+        );
       }
 
       if (DEBUG && i > 0 && i % 5 === 0) {
-        console.log(`[BackendService] [${this._timestamp()}] Health check attempt ${i}/${this.maxRetries}`);
+        console.log(
+          `[BackendService] [${this._timestamp()}] Health check attempt ${i}/${this.maxRetries}`,
+        );
       }
 
-      await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+      await new Promise((resolve) => setTimeout(resolve, this.retryDelay));
     }
 
     const logs = this.startupLogs.slice(-20).join('\n');
-    throw new Error(`Backend server failed to start within ${this.maxRetries}s timeout.\n\nLast logs:\n${logs}`);
+    throw new Error(
+      `Backend server failed to start within ${this.maxRetries}s timeout.\n\nLast logs:\n${logs}`,
+    );
   }
 
   /**
@@ -297,8 +323,8 @@ class BackendService {
           method: 'GET',
           timeout: 2000,
           headers: {
-            'Connection': 'close'
-          }
+            Connection: 'close',
+          },
         },
         (res) => {
           let data = '';
@@ -314,7 +340,7 @@ class BackendService {
               resolve(false);
             }
           });
-        }
+        },
       );
 
       req.on('error', (err) => {
@@ -323,7 +349,9 @@ class BackendService {
           // timeout diagnostic includes them even when DEBUG is off.
           this._addLog(`Health check error: ${err.code || ''} ${err.message}`);
           if (DEBUG) {
-            console.log(`[BackendService] [${this._timestamp()}] Health check error: ${err.message}`);
+            console.log(
+              `[BackendService] [${this._timestamp()}] Health check error: ${err.message}`,
+            );
           }
         }
         resolve(false);

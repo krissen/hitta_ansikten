@@ -14,7 +14,11 @@ import { useState, useEffect } from 'react';
  * @param {Object} options - Configuration options
  * @returns {Object} Style object for the dropdown
  */
-export function useDropdownPosition(open, anchorEl, { maxHeight = 200, gap = 4 } = {}) {
+export function useDropdownPosition(
+  open,
+  anchorEl,
+  { maxHeight = 200, gap = 4 } = {},
+) {
   const [style, setStyle] = useState({ display: 'none' });
 
   useEffect(() => {
@@ -31,7 +35,9 @@ export function useDropdownPosition(open, anchorEl, { maxHeight = 200, gap = 4 }
       const spaceAbove = rect.top - gap;
 
       const placeAbove = spaceBelow < maxHeight && spaceAbove > spaceBelow;
-      const availableHeight = placeAbove ? Math.min(spaceAbove, maxHeight) : Math.min(spaceBelow, maxHeight);
+      const availableHeight = placeAbove
+        ? Math.min(spaceAbove, maxHeight)
+        : Math.min(spaceBelow, maxHeight);
 
       const newStyle = {
         position: 'fixed',

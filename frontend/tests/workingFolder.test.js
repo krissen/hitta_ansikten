@@ -70,7 +70,9 @@ describe('workingFolder subscription', () => {
 
   it('a broken subscriber does not stop the others', () => {
     const good = vi.fn();
-    subscribeWorkingFolder(() => { throw new Error('boom'); });
+    subscribeWorkingFolder(() => {
+      throw new Error('boom');
+    });
     subscribeWorkingFolder(good);
     setWorkingFolder({ roots: ['/a'], step: 'import' });
     expect(good).toHaveBeenCalledTimes(1);
@@ -97,7 +99,10 @@ describe('workingFolder persistence (survives a renderer reload)', () => {
     setWorkingFolder({ roots: ['/photos'], step: 'rename' });
     vi.resetModules();
     const fresh = await import('../src/renderer/shared/workingFolder.js');
-    expect(fresh.getWorkingFolder()).toMatchObject({ roots: ['/photos'], step: 'rename' });
+    expect(fresh.getWorkingFolder()).toMatchObject({
+      roots: ['/photos'],
+      step: 'rename',
+    });
   });
 
   it('a re-imported module with nothing persisted stays empty', async () => {

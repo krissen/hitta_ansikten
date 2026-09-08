@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  act,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { settle } from './helpers/settle.js';
 
 // REFRESH_DEBOUNCE_MS in PlayerCountModule (not exported); waits use a margin.
@@ -44,7 +50,10 @@ vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
 }));
 
 import { PlayerCountModule } from '../src/renderer/components/PlayerCountModule.jsx';
-import { getScanScope, setScanScope } from '../src/renderer/shared/scanScope.js';
+import {
+  getScanScope,
+  setScanScope,
+} from '../src/renderer/shared/scanScope.js';
 import { clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
 
 const countCalls = () =>
@@ -107,8 +116,12 @@ describe('PlayerCountModule — chip removal publishes/clears scan scope', () =>
     fireEvent.click(removes[0]); // remove '/photos/a'
 
     await waitFor(() => expect(countCalls().length).toBe(1));
-    expect(countCalls()[0][1]).toEqual(expect.objectContaining({ roots: ['/photos/b'] }));
-    expect(getScanScope()).toEqual(expect.objectContaining({ roots: ['/photos/b'] }));
+    expect(countCalls()[0][1]).toEqual(
+      expect.objectContaining({ roots: ['/photos/b'] }),
+    );
+    expect(getScanScope()).toEqual(
+      expect.objectContaining({ roots: ['/photos/b'] }),
+    );
   });
 
   it('removing the last chip clears without a count and empties the shared scope', async () => {
@@ -120,7 +133,9 @@ describe('PlayerCountModule — chip removal publishes/clears scan scope', () =>
     let removes = container.querySelectorAll('.input-bar-chip-remove');
     fireEvent.click(removes[0]);
     await waitFor(() => {
-      expect(container.querySelectorAll('.input-bar-chip-remove')).toHaveLength(1);
+      expect(container.querySelectorAll('.input-bar-chip-remove')).toHaveLength(
+        1,
+      );
     });
     await settleCount(container); // the recount that removal triggered must land too
     postMock.mockClear();
@@ -130,7 +145,9 @@ describe('PlayerCountModule — chip removal publishes/clears scan scope', () =>
 
     await waitFor(() => {
       // No chips left, and the empty-state prompt is back.
-      expect(container.querySelectorAll('.input-bar-chip-remove')).toHaveLength(0);
+      expect(container.querySelectorAll('.input-bar-chip-remove')).toHaveLength(
+        0,
+      );
     });
     // No POST fired for the empty selection.
     expect(countCalls().length).toBe(0);
@@ -174,7 +191,9 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
     const { container } = render(<PlayerCountModule />);
     await waitFor(() => expect(getMock).toHaveBeenCalled()); // mount settled
     // Nothing adopted, no chips, no count.
-    expect(container.querySelectorAll('.input-bar-chip-remove')).toHaveLength(0);
+    expect(container.querySelectorAll('.input-bar-chip-remove')).toHaveLength(
+      0,
+    );
     expect(countCalls().length).toBe(0);
 
     // Gallra publishes a scope AFTER this tab mounted.
@@ -197,7 +216,9 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
     await settle();
 
     // The scope Gallra published survives untouched; still no count fired.
-    expect(getScanScope()).toEqual(expect.objectContaining({ roots: ['/gallra'] }));
+    expect(getScanScope()).toEqual(
+      expect.objectContaining({ roots: ['/gallra'] }),
+    );
     expect(countCalls().length).toBe(0);
   });
 
@@ -224,13 +245,26 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       globalThis.window.ansiktenAPI = {
         watchFolder: vi.fn(),
         unwatchFolder: vi.fn(),
-        onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
+        onFolderChanged: (cb) => {
+          folderCb = cb;
+          return () => {};
+        },
         invoke: vi.fn().mockResolvedValue([]),
       };
       const populated = {
         total_images: 3,
         files_resolved: 3,
-        players: [{ name: 'A', count: 3, pct: 100, delta_pct: 0, delta_n: 0, level: 'ok', timestamps: [] }],
+        players: [
+          {
+            name: 'A',
+            count: 3,
+            pct: 100,
+            delta_pct: 0,
+            delta_n: 0,
+            level: 'ok',
+            timestamps: [],
+          },
+        ],
         excluded: null,
         baseline: 3,
         baseline_method: 'median',
@@ -246,12 +280,21 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
 
       // The next count (the folder-watch refresh) hangs → stays in flight.
       let resolveRefresh;
-      postMock.mockImplementationOnce(() => new Promise((res) => { resolveRefresh = res; }));
+      postMock.mockImplementationOnce(
+        () =>
+          new Promise((res) => {
+            resolveRefresh = res;
+          }),
+      );
       folderCb(); // schedule the debounced refresh
-      await act(async () => { await vi.advanceTimersByTimeAsync(REFRESH_MS); });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(REFRESH_MS);
+      });
       expect(countCalls().length).toBe(2); // refresh is in flight
       // The silent refresh turned the "refreshing" indicator on.
-      expect(container.querySelector('.player-count-refreshing')).not.toBeNull();
+      expect(
+        container.querySelector('.player-count-refreshing'),
+      ).not.toBeNull();
 
       // Remove the only chip → empty clear branch must fence the in-flight refresh.
       //
@@ -262,7 +305,10 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       // depend on how many awaits runCount happens to have before its seq check.
       // Free under the fake clock.
       const remove = container.querySelector('.input-bar-chip-remove');
-      await act(async () => { fireEvent.click(remove); await vi.advanceTimersByTimeAsync(0); });
+      await act(async () => {
+        fireEvent.click(remove);
+        await vi.advanceTimersByTimeAsync(0);
+      });
       expect(container.querySelector('.input-bar-chip-remove')).toBeNull();
 
       // Fynd 4: the clear releases the refresh spinner even though the fenced
@@ -271,7 +317,10 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       expect(container.querySelector('.player-count-refreshing')).toBeNull();
 
       // The stale refresh resolves AFTER the clear: it must NOT repopulate.
-      await act(async () => { resolveRefresh(populated); await vi.advanceTimersByTimeAsync(0); });
+      await act(async () => {
+        resolveRefresh(populated);
+        await vi.advanceTimersByTimeAsync(0);
+      });
 
       expect(getScanScope()).toBeNull();
       // Empty-state prompt is (still) shown — the late response did not repopulate.
@@ -300,7 +349,10 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       globalThis.window.ansiktenAPI = {
         watchFolder: vi.fn(),
         unwatchFolder: vi.fn(),
-        onFolderChanged: (cb) => { folderCb = cb; return () => {}; },
+        onFolderChanged: (cb) => {
+          folderCb = cb;
+          return () => {};
+        },
         invoke: vi.fn().mockResolvedValue([]),
       };
 
@@ -316,11 +368,16 @@ describe('PlayerCountModule — clearing guards (Codex P2 fixes)', () => {
       // Remove the only chip → empty clear branch must clearTimeout the refresh.
       // Full macrotask flush, for the same reason as the sister test above.
       const remove = container.querySelector('.input-bar-chip-remove');
-      await act(async () => { fireEvent.click(remove); await vi.advanceTimersByTimeAsync(0); });
+      await act(async () => {
+        fireEvent.click(remove);
+        await vi.advanceTimersByTimeAsync(0);
+      });
       expect(container.querySelector('.input-bar-chip-remove')).toBeNull();
 
       // Advance past the debounce window: the cancelled refresh must never POST.
-      await act(async () => { await vi.advanceTimersByTimeAsync(REFRESH_MS * 2); });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(REFRESH_MS * 2);
+      });
       expect(countCalls().length).toBe(0);
       expect(getScanScope()).toBeNull();
     } finally {

@@ -8,7 +8,13 @@
  * - WebSocket event handling (ws.on, ws.off)
  */
 
-import React, { createContext, useContext, useRef, useCallback, useMemo } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useRef,
+  useCallback,
+  useMemo,
+} from 'react';
 import { apiClient } from '../shared/api-client.js';
 import { debug, debugError } from '../shared/debug.js';
 
@@ -40,10 +46,13 @@ export function ModuleAPIProvider({ children }) {
    */
   const emit = useCallback((eventName, data) => {
     const handlers = eventBusRef.current.get(eventName);
-    debug('ModuleAPI', `emit("${eventName}") - ${handlers ? handlers.length : 0} handlers`);
+    debug(
+      'ModuleAPI',
+      `emit("${eventName}") - ${handlers ? handlers.length : 0} handlers`,
+    );
     if (!handlers || handlers.length === 0) return;
 
-    handlers.forEach(handler => {
+    handlers.forEach((handler) => {
       try {
         handler(data);
       } catch (err) {
@@ -69,23 +78,32 @@ export function ModuleAPIProvider({ children }) {
    * @param {number} interval - Check interval in ms (default 50)
    * @returns {Promise<boolean>} True if listeners found, false if timeout
    */
-  const waitForListeners = useCallback((eventName, timeout = 5000, interval = 50) => {
-    return new Promise((resolve) => {
-      const startTime = Date.now();
-      const check = () => {
-        if (hasListeners(eventName)) {
-          debug('ModuleAPI', `waitForListeners("${eventName}") - found listeners`);
-          resolve(true);
-        } else if (Date.now() - startTime > timeout) {
-          debug('ModuleAPI', `waitForListeners("${eventName}") - timeout after ${timeout}ms`);
-          resolve(false);
-        } else {
-          setTimeout(check, interval);
-        }
-      };
-      check();
-    });
-  }, [hasListeners]);
+  const waitForListeners = useCallback(
+    (eventName, timeout = 5000, interval = 50) => {
+      return new Promise((resolve) => {
+        const startTime = Date.now();
+        const check = () => {
+          if (hasListeners(eventName)) {
+            debug(
+              'ModuleAPI',
+              `waitForListeners("${eventName}") - found listeners`,
+            );
+            resolve(true);
+          } else if (Date.now() - startTime > timeout) {
+            debug(
+              'ModuleAPI',
+              `waitForListeners("${eventName}") - timeout after ${timeout}ms`,
+            );
+            resolve(false);
+          } else {
+            setTimeout(check, interval);
+          }
+        };
+        check();
+      });
+    },
+    [hasListeners],
+  );
 
   /**
    * Subscribe to an event
@@ -109,7 +127,10 @@ export function ModuleAPIProvider({ children }) {
         const index = handlers.indexOf(handler);
         if (index > -1) {
           handlers.splice(index, 1);
-          debug('ModuleAPI', `off("${eventName}") - now ${handlers.length} handlers`);
+          debug(
+            'ModuleAPI',
+            `off("${eventName}") - now ${handlers.length} handlers`,
+          );
         }
       }
     };
@@ -118,36 +139,45 @@ export function ModuleAPIProvider({ children }) {
   /**
    * HTTP methods for backend communication
    */
-  const http = useMemo(() => ({
-    get: async (path, params) => apiClient.get(path, params),
-    // Forward per-call options (e.g. { timeout: 0 }) — do not drop the third arg.
-    post: async (path, body, options) => apiClient.post(path, body, options)
-  }), []);
+  const http = useMemo(
+    () => ({
+      get: async (path, params) => apiClient.get(path, params),
+      // Forward per-call options (e.g. { timeout: 0 }) — do not drop the third arg.
+      post: async (path, body, options) => apiClient.post(path, body, options),
+    }),
+    [],
+  );
 
   /**
    * WebSocket methods
    */
-  const ws = useMemo(() => ({
-    on: (event, callback) => apiClient.onWSEvent(event, callback),
-    off: (event, callback) => apiClient.offWSEvent(event, callback)
-  }), []);
+  const ws = useMemo(
+    () => ({
+      on: (event, callback) => apiClient.onWSEvent(event, callback),
+      off: (event, callback) => apiClient.offWSEvent(event, callback),
+    }),
+    [],
+  );
 
   /**
    * IPC methods for main process communication
    */
-  const ipc = useMemo(() => ({
-    send: (channel, ...args) => {
-      if (window.ansiktenAPI) {
-        window.ansiktenAPI.send(channel, ...args);
-      }
-    },
-    invoke: async (channel, ...args) => {
-      if (window.ansiktenAPI) {
-        return window.ansiktenAPI.invoke(channel, ...args);
-      }
-      throw new Error('ansiktenAPI not available');
-    }
-  }), []);
+  const ipc = useMemo(
+    () => ({
+      send: (channel, ...args) => {
+        if (window.ansiktenAPI) {
+          window.ansiktenAPI.send(channel, ...args);
+        }
+      },
+      invoke: async (channel, ...args) => {
+        if (window.ansiktenAPI) {
+          return window.ansiktenAPI.invoke(channel, ...args);
+        }
+        throw new Error('ansiktenAPI not available');
+      },
+    }),
+    [],
+  );
 
   /**
    * Backend reference (for advanced usage)
@@ -155,16 +185,19 @@ export function ModuleAPIProvider({ children }) {
   const backend = useMemo(() => apiClient, []);
 
   // Combine all APIs into the context value
-  const value = useMemo(() => ({
-    emit,
-    on,
-    hasListeners,
-    waitForListeners,
-    http,
-    ws,
-    ipc,
-    backend
-  }), [emit, on, hasListeners, waitForListeners, http, ws, ipc, backend]);
+  const value = useMemo(
+    () => ({
+      emit,
+      on,
+      hasListeners,
+      waitForListeners,
+      http,
+      ws,
+      ipc,
+      backend,
+    }),
+    [emit, on, hasListeners, waitForListeners, http, ws, ipc, backend],
+  );
 
   return (
     <ModuleAPIContext.Provider value={value}>

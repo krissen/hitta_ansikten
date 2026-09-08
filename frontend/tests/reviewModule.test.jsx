@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterEach,
+} from 'vitest';
 import { render, act, cleanup, fireEvent } from '@testing-library/react';
 import { settle } from './helpers/settle.js';
 
@@ -93,7 +101,12 @@ const hiddenNode = { isVisible: () => false };
 // active tabset. Review's keyboard is gated on the active tabset (I1): live when
 // its own tabset is active OR a companion image surface (image-viewer /
 // original-view) is. `activeComponent` sets what the active tabset hosts.
-function tabNode({ mine = 'TSR', activeId = 'TSR', activeComponent = 'review-module', visible = true } = {}) {
+function tabNode({
+  mine = 'TSR',
+  activeId = 'TSR',
+  activeComponent = 'review-module',
+  visible = true,
+} = {}) {
   const activeTabset = {
     getId: () => activeId,
     getSelectedNode: () => ({ getComponent: () => activeComponent }),
@@ -226,7 +239,11 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
   it('Enter confirms the current face using its top alternative', async () => {
     const { container } = await mountReview();
     await loadImage([
-      face({ match_alternatives: [{ name: 'Anna', confidence: 90, is_ignored: false }] }),
+      face({
+        match_alternatives: [
+          { name: 'Anna', confidence: 90, is_ignored: false },
+        ],
+      }),
     ]);
     await act(async () => {
       fireEvent.keyDown(document, { key: 'Enter' });
@@ -251,7 +268,11 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
   it('a digit key selects the matching alternative and confirms', async () => {
     const { container } = await mountReview();
     await loadImage([
-      face({ match_alternatives: [{ name: 'Bob', confidence: 88, is_ignored: false }] }),
+      face({
+        match_alternatives: [
+          { name: 'Bob', confidence: 88, is_ignored: false },
+        ],
+      }),
     ]);
     await act(async () => {
       fireEvent.keyDown(document, { key: '1' });
@@ -281,7 +302,10 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
     await act(async () => {
       fireEvent.keyDown(document, { key: 'ArrowDown' });
     });
-    expect(h.emit).not.toHaveBeenCalledWith('active-face-changed', expect.anything());
+    expect(h.emit).not.toHaveBeenCalledWith(
+      'active-face-changed',
+      expect.anything(),
+    );
   });
 
   // I1: a visible-but-inactive Review (a foreign, non-companion tabset is
@@ -289,13 +313,18 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
   // that stops the double-trash: Cmd+Backspace pressed while Culling is active
   // no longer also reaches a merely-visible Review.
   it('is silent when a foreign, non-companion tabset is active (visible but inactive)', async () => {
-    await mountReview(tabNode({ mine: 'TSR', activeId: 'TSC', activeComponent: 'culling' }));
+    await mountReview(
+      tabNode({ mine: 'TSR', activeId: 'TSC', activeComponent: 'culling' }),
+    );
     await loadImage([face(), face()]);
     h.emit.mockClear();
     await act(async () => {
       fireEvent.keyDown(document, { key: 'ArrowDown' });
     });
-    expect(h.emit).not.toHaveBeenCalledWith('active-face-changed', expect.anything());
+    expect(h.emit).not.toHaveBeenCalledWith(
+      'active-face-changed',
+      expect.anything(),
+    );
   });
 
   // I1: the normal flow — the user clicks the image (activating ImageViewer's
@@ -303,7 +332,13 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
   // declared companion, so Review stays live even though its own tab is only
   // visible, not active.
   it('stays live when a companion image surface hosts the active tabset', async () => {
-    await mountReview(tabNode({ mine: 'TSR', activeId: 'TSI', activeComponent: 'image-viewer' }));
+    await mountReview(
+      tabNode({
+        mine: 'TSR',
+        activeId: 'TSI',
+        activeComponent: 'image-viewer',
+      }),
+    );
     await loadImage([face(), face()]);
     h.emit.mockClear();
     await act(async () => {
@@ -322,7 +357,10 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
     await act(async () => {
       fireEvent.keyDown(input, { key: 'x' });
     });
-    expect(h.emit).not.toHaveBeenCalledWith('review-complete', expect.anything());
+    expect(h.emit).not.toHaveBeenCalledWith(
+      'review-complete',
+      expect.anything(),
+    );
     // 'i' would ignore the face; the card must stay unconfirmed.
     await act(async () => {
       fireEvent.keyDown(input, { key: 'i' });
@@ -345,7 +383,9 @@ describe('ReviewModule — keyboard navigation (characterization)', () => {
     h.confirm.mockClear();
     // Escape on the module (not an input) → discardChanges → useConfirm().
     await act(async () => {
-      fireEvent.keyDown(document.querySelector('.review-module'), { key: 'Escape' });
+      fireEvent.keyDown(document.querySelector('.review-module'), {
+        key: 'Escape',
+      });
     });
     expect(h.confirm).toHaveBeenCalled();
   });
@@ -411,12 +451,17 @@ describe('ReviewModule — face state transitions (characterization)', () => {
     await act(async () => {
       fireEvent.keyDown(document, { key: 'Enter' });
     });
-    expect(lastEmit('active-face-changed')).toEqual({ index: 1, center: false });
+    expect(lastEmit('active-face-changed')).toEqual({
+      index: 1,
+      center: false,
+    });
     // faces-detected is emitted BEFORE active-face-changed on the confirm path.
-    const order = h.emit.mock.calls.map(([e]) => e).filter(
-      (e) => e === 'faces-detected' || e === 'active-face-changed',
+    const order = h.emit.mock.calls
+      .map(([e]) => e)
+      .filter((e) => e === 'faces-detected' || e === 'active-face-changed');
+    expect(order.indexOf('faces-detected')).toBeLessThan(
+      order.indexOf('active-face-changed'),
     );
-    expect(order.indexOf('faces-detected')).toBeLessThan(order.indexOf('active-face-changed'));
   });
 
   it('double-clicking a confirmed face unconfirms it (input reappears)', async () => {
@@ -458,7 +503,9 @@ describe('ReviewModule — face state transitions (characterization)', () => {
     });
     // Drive detect under fake timers.
     h.nextDetect = {
-      faces: [face({ match_alternatives: [{ name: 'Gustav', confidence: 90 }] })],
+      faces: [
+        face({ match_alternatives: [{ name: 'Gustav', confidence: 90 }] }),
+      ],
       file_hash: 'hash',
       processing_time_ms: 3,
     };

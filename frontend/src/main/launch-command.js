@@ -27,18 +27,27 @@ async function resolveLaunchCommand(args, deps) {
     const roots = expandFolders(args.files);
     if (roots.length > 0 || args.clear) {
       return {
-        command: { type: 'open-culling', payload: { roots, clear: args.clear, recursive: args.recursive } },
+        command: {
+          type: 'open-culling',
+          payload: { roots, clear: args.clear, recursive: args.recursive },
+        },
         initialFile: null,
       };
     }
     // Paths given but matched nothing (`ansikten culling /typo`): open culling
     // empty rather than stranding in the default layout.
-    return { command: { type: 'enter-step', step: 'culling' }, initialFile: null };
+    return {
+      command: { type: 'enter-step', step: 'culling' },
+      initialFile: null,
+    };
   }
 
   if (args.verb === 'import') {
     return {
-      command: { type: 'open-import', payload: { destination: resolveImportDest(args.files) } },
+      command: {
+        type: 'open-import',
+        payload: { destination: resolveImportDest(args.files) },
+      },
       initialFile: null,
     };
   }
@@ -47,13 +56,21 @@ async function resolveLaunchCommand(args, deps) {
     const files = await expandFiles(args.files);
     if (files.length === 0 && !args.clear) {
       // Paths given but none matched: open the review step empty.
-      return { command: { type: 'enter-step', step: 'review' }, initialFile: null };
+      return {
+        command: { type: 'enter-step', step: 'review' },
+        initialFile: null,
+      };
     }
     if (args.queuePosition || args.clear) {
       return {
         command: {
           type: 'queue-files',
-          payload: { files, position: args.queuePosition, startQueue: args.startQueue, clear: args.clear },
+          payload: {
+            files,
+            position: args.queuePosition,
+            startQueue: args.startQueue,
+            clear: args.clear,
+          },
         },
         initialFile: null,
       };
@@ -64,7 +81,10 @@ async function resolveLaunchCommand(args, deps) {
     }
     // Multiple files without a queue flag: queue them (don't auto-start).
     return {
-      command: { type: 'queue-files', payload: { files, position: 'end', startQueue: false, clear: false } },
+      command: {
+        type: 'queue-files',
+        payload: { files, position: 'end', startQueue: false, clear: false },
+      },
       initialFile: null,
     };
   }

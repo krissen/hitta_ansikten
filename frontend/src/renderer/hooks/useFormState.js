@@ -39,14 +39,14 @@ export function useFormState(initialState) {
    * Update a single field
    */
   const setValue = useCallback((field, value) => {
-    setValuesInternal(prev => ({ ...prev, [field]: value }));
+    setValuesInternal((prev) => ({ ...prev, [field]: value }));
   }, []);
 
   /**
    * Update multiple fields at once
    */
   const setValues = useCallback((updates) => {
-    setValuesInternal(prev => ({ ...prev, ...updates }));
+    setValuesInternal((prev) => ({ ...prev, ...updates }));
   }, []);
 
   /**
@@ -73,26 +73,35 @@ export function useFormState(initialState) {
    * @param {string} field - Field name to update
    * @returns {function} onChange handler
    */
-  const getInputProps = useCallback((field) => ({
-    value: values[field] ?? '',
-    onChange: (e) => setValue(field, e.target.value)
-  }), [values, setValue]);
+  const getInputProps = useCallback(
+    (field) => ({
+      value: values[field] ?? '',
+      onChange: (e) => setValue(field, e.target.value),
+    }),
+    [values, setValue],
+  );
 
   /**
    * Create onChange handler for select elements
    */
-  const getSelectProps = useCallback((field) => ({
-    value: values[field] ?? '',
-    onChange: (e) => setValue(field, e.target.value)
-  }), [values, setValue]);
+  const getSelectProps = useCallback(
+    (field) => ({
+      value: values[field] ?? '',
+      onChange: (e) => setValue(field, e.target.value),
+    }),
+    [values, setValue],
+  );
 
   /**
    * Create onChange handler for checkbox elements
    */
-  const getCheckboxProps = useCallback((field) => ({
-    checked: !!values[field],
-    onChange: (e) => setValue(field, e.target.checked)
-  }), [values, setValue]);
+  const getCheckboxProps = useCallback(
+    (field) => ({
+      checked: !!values[field],
+      onChange: (e) => setValue(field, e.target.checked),
+    }),
+    [values, setValue],
+  );
 
   return {
     values,
@@ -105,7 +114,7 @@ export function useFormState(initialState) {
     getSelectProps,
     getCheckboxProps,
     // Direct setter for advanced use cases
-    setValuesInternal
+    setValuesInternal,
   };
 }
 
@@ -155,8 +164,8 @@ export function useMultipleForms(formsConfig) {
       ...prev,
       [formName]: {
         ...prev[formName],
-        [field]: value
-      }
+        [field]: value,
+      },
     }));
   }, []);
 
@@ -165,24 +174,29 @@ export function useMultipleForms(formsConfig) {
       ...prev,
       [formName]: {
         ...prev[formName],
-        ...updates
-      }
+        ...updates,
+      },
     }));
   }, []);
 
-  const resetForm = useCallback((formName) => {
-    const initialState = initialStatesRef.current[formName] ?? formsConfig[formName];
-    setFormsState((prev) => ({
-      ...prev,
-      [formName]: initialState
-    }));
-  }, [formsConfig]);
+  const resetForm = useCallback(
+    (formName) => {
+      const initialState =
+        initialStatesRef.current[formName] ?? formsConfig[formName];
+      setFormsState((prev) => ({
+        ...prev,
+        [formName]: initialState,
+      }));
+    },
+    [formsConfig],
+  );
 
   const resetAll = useCallback(() => {
     setFormsState((prev) => {
       const next = { ...prev };
       formNames.forEach((name) => {
-        const initialState = initialStatesRef.current[name] ?? formsConfig[name];
+        const initialState =
+          initialStatesRef.current[name] ?? formsConfig[name];
         if (initialState) {
           next[name] = initialState;
         }
@@ -215,20 +229,21 @@ export function useMultipleForms(formsConfig) {
         getValue: (field) => values?.[field],
         getInputProps: (field) => ({
           value: values?.[field] ?? '',
-          onChange: (e) => setValue(name, field, e.target.value)
+          onChange: (e) => setValue(name, field, e.target.value),
         }),
         getSelectProps: (field) => ({
           value: values?.[field] ?? '',
-          onChange: (e) => setValue(name, field, e.target.value)
+          onChange: (e) => setValue(name, field, e.target.value),
         }),
         getCheckboxProps: (field) => ({
           checked: !!values?.[field],
-          onChange: (e) => setValue(name, field, e.target.checked)
+          onChange: (e) => setValue(name, field, e.target.checked),
         }),
-        setValuesInternal: (nextValues) => setFormsState((prev) => ({
-          ...prev,
-          [name]: nextValues
-        }))
+        setValuesInternal: (nextValues) =>
+          setFormsState((prev) => ({
+            ...prev,
+            [name]: nextValues,
+          })),
       };
     });
     return result;
@@ -237,7 +252,7 @@ export function useMultipleForms(formsConfig) {
   return {
     ...formStates,
     resetAll,
-    anyDirty
+    anyDirty,
   };
 }
 

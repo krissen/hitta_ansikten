@@ -13,7 +13,10 @@ describe('createLaunchQueue — hold until ready', () => {
     expect(q.isReady()).toBe(false);
 
     q.markReady();
-    expect(deliver.mock.calls.map((c) => c[0])).toEqual([{ type: 'a' }, { type: 'b' }]);
+    expect(deliver.mock.calls.map((c) => c[0])).toEqual([
+      { type: 'a' },
+      { type: 'b' },
+    ]);
     expect(q.pending()).toBe(0);
   });
 
@@ -50,7 +53,10 @@ describe('createLaunchQueue — FIFO, not a single slot', () => {
     expect(q.pending()).toBe(2);
     q.markReady();
 
-    expect(deliver.mock.calls.map((c) => c[0].type)).toEqual(['open-culling', 'queue-files']);
+    expect(deliver.mock.calls.map((c) => c[0].type)).toEqual([
+      'open-culling',
+      'queue-files',
+    ]);
   });
 });
 
@@ -71,14 +77,17 @@ describe('createLaunchQueue — reload re-arm (markNotReady)', () => {
 
     // Renderer re-mounts and re-signals ready → the held command delivers.
     q.markReady();
-    expect(deliver).toHaveBeenCalledWith({ type: 'load-image', payload: { imagePath: '/x.nef' } });
+    expect(deliver).toHaveBeenCalledWith({
+      type: 'load-image',
+      payload: { imagePath: '/x.nef' },
+    });
   });
 
   it('markNotReady preserves already-pending commands (queue survives the reset)', () => {
     const deliver = vi.fn();
     const q = createLaunchQueue(deliver);
-    q.enqueue({ type: 'a' });   // pending (never ready)
-    q.markNotReady();           // reset while something is already held
+    q.enqueue({ type: 'a' }); // pending (never ready)
+    q.markNotReady(); // reset while something is already held
     expect(q.pending()).toBe(1);
     q.markReady();
     expect(deliver).toHaveBeenCalledWith({ type: 'a' });

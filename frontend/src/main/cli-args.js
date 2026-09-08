@@ -18,10 +18,10 @@
 
 // Maps a recognised verb token to its canonical target.
 const KNOWN_VERBS = {
-  faces: "faces",
-  culling: "culling",
-  cull: "culling",
-  import: "import",
+  faces: 'faces',
+  culling: 'culling',
+  cull: 'culling',
+  import: 'import',
 };
 
 // Known executables/metadata to skip (case-insensitive basename matching), so
@@ -39,7 +39,7 @@ const SKIP_PATTERNS = [
 function shouldSkipArg(arg) {
   if (!arg) return true;
   // Skip macOS app bundle executables
-  if (arg.includes(".app/Contents/MacOS/")) return true;
+  if (arg.includes('.app/Contents/MacOS/')) return true;
   const basename = arg.split(/[/\\]/).pop();
   return SKIP_PATTERNS.some((pattern) => pattern.test(basename));
 }
@@ -70,19 +70,19 @@ function parseCliArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
 
-    if (arg === "--queue" || arg === "-q") {
-      result.queuePosition = "end";
-    } else if (arg === "--queue-start" || arg === "-qs") {
-      result.queuePosition = "start";
-    } else if (arg === "--queue-end" || arg === "-qe") {
-      result.queuePosition = "end";
-    } else if (arg === "--start" || arg === "-s") {
+    if (arg === '--queue' || arg === '-q') {
+      result.queuePosition = 'end';
+    } else if (arg === '--queue-start' || arg === '-qs') {
+      result.queuePosition = 'start';
+    } else if (arg === '--queue-end' || arg === '-qe') {
+      result.queuePosition = 'end';
+    } else if (arg === '--start' || arg === '-s') {
       result.startQueue = true;
-    } else if (arg === "--clear" || arg === "-c") {
+    } else if (arg === '--clear' || arg === '-c') {
       result.clear = true;
-    } else if (arg === "--recursive" || arg === "-r") {
+    } else if (arg === '--recursive' || arg === '-r') {
       result.recursive = true;
-    } else if (arg.startsWith("-")) {
+    } else if (arg.startsWith('-')) {
       continue;
     } else if (shouldSkipArg(arg)) {
       continue;
@@ -102,8 +102,8 @@ function parseCliArgs(argv) {
   // An explicit `faces` verb means "add to the face queue and start" — preserve
   // the legacy `ansikten *.NEF` behaviour (the launcher injects `faces` for bare
   // file args). Position/start stay overridable by the flags above.
-  if (result.verb === "faces") {
-    if (result.queuePosition === null) result.queuePosition = "end";
+  if (result.verb === 'faces') {
+    if (result.queuePosition === null) result.queuePosition = 'end';
     result.startQueue = true;
   }
 

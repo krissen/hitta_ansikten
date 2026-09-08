@@ -18,7 +18,7 @@ describe('CullingStats — Min bilder control', () => {
         {...baseProps}
         minImages={4}
         onMinImagesChange={() => {}}
-      />
+      />,
     );
     const input = screen.getByLabelText('Min bilder');
     expect(input).toBeTruthy();
@@ -37,7 +37,7 @@ describe('CullingStats — Min bilder control', () => {
         {...baseProps}
         minImages={3}
         onMinImagesChange={onMinImagesChange}
-      />
+      />,
     );
     const input = screen.getByLabelText('Min bilder');
     // Typing previews locally (no store write / refetch on every digit)...
@@ -56,7 +56,7 @@ describe('CullingStats — Min bilder control', () => {
         {...baseProps}
         minImages={3}
         onMinImagesChange={onMinImagesChange}
-      />
+      />,
     );
     const input = screen.getByLabelText('Min bilder');
     fireEvent.change(input, { target: { value: '2' } });
@@ -71,7 +71,7 @@ describe('CullingStats — Min bilder control', () => {
         {...baseProps}
         minImages={3}
         onMinImagesChange={onMinImagesChange}
-      />
+      />,
     );
     const input = screen.getByLabelText('Min bilder');
     fireEvent.change(input, { target: { value: '0' } });
@@ -87,7 +87,7 @@ describe('CullingStats — Min bilder control', () => {
         {...baseProps}
         minImages={3}
         onMinImagesChange={onMinImagesChange}
-      />
+      />,
     );
     const input = screen.getByLabelText('Min bilder');
     // Focus and blur without changing the value: no redundant refetch.
@@ -101,7 +101,7 @@ describe('CullingStats — Min bilder control', () => {
         {...baseProps}
         minImages={3}
         onMinImagesChange={() => {}}
-      />
+      />,
     );
     const input = screen.getByLabelText('Min bilder');
     expect(input.value).toBe('3');
@@ -111,7 +111,7 @@ describe('CullingStats — Min bilder control', () => {
         {...baseProps}
         minImages={6}
         onMinImagesChange={() => {}}
-      />
+      />,
     );
     expect(screen.getByLabelText('Min bilder').value).toBe('6');
   });

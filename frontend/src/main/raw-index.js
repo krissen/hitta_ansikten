@@ -19,9 +19,9 @@
 // folders, not the RAW root), and adding a dedicated watcher belongs with the
 // planned chokidar consolidation, not here.
 
-const fs = require("fs");
-const path = require("path");
-const { deriveRawToken, DEFAULT_RAW_EXTS } = require("./raw-match");
+const fs = require('fs');
+const path = require('path');
+const { deriveRawToken, DEFAULT_RAW_EXTS } = require('./raw-match');
 
 const DEFAULT_TTL_MS = 30_000;
 
@@ -70,7 +70,7 @@ function createRawIndexCache({
     const entries = await readdir(root);
     const index = new Map();
     for (const entry of entries) {
-      if (typeof entry.isFile === "function" && !entry.isFile()) continue;
+      if (typeof entry.isFile === 'function' && !entry.isFile()) continue;
       const name = entry.name;
       const lower = name.toLowerCase();
       if (!exts.some((ext) => lower.endsWith(ext))) continue;

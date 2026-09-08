@@ -22,7 +22,14 @@ import { RAW_EXTS } from '../../shared/fileExts.js';
 // a new scanning dimension here updates both, so the panel can't silently stop
 // blanking on a new field. Deliberately excludes baseline/min_images (counting
 // options, appended separately) and player (a file-list filter, not a scan field).
-export const SCAN_SCOPE_FIELDS = ['roots', 'globs', 'extension_preset', 'recursive', 'date_from', 'date_to'];
+export const SCAN_SCOPE_FIELDS = [
+  'roots',
+  'globs',
+  'extension_preset',
+  'recursive',
+  'date_from',
+  'date_to',
+];
 
 export function statsScopeFromQuery(q, countSettings) {
   if (!q) return null;

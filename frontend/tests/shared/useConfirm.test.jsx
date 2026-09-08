@@ -1,6 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup, fireEvent, act } from '@testing-library/react';
-import { ConfirmProvider, useConfirm } from '../../src/renderer/context/ConfirmContext.jsx';
+import {
+  ConfirmProvider,
+  useConfirm,
+} from '../../src/renderer/context/ConfirmContext.jsx';
 
 afterEach(cleanup);
 
@@ -33,7 +36,9 @@ describe('useConfirm / ConfirmProvider', () => {
       promise = captured.confirm({ message: 'Radera?' });
     });
     // Dialog is now open with the message.
-    expect(container.querySelector('.modal__message').textContent).toBe('Radera?');
+    expect(container.querySelector('.modal__message').textContent).toBe(
+      'Radera?',
+    );
     fireEvent.click(container.querySelector('.btn--primary'));
     await expect(promise).resolves.toBe(true);
   });
@@ -61,7 +66,10 @@ describe('useConfirm / ConfirmProvider', () => {
     act(() => {
       p2 = captured.confirm();
     });
-    fireEvent(container.querySelector('dialog'), new Event('cancel', { cancelable: true }));
+    fireEvent(
+      container.querySelector('dialog'),
+      new Event('cancel', { cancelable: true }),
+    );
     await expect(p2).resolves.toBe(false);
   });
 
@@ -80,7 +88,9 @@ describe('useConfirm / ConfirmProvider', () => {
     act(() => {
       captured.confirm({ message: 'Fortsätt?' });
     });
-    expect(container.querySelector('.modal__footer .btn--primary')).not.toBeNull();
+    expect(
+      container.querySelector('.modal__footer .btn--primary'),
+    ).not.toBeNull();
     expect(container.querySelector('.modal__footer .btn--danger')).toBeNull();
   });
 
@@ -97,9 +107,15 @@ describe('useConfirm / ConfirmProvider', () => {
   it('honours custom confirm/cancel labels', () => {
     const { captured, container } = makeHarness();
     act(() => {
-      captured.confirm({ message: 'x', confirmLabel: 'Ja då', cancelLabel: 'Nej tack' });
+      captured.confirm({
+        message: 'x',
+        confirmLabel: 'Ja då',
+        cancelLabel: 'Nej tack',
+      });
     });
     expect(container.querySelector('.btn--primary').textContent).toBe('Ja då');
-    expect(container.querySelector('.btn--secondary').textContent).toBe('Nej tack');
+    expect(container.querySelector('.btn--secondary').textContent).toBe(
+      'Nej tack',
+    );
   });
 });

@@ -48,11 +48,19 @@ beforeEach(() => {
 // --- Model builders (headless; no React) ---------------------------------
 
 function tab(id, component) {
-  return { type: 'tab', id, name: component, component, config: { moduleId: component } };
+  return {
+    type: 'tab',
+    id,
+    name: component,
+    component,
+    config: { moduleId: component },
+  };
 }
 
 function makeModel(layout) {
-  return Model.fromJson(ensureBottomBorder({ global: { splitterSize: 4 }, layout }));
+  return Model.fromJson(
+    ensureBottomBorder({ global: { splitterSize: 4 }, layout }),
+  );
 }
 
 // A row of the given [component, weight] tabsets (one tab each).
@@ -71,7 +79,11 @@ function rowModel(...panes) {
 
 describe('snapshotStepSpec', () => {
   it('captures real tabsets as an ordered { moduleId, weight } spec', () => {
-    const model = rowModel(['file-queue', 15], ['review-module', 15], ['image-viewer', 70]);
+    const model = rowModel(
+      ['file-queue', 15],
+      ['review-module', 15],
+      ['image-viewer', 70],
+    );
     expect(snapshotStepSpec(model)).toEqual([
       { moduleId: 'file-queue', weight: 15 },
       { moduleId: 'review-module', weight: 15 },
@@ -86,7 +98,14 @@ describe('snapshotStepSpec', () => {
       layout: {
         type: 'row',
         weight: 100,
-        children: [{ type: 'tabset', id: 'ts-c', weight: 100, children: [tab('t-c', 'culling')] }],
+        children: [
+          {
+            type: 'tabset',
+            id: 'ts-c',
+            weight: 100,
+            children: [tab('t-c', 'culling')],
+          },
+        ],
       },
       borders: [
         {
@@ -103,36 +122,61 @@ describe('snapshotStepSpec', () => {
 
   it('de-duplicates a module that appears in more than one tabset (first wins)', () => {
     const model = rowModel(['image-viewer', 40], ['image-viewer', 60]);
-    expect(snapshotStepSpec(model)).toEqual([{ moduleId: 'image-viewer', weight: 40 }]);
+    expect(snapshotStepSpec(model)).toEqual([
+      { moduleId: 'image-viewer', weight: 40 },
+    ]);
   });
 
   it('captures a multi-tab tabset as a group pane with its selected active tab', () => {
     const model = makeModel({
-      type: 'row', weight: 100,
+      type: 'row',
+      weight: 100,
       children: [
-        { type: 'tabset', id: 'ts-r', weight: 15, children: [tab('t-r', 'review-module')] },
         {
-          type: 'tabset', id: 'ts-g', weight: 85, selected: 0,
+          type: 'tabset',
+          id: 'ts-r',
+          weight: 15,
+          children: [tab('t-r', 'review-module')],
+        },
+        {
+          type: 'tabset',
+          id: 'ts-g',
+          weight: 85,
+          selected: 0,
           children: [tab('t-v', 'image-viewer'), tab('t-q', 'file-queue')],
         },
       ],
     });
     expect(snapshotStepSpec(model)).toEqual([
       { moduleId: 'review-module', weight: 15 },
-      { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+      {
+        tabs: ['image-viewer', 'file-queue'],
+        active: 'image-viewer',
+        weight: 85,
+      },
     ]);
   });
 
   it('records the group active tab from the tabset selection (file-queue on top)', () => {
     const model = makeModel({
-      type: 'row', weight: 100,
-      children: [{
-        type: 'tabset', id: 'ts-g', weight: 100, selected: 1,
-        children: [tab('t-v', 'image-viewer'), tab('t-q', 'file-queue')],
-      }],
+      type: 'row',
+      weight: 100,
+      children: [
+        {
+          type: 'tabset',
+          id: 'ts-g',
+          weight: 100,
+          selected: 1,
+          children: [tab('t-v', 'image-viewer'), tab('t-q', 'file-queue')],
+        },
+      ],
     });
     expect(snapshotStepSpec(model)).toEqual([
-      { tabs: ['image-viewer', 'file-queue'], active: 'file-queue', weight: 100 },
+      {
+        tabs: ['image-viewer', 'file-queue'],
+        active: 'file-queue',
+        weight: 100,
+      },
     ]);
   });
 
@@ -167,9 +211,15 @@ describe('save / load round-trip', () => {
   });
 
   it('returns null for a structurally invalid spec', () => {
-    window.localStorage.setItem(stepStorageKey('review'), JSON.stringify([{ moduleId: 'x' }]));
+    window.localStorage.setItem(
+      stepStorageKey('review'),
+      JSON.stringify([{ moduleId: 'x' }]),
+    );
     expect(loadStepSpec('review')).toBeNull();
-    window.localStorage.setItem(stepStorageKey('review'), JSON.stringify({ nope: true }));
+    window.localStorage.setItem(
+      stepStorageKey('review'),
+      JSON.stringify({ nope: true }),
+    );
     expect(loadStepSpec('review')).toBeNull();
   });
 });
@@ -196,7 +246,11 @@ describe('mergeWithFactory', () => {
   it('keeps a saved group-form spec verbatim (factory modules all present)', () => {
     const saved = [
       { moduleId: 'review-module', weight: 20 },
-      { tabs: ['image-viewer', 'file-queue'], active: 'file-queue', weight: 80 },
+      {
+        tabs: ['image-viewer', 'file-queue'],
+        active: 'file-queue',
+        weight: 80,
+      },
     ];
     expect(mergeWithFactory(saved, factory)).toEqual(saved);
   });
@@ -231,7 +285,9 @@ describe('mergeWithFactory', () => {
       { moduleId: 'image-viewer', weight: 55 },
       { moduleId: 'log-viewer', weight: 15 },
     ];
-    expect(mergeWithFactory(saved, factory).map((p) => p.moduleId)).toContain('log-viewer');
+    expect(mergeWithFactory(saved, factory).map((p) => p.moduleId)).toContain(
+      'log-viewer',
+    );
   });
 
   it('falls back to the factory for an invalid saved spec', () => {
@@ -321,14 +377,22 @@ describe('migrateReviewMemoryShape', () => {
     migrateReviewMemoryShape();
     expect(loadStepSpec('review')).toEqual([
       { moduleId: 'review-module', weight: 15 },
-      { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+      {
+        tabs: ['image-viewer', 'file-queue'],
+        active: 'image-viewer',
+        weight: 85,
+      },
     ]);
   });
 
   it('is idempotent — a memory already in the group form is untouched', () => {
     const groupForm = [
       { moduleId: 'review-module', weight: 15 },
-      { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+      {
+        tabs: ['image-viewer', 'file-queue'],
+        active: 'image-viewer',
+        weight: 85,
+      },
     ];
     saveStepSpec('review', groupForm);
     migrateReviewMemoryShape();

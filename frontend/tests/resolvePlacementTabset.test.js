@@ -11,7 +11,7 @@ const ROLE = {
   'file-queue': 'side',
   'log-viewer': 'bottom',
   'image-viewer': 'main',
-  'culling': 'main',
+  culling: 'main',
   'statistics-dashboard': 'main',
   'database-management': 'main',
 };
@@ -28,8 +28,20 @@ function freshReviewModel() {
       type: 'row',
       weight: 100,
       children: [
-        { type: 'tabset', weight: 15, children: [{ type: 'tab', name: 'Review', component: 'review-module' }] },
-        { type: 'tabset', weight: 85, children: [{ type: 'tab', name: 'Image Viewer', component: 'image-viewer' }] },
+        {
+          type: 'tabset',
+          weight: 15,
+          children: [
+            { type: 'tab', name: 'Review', component: 'review-module' },
+          ],
+        },
+        {
+          type: 'tabset',
+          weight: 85,
+          children: [
+            { type: 'tab', name: 'Image Viewer', component: 'image-viewer' },
+          ],
+        },
       ],
     },
   });
@@ -43,7 +55,11 @@ function soloModel() {
       type: 'row',
       weight: 100,
       children: [
-        { type: 'tabset', weight: 100, children: [{ type: 'tab', name: 'Culling', component: 'culling' }] },
+        {
+          type: 'tabset',
+          weight: 100,
+          children: [{ type: 'tab', name: 'Culling', component: 'culling' }],
+        },
       ],
     },
   });
@@ -59,10 +75,11 @@ function fakeModel(specs) {
     getWeight: () => s.weight ?? 0,
     getRect: () => s.rect ?? { x: 0, y: 0, width: 0, height: 0 },
     getId: () => s.id,
-    getChildren: () => (s.components ?? []).map((component) => ({
-      getType: () => 'tab',
-      getComponent: () => component,
-    })),
+    getChildren: () =>
+      (s.components ?? []).map((component) => ({
+        getType: () => 'tab',
+        getComponent: () => component,
+      })),
   }));
   return { visitNodes: (cb) => nodes.forEach(cb) };
 }
@@ -96,10 +113,22 @@ describe('resolvePlacementTabset — main', () => {
 
   it('picks the largest tabset by area once geometry is measured', () => {
     const model = fakeModel([
-      { id: 'left', weight: 15, rect: { x: 0, y: 0, width: 150, height: 1000 }, components: ['review-module'] },
-      { id: 'main', weight: 85, rect: { x: 150, y: 0, width: 850, height: 1000 }, components: ['image-viewer'] },
+      {
+        id: 'left',
+        weight: 15,
+        rect: { x: 0, y: 0, width: 150, height: 1000 },
+        components: ['review-module'],
+      },
+      {
+        id: 'main',
+        weight: 85,
+        rect: { x: 150, y: 0, width: 850, height: 1000 },
+        components: ['image-viewer'],
+      },
     ]);
-    expect(resolvePlacementTabset(model, 'main', roleOf)).toEqual({ tabsetId: 'main' });
+    expect(resolvePlacementTabset(model, 'main', roleOf)).toEqual({
+      tabsetId: 'main',
+    });
   });
 });
 
@@ -112,17 +141,37 @@ describe('resolvePlacementTabset — side', () => {
 
   it('prefers the LEFT-most side column once geometry is measured', () => {
     const model = fakeModel([
-      { id: 'left', weight: 15, rect: { x: 0, y: 0, width: 150, height: 1000 }, components: ['file-queue'] },
-      { id: 'right-narrow', weight: 15, rect: { x: 850, y: 0, width: 150, height: 1000 }, components: ['review-module'] },
-      { id: 'main', weight: 70, rect: { x: 150, y: 0, width: 700, height: 1000 }, components: ['image-viewer'] },
+      {
+        id: 'left',
+        weight: 15,
+        rect: { x: 0, y: 0, width: 150, height: 1000 },
+        components: ['file-queue'],
+      },
+      {
+        id: 'right-narrow',
+        weight: 15,
+        rect: { x: 850, y: 0, width: 150, height: 1000 },
+        components: ['review-module'],
+      },
+      {
+        id: 'main',
+        weight: 70,
+        rect: { x: 150, y: 0, width: 700, height: 1000 },
+        components: ['image-viewer'],
+      },
     ]);
-    expect(resolvePlacementTabset(model, 'side', roleOf)).toEqual({ tabsetId: 'left' });
+    expect(resolvePlacementTabset(model, 'side', roleOf)).toEqual({
+      tabsetId: 'left',
+    });
   });
 
   it('signals a LEFT split off the main area when no side column exists', () => {
     const model = soloModel();
     const mainId = idOfWeight(model, 100);
-    expect(resolvePlacementTabset(model, 'side', roleOf)).toEqual({ split: 'left', refTabsetId: mainId });
+    expect(resolvePlacementTabset(model, 'side', roleOf)).toEqual({
+      split: 'left',
+      refTabsetId: mainId,
+    });
   });
 
   it('does NOT hijack a narrow non-side column (Database 30/70): splits instead', () => {
@@ -130,34 +179,75 @@ describe('resolvePlacementTabset — side', () => {
     // 70-weight statistics panel. The narrow column is NOT a side column (it
     // hosts a main module), so a side module must split, not dock onto Database.
     const model = fakeModel([
-      { id: 'db', weight: 30, rect: { x: 0, y: 0, width: 300, height: 1000 }, components: ['database-management'] },
-      { id: 'stats', weight: 70, rect: { x: 300, y: 0, width: 700, height: 1000 }, components: ['statistics-dashboard'] },
+      {
+        id: 'db',
+        weight: 30,
+        rect: { x: 0, y: 0, width: 300, height: 1000 },
+        components: ['database-management'],
+      },
+      {
+        id: 'stats',
+        weight: 70,
+        rect: { x: 300, y: 0, width: 700, height: 1000 },
+        components: ['statistics-dashboard'],
+      },
     ]);
-    expect(resolvePlacementTabset(model, 'side', roleOf)).toEqual({ split: 'left', refTabsetId: 'stats' });
+    expect(resolvePlacementTabset(model, 'side', roleOf)).toEqual({
+      split: 'left',
+      refTabsetId: 'stats',
+    });
   });
 });
 
 describe('resolvePlacementTabset — bottom', () => {
   it('reuses an existing bottom bar that hosts a bottom module', () => {
     const model = fakeModel([
-      { id: 'main', weight: 80, rect: { x: 0, y: 0, width: 1000, height: 800 }, components: ['image-viewer'] },
-      { id: 'bar', weight: 20, rect: { x: 0, y: 800, width: 1000, height: 200 }, components: ['log-viewer'] },
+      {
+        id: 'main',
+        weight: 80,
+        rect: { x: 0, y: 0, width: 1000, height: 800 },
+        components: ['image-viewer'],
+      },
+      {
+        id: 'bar',
+        weight: 20,
+        rect: { x: 0, y: 800, width: 1000, height: 200 },
+        components: ['log-viewer'],
+      },
     ]);
-    expect(resolvePlacementTabset(model, 'bottom', roleOf)).toEqual({ tabsetId: 'bar' });
+    expect(resolvePlacementTabset(model, 'bottom', roleOf)).toEqual({
+      tabsetId: 'bar',
+    });
   });
 
   it('does NOT reuse a panel below main that hosts a non-bottom module: splits instead', () => {
     const model = fakeModel([
-      { id: 'main', weight: 80, rect: { x: 0, y: 0, width: 1000, height: 800 }, components: ['image-viewer'] },
-      { id: 'below', weight: 20, rect: { x: 0, y: 800, width: 1000, height: 200 }, components: ['statistics-dashboard'] },
+      {
+        id: 'main',
+        weight: 80,
+        rect: { x: 0, y: 0, width: 1000, height: 800 },
+        components: ['image-viewer'],
+      },
+      {
+        id: 'below',
+        weight: 20,
+        rect: { x: 0, y: 800, width: 1000, height: 200 },
+        components: ['statistics-dashboard'],
+      },
     ]);
-    expect(resolvePlacementTabset(model, 'bottom', roleOf)).toEqual({ split: 'bottom', refTabsetId: 'main' });
+    expect(resolvePlacementTabset(model, 'bottom', roleOf)).toEqual({
+      split: 'bottom',
+      refTabsetId: 'main',
+    });
   });
 
   it('signals a BOTTOM split off the main area when no bottom bar exists', () => {
     const model = soloModel();
     const mainId = idOfWeight(model, 100);
-    expect(resolvePlacementTabset(model, 'bottom', roleOf)).toEqual({ split: 'bottom', refTabsetId: mainId });
+    expect(resolvePlacementTabset(model, 'bottom', roleOf)).toEqual({
+      split: 'bottom',
+      refTabsetId: mainId,
+    });
   });
 
   it('splits, not stacks, before the first measure pass (all rects zero-sized)', () => {
@@ -165,20 +255,46 @@ describe('resolvePlacementTabset — bottom', () => {
     // A left side column and the main area both report y === 0 here — the bottom
     // module must NOT treat the side column as a bottom bar, but split instead.
     const model = fakeModel([
-      { id: 'left', weight: 15, rect: { x: 0, y: 0, width: 0, height: 0 }, components: ['review-module'] },
-      { id: 'main', weight: 85, rect: { x: 0, y: 0, width: 0, height: 0 }, components: ['image-viewer'] },
+      {
+        id: 'left',
+        weight: 15,
+        rect: { x: 0, y: 0, width: 0, height: 0 },
+        components: ['review-module'],
+      },
+      {
+        id: 'main',
+        weight: 85,
+        rect: { x: 0, y: 0, width: 0, height: 0 },
+        components: ['image-viewer'],
+      },
     ]);
-    expect(resolvePlacementTabset(model, 'bottom', roleOf)).toEqual({ split: 'bottom', refTabsetId: 'main' });
+    expect(resolvePlacementTabset(model, 'bottom', roleOf)).toEqual({
+      split: 'bottom',
+      refTabsetId: 'main',
+    });
   });
 });
 
 describe('resolvePlacementTabset — reuse gate without roleOf', () => {
   it('disables side/bottom reuse when no roleOf is given (always splits)', () => {
     const model = fakeModel([
-      { id: 'left', weight: 15, rect: { x: 0, y: 0, width: 150, height: 1000 }, components: ['file-queue'] },
-      { id: 'main', weight: 85, rect: { x: 150, y: 0, width: 850, height: 1000 }, components: ['image-viewer'] },
+      {
+        id: 'left',
+        weight: 15,
+        rect: { x: 0, y: 0, width: 150, height: 1000 },
+        components: ['file-queue'],
+      },
+      {
+        id: 'main',
+        weight: 85,
+        rect: { x: 150, y: 0, width: 850, height: 1000 },
+        components: ['image-viewer'],
+      },
     ]);
-    expect(resolvePlacementTabset(model, 'side')).toEqual({ split: 'left', refTabsetId: 'main' });
+    expect(resolvePlacementTabset(model, 'side')).toEqual({
+      split: 'left',
+      refTabsetId: 'main',
+    });
   });
 });
 

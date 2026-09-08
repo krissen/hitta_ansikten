@@ -8,7 +8,11 @@
  */
 
 import { useState, useEffect } from 'react';
-import { getCountSettings, setCountSettings, subscribeCountSettings } from '../shared/countSettings.js';
+import {
+  getCountSettings,
+  setCountSettings,
+  subscribeCountSettings,
+} from '../shared/countSettings.js';
 
 export function useCountSettings() {
   const [settings, setSettings] = useState(getCountSettings);

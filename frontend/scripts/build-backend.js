@@ -57,7 +57,9 @@ function main() {
     run('pyinstaller ansikten-backend.spec --noconfirm', { cwd: BACKEND_DIR });
   } catch (err) {
     console.error('\nPyInstaller build failed.');
-    console.error('Make sure you have activated your Python environment and installed dependencies:');
+    console.error(
+      'Make sure you have activated your Python environment and installed dependencies:',
+    );
     console.error('  pip install -e ".[build]"\n');
     process.exit(1);
   }

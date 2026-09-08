@@ -13,7 +13,13 @@ import { useModuleAPI, useModuleEvent } from '../hooks/useModuleEvent.js';
 import { InputBar, EMPTY_INPUT } from './InputBar.jsx';
 import { Button, Alert, ContextMenu } from './shared';
 import { useContextMenu } from '../hooks/useContextMenu.js';
-import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad, takeExternalLoad } from '../shared/scanScope.js';
+import {
+  getScanScope,
+  setScanScope,
+  scanScopeHasSelection,
+  signalExternalLoad,
+  takeExternalLoad,
+} from '../shared/scanScope.js';
 import { getWorkingFolder, setWorkingFolder } from '../shared/workingFolder.js';
 import {
   DEFAULTS as COUNT_DEFAULTS,
@@ -47,7 +53,13 @@ export const DEFAULT_OPTIONS = COUNT_DEFAULTS;
 // lists, or null/undefined to keep the backend defaults (config/env).
 // `session` is a playerSessionParams() object (session-only right-click pins),
 // or null/undefined for none.
-export function buildCountParams(inp, options, includePerMatch, exclOverride, session) {
+export function buildCountParams(
+  inp,
+  options,
+  includePerMatch,
+  exclOverride,
+  session,
+) {
   const opts = options || DEFAULT_OPTIONS;
   return {
     roots: inp.roots,
@@ -114,8 +126,14 @@ export function PlayerCountModule() {
     (inp, includePerMatch, opts, exclOverride) =>
       // Session pins are read fresh at call time, so every recount path
       // (submit, option change, auto-refresh resubmit) carries them.
-      buildCountParams(inp, opts, includePerMatch, exclOverride, playerSessionParams()),
-    []
+      buildCountParams(
+        inp,
+        opts,
+        includePerMatch,
+        exclOverride,
+        playerSessionParams(),
+      ),
+    [],
   );
 
   const runCount = useCallback(
@@ -139,7 +157,7 @@ export function PlayerCountModule() {
         }
       }
     },
-    [api]
+    [api],
   );
 
   // Compute the directories to watch for a given input.
@@ -173,7 +191,11 @@ export function PlayerCountModule() {
     (inp, includePerMatch, opts = options, exclOverride) => {
       // Undefined = fall back to current state; explicit null = force defaults.
       const override =
-        exclOverride !== undefined ? exclOverride : exclusionsDirty ? exclusions : null;
+        exclOverride !== undefined
+          ? exclOverride
+          : exclusionsDirty
+            ? exclusions
+            : null;
       const params = buildParams(inp, includePerMatch, opts, override);
       lastParamsRef.current = params;
       // Publish the scan scope so Gallra spelare mirrors the same selection.
@@ -193,7 +215,15 @@ export function PlayerCountModule() {
       runCount(params);
       updateWatches(watchDirsFor(inp));
     },
-    [buildParams, runCount, updateWatches, watchDirsFor, options, exclusions, exclusionsDirty]
+    [
+      buildParams,
+      runCount,
+      updateWatches,
+      watchDirsFor,
+      options,
+      exclusions,
+      exclusionsDirty,
+    ],
   );
 
   // Re-run the count when the shared session moves change (from this module's
@@ -208,7 +238,7 @@ export function PlayerCountModule() {
 
   const handleSubmit = useCallback(
     () => submitWith(input, perMatch),
-    [submitWith, input, perMatch]
+    [submitWith, input, perMatch],
   );
 
   // Explicit hand-off INTO Count (WorkflowBar "Fortsätt →" from Review, or the
@@ -216,20 +246,26 @@ export function PlayerCountModule() {
   // run the count. This is a user button press, so running is intended — it does
   // NOT violate the adopt-on-mount invariant (that governs passive mount, not an
   // explicit navigation the user just triggered).
-  useModuleEvent('count-load', useCallback(({ roots } = {}) => {
-    // Consume the external-load flag that open-count set, unconditionally and
-    // FIRST. count-load always fires on an open-count hand-off, so this is the
-    // reliable consumption point: on a fresh mount adopt-on-mount already took it
-    // (no-op here); when Räkna was ALREADY mounted the morph's fast-path skips a
-    // remount, so adopt-on-mount never ran — without this the flag would linger
-    // and be swallowed by the next consumer (culling's adopt-on-mount), opening
-    // Gallra without its scope. count-load drives the count explicitly regardless.
-    takeExternalLoad();
-    if (!Array.isArray(roots) || roots.length === 0) return;
-    const next = { ...EMPTY_INPUT, roots: [...roots] };
-    setInput(next);
-    submitWith(next, perMatch);
-  }, [submitWith, perMatch]));
+  useModuleEvent(
+    'count-load',
+    useCallback(
+      ({ roots } = {}) => {
+        // Consume the external-load flag that open-count set, unconditionally and
+        // FIRST. count-load always fires on an open-count hand-off, so this is the
+        // reliable consumption point: on a fresh mount adopt-on-mount already took it
+        // (no-op here); when Räkna was ALREADY mounted the morph's fast-path skips a
+        // remount, so adopt-on-mount never ran — without this the flag would linger
+        // and be swallowed by the next consumer (culling's adopt-on-mount), opening
+        // Gallra without its scope. count-load drives the count explicitly regardless.
+        takeExternalLoad();
+        if (!Array.isArray(roots) || roots.length === 0) return;
+        const next = { ...EMPTY_INPUT, roots: [...roots] };
+        setInput(next);
+        submitWith(next, perMatch);
+      },
+      [submitWith, perMatch],
+    ),
+  );
 
   // On open, adopt the shared scan scope (e.g. coming from Gallra spelare) when
   // the panel is still empty, so it shows the same files instead of starting
@@ -263,7 +299,6 @@ export function PlayerCountModule() {
     };
     setInput(adopted);
     submitWith(adopted, perMatch);
-
   }, []);
 
   // Select/checkbox changes from the InputBar apply immediately, but only once a
@@ -304,7 +339,7 @@ export function PlayerCountModule() {
       }
       submitWith(nextInput, perMatch);
     },
-    [submitWith, perMatch, updateWatches]
+    [submitWith, perMatch, updateWatches],
   );
 
   // Counting-option changes apply immediately (like the InputBar selects), but
@@ -336,7 +371,7 @@ export function PlayerCountModule() {
       setCountSettings(applied); // publish to the culling stats panel (guard skips)
       if (lastParamsRef.current) submitWith(input, perMatch, applied);
     },
-    [submitWith, input, perMatch]
+    [submitWith, input, perMatch],
   );
 
   // Adopt external counting-settings changes (from the culling stats panel).
@@ -356,17 +391,21 @@ export function PlayerCountModule() {
         setOptions(next);
         if (lastParamsRef.current) submitWith(input, perMatch, next);
       }),
-    [submitWith, input, perMatch]
+    [submitWith, input, perMatch],
   );
 
   // Apply a GET/POST exclusions response to the editor state: per-request
   // tranare/publik, plus the editable config-level group + always-publik lists.
   const applyLoaded = useCallback((data) => {
     const always = data.always || { publik: [], grupp: [] };
-    const strip = (list, locked) => (list || []).filter((n) => !(locked || []).includes(n));
+    const strip = (list, locked) =>
+      (list || []).filter((n) => !(locked || []).includes(n));
     // Per-request publik excludes the always-publik markers (those are edited in
     // the "Alltid uteslutna" section instead).
-    setExclusions({ tranare: data.tranare || [], publik: strip(data.publik, always.publik) });
+    setExclusions({
+      tranare: data.tranare || [],
+      publik: strip(data.publik, always.publik),
+    });
     setGrupp(data.grupp || []); // resolved group markers (editable)
     setAlwaysPublik(always.publik || []); // always-publik markers (editable)
     setEnvKeys(data.env_keys || []);
@@ -391,7 +430,7 @@ export function PlayerCountModule() {
       setExclusionsDirty(true);
       if (lastParamsRef.current) submitWith(input, perMatch, options, next);
     },
-    [submitWith, input, perMatch, options]
+    [submitWith, input, perMatch, options],
   );
 
   // Config-level lists (grupp / always-publik): edit state + mark dirty; they
@@ -411,14 +450,17 @@ export function PlayerCountModule() {
         movePlayerSession(clean, 'spelare');
       } else if (kind === 'tranare' || kind === 'publik') {
         if (exclusions[kind].includes(clean)) return;
-        applyExclusions({ ...exclusions, [kind]: [...exclusions[kind], clean] });
+        applyExclusions({
+          ...exclusions,
+          [kind]: [...exclusions[kind], clean],
+        });
       } else {
         const list = kind === 'grupp' ? grupp : alwaysPublik;
         if (list.includes(clean)) return;
         editConfigList(kind, [...list, clean]);
       }
     },
-    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList]
+    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList],
   );
 
   const removeExcluded = useCallback(
@@ -426,13 +468,19 @@ export function PlayerCountModule() {
       if (kind === 'spelare') {
         removePlayerSession(name);
       } else if (kind === 'tranare' || kind === 'publik') {
-        applyExclusions({ ...exclusions, [kind]: exclusions[kind].filter((n) => n !== name) });
+        applyExclusions({
+          ...exclusions,
+          [kind]: exclusions[kind].filter((n) => n !== name),
+        });
       } else {
         const list = kind === 'grupp' ? grupp : alwaysPublik;
-        editConfigList(kind, list.filter((n) => n !== name));
+        editConfigList(
+          kind,
+          list.filter((n) => n !== name),
+        );
       }
     },
-    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList]
+    [exclusions, grupp, alwaysPublik, applyExclusions, editConfigList],
   );
 
   // Persist the current lists as the new defaults (config.json → future counts + CLI).
@@ -459,7 +507,17 @@ export function PlayerCountModule() {
     } finally {
       setSavingDefaults(false);
     }
-  }, [api, exclusions, grupp, alwaysPublik, applyLoaded, submitWith, input, perMatch, options]);
+  }, [
+    api,
+    exclusions,
+    grupp,
+    alwaysPublik,
+    applyLoaded,
+    submitWith,
+    input,
+    perMatch,
+    options,
+  ]);
 
   // Discard edits and re-run with the saved defaults.
   const resetExclusions = useCallback(async () => {
@@ -486,14 +544,16 @@ export function PlayerCountModule() {
           await loadExclusions();
         } else {
           setExclusions((prev) =>
-            prev.publik.includes(clean) ? prev : { ...prev, publik: [...prev.publik, clean] }
+            prev.publik.includes(clean)
+              ? prev
+              : { ...prev, publik: [...prev.publik, clean] },
           );
         }
       } catch (err) {
         setError(err.message || String(err));
       }
     },
-    [api, exclusionsDirty, configDirty, loadExclusions]
+    [api, exclusionsDirty, configDirty, loadExclusions],
   );
 
   // Hand the current count's full scope (folders/path-globs, date span,
@@ -531,15 +591,19 @@ export function PlayerCountModule() {
         extension_preset: params.extension_preset,
       });
     },
-    [emit, waitForListeners]
+    [emit, waitForListeners],
   );
 
   // Open the culling workspace filtered to a player (from the stats table). The
   // clicked row belongs to the last count's result, so hand over exactly those
   // params (falling back to the live input before any count has run).
   const openCullForPlayer = useCallback(
-    (name) => handoffToCulling(name, lastParamsRef.current || buildParams(input, perMatch, options, null)),
-    [handoffToCulling, buildParams, input, perMatch, options]
+    (name) =>
+      handoffToCulling(
+        name,
+        lastParamsRef.current || buildParams(input, perMatch, options, null),
+      ),
+    [handoffToCulling, buildParams, input, perMatch, options],
   );
 
   // Toolbar "Gallra" button: open culling on the current selection, no filter.
@@ -548,7 +612,7 @@ export function PlayerCountModule() {
   // the `hasScope` enable condition, which is also input-derived.
   const openCull = useCallback(
     () => handoffToCulling(null, buildParams(input, perMatch, options, null)),
-    [handoffToCulling, buildParams, input, perMatch, options]
+    [handoffToCulling, buildParams, input, perMatch, options],
   );
 
   // Enabled whenever there's a selection to hand over (folders or a wildcard),
@@ -581,14 +645,19 @@ export function PlayerCountModule() {
   const { menu, openMenu, closeMenu } = useContextMenu();
   const handleNameContextMenu = useCallback(
     (e, name, bucket) => openMenu(e, { name, bucket }),
-    [openMenu]
+    [openMenu],
   );
-  const menuItems = menu ? buildPlayerMenuItems(menu.bucket, makePublikPermanent) : [];
+  const menuItems = menu
+    ? buildPlayerMenuItems(menu.bucket, makePublikPermanent)
+    : [];
 
   const totalImages = result?.total_images ?? 0;
 
   return (
-    <div className="module-container player-count" data-keyboard-scope="isolated">
+    <div
+      className="module-container player-count"
+      data-keyboard-scope="isolated"
+    >
       <div className="module-header">
         <h3 className="module-title">{t('playerCount.title')}</h3>
         <div className="button-group">
@@ -604,7 +673,11 @@ export function PlayerCountModule() {
             />
             {t('playerCount.perMatch')}
           </label>
-          {isRefreshing && <span className="player-count-refreshing">{t('playerCount.refreshing')}</span>}
+          {isRefreshing && (
+            <span className="player-count-refreshing">
+              {t('playerCount.refreshing')}
+            </span>
+          )}
           <Button
             variant="primary"
             onClick={openCull}
@@ -643,9 +716,15 @@ export function PlayerCountModule() {
       />
 
       <div className="module-body player-count-body">
-        {error && <Alert variant="error">{t('playerCount.errorPrefix')} {error}</Alert>}
+        {error && (
+          <Alert variant="error">
+            {t('playerCount.errorPrefix')} {error}
+          </Alert>
+        )}
 
-        {isLoading && <div className="empty-state">{t('playerCount.counting')}</div>}
+        {isLoading && (
+          <div className="empty-state">{t('playerCount.counting')}</div>
+        )}
 
         {!isLoading && !error && !hasRun && (
           <div className="empty-state">
@@ -662,10 +741,23 @@ export function PlayerCountModule() {
               <div className="empty-state">{t('playerCount.noMatches')}</div>
             ) : (
               <>
-                <PlayerTable players={result.players} baseline={result.baseline} timeRange={result.time_range} onPlayerClick={openCullForPlayer} onNameContextMenu={handleNameContextMenu} />
-                <ExcludedSections excluded={result.excluded} onNameContextMenu={handleNameContextMenu} />
+                <PlayerTable
+                  players={result.players}
+                  baseline={result.baseline}
+                  timeRange={result.time_range}
+                  onPlayerClick={openCullForPlayer}
+                  onNameContextMenu={handleNameContextMenu}
+                />
+                <ExcludedSections
+                  excluded={result.excluded}
+                  onNameContextMenu={handleNameContextMenu}
+                />
                 {perMatch && result.matches?.length > 0 && (
-                  <MatchSections matches={result.matches} onPlayerClick={openCullForPlayer} onNameContextMenu={handleNameContextMenu} />
+                  <MatchSections
+                    matches={result.matches}
+                    onPlayerClick={openCullForPlayer}
+                    onNameContextMenu={handleNameContextMenu}
+                  />
                 )}
               </>
             )}
@@ -682,15 +774,28 @@ function ResultSummary({ result }) {
   const tr = result.time_range;
   return (
     <div className="player-count-summary">
-      <span><strong>{result.total_images}</strong> {t('playerCount.summary.images')}</span>
-      <span><strong>{result.players.length}</strong> {t('playerCount.summary.players')}</span>
-      <span>{t('playerCount.summary.baseline', { method: result.baseline_method })}: <strong>{result.baseline}</strong></span>
+      <span>
+        <strong>{result.total_images}</strong> {t('playerCount.summary.images')}
+      </span>
+      <span>
+        <strong>{result.players.length}</strong>{' '}
+        {t('playerCount.summary.players')}
+      </span>
+      <span>
+        {t('playerCount.summary.baseline', { method: result.baseline_method })}:{' '}
+        <strong>{result.baseline}</strong>
+      </span>
       {result.files_resolved != null && (
-        <span className="player-count-dim">{t('playerCount.summary.files', { count: result.files_resolved })}</span>
+        <span className="player-count-dim">
+          {t('playerCount.summary.files', { count: result.files_resolved })}
+        </span>
       )}
       {tr && (
         <span className="player-count-dim">
-          {fmtTime(tr.start)} → {fmtTime(tr.end)} {t('playerCount.summary.duration', { minutes: Math.round(tr.duration_minutes) })}
+          {fmtTime(tr.start)} → {fmtTime(tr.end)}{' '}
+          {t('playerCount.summary.duration', {
+            minutes: Math.round(tr.duration_minutes),
+          })}
         </span>
       )}
     </div>
@@ -724,7 +829,10 @@ export function CountOptions({
   // counts on a large folder. The baseline <select> is discrete → applies at once.
   const previewNum = (key, raw, min) => {
     const n = parseInt(raw, 10);
-    onOptionsPreview({ ...options, [key]: Number.isNaN(n) ? min : Math.max(min, n) });
+    onOptionsPreview({
+      ...options,
+      [key]: Number.isNaN(n) ? min : Math.max(min, n),
+    });
   };
   const commitOptions = () => onOptionsChange(options);
 
@@ -757,12 +865,18 @@ export function CountOptions({
           <select
             className="form-select"
             value={options.baseline}
-            onChange={(e) => onOptionsChange({ ...options, baseline: e.target.value })}
+            onChange={(e) =>
+              onOptionsChange({ ...options, baseline: e.target.value })
+            }
             disabled={busy}
             title={t('playerCount.options.baselineTitle')}
           >
-            <option value="median">{t('playerCount.options.baselineMedian')}</option>
-            <option value="mean">{t('playerCount.options.baselineMean')}</option>
+            <option value="median">
+              {t('playerCount.options.baselineMedian')}
+            </option>
+            <option value="mean">
+              {t('playerCount.options.baselineMean')}
+            </option>
           </select>
         </label>
         <label className="pc-option">
@@ -785,7 +899,8 @@ export function CountOptions({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
         >
-          {t('playerCount.options.excludedToggle')}{total > 0 ? ` (${total})` : ''} {open ? '▾' : '▸'}
+          {t('playerCount.options.excludedToggle')}
+          {total > 0 ? ` (${total})` : ''} {open ? '▾' : '▸'}
         </Button>
       </div>
 
@@ -821,7 +936,10 @@ export function CountOptions({
           />
 
           {/* Config-level always-excluded markers (take effect after saving). */}
-          <div className="pc-always-heading" title={t('playerCount.exclusions.alwaysHeadingTitle')}>
+          <div
+            className="pc-always-heading"
+            title={t('playerCount.exclusions.alwaysHeadingTitle')}
+          >
             {t('playerCount.exclusions.alwaysHeading')}
           </div>
           <ExclusionList
@@ -843,7 +961,9 @@ export function CountOptions({
 
           {envKeys && envKeys.length > 0 && (
             <div className="player-count-dim pc-env-note">
-              {t('playerCount.exclusions.envNote', { keys: envKeys.join(', ') })}
+              {t('playerCount.exclusions.envNote', {
+                keys: envKeys.join(', '),
+              })}
             </div>
           )}
 
@@ -854,7 +974,9 @@ export function CountOptions({
               disabled={busy || savingDefaults || !dirty}
               title={t('playerCount.exclusions.saveDefaultsTitle')}
             >
-              {savingDefaults ? t('playerCount.exclusions.saving') : t('playerCount.exclusions.saveDefaults')}
+              {savingDefaults
+                ? t('playerCount.exclusions.saving')
+                : t('playerCount.exclusions.saveDefaults')}
             </Button>
             <Button
               variant="secondary"
@@ -864,7 +986,11 @@ export function CountOptions({
             >
               {t('playerCount.exclusions.reset')}
             </Button>
-            {dirty && <span className="player-count-dim">{t('playerCount.exclusions.unsaved')}</span>}
+            {dirty && (
+              <span className="player-count-dim">
+                {t('playerCount.exclusions.unsaved')}
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -898,13 +1024,21 @@ function ExclusionList({ title, kind, names, onAdd, onRemove, busy }) {
             </button>
           </span>
         ))}
-        {names.length === 0 && <span className="player-count-dim pc-empty">{t('playerCount.exclusions.empty')}</span>}
+        {names.length === 0 && (
+          <span className="player-count-dim pc-empty">
+            {t('playerCount.exclusions.empty')}
+          </span>
+        )}
       </div>
       <input
         className="form-input pc-add"
         type="text"
-        aria-label={t('playerCount.exclusions.add', { title: title.toLowerCase() })}
-        placeholder={t('playerCount.exclusions.addPlaceholder', { title: title.toLowerCase() })}
+        aria-label={t('playerCount.exclusions.add', {
+          title: title.toLowerCase(),
+        })}
+        placeholder={t('playerCount.exclusions.addPlaceholder', {
+          title: title.toLowerCase(),
+        })}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -949,7 +1083,10 @@ function Spark({ timestamps, start, end, bins = 24 }) {
   }
   const max = Math.max(1, ...counts);
   return (
-    <span className="player-spark" title={t('playerCount.table.sparkTitle', { count: timestamps.length })}>
+    <span
+      className="player-spark"
+      title={t('playerCount.table.sparkTitle', { count: timestamps.length })}
+    >
       {counts.map((c, i) => (
         <span
           key={i}
@@ -964,7 +1101,13 @@ function Spark({ timestamps, start, end, bins = 24 }) {
 // `timeRange` is { start, end } (the session window, or a match's window) used
 // for the spark; `baseline` anchors the distribution bar at 50% of the track,
 // mirroring the CLI's baseline-relative bar (at-baseline = half-full, 2× = full).
-function PlayerTable({ players, baseline, timeRange, onPlayerClick, onNameContextMenu }) {
+function PlayerTable({
+  players,
+  baseline,
+  timeRange,
+  onPlayerClick,
+  onNameContextMenu,
+}) {
   const maxCount = players.reduce((m, p) => Math.max(m, p.count), 1);
   const ref = baseline > 0 ? baseline : maxCount; // bar reference (baseline → 50%)
   return (
@@ -974,7 +1117,9 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick, onNameContex
           <th>{t('playerCount.table.name')}</th>
           <th className="num">{t('playerCount.table.count')}</th>
           <th className="num">{t('playerCount.table.pct')}</th>
-          <th className="num" title={t('playerCount.table.deltaTitle')}>{t('playerCount.table.deltaPct')}</th>
+          <th className="num" title={t('playerCount.table.deltaTitle')}>
+            {t('playerCount.table.deltaPct')}
+          </th>
           <th className="num">{t('playerCount.table.deltaN')}</th>
           <th className="bar-col">{t('playerCount.table.distribution')}</th>
           <th className="spark-col">{t('playerCount.table.timeline')}</th>
@@ -982,47 +1127,73 @@ function PlayerTable({ players, baseline, timeRange, onPlayerClick, onNameContex
       </thead>
       <tbody>
         {players.map((p) => {
-          const rowTitle = onPlayerClick ? t('playerCount.table.rowTitle', { name: p.name }) : undefined;
+          const rowTitle = onPlayerClick
+            ? t('playerCount.table.rowTitle', { name: p.name })
+            : undefined;
           return (
-          <tr
-            key={p.name}
-            className={onPlayerClick ? 'clickable' : ''}
-            onClick={onPlayerClick ? () => onPlayerClick(p.name) : undefined}
-            role={onPlayerClick ? 'button' : undefined}
-            tabIndex={onPlayerClick ? 0 : undefined}
-            aria-label={rowTitle}
-            onKeyDown={onPlayerClick ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                e.stopPropagation();
-                onPlayerClick(p.name);
+            <tr
+              key={p.name}
+              className={onPlayerClick ? 'clickable' : ''}
+              onClick={onPlayerClick ? () => onPlayerClick(p.name) : undefined}
+              role={onPlayerClick ? 'button' : undefined}
+              tabIndex={onPlayerClick ? 0 : undefined}
+              aria-label={rowTitle}
+              onKeyDown={
+                onPlayerClick
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onPlayerClick(p.name);
+                      }
+                    }
+                  : undefined
               }
-            } : undefined}
-            onContextMenu={onNameContextMenu ? (e) => onNameContextMenu(e, p.name, 'players') : undefined}
-            title={rowTitle}
-          >
-            <td>{p.name}</td>
-            <td className="num">{p.count}</td>
-            <td className="num">{p.pct}%</td>
-            <td className={`num delta delta-${p.level}`} title={t('playerCount.table.deltaTitle')}>
-              {p.delta_pct > 0 ? '+' : ''}{p.delta_pct}%
-            </td>
-            <td className={`num delta delta-${p.level}`}>
-              {p.delta_n > 0 ? '+' : ''}{Math.round(p.delta_n)}
-            </td>
-            <td className="bar-col">
-              <div className="player-bar-track">
-                <div className="player-bar-baseline" title={t('playerCount.table.baselineBarTitle', { baseline })} />
-                <div
-                  className={`player-bar-fill level-${p.level}`}
-                  style={{ width: `${Math.min(100, (p.count / (ref * 2)) * 100)}%` }}
+              onContextMenu={
+                onNameContextMenu
+                  ? (e) => onNameContextMenu(e, p.name, 'players')
+                  : undefined
+              }
+              title={rowTitle}
+            >
+              <td>{p.name}</td>
+              <td className="num">{p.count}</td>
+              <td className="num">{p.pct}%</td>
+              <td
+                className={`num delta delta-${p.level}`}
+                title={t('playerCount.table.deltaTitle')}
+              >
+                {p.delta_pct > 0 ? '+' : ''}
+                {p.delta_pct}%
+              </td>
+              <td className={`num delta delta-${p.level}`}>
+                {p.delta_n > 0 ? '+' : ''}
+                {Math.round(p.delta_n)}
+              </td>
+              <td className="bar-col">
+                <div className="player-bar-track">
+                  <div
+                    className="player-bar-baseline"
+                    title={t('playerCount.table.baselineBarTitle', {
+                      baseline,
+                    })}
+                  />
+                  <div
+                    className={`player-bar-fill level-${p.level}`}
+                    style={{
+                      width: `${Math.min(100, (p.count / (ref * 2)) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </td>
+              <td className="spark-col">
+                <Spark
+                  timestamps={p.timestamps}
+                  start={timeRange?.start}
+                  end={timeRange?.end}
                 />
-              </div>
-            </td>
-            <td className="spark-col">
-              <Spark timestamps={p.timestamps} start={timeRange?.start} end={timeRange?.end} />
-            </td>
-          </tr>
+              </td>
+            </tr>
           );
         })}
       </tbody>
@@ -1038,7 +1209,7 @@ const EXCLUDED_KEYS = ['tranare', 'grupp', 'publik', 'below_threshold'];
 function ExcludedSections({ excluded, onNameContextMenu }) {
   if (!excluded) return null;
   const groups = EXCLUDED_KEYS.filter(
-    (key) => excluded[key] && excluded[key].length > 0
+    (key) => excluded[key] && excluded[key].length > 0,
   );
   if (groups.length === 0) return null;
 
@@ -1046,12 +1217,18 @@ function ExcludedSections({ excluded, onNameContextMenu }) {
     <div className="player-count-excluded">
       {groups.map((key) => (
         <details key={key} className="player-count-group">
-          <summary>{t(`playerCount.excludedLabels.${key}`)} ({excluded[key].length})</summary>
+          <summary>
+            {t(`playerCount.excludedLabels.${key}`)} ({excluded[key].length})
+          </summary>
           <ul>
             {excluded[key].map((e) => (
               <li
                 key={e.name}
-                onContextMenu={onNameContextMenu ? (ev) => onNameContextMenu(ev, e.name, key) : undefined}
+                onContextMenu={
+                  onNameContextMenu
+                    ? (ev) => onNameContextMenu(ev, e.name, key)
+                    : undefined
+                }
               >
                 {e.name}: {e.count} ({e.pct}%)
               </li>
@@ -1071,7 +1248,7 @@ function excludedCount(excluded) {
   if (!excluded) return 0;
   return EXCLUDED_KEYS.reduce(
     (sum, key) => sum + (excluded[key]?.length || 0),
-    0
+    0,
   );
 }
 
@@ -1082,11 +1259,19 @@ function MatchInfoRow({ match }) {
   const total = match.players.length + excl;
   return (
     <div className="player-count-summary player-count-match-info">
-      <span><strong>{match.players.length}</strong> {t('playerCount.summary.players')}</span>
+      <span>
+        <strong>{match.players.length}</strong>{' '}
+        {t('playerCount.summary.players')}
+      </span>
       {excl > 0 && (
-        <span className="player-count-dim">{t('playerCount.match.info', { total, excluded: excl })}</span>
+        <span className="player-count-dim">
+          {t('playerCount.match.info', { total, excluded: excl })}
+        </span>
       )}
-      <span>{t('playerCount.summary.baseline', { method: match.baseline_method })}: <strong>{match.baseline}</strong></span>
+      <span>
+        {t('playerCount.summary.baseline', { method: match.baseline_method })}:{' '}
+        <strong>{match.baseline}</strong>
+      </span>
     </div>
   );
 }
@@ -1107,11 +1292,22 @@ export function MatchSections({ matches, onPlayerClick, onNameContextMenu }) {
           </summary>
           <MatchInfoRow match={m} />
           {m.players.length > 0 ? (
-            <PlayerTable players={m.players} baseline={m.baseline} timeRange={{ start: m.start, end: m.end }} onPlayerClick={onPlayerClick} onNameContextMenu={onNameContextMenu} />
+            <PlayerTable
+              players={m.players}
+              baseline={m.baseline}
+              timeRange={{ start: m.start, end: m.end }}
+              onPlayerClick={onPlayerClick}
+              onNameContextMenu={onNameContextMenu}
+            />
           ) : (
-            <div className="empty-state compact">{t('playerCount.match.noPlayers')}</div>
+            <div className="empty-state compact">
+              {t('playerCount.match.noPlayers')}
+            </div>
           )}
-          <ExcludedSections excluded={m.excluded} onNameContextMenu={onNameContextMenu} />
+          <ExcludedSections
+            excluded={m.excluded}
+            onNameContextMenu={onNameContextMenu}
+          />
         </details>
       ))}
     </div>

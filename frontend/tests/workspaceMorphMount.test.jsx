@@ -20,7 +20,10 @@ vi.mock('../src/renderer/theme-manager.js', () => ({
   themeManager: { setPreference: vi.fn() },
 }));
 
-import { applyWorkspace, revealHiddenModuleTab } from '../src/renderer/workspace/flexlayout/workspaceMorph.js';
+import {
+  applyWorkspace,
+  revealHiddenModuleTab,
+} from '../src/renderer/workspace/flexlayout/workspaceMorph.js';
 import { getWorkspaceSpec } from '../src/renderer/workspace/flexlayout/workflows.js';
 import { ensureBottomBorder } from '../src/renderer/workspace/flexlayout/layouts.js';
 
@@ -28,10 +31,24 @@ import { ensureBottomBorder } from '../src/renderer/workspace/flexlayout/layouts
 // render-on-demand actually mounts tab content (matches the other host tests).
 beforeAll(() => {
   if (!window.ResizeObserver) {
-    window.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
+    window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
   }
   HTMLElement.prototype.getBoundingClientRect = function () {
-    return { x: 0, y: 0, top: 0, left: 0, right: 1200, bottom: 800, width: 1200, height: 800, toJSON() {} };
+    return {
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 1200,
+      bottom: 800,
+      width: 1200,
+      height: 800,
+      toJSON() {},
+    };
   };
 });
 
@@ -41,7 +58,9 @@ beforeAll(() => {
 const spy = { mounts: 0, counter: null, setCounter: null };
 function Probe() {
   const [counter, setCounter] = useState(0);
-  useEffect(() => { spy.mounts += 1; }, []);
+  useEffect(() => {
+    spy.mounts += 1;
+  }, []);
   spy.setCounter = setCounter;
   spy.counter = counter;
   return <div className="file-queue-probe">{counter}</div>;
@@ -54,37 +73,100 @@ const factory = (node) => {
 };
 
 function reviewTrioModel() {
-  return Model.fromJson(ensureBottomBorder({
-    global: { tabEnableRenderOnDemand: true, splitterSize: 4, tabSetMinWidth: 50, tabSetMinHeight: 50 },
-    layout: {
-      type: 'row', weight: 100,
-      children: [
-        { type: 'tabset', id: 'ts-q', weight: 15, children: [
-          { type: 'tab', id: 'q', name: 'Filkö', component: 'file-queue', enableRenderOnDemand: false, config: { moduleId: 'file-queue' } },
-        ]},
-        { type: 'tabset', id: 'ts-r', weight: 15, children: [
-          { type: 'tab', id: 'r', name: 'Granska', component: 'review-module', config: { moduleId: 'review-module' } },
-        ]},
-        { type: 'tabset', id: 'ts-v', weight: 70, children: [
-          { type: 'tab', id: 'v', name: 'Bildvisare', component: 'image-viewer', config: { moduleId: 'image-viewer' } },
-        ]},
-      ],
-    },
-  }));
+  return Model.fromJson(
+    ensureBottomBorder({
+      global: {
+        tabEnableRenderOnDemand: true,
+        splitterSize: 4,
+        tabSetMinWidth: 50,
+        tabSetMinHeight: 50,
+      },
+      layout: {
+        type: 'row',
+        weight: 100,
+        children: [
+          {
+            type: 'tabset',
+            id: 'ts-q',
+            weight: 15,
+            children: [
+              {
+                type: 'tab',
+                id: 'q',
+                name: 'Filkö',
+                component: 'file-queue',
+                enableRenderOnDemand: false,
+                config: { moduleId: 'file-queue' },
+              },
+            ],
+          },
+          {
+            type: 'tabset',
+            id: 'ts-r',
+            weight: 15,
+            children: [
+              {
+                type: 'tab',
+                id: 'r',
+                name: 'Granska',
+                component: 'review-module',
+                config: { moduleId: 'review-module' },
+              },
+            ],
+          },
+          {
+            type: 'tabset',
+            id: 'ts-v',
+            weight: 70,
+            children: [
+              {
+                type: 'tab',
+                id: 'v',
+                name: 'Bildvisare',
+                component: 'image-viewer',
+                config: { moduleId: 'image-viewer' },
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
 }
 
 // A solo starting layout (arriving from another step) the morph reshapes into
 // the review companion-tab group.
 function soloModel(component) {
-  return Model.fromJson(ensureBottomBorder({
-    global: { tabEnableRenderOnDemand: true, splitterSize: 4, tabSetMinWidth: 50, tabSetMinHeight: 50 },
-    layout: {
-      type: 'row', weight: 100,
-      children: [{ type: 'tabset', id: 'ts-solo', weight: 100, children: [
-        { type: 'tab', id: 's', name: component, component, config: { moduleId: component } },
-      ]}],
-    },
-  }));
+  return Model.fromJson(
+    ensureBottomBorder({
+      global: {
+        tabEnableRenderOnDemand: true,
+        splitterSize: 4,
+        tabSetMinWidth: 50,
+        tabSetMinHeight: 50,
+      },
+      layout: {
+        type: 'row',
+        weight: 100,
+        children: [
+          {
+            type: 'tabset',
+            id: 'ts-solo',
+            weight: 100,
+            children: [
+              {
+                type: 'tab',
+                id: 's',
+                name: component,
+                component,
+                config: { moduleId: component },
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
 }
 
 function queueNode(model) {
@@ -119,7 +201,9 @@ describe('File Queue as a hidden companion tab stays mounted (review group)', ()
     expect(spy.mounts).toBe(1);
 
     // The queue holds in-flight state (e.g. current index) while hidden.
-    await act(async () => { spy.setCounter(42); });
+    await act(async () => {
+      spy.setCounter(42);
+    });
     expect(spy.counter).toBe(42);
 
     // A file-load re-entry (enterStep('review') on every load) is idempotent: no
@@ -158,7 +242,9 @@ describe('parking preserves the component instance at the React mount level', ()
     expect(spy.mounts).toBe(1);
 
     // User's in-flight state (e.g. current queue index).
-    await act(async () => { spy.setCounter(17); });
+    await act(async () => {
+      spy.setCounter(17);
+    });
     expect(spy.counter).toBe(17);
 
     // Morph to the solo count step: File Queue is keepMounted → parked in the
@@ -187,21 +273,59 @@ describe('parking preserves the component instance at the React mount level', ()
 
 // The review companion group: review-module | [image-viewer (active), file-queue].
 function reviewGroupModel() {
-  return Model.fromJson(ensureBottomBorder({
-    global: { tabEnableRenderOnDemand: true, splitterSize: 4, tabSetMinWidth: 50, tabSetMinHeight: 50 },
-    layout: {
-      type: 'row', weight: 100,
-      children: [
-        { type: 'tabset', id: 'ts-r', weight: 15, children: [
-          { type: 'tab', id: 'r', name: 'Granska', component: 'review-module', config: { moduleId: 'review-module' } },
-        ]},
-        { type: 'tabset', id: 'ts-g', weight: 85, selected: 0, children: [
-          { type: 'tab', id: 'v', name: 'Bildvisare', component: 'image-viewer', config: { moduleId: 'image-viewer' } },
-          { type: 'tab', id: 'q', name: 'Filkö', component: 'file-queue', enableRenderOnDemand: false, config: { moduleId: 'file-queue' } },
-        ]},
-      ],
-    },
-  }));
+  return Model.fromJson(
+    ensureBottomBorder({
+      global: {
+        tabEnableRenderOnDemand: true,
+        splitterSize: 4,
+        tabSetMinWidth: 50,
+        tabSetMinHeight: 50,
+      },
+      layout: {
+        type: 'row',
+        weight: 100,
+        children: [
+          {
+            type: 'tabset',
+            id: 'ts-r',
+            weight: 15,
+            children: [
+              {
+                type: 'tab',
+                id: 'r',
+                name: 'Granska',
+                component: 'review-module',
+                config: { moduleId: 'review-module' },
+              },
+            ],
+          },
+          {
+            type: 'tabset',
+            id: 'ts-g',
+            weight: 85,
+            selected: 0,
+            children: [
+              {
+                type: 'tab',
+                id: 'v',
+                name: 'Bildvisare',
+                component: 'image-viewer',
+                config: { moduleId: 'image-viewer' },
+              },
+              {
+                type: 'tab',
+                id: 'q',
+                name: 'Filkö',
+                component: 'file-queue',
+                enableRenderOnDemand: false,
+                config: { moduleId: 'file-queue' },
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
 }
 
 describe('revealHiddenModuleTab — surface the Image Viewer when it is hidden behind the queue', () => {
@@ -245,7 +369,9 @@ describe('revealHiddenModuleTab — surface the Image Viewer when it is hidden b
     await settle();
     // No selection change, no action taken.
     expect(acted).toBe(false);
-    expect(model.getNodeById('ts-g').getSelectedNode().getId()).toBe(selectedBefore);
+    expect(model.getNodeById('ts-g').getSelectedNode().getId()).toBe(
+      selectedBefore,
+    );
     expect(model.getNodeById('v').isVisible()).toBe(true);
   });
 });

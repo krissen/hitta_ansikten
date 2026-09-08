@@ -39,7 +39,11 @@ const EXPECTED = [
     title: 'Bildvisare',
     modules: ['image-viewer', 'original-view'],
     shortcuts: [
-      { keys: ['+', '-'], desc: 'Zooma in/ut (håll för kontinuerlig)', sep: ' / ' },
+      {
+        keys: ['+', '-'],
+        desc: 'Zooma in/ut (håll för kontinuerlig)',
+        sep: ' / ',
+      },
       { keys: ['='], desc: 'Återställ till 1:1' },
       { keys: ['0'], desc: 'Anpassa till fönster' },
       { keys: ['B'], desc: 'Visa/dölj markeringsramar' },
@@ -52,7 +56,11 @@ const EXPECTED = [
     title: 'Granska ansikten',
     modules: ['review-module'],
     shortcuts: [
-      { keys: ['Enter', 'A'], desc: 'Acceptera föreslagen matchning', sep: ' / ' },
+      {
+        keys: ['Enter', 'A'],
+        desc: 'Acceptera föreslagen matchning',
+        sep: ' / ',
+      },
       { keys: ['I'], desc: 'Ignorera ansikte' },
       { keys: ['R'], desc: 'Byt namn / ange namn' },
       { keys: ['1-N'], desc: 'Välj matchningsalternativ' },
@@ -89,9 +97,16 @@ const EXPECTED = [
       { keys: ['+', '-'], desc: 'Zooma in/ut (enkelbild)', sep: ' / ' },
       { keys: ['='], desc: 'Återställ till 1:1 (enkelbild)' },
       { keys: ['0'], desc: 'Anpassa till fönster (enkelbild)' },
-      { keys: ['X', 'Delete', 'Cmd+⌫'], desc: 'Gallra till papperskorgen', sep: ' / ' },
+      {
+        keys: ['X', 'Delete', 'Cmd+⌫'],
+        desc: 'Gallra till papperskorgen',
+        sep: ' / ',
+      },
       { keys: ['Enter'], desc: 'Byt namn på fil (dubbelklick)' },
-      { keys: ['Cmd', 'Enter'], desc: 'Tillämpa namnborttagningar från förhandsgranskningen' },
+      {
+        keys: ['Cmd', 'Enter'],
+        desc: 'Tillämpa namnborttagningar från förhandsgranskningen',
+      },
       { keys: ['Cmd', 'Z'], desc: 'Ångra senaste gallring' },
       { keys: ['L'], desc: 'Öppna original-NEF i extern editor' },
     ],

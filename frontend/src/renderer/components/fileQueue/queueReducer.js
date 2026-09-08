@@ -41,8 +41,8 @@ export const initialQueueState = { queue: [], currentIndex: -1 };
  * @returns {Array}
  */
 export function insertItems(queue, items, position) {
-  const existingPaths = new Set(queue.map(item => item.filePath));
-  const uniqueNew = items.filter(item => !existingPaths.has(item.filePath));
+  const existingPaths = new Set(queue.map((item) => item.filePath));
+  const uniqueNew = items.filter((item) => !existingPaths.has(item.filePath));
   if (position === 'start') {
     return [...uniqueNew, ...queue];
   }
@@ -72,10 +72,13 @@ export function queueReducer(state, action) {
       return { ...state, queue: [...state.queue].sort(naturalSortCompare) };
 
     case 'removeById': {
-      const removedIndex = state.queue.findIndex(item => item.id === action.id);
-      const queue = state.queue.filter(item => item.id !== action.id);
+      const removedIndex = state.queue.findIndex(
+        (item) => item.id === action.id,
+      );
+      const queue = state.queue.filter((item) => item.id !== action.id);
       let currentIndex = state.currentIndex;
-      if (removedIndex < state.currentIndex) currentIndex = state.currentIndex - 1;
+      if (removedIndex < state.currentIndex)
+        currentIndex = state.currentIndex - 1;
       else if (removedIndex === state.currentIndex) currentIndex = -1;
       return { queue, currentIndex };
     }
@@ -83,7 +86,7 @@ export function queueReducer(state, action) {
     case 'removePaths':
       return {
         ...state,
-        queue: state.queue.filter(item => !action.paths.has(item.filePath)),
+        queue: state.queue.filter((item) => !action.paths.has(item.filePath)),
       };
 
     case 'clear':
@@ -96,7 +99,7 @@ export function queueReducer(state, action) {
         if (!fixMode && item.isAlreadyProcessed) return true;
         return false;
       };
-      const queue = state.queue.filter(item => {
+      const queue = state.queue.filter((item) => {
         if (!isDone(item)) return true;
         // When a filter is active, only clear visible done items.
         if (visibleIds && !visibleIds.has(item.id)) return true;
@@ -107,7 +110,7 @@ export function queueReducer(state, action) {
 
     case 'clearSelected':
       return {
-        queue: state.queue.filter(item => !action.selectedIds.has(item.id)),
+        queue: state.queue.filter((item) => !action.selectedIds.has(item.id)),
         currentIndex: -1,
       };
 
@@ -115,7 +118,12 @@ export function queueReducer(state, action) {
       return {
         queue: state.queue.map((q, i) => ({
           ...q,
-          status: i === action.index ? 'active' : (q.status === 'active' ? 'pending' : q.status),
+          status:
+            i === action.index
+              ? 'active'
+              : q.status === 'active'
+                ? 'pending'
+                : q.status,
         })),
         currentIndex: action.index,
       };
@@ -124,43 +132,47 @@ export function queueReducer(state, action) {
       return {
         ...state,
         queue: state.queue.map((q, i) =>
-          i === action.index ? { ...q, isAlreadyProcessed: false } : q
+          i === action.index ? { ...q, isAlreadyProcessed: false } : q,
         ),
       };
 
     case 'setReviewed':
       return {
         ...state,
-        queue: state.queue.map(item =>
+        queue: state.queue.map((item) =>
           item.filePath === action.path
-            ? { ...item, status: action.status, reviewedFaces: action.reviewedFaces || [] }
-            : item
+            ? {
+                ...item,
+                status: action.status,
+                reviewedFaces: action.reviewedFaces || [],
+              }
+            : item,
         ),
       };
 
     case 'markProcessed':
       return {
         ...state,
-        queue: state.queue.map(item =>
+        queue: state.queue.map((item) =>
           item.filePath === action.path && !item.isAlreadyProcessed
             ? { ...item, isAlreadyProcessed: true }
-            : item
+            : item,
         ),
       };
 
     case 'markMissing':
       return {
         ...state,
-        queue: state.queue.map(item =>
+        queue: state.queue.map((item) =>
           item.filePath === action.path
             ? { ...item, status: 'missing', error: 'File not found' }
-            : item
+            : item,
         ),
       };
 
     case 'markProcessedByNames': {
       let hasChanges = false;
-      const queue = state.queue.map(item => {
+      const queue = state.queue.map((item) => {
         if (action.names.has(item.fileName) && !item.isAlreadyProcessed) {
           hasChanges = true;
           return { ...item, isAlreadyProcessed: true };
@@ -171,10 +183,14 @@ export function queueReducer(state, action) {
     }
 
     case 'applyRename':
-      return { ...state, queue: applyRenameToQueue(state.queue, action.renamedMap) };
+      return {
+        ...state,
+        queue: applyRenameToQueue(state.queue, action.renamedMap),
+      };
 
     case 'insertAt': {
-      if (state.queue.some(item => item.filePath === action.item.filePath)) return state;
+      if (state.queue.some((item) => item.filePath === action.item.filePath))
+        return state;
       const queue = [...state.queue];
       queue.splice(Math.min(action.index, queue.length), 0, action.item);
       return { ...state, queue };

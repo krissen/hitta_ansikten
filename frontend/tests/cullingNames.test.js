@@ -12,25 +12,40 @@ describe('namesInBasename', () => {
 
   it('splits multiple names joined by ,_', () => {
     expect(namesInBasename('260626_191003_Anna,_Bert,_Cecilia.jpg')).toEqual([
-      'Anna', 'Bert', 'Cecilia',
+      'Anna',
+      'Bert',
+      'Cecilia',
     ]);
   });
 
   it('keeps the timestamp -N collision suffix out of the names', () => {
-    expect(namesInBasename('260626_191003-2_Anna,_Bert.jpg')).toEqual(['Anna', 'Bert']);
+    expect(namesInBasename('260626_191003-2_Anna,_Bert.jpg')).toEqual([
+      'Anna',
+      'Bert',
+    ]);
   });
 
   it('strips a per-name -N disambiguation suffix', () => {
-    expect(namesInBasename('260626_191003_Anna-2,_Bert.jpg')).toEqual(['Anna', 'Bert']);
+    expect(namesInBasename('260626_191003_Anna-2,_Bert.jpg')).toEqual([
+      'Anna',
+      'Bert',
+    ]);
   });
 
   it('strips stacked -N duplicate suffixes (Lightroom copies)', () => {
-    expect(namesInBasename('260715_123556-1_Valter-2-2.jpg')).toEqual(['Valter']);
-    expect(namesInBasename('260715_123556-1_Valter-2-3.jpg')).toEqual(['Valter']);
+    expect(namesInBasename('260715_123556-1_Valter-2-2.jpg')).toEqual([
+      'Valter',
+    ]);
+    expect(namesInBasename('260715_123556-1_Valter-2-3.jpg')).toEqual([
+      'Valter',
+    ]);
   });
 
   it('strips stacked -N suffixes across multiple names', () => {
-    expect(namesInBasename('260626_191003_Anna-2-2,_Bert.jpg')).toEqual(['Anna', 'Bert']);
+    expect(namesInBasename('260626_191003_Anna-2-2,_Bert.jpg')).toEqual([
+      'Anna',
+      'Bert',
+    ]);
   });
 
   it('de-duplicates names that clean to the same value', () => {
@@ -49,37 +64,52 @@ describe('namesInBasename', () => {
 describe('removeNamesFromBasename', () => {
   it('drops one of several names and keeps the comma join', () => {
     expect(
-      removeNamesFromBasename('260626_191003_Anna,_Bert,_Cecilia.jpg', new Set(['Bert']))
+      removeNamesFromBasename(
+        '260626_191003_Anna,_Bert,_Cecilia.jpg',
+        new Set(['Bert']),
+      ),
     ).toBe('260626_191003_Anna,_Cecilia.jpg');
   });
 
   it('drops the comma when one name remains', () => {
     expect(
-      removeNamesFromBasename('260626_191003_Anna,_Bert.jpg', new Set(['Bert']))
+      removeNamesFromBasename(
+        '260626_191003_Anna,_Bert.jpg',
+        new Set(['Bert']),
+      ),
     ).toBe('260626_191003_Anna.jpg');
   });
 
   it('leaves a bare timestamp when every name is removed', () => {
     expect(
-      removeNamesFromBasename('260626_191003_Anna,_Bert.jpg', new Set(['Anna', 'Bert']))
+      removeNamesFromBasename(
+        '260626_191003_Anna,_Bert.jpg',
+        new Set(['Anna', 'Bert']),
+      ),
     ).toBe('260626_191003.jpg');
   });
 
   it('preserves the timestamp -N collision suffix', () => {
     expect(
-      removeNamesFromBasename('260626_191003-2_Anna,_Bert.jpg', new Set(['Bert']))
+      removeNamesFromBasename(
+        '260626_191003-2_Anna,_Bert.jpg',
+        new Set(['Bert']),
+      ),
     ).toBe('260626_191003-2_Anna.jpg');
   });
 
   it('removes a per-name -N piece when its cleaned name is toggled off', () => {
     expect(
-      removeNamesFromBasename('260626_191003_Anna,_Anna-2.jpg', new Set(['Anna']))
+      removeNamesFromBasename(
+        '260626_191003_Anna,_Anna-2.jpg',
+        new Set(['Anna']),
+      ),
     ).toBe('260626_191003.jpg');
   });
 
   it('is a no-op when removing nothing', () => {
     expect(
-      removeNamesFromBasename('260626_191003_Anna,_Bert.jpg', new Set())
+      removeNamesFromBasename('260626_191003_Anna,_Bert.jpg', new Set()),
     ).toBe('260626_191003_Anna,_Bert.jpg');
   });
 

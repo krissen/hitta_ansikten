@@ -9,7 +9,10 @@ import { CullingGrid } from '../src/renderer/components/CullingGrid.jsx';
 // fall back to the placeholder (we assert on structure/classes, not images).
 
 const FILES = [
-  { path: '/p/260601_120000_Alice,_Bob.jpg', basename: '260601_120000_Alice,_Bob.jpg' },
+  {
+    path: '/p/260601_120000_Alice,_Bob.jpg',
+    basename: '260601_120000_Alice,_Bob.jpg',
+  },
   { path: '/p/260601_120100_Alice.jpg', basename: '260601_120100_Alice.jpg' },
   { path: '/p/260601_120200_Carol.jpg', basename: '260601_120200_Carol.jpg' },
 ];
@@ -57,7 +60,7 @@ function renderGrid(props = {}) {
       onOpen={() => {}}
       onContextMenu={() => {}}
       {...props}
-    />
+    />,
   );
   return { ...result, gridRef };
 }
@@ -83,7 +86,9 @@ describe('CullingGrid', () => {
     const list = container.querySelector('.culling-grid');
     expect(list.getAttribute('role')).toBe('listbox');
     expect(list.getAttribute('tabindex')).toBe('0');
-    expect(list.getAttribute('aria-activedescendant')).toBe('culling-grid-cell-1');
+    expect(list.getAttribute('aria-activedescendant')).toBe(
+      'culling-grid-cell-1',
+    );
     const options = container.querySelectorAll('[role="option"]');
     expect(options.length).toBe(3);
     expect(options[1].getAttribute('aria-selected')).toBe('true');
@@ -103,16 +108,28 @@ describe('CullingGrid', () => {
 
   it('applies no highlight/dim when no player is highlighted', () => {
     const { container } = renderGrid({ highlightPlayer: '' });
-    expect(container.querySelectorAll('.culling-grid-cell.highlight').length).toBe(0);
-    expect(container.querySelectorAll('.culling-grid-cell.dimmed').length).toBe(0);
+    expect(
+      container.querySelectorAll('.culling-grid-cell.highlight').length,
+    ).toBe(0);
+    expect(container.querySelectorAll('.culling-grid-cell.dimmed').length).toBe(
+      0,
+    );
   });
 
   it('sends the mtime/size fingerprint as the thumbnail cache-buster', () => {
     // Distinct paths from the shared FILES so the singleton grid cache doesn't
     // serve a prior test's cached entry (which would skip the fetch we assert on).
     const files = [
-      { path: '/fp/260601_130000_Fp.jpg', basename: '260601_130000_Fp.jpg', mtime_ms: 1700, size: 2048 },
-      { path: '/fp/260601_130100_NoFp.jpg', basename: '260601_130100_NoFp.jpg' },
+      {
+        path: '/fp/260601_130000_Fp.jpg',
+        basename: '260601_130000_Fp.jpg',
+        mtime_ms: 1700,
+        size: 2048,
+      },
+      {
+        path: '/fp/260601_130100_NoFp.jpg',
+        basename: '260601_130100_NoFp.jpg',
+      },
     ];
     renderGrid({ files, currentIndex: 0, highlightPlayer: '' });
     const urls = global.fetch.mock.calls.map((c) => String(c[0]));

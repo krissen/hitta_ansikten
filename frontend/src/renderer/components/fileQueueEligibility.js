@@ -14,7 +14,8 @@ export function isFileEligible(item, context) {
   if (item.status === 'completed') return false;
 
   if (!context.fixMode) {
-    const isProcessed = item.isAlreadyProcessed || context.processedFiles.has(item.fileName);
+    const isProcessed =
+      item.isAlreadyProcessed || context.processedFiles.has(item.fileName);
     if (isProcessed) return false;
   }
 
@@ -36,7 +37,8 @@ export function isFileEligible(item, context) {
  */
 export function isRenameEligible(item, fixMode, dirtyPaths) {
   if (!item) return false;
-  const eligible = item.status === 'completed' || (!fixMode && item.isAlreadyProcessed);
+  const eligible =
+    item.status === 'completed' || (!fixMode && item.isAlreadyProcessed);
   if (!eligible) return false;
   if (dirtyPaths && dirtyPaths.has(item.filePath)) return false;
   return true;
@@ -55,14 +57,18 @@ export function findNextEligibleIndex(queue, context, options = {}) {
   const { excludeIndex = -1, preferIndex = -1 } = options;
 
   // Try preferred index first if specified and eligible
-  if (preferIndex >= 0 && preferIndex < queue.length && preferIndex !== excludeIndex) {
+  if (
+    preferIndex >= 0 &&
+    preferIndex < queue.length &&
+    preferIndex !== excludeIndex
+  ) {
     if (isFileEligible(queue[preferIndex], context)) {
       return preferIndex;
     }
   }
 
   // Find first eligible file
-  return queue.findIndex((item, i) =>
-    i !== excludeIndex && isFileEligible(item, context)
+  return queue.findIndex(
+    (item, i) => i !== excludeIndex && isFileEligible(item, context),
   );
 }

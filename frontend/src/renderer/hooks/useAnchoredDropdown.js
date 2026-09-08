@@ -22,7 +22,9 @@ export function useAnchoredDropdown() {
     const onDocDown = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
     document.addEventListener('mousedown', onDocDown);
     document.addEventListener('keydown', onKey);
     return () => {

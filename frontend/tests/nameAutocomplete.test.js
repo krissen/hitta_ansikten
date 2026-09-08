@@ -9,11 +9,19 @@ describe('nameAutocomplete.rank', () => {
   const people = ['Anna Andersson', 'Anders', 'Johanna', 'Hanna'];
 
   it('ranks prefix matches before substring matches', () => {
-    expect(rank('anna', people)).toEqual(['Anna Andersson', 'Johanna', 'Hanna']);
+    expect(rank('anna', people)).toEqual([
+      'Anna Andersson',
+      'Johanna',
+      'Hanna',
+    ]);
   });
 
   it('is case-insensitive in both directions', () => {
-    expect(rank('ANNA', people)).toEqual(['Anna Andersson', 'Johanna', 'Hanna']);
+    expect(rank('ANNA', people)).toEqual([
+      'Anna Andersson',
+      'Johanna',
+      'Hanna',
+    ]);
     expect(rank('jOhAnNa', people)).toEqual(['Johanna']);
   });
 

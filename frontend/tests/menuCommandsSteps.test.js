@@ -6,7 +6,10 @@ vi.mock('../src/renderer/theme-manager.js', () => ({
   themeManager: { setPreference: vi.fn() },
 }));
 
-import { buildMenuCommandTable, createMenuCommandHandler } from '../src/renderer/workspace/flexlayout/menuCommands.js';
+import {
+  buildMenuCommandTable,
+  createMenuCommandHandler,
+} from '../src/renderer/workspace/flexlayout/menuCommands.js';
 
 function makeCtx() {
   return {
@@ -33,7 +36,10 @@ describe('menuCommands — pipeline step accelerators', () => {
     for (const [command, moduleId] of Object.entries(cases)) {
       expect(table[command], `handler for ${command}`).toBeTypeOf('function');
       table[command]();
-      expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'open-workflow-step', moduleId });
+      expect(ctx.dispatch).toHaveBeenCalledWith({
+        type: 'open-workflow-step',
+        moduleId,
+      });
     }
   });
 
@@ -42,7 +48,10 @@ describe('menuCommands — pipeline step accelerators', () => {
     const handler = createMenuCommandHandler(ctx);
     await handler('reset-layout');
     expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'reset-layout' });
-    expect(ctx.dispatch).not.toHaveBeenCalledWith({ type: 'load-layout', name: 'review' });
+    expect(ctx.dispatch).not.toHaveBeenCalledWith({
+      type: 'load-layout',
+      name: 'review',
+    });
   });
 
   it('forwards secondary layout templates to a load-layout intent (no accelerator)', async () => {
@@ -50,8 +59,14 @@ describe('menuCommands — pipeline step accelerators', () => {
     const handler = createMenuCommandHandler(ctx);
     await handler('layout-template-comparison');
     await handler('layout-template-stats');
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'load-layout', name: 'comparison' });
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'load-layout', name: 'database' });
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'load-layout',
+      name: 'comparison',
+    });
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'load-layout',
+      name: 'database',
+    });
   });
 
   it('maps open-<module> commands to an open-module intent', async () => {
@@ -59,8 +74,14 @@ describe('menuCommands — pipeline step accelerators', () => {
     const handler = createMenuCommandHandler(ctx);
     await handler('open-culling');
     await handler('open-player-count');
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'open-module', moduleId: 'culling' });
-    expect(ctx.dispatch).toHaveBeenCalledWith({ type: 'open-module', moduleId: 'player-count' });
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'open-module',
+      moduleId: 'culling',
+    });
+    expect(ctx.dispatch).toHaveBeenCalledWith({
+      type: 'open-module',
+      moduleId: 'player-count',
+    });
   });
 
   it('broadcasts an unknown command to modules (default case)', async () => {

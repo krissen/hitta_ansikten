@@ -42,7 +42,9 @@ describe('Modal', () => {
         <p>x</p>
       </Modal>,
     );
-    expect(container.querySelector('dialog').hasAttribute('aria-labelledby')).toBe(false);
+    expect(
+      container.querySelector('dialog').hasAttribute('aria-labelledby'),
+    ).toBe(false);
   });
 
   it('calls onClose on the native cancel event (Esc)', () => {
@@ -52,7 +54,10 @@ describe('Modal', () => {
         <p>x</p>
       </Modal>,
     );
-    fireEvent(container.querySelector('dialog'), new Event('cancel', { cancelable: true }));
+    fireEvent(
+      container.querySelector('dialog'),
+      new Event('cancel', { cancelable: true }),
+    );
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -86,7 +91,9 @@ describe('Modal', () => {
       const ref = useRef(null);
       return (
         <Modal open onClose={() => {}} initialFocusRef={ref} title="t">
-          <button ref={ref} data-testid="target">OK</button>
+          <button ref={ref} data-testid="target">
+            OK
+          </button>
         </Modal>
       );
     }
@@ -103,7 +110,9 @@ describe('Modal', () => {
           <input data-testid="field" />
         </Modal>,
       );
-      fireEvent.keyDown(container.querySelector('[data-testid="field"]'), { key: 'a' });
+      fireEvent.keyDown(container.querySelector('[data-testid="field"]'), {
+        key: 'a',
+      });
       expect(docListener).not.toHaveBeenCalled();
     } finally {
       document.removeEventListener('keydown', docListener);
@@ -117,7 +126,9 @@ describe('Modal', () => {
         <input data-testid="field" />
       </Modal>,
     );
-    fireEvent.keyDown(container.querySelector('[data-testid="field"]'), { key: 'Enter' });
+    fireEvent.keyDown(container.querySelector('[data-testid="field"]'), {
+      key: 'Enter',
+    });
     expect(onKeyDown).toHaveBeenCalledTimes(1);
   });
 });

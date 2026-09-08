@@ -20,14 +20,22 @@ import { getModuleStep } from '../src/renderer/workspace/flexlayout/moduleRegist
 
 describe('WORKFLOW_STEP_SEQUENCE', () => {
   it('is the canonical pipeline order', () => {
-    expect(WORKFLOW_STEP_SEQUENCE).toEqual(['import', 'rename', 'review', 'count', 'culling']);
+    expect(WORKFLOW_STEP_SEQUENCE).toEqual([
+      'import',
+      'rename',
+      'review',
+      'count',
+      'culling',
+    ]);
   });
 
   it('has a spec for every step, and each spec includes its own step module', () => {
     for (const step of WORKFLOW_STEP_SEQUENCE) {
       const spec = getWorkspaceSpec(step);
       expect(spec, `spec for ${step}`).toBeTruthy();
-      expect(spec.some((pane) => getModuleStep(pane.moduleId) === step)).toBe(true);
+      expect(spec.some((pane) => getModuleStep(pane.moduleId) === step)).toBe(
+        true,
+      );
     }
   });
 });
@@ -44,14 +52,22 @@ describe('WORKSPACE_SPECS', () => {
   it('models review as review-module | [image-viewer (active), file-queue] at 15|85', () => {
     expect(WORKSPACE_SPECS.review).toEqual([
       { moduleId: 'review-module', weight: 15 },
-      { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 },
+      {
+        tabs: ['image-viewer', 'file-queue'],
+        active: 'image-viewer',
+        weight: 85,
+      },
     ]);
   });
 });
 
 describe('pane-shape helpers', () => {
   const single = { moduleId: 'review-module', weight: 15 };
-  const group = { tabs: ['image-viewer', 'file-queue'], active: 'image-viewer', weight: 85 };
+  const group = {
+    tabs: ['image-viewer', 'file-queue'],
+    active: 'image-viewer',
+    weight: 85,
+  };
 
   it('isGroupPane distinguishes single vs group panes', () => {
     expect(isGroupPane(single)).toBe(false);
@@ -71,7 +87,9 @@ describe('pane-shape helpers', () => {
 
   it('specModuleIds flattens panes and groups in visual order', () => {
     expect(specModuleIds(WORKSPACE_SPECS.review)).toEqual([
-      'review-module', 'image-viewer', 'file-queue',
+      'review-module',
+      'image-viewer',
+      'file-queue',
     ]);
   });
 });

@@ -16,10 +16,18 @@ class FakeImage {
     this._src = null;
     images.push(this);
   }
-  set src(v) { this._src = v; }
-  get src() { return this._src; }
-  fireLoad() { this.onload && this.onload(); }
-  fireError() { this.onerror && this.onerror(new Event('error')); }
+  set src(v) {
+    this._src = v;
+  }
+  get src() {
+    return this._src;
+  }
+  fireLoad() {
+    this.onload && this.onload();
+  }
+  fireError() {
+    this.onerror && this.onerror(new Event('error'));
+  }
 }
 
 function installFakes({ bitmap = true } = {}) {
@@ -76,22 +84,25 @@ describe('useDecodedImage', () => {
     expect(images).toHaveLength(1);
     expect(images[0].src).toBe('file:///a.jpg');
 
-    await act(async () => { images[0].fireLoad(); });
+    await act(async () => {
+      images[0].fireLoad();
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.image).toBe(bitmaps[0]);
     expect(result.current.error).toBe(null);
-    expect(createImageBitmap).toHaveBeenCalledWith(
-      images[0],
-      { imageOrientation: 'from-image' }
-    );
+    expect(createImageBitmap).toHaveBeenCalledWith(images[0], {
+      imageOrientation: 'from-image',
+    });
   });
 
   it('falls back to the HTMLImageElement when createImageBitmap is unavailable', async () => {
     installFakes({ bitmap: false });
     const { result } = renderHook(() => useDecodedImage('file:///b.jpg'));
 
-    await act(async () => { images[0].fireLoad(); });
+    await act(async () => {
+      images[0].fireLoad();
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.image).toBe(images[0]);
@@ -102,7 +113,9 @@ describe('useDecodedImage', () => {
     installFakes();
     const { result } = renderHook(() => useDecodedImage('file:///bad.jpg'));
 
-    await act(async () => { images[0].fireError(); });
+    await act(async () => {
+      images[0].fireError();
+    });
 
     await waitFor(() => expect(result.current.error).not.toBe(null));
     expect(result.current.image).toBe(null);
@@ -113,7 +126,7 @@ describe('useDecodedImage', () => {
   it('never decodes a url cancelled before its load completes', async () => {
     installFakes();
     const { result, rerender } = renderHook(({ url }) => useDecodedImage(url), {
-      initialProps: { url: 'file:///first.jpg' }
+      initialProps: { url: 'file:///first.jpg' },
     });
 
     const first = images[0];
@@ -129,8 +142,12 @@ describe('useDecodedImage', () => {
     expect(first.src).toBe('');
 
     // Even a late load "arriving" for the first image is a no-op.
-    await act(async () => { first.fireLoad(); });
-    await act(async () => { second.fireLoad(); });
+    await act(async () => {
+      first.fireLoad();
+    });
+    await act(async () => {
+      second.fireLoad();
+    });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -139,10 +156,9 @@ describe('useDecodedImage', () => {
     expect(result.current.image).toBe(bitmaps[0]);
     expect(bitmaps[0].close).not.toHaveBeenCalled();
     expect(createImageBitmap).toHaveBeenCalledTimes(1);
-    expect(createImageBitmap).toHaveBeenCalledWith(
-      second,
-      { imageOrientation: 'from-image' }
-    );
+    expect(createImageBitmap).toHaveBeenCalledWith(second, {
+      imageOrientation: 'from-image',
+    });
   });
 
   it('closes a bitmap whose decode was overtaken mid-flight', async () => {
@@ -152,20 +168,27 @@ describe('useDecodedImage', () => {
     let resolveBitmap;
     const bmp = { width: 10, height: 10, close: vi.fn() };
     globalThis.createImageBitmap = vi.fn(
-      () => new Promise((resolve) => { resolveBitmap = () => resolve(bmp); })
+      () =>
+        new Promise((resolve) => {
+          resolveBitmap = () => resolve(bmp);
+        }),
     );
 
     const { result, rerender } = renderHook(({ url }) => useDecodedImage(url), {
-      initialProps: { url: 'file:///first.jpg' }
+      initialProps: { url: 'file:///first.jpg' },
     });
 
     // The first image loads and its decode starts (promise pending).
-    await act(async () => { images[0].fireLoad(); });
+    await act(async () => {
+      images[0].fireLoad();
+    });
     expect(createImageBitmap).toHaveBeenCalledTimes(1);
 
     // Cancel while the decode is in flight, then let it finish.
     rerender({ url: 'file:///second.jpg' });
-    await act(async () => { resolveBitmap(); });
+    await act(async () => {
+      resolveBitmap();
+    });
 
     // The late bitmap is closed, never committed.
     expect(bmp.close).toHaveBeenCalledTimes(1);
@@ -174,9 +197,13 @@ describe('useDecodedImage', () => {
 
   it('closes the committed bitmap on unmount', async () => {
     installFakes();
-    const { result, unmount } = renderHook(() => useDecodedImage('file:///c.jpg'));
+    const { result, unmount } = renderHook(() =>
+      useDecodedImage('file:///c.jpg'),
+    );
 
-    await act(async () => { images[0].fireLoad(); });
+    await act(async () => {
+      images[0].fireLoad();
+    });
     await waitFor(() => expect(result.current.image).toBe(bitmaps[0]));
 
     unmount();

@@ -18,8 +18,20 @@ function freshReviewModel() {
       type: 'row',
       weight: 100,
       children: [
-        { type: 'tabset', weight: 15, children: [{ type: 'tab', name: 'Review', component: 'review-module' }] },
-        { type: 'tabset', weight: 85, children: [{ type: 'tab', name: 'Image Viewer', component: 'image-viewer' }] },
+        {
+          type: 'tabset',
+          weight: 15,
+          children: [
+            { type: 'tab', name: 'Review', component: 'review-module' },
+          ],
+        },
+        {
+          type: 'tabset',
+          weight: 85,
+          children: [
+            { type: 'tab', name: 'Image Viewer', component: 'image-viewer' },
+          ],
+        },
       ],
     },
   });
@@ -84,7 +96,9 @@ describe('ensureActiveTabset', () => {
     const model = {
       getActiveTabset: () => undefined,
       getMaximizedTabset: () => maximized,
-      doAction: (action) => { setId = action.data?.tabsetNode ?? action.data?.node; },
+      doAction: (action) => {
+        setId = action.data?.tabsetNode ?? action.data?.node;
+      },
     };
     const applied = ensureActiveTabset(model);
     expect(applied).toBe(true);

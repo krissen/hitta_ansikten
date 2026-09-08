@@ -60,27 +60,52 @@ export const MODULE_CATALOG = {
   'original-view': { component: OriginalView, role: 'main' },
   'log-viewer': { component: LogViewer, role: 'bottom', weight: 20 },
   'statistics-dashboard': { component: StatisticsDashboard, role: 'main' },
-  'review-module': { component: ReviewModule, role: 'side', weight: 15, step: 'review' },
+  'review-module': {
+    component: ReviewModule,
+    role: 'side',
+    weight: 15,
+    step: 'review',
+  },
   'database-management': { component: DatabaseManagement, role: 'main' },
   'refine-faces': { component: RefineFacesModule, role: 'main' },
-  'file-queue': { component: FileQueueModule, role: 'side', weight: 15, keepMounted: true },
+  'file-queue': {
+    component: FileQueueModule,
+    role: 'side',
+    weight: 15,
+    keepMounted: true,
+  },
   'theme-editor': { component: ThemeEditor, role: 'main' },
-  'preferences': { component: PreferencesModule, role: 'main' },
-  'player-count': { component: PlayerCountModule, role: 'main', solo: true, step: 'count' },
-  'culling': { component: CullingModule, role: 'main', solo: true, step: 'culling' },
-  'trash': { component: TrashPanel, role: 'main' },
-  'import': { component: ImportModule, role: 'main', solo: true, step: 'import' },
-  'rename-nef': { component: RenameNefModule, role: 'main', solo: true, step: 'rename' },
+  preferences: { component: PreferencesModule, role: 'main' },
+  'player-count': {
+    component: PlayerCountModule,
+    role: 'main',
+    solo: true,
+    step: 'count',
+  },
+  culling: {
+    component: CullingModule,
+    role: 'main',
+    solo: true,
+    step: 'culling',
+  },
+  trash: { component: TrashPanel, role: 'main' },
+  import: { component: ImportModule, role: 'main', solo: true, step: 'import' },
+  'rename-nef': {
+    component: RenameNefModule,
+    role: 'main',
+    solo: true,
+    step: 'rename',
+  },
 };
 
 // Module component mapping — derived from the catalog for backward compatibility.
 export const MODULE_COMPONENTS = Object.fromEntries(
-  Object.entries(MODULE_CATALOG).map(([id, entry]) => [id, entry.component])
+  Object.entries(MODULE_CATALOG).map(([id, entry]) => [id, entry.component]),
 );
 
 // Module titles (Swedish) — derived from the i18n catalog, keyed by module id.
 export const MODULE_TITLES = Object.fromEntries(
-  Object.keys(MODULE_CATALOG).map((id) => [id, t(`modules.${id}`)])
+  Object.keys(MODULE_CATALOG).map((id) => [id, t(`modules.${id}`)]),
 );
 
 /**

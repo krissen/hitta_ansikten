@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  beforeAll,
+  afterEach,
+} from 'vitest';
 import { render, act, cleanup, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { settle } from './helpers/settle.js';
@@ -59,10 +67,14 @@ vi.mock('../src/renderer/hooks/useDecodedImage.js', () => ({
 
 vi.mock('../src/renderer/components/CanvasImageView.jsx', async () => {
   const ReactMod = await import('react');
-  const CanvasImageView = ReactMod.forwardRef(function CanvasImageViewStub(_props, ref) {
-    ReactMod.useImperativeHandle(ref, () => h.viewApi);
-    return ReactMod.createElement('div', { 'data-testid': 'loupe-canvas-stub' });
-  });
+  const CanvasImageView = ReactMod.forwardRef(
+    function CanvasImageViewStub(_props, ref) {
+      ReactMod.useImperativeHandle(ref, () => h.viewApi);
+      return ReactMod.createElement('div', {
+        'data-testid': 'loupe-canvas-stub',
+      });
+    },
+  );
   return { CanvasImageView, default: CanvasImageView };
 });
 
@@ -88,8 +100,18 @@ beforeAll(() => {
 });
 
 const FILES = [
-  { path: '/p/260601_120000_Alice.jpg', basename: '260601_120000_Alice.jpg', mtime_ms: 100, size: 10 },
-  { path: '/p/260601_120100_Bob.jpg', basename: '260601_120100_Bob.jpg', mtime_ms: 200, size: 20 },
+  {
+    path: '/p/260601_120000_Alice.jpg',
+    basename: '260601_120000_Alice.jpg',
+    mtime_ms: 100,
+    size: 10,
+  },
+  {
+    path: '/p/260601_120100_Bob.jpg',
+    basename: '260601_120100_Bob.jpg',
+    mtime_ms: 200,
+    size: 20,
+  },
 ];
 
 let originalFetch;
@@ -101,7 +123,11 @@ beforeEach(() => {
   h.api.post.mockReset();
   h.nextFiles = { files: FILES, players: ['Alice', 'Bob'] };
   h.nextStats = { baseline: 5, players: [], excluded: null };
-  h.decoded = { image: { width: 100, height: 80 }, loading: false, error: null };
+  h.decoded = {
+    image: { width: 100, height: 80 },
+    loading: false,
+    error: null,
+  };
   h.viewApi = {
     zoom: vi.fn(),
     resetZoom: vi.fn(),
@@ -116,7 +142,11 @@ beforeEach(() => {
     if (path.includes('/players/count')) return Promise.resolve(h.nextStats);
     return Promise.resolve({});
   });
-  try { localStorage.clear(); } catch { /* ignore */ }
+  try {
+    localStorage.clear();
+  } catch {
+    /* ignore */
+  }
   originalFetch = global.fetch;
   global.fetch = vi.fn(() => new Promise(() => {}));
   globalThis.window.ansiktenAPI = {
@@ -179,20 +209,28 @@ describe('CullingModule — loupe zoom keys (+ / - / = / 0)', () => {
     await mountCulling();
     await loadFiles();
 
-    await act(async () => { press('+'); });
+    await act(async () => {
+      press('+');
+    });
     expect(h.viewApi.zoom).toHaveBeenCalledTimes(1);
     expect(h.viewApi.zoom).toHaveBeenLastCalledWith(ZOOM_STEP);
 
-    await act(async () => { press('-'); });
+    await act(async () => {
+      press('-');
+    });
     expect(h.viewApi.zoom).toHaveBeenCalledTimes(2);
     expect(h.viewApi.zoom).toHaveBeenLastCalledWith(1 / ZOOM_STEP);
 
-    await act(async () => { press('='); });
+    await act(async () => {
+      press('=');
+    });
     expect(h.viewApi.resetZoom).toHaveBeenCalledTimes(1);
     // No faces in culling: 1:1 centers on the image (no centerRect argument).
     expect(h.viewApi.resetZoom).toHaveBeenCalledWith();
 
-    await act(async () => { press('0'); });
+    await act(async () => {
+      press('0');
+    });
     expect(h.viewApi.autoFit).toHaveBeenCalledTimes(1);
   });
 
@@ -202,12 +240,16 @@ describe('CullingModule — loupe zoom keys (+ / - / = / 0)', () => {
 
     // Enter begins the inline rename; the input is a text field the zoom keys
     // must never steal from ("+", "-", "0" are all typeable filename chars).
-    await act(async () => { press('Enter'); });
+    await act(async () => {
+      press('Enter');
+    });
     const input = container.querySelector('.culling-rename-input');
     expect(input).toBeTruthy();
 
     for (const key of ['+', '-', '=', '0']) {
-      await act(async () => { press(key, input); });
+      await act(async () => {
+        press(key, input);
+      });
     }
     expect(h.viewApi.zoom).not.toHaveBeenCalled();
     expect(h.viewApi.resetZoom).not.toHaveBeenCalled();
@@ -221,7 +263,9 @@ describe('CullingModule — loupe zoom keys (+ / - / = / 0)', () => {
     expect(container.querySelector('.culling-grid')).toBeTruthy();
 
     for (const key of ['+', '-', '=', '0']) {
-      await act(async () => { press(key); });
+      await act(async () => {
+        press(key);
+      });
     }
     expect(h.viewApi.zoom).not.toHaveBeenCalled();
     expect(h.viewApi.resetZoom).not.toHaveBeenCalled();
@@ -239,7 +283,9 @@ describe('CullingModule — loupe zoom keys (+ / - / = / 0)', () => {
     const other = vi.fn();
     document.addEventListener('keydown', other);
     try {
-      await act(async () => { press('+'); });
+      await act(async () => {
+        press('+');
+      });
     } finally {
       document.removeEventListener('keydown', other);
     }
@@ -256,7 +302,9 @@ describe('CullingModule — loupe zoom keys (+ / - / = / 0)', () => {
     const other = vi.fn();
     document.addEventListener('keydown', other);
     try {
-      await act(async () => { press('+'); });
+      await act(async () => {
+        press('+');
+      });
     } finally {
       document.removeEventListener('keydown', other);
     }
@@ -281,7 +329,9 @@ describe('CullingModule — loupe zoom keys (+ / - / = / 0)', () => {
     const other = vi.fn();
     document.addEventListener('keydown', other);
     try {
-      await act(async () => { press('+'); });
+      await act(async () => {
+        press('+');
+      });
     } finally {
       document.removeEventListener('keydown', other);
     }
@@ -295,7 +345,9 @@ describe('CullingModule — loupe zoom keys (+ / - / = / 0)', () => {
     await loadFiles();
 
     for (const key of ['+', '-', '=', '0']) {
-      await act(async () => { press(key); });
+      await act(async () => {
+        press(key);
+      });
     }
     expect(h.viewApi.zoom).not.toHaveBeenCalled();
     expect(h.viewApi.resetZoom).not.toHaveBeenCalled();

@@ -30,8 +30,12 @@ export function parseFilterExpression(input) {
 
   let pos = 0;
 
-  function peek() { return trimmed[pos]; }
-  function advance() { return trimmed[pos++]; }
+  function peek() {
+    return trimmed[pos];
+  }
+  function advance() {
+    return trimmed[pos++];
+  }
 
   function parseExpr() {
     const children = [parseTerm()];
@@ -63,11 +67,20 @@ export function parseFilterExpression(input) {
 
   function parseAtom() {
     let value = '';
-    while (pos < trimmed.length && peek() !== '|' && peek() !== '&' && peek() !== '(' && peek() !== ')') {
+    while (
+      pos < trimmed.length &&
+      peek() !== '|' &&
+      peek() !== '&' &&
+      peek() !== '(' &&
+      peek() !== ')'
+    ) {
       value += advance();
     }
     // Strip glob-style leading/trailing * and whitespace
-    value = value.replace(/^\*+|\*+$/g, '').trim().toLowerCase();
+    value = value
+      .replace(/^\*+|\*+$/g, '')
+      .trim()
+      .toLowerCase();
     return { type: 'atom', value };
   }
 
@@ -87,9 +100,9 @@ export function evaluateFilter(node, text) {
     case 'atom':
       return !node.value || text.includes(node.value);
     case 'or':
-      return node.children.some(child => evaluateFilter(child, text));
+      return node.children.some((child) => evaluateFilter(child, text));
     case 'and':
-      return node.children.every(child => evaluateFilter(child, text));
+      return node.children.every((child) => evaluateFilter(child, text));
     default:
       return true;
   }

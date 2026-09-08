@@ -68,7 +68,20 @@
 
   // Note names in the notation the X-TOUCH MINI quick start guide uses,
   // where note 0 = C-2 (Yamaha style). Handy when comparing against page 14.
-  const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const NOTE_NAMES = [
+    'C',
+    'C#',
+    'D',
+    'D#',
+    'E',
+    'F',
+    'F#',
+    'G',
+    'G#',
+    'A',
+    'A#',
+    'B',
+  ];
   function noteName(n) {
     return `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 2}`;
   }
@@ -166,7 +179,8 @@
         out.detail = d1 === null ? '' : `note ${d1} (${noteName(d1)})`;
         // Note On with velocity 0 is a Note Off in disguise — say so, because
         // it decides whether a button press/release pair looks symmetric.
-        if (family === 0x90 && d2 === 0) out.detail += ' — velocity 0 = note off';
+        if (family === 0x90 && d2 === 0)
+          out.detail += ' — velocity 0 = note off';
         break;
       case 0xb0:
         out.number = d1;
@@ -238,13 +252,22 @@
       const td = document.createElement('td');
       td.colSpan = 7;
       td.className = 'empty';
-      td.textContent = 'Ingen MIDI-enhet hittad. Anslut enheten och tryck "Uppdatera portar".';
+      td.textContent =
+        'Ingen MIDI-enhet hittad. Anslut enheten och tryck "Uppdatera portar".';
       tr.appendChild(td);
       tbody.appendChild(tr);
     } else {
       for (const r of rows) {
         const tr = document.createElement('tr');
-        for (const cell of [r.kind, r.name, r.manufacturer, r.version, r.state, r.connection, r.id]) {
+        for (const cell of [
+          r.kind,
+          r.name,
+          r.manufacturer,
+          r.version,
+          r.state,
+          r.connection,
+          r.id,
+        ]) {
           const td = document.createElement('td');
           td.textContent = cell;
           tr.appendChild(td);
@@ -270,7 +293,10 @@
       opt.textContent = port.name || port.id;
       sel.appendChild(opt);
     });
-    if (previous && sel.querySelector(`option[value="${CSS.escape(previous)}"]`)) {
+    if (
+      previous &&
+      sel.querySelector(`option[value="${CSS.escape(previous)}"]`)
+    ) {
       sel.value = previous;
     }
     if (sel.options.length === 0) {
@@ -336,7 +362,9 @@
         `→ ${portName}`,
         'TX',
         toHex(bytes),
-        decoded.channelOne === null ? '' : `${decoded.channelOne} / ${decoded.channelZero}`,
+        decoded.channelOne === null
+          ? ''
+          : `${decoded.channelOne} / ${decoded.channelZero}`,
         decoded.type,
         decoded.number === null ? '' : decoded.number,
         decoded.value === null ? '' : decoded.value,
@@ -383,7 +411,8 @@
     const focused = document.hasFocus();
 
     if (!paused && passesFilter(decoded, bytes)) {
-      const portName = event.target && event.target.name ? event.target.name : '?';
+      const portName =
+        event.target && event.target.name ? event.target.name : '?';
       const flags = [];
       if (echo) flags.push('EKO?');
       if (!focused) flags.push('OFOKUSERAD');
@@ -393,7 +422,9 @@
           `← ${portName}${flags.length ? ' ' + flags.join(' ') : ''}`,
           'RX',
           toHex(bytes),
-          decoded.channelOne === null ? '' : `${decoded.channelOne} / ${decoded.channelZero}`,
+          decoded.channelOne === null
+            ? ''
+            : `${decoded.channelOne} / ${decoded.channelZero}`,
           decoded.type,
           decoded.number === null ? '' : decoded.number,
           decoded.value === null ? '' : decoded.value,
@@ -406,7 +437,8 @@
   }
 
   function passesFilter(decoded, bytes) {
-    if ($('hideClock').checked && (bytes[0] === 0xf8 || bytes[0] === 0xfe)) return false;
+    if ($('hideClock').checked && (bytes[0] === 0xf8 || bytes[0] === 0xfe))
+      return false;
     const needle = $('filter').value.trim().toLowerCase();
     if (!needle) return true;
     const hay = `${toHex(bytes)} ${decoded.type} ${decoded.detail} ${decoded.number} ${decoded.value}`;
@@ -438,8 +470,10 @@
     entry.count += 1;
     if (decoded.value !== null) {
       entry.value = decoded.value;
-      entry.min = entry.min === null ? decoded.value : Math.min(entry.min, decoded.value);
-      entry.max = entry.max === null ? decoded.value : Math.max(entry.max, decoded.value);
+      entry.min =
+        entry.min === null ? decoded.value : Math.min(entry.min, decoded.value);
+      entry.max =
+        entry.max === null ? decoded.value : Math.max(entry.max, decoded.value);
     }
     scheduleControlRender();
   }
@@ -531,7 +565,9 @@
     try {
       out.send(bytes);
     } catch (err) {
-      logNote(`Sändning misslyckades: ${err && err.message ? err.message : err}`);
+      logNote(
+        `Sändning misslyckades: ${err && err.message ? err.message : err}`,
+      );
       return false;
     }
     sentRecently.push({
@@ -550,7 +586,8 @@
   /** Build a channel-voice message from the form. */
   function sendChannelMessage(family, channelOne, number, value) {
     const status = (family & 0xf0) | ((channelOne - 1) & 0x0f);
-    if (family === 0xc0 || family === 0xd0) return send([status, number & 0x7f]);
+    if (family === 0xc0 || family === 0xd0)
+      return send([status, number & 0x7f]);
     return send([status, number & 0x7f, value & 0x7f]);
   }
 
@@ -623,19 +660,26 @@
 
     // E5 — button LEDs. Note 0-7 upper row, 8-15 lower row, velocity 0/1/2.
     $('e5on').addEventListener('click', () => {
-      logNote('E5: tänder knapp-LED note 0-15 (velocity 1). Titta efter eko i loggen.');
-      for (let n = 0; n <= 15; n += 1) sendChannelMessage(0x90, txChannel(), n, 1);
+      logNote(
+        'E5: tänder knapp-LED note 0-15 (velocity 1). Titta efter eko i loggen.',
+      );
+      for (let n = 0; n <= 15; n += 1)
+        sendChannelMessage(0x90, txChannel(), n, 1);
     });
     $('e5blink').addEventListener('click', () => {
       logNote('E5: blinkar knapp-LED note 0-15 (velocity 2).');
-      for (let n = 0; n <= 15; n += 1) sendChannelMessage(0x90, txChannel(), n, 2);
+      for (let n = 0; n <= 15; n += 1)
+        sendChannelMessage(0x90, txChannel(), n, 2);
     });
     $('e5off').addEventListener('click', () => {
       logNote('E5: släcker knapp-LED note 0-15 (velocity 0).');
-      for (let n = 0; n <= 15; n += 1) sendChannelMessage(0x90, txChannel(), n, 0);
+      for (let n = 0; n <= 15; n += 1)
+        sendChannelMessage(0x90, txChannel(), n, 0);
     });
     $('e5step').addEventListener('click', () => {
-      logNote('E5: stegar note 0-15 en i taget, 400 ms isär — notera vilken lampa som tänds.');
+      logNote(
+        'E5: stegar note 0-15 en i taget, 400 ms isär — notera vilken lampa som tänds.',
+      );
       let n = 0;
       const tick = () => {
         if (n > 15) return;
@@ -745,7 +789,9 @@
       midiAccess.inputs.size === 0 && midiAccess.outputs.size === 0
         ? 'Ansluten till MIDI-systemet, men ingen enhet hittad. Anslut enheten — listan uppdateras automatiskt.'
         : `Ansluten. SysEx: ${sysex ? 'på' : 'av'}.`,
-      midiAccess.inputs.size === 0 && midiAccess.outputs.size === 0 ? 'warn' : 'good',
+      midiAccess.inputs.size === 0 && midiAccess.outputs.size === 0
+        ? 'warn'
+        : 'good',
     );
   }
 
@@ -757,7 +803,8 @@
     $('connect').addEventListener('click', connect);
     $('refresh').addEventListener('click', () => {
       refreshPorts();
-      if (!midiAccess) setStatus('Inte ansluten ännu — tryck "Anslut".', 'warn');
+      if (!midiAccess)
+        setStatus('Inte ansluten ännu — tryck "Anslut".', 'warn');
     });
 
     $('pause').addEventListener('click', () => {
@@ -791,14 +838,18 @@
       for (const p of parts) {
         const v = parseInt(p.replace(/^0x/i, ''), 16);
         if (Number.isNaN(v) || v < 0 || v > 255) {
-          logNote(`Ogiltig byte: "${p}". Skriv hex, t.ex. "F0 40 41 42 51 00 ... F7".`);
+          logNote(
+            `Ogiltig byte: "${p}". Skriv hex, t.ex. "F0 40 41 42 51 00 ... F7".`,
+          );
           return;
         }
         bytes.push(v);
       }
       if (bytes.length === 0) return;
       if (bytes[0] === 0xf0 && !$('sysex').checked) {
-        logNote('SysEx kräver att "Begär SysEx" var ikryssad när du anslöt. Anslut om.');
+        logNote(
+          'SysEx kräver att "Begär SysEx" var ikryssad när du anslöt. Anslut om.',
+        );
         return;
       }
       send(bytes);

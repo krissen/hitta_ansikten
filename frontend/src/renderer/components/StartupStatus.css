@@ -7,7 +7,9 @@
   max-width: 400px;
   box-shadow: var(--shadow-lg);
   opacity: 1;
-  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+  transition:
+    opacity 0.5s ease-out,
+    transform 0.5s ease-out;
   cursor: pointer;
   pointer-events: auto;
 }
@@ -84,8 +86,12 @@
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .startup-label {
@@ -118,8 +124,13 @@
 }
 
 @keyframes pulse-loading {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .startup-error-detail {

@@ -2,9 +2,17 @@
  * Hooks index - Export all custom React hooks
  */
 
-export { useCanvas, useCanvasDimensions, useAnimationFrame } from './useCanvas.js';
+export {
+  useCanvas,
+  useCanvasDimensions,
+  useAnimationFrame,
+} from './useCanvas.js';
 export { useKeyboardShortcuts, useKeyHold } from './useKeyboardShortcuts.js';
-export { useWebSocket, useWebSocketEvents, useWebSocketConnection } from './useWebSocket.js';
+export {
+  useWebSocket,
+  useWebSocketEvents,
+  useWebSocketConnection,
+} from './useWebSocket.js';
 export { useAutoRefresh, usePolledData } from './useAutoRefresh.js';
 export {
   useModuleAPI,
@@ -12,7 +20,7 @@ export {
   useEmitEvent,
   useModuleEvents,
   useBackendHttp,
-  useIPC
+  useIPC,
 } from './useModuleEvent.js';
 export { useOperationStatus, useAsyncOperation } from './useOperationStatus.js';
 export { useFormState, useMultipleForms } from './useFormState.js';

@@ -16,7 +16,12 @@
  * @returns {{ scale: number, x: number, y: number }} Fit transform. `scale`
  *   multiplies image dimensions; `x`/`y` are the top-left draw offset.
  */
-export function computeFitTransform(imageWidth, imageHeight, canvasWidth, canvasHeight) {
+export function computeFitTransform(
+  imageWidth,
+  imageHeight,
+  canvasWidth,
+  canvasHeight,
+) {
   const imgRatio = imageWidth / imageHeight;
   const canvasRatio = canvasWidth / canvasHeight;
 

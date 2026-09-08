@@ -11,7 +11,13 @@
  * role="alert". See docs/dev/accessibility.md "Status feedback".
  */
 
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useRef,
+} from 'react';
 import { StartupStatus } from '../components/StartupStatus.jsx';
 import { IconButton } from '../components/shared/IconButton.jsx';
 import { t } from '../../i18n/index.js';
@@ -40,38 +46,51 @@ export function ToastProvider({ children }) {
    *        ignored when an options object is passed). Clamped to a 3s minimum.
    * @returns {number} The toast id (usable with dismissToast).
    */
-  const showToast = useCallback((message, typeOrOptions = 'success', durationArg) => {
-    let type;
-    let duration;
-    if (typeOrOptions !== null && typeof typeOrOptions === 'object') {
-      type = typeOrOptions.type === undefined ? 'success' : typeOrOptions.type;
-      duration = typeOrOptions.duration === undefined ? 5000 : typeOrOptions.duration;
-    } else {
-      type = typeOrOptions === undefined ? 'success' : typeOrOptions;
-      duration = durationArg === undefined ? 5000 : durationArg;
-    }
+  const showToast = useCallback(
+    (message, typeOrOptions = 'success', durationArg) => {
+      let type;
+      let duration;
+      if (typeOrOptions !== null && typeof typeOrOptions === 'object') {
+        type =
+          typeOrOptions.type === undefined ? 'success' : typeOrOptions.type;
+        duration =
+          typeOrOptions.duration === undefined ? 5000 : typeOrOptions.duration;
+      } else {
+        type = typeOrOptions === undefined ? 'success' : typeOrOptions;
+        duration = durationArg === undefined ? 5000 : durationArg;
+      }
 
-    const id = ++toastIdRef.current;
-    const minDuration = 3000;
-    const actualDuration = Math.max(duration, minDuration);
-    setToasts(prev => [...prev, { id, message, type, exiting: false }]);
+      const id = ++toastIdRef.current;
+      const minDuration = 3000;
+      const actualDuration = Math.max(duration, minDuration);
+      setToasts((prev) => [...prev, { id, message, type, exiting: false }]);
 
-    setTimeout(() => {
-      setToasts(prev => prev.map(toast => toast.id === id ? { ...toast, exiting: true } : toast));
       setTimeout(() => {
-        setToasts(prev => prev.filter(toast => toast.id !== id));
-      }, 300);
-    }, actualDuration);
+        setToasts((prev) =>
+          prev.map((toast) =>
+            toast.id === id ? { ...toast, exiting: true } : toast,
+          ),
+        );
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((toast) => toast.id !== id));
+        }, 300);
+      }, actualDuration);
 
-    return id;
-  }, []);
+      return id;
+    },
+    [],
+  );
 
   const dismissToast = useCallback((id) => {
     // Start exit animation
-    setToasts(prev => prev.map(toast => toast.id === id ? { ...toast, exiting: true } : toast));
+    setToasts((prev) =>
+      prev.map((toast) =>
+        toast.id === id ? { ...toast, exiting: true } : toast,
+      ),
+    );
     // Remove after animation completes
     setTimeout(() => {
-      setToasts(prev => prev.filter(toast => toast.id !== id));
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
     }, 300);
   }, []);
 

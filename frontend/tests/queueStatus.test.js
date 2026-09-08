@@ -13,7 +13,14 @@ describe('queueStatus store', () => {
   });
 
   it('stores a shallow copy (source mutation does not leak into the stored object)', () => {
-    const src = { folder: '/a', count: 3, done: 1, remaining: 2, current: 0, preprocessed: 2 };
+    const src = {
+      folder: '/a',
+      count: 3,
+      done: 1,
+      remaining: 2,
+      current: 0,
+      preprocessed: 2,
+    };
     setQueueStatus(src);
     src.count = 99;
     expect(getQueueStatus()).not.toBe(src);
@@ -30,7 +37,9 @@ describe('queueStatus store', () => {
     const cb = vi.fn();
     const unsub = subscribeQueueStatus(cb);
     setQueueStatus({ folder: '/x', count: 2, done: 0, remaining: 2 });
-    expect(cb).toHaveBeenCalledWith(expect.objectContaining({ folder: '/x', count: 2 }));
+    expect(cb).toHaveBeenCalledWith(
+      expect.objectContaining({ folder: '/x', count: 2 }),
+    );
     setQueueStatus(null);
     expect(cb).toHaveBeenLastCalledWith(null);
     unsub();

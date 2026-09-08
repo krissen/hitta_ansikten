@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, act, cleanup, waitFor } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  act,
+  cleanup,
+  waitFor,
+} from '@testing-library/react';
 
 // A partial restore (main image back, a sidecar could not be) returns the
 // leftover as a NEW trash entry in `partial`. TrashPanel drops the restored id

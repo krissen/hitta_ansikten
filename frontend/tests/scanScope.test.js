@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getScanScope, setScanScope, scanScopeHasSelection, signalExternalLoad, takeExternalLoad, subscribeScanScope } from '../src/renderer/shared/scanScope.js';
+import {
+  getScanScope,
+  setScanScope,
+  scanScopeHasSelection,
+  signalExternalLoad,
+  takeExternalLoad,
+  subscribeScanScope,
+} from '../src/renderer/shared/scanScope.js';
 
 const STORAGE_KEY = 'ansikten.scanScope';
 
@@ -11,7 +18,14 @@ describe('scanScope store', () => {
   });
 
   it('stores a shallow copy (later mutation of the source does not leak in)', () => {
-    const src = { roots: ['/a'], globs: [], recursive: true, date_from: null, date_to: null, extension_preset: 'jpg' };
+    const src = {
+      roots: ['/a'],
+      globs: [],
+      recursive: true,
+      date_from: null,
+      date_to: null,
+      extension_preset: 'jpg',
+    };
     setScanScope(src);
     src.roots.push('/b'); // mutating the array still leaks (shallow), but the object identity is decoupled
     const stored = getScanScope();
@@ -30,10 +44,21 @@ describe('scanScope persistence (survives a renderer reload)', () => {
   beforeEach(() => setScanScope(null));
 
   it('setScanScope writes the scope to sessionStorage', () => {
-    setScanScope({ roots: ['/a'], globs: ['*.jpg'], recursive: true, date_from: null, date_to: null, extension_preset: 'jpg' });
+    setScanScope({
+      roots: ['/a'],
+      globs: ['*.jpg'],
+      recursive: true,
+      date_from: null,
+      date_to: null,
+      extension_preset: 'jpg',
+    });
     const raw = sessionStorage.getItem(STORAGE_KEY);
     expect(raw).toBeTruthy();
-    expect(JSON.parse(raw)).toMatchObject({ roots: ['/a'], globs: ['*.jpg'], extension_preset: 'jpg' });
+    expect(JSON.parse(raw)).toMatchObject({
+      roots: ['/a'],
+      globs: ['*.jpg'],
+      extension_preset: 'jpg',
+    });
   });
 
   it('setScanScope(null) removes the sessionStorage key', () => {
@@ -45,11 +70,22 @@ describe('scanScope persistence (survives a renderer reload)', () => {
   it('a re-imported module (reload) hydrates the persisted scope on first read', async () => {
     // Publish, then simulate a Cmd+R reload: the module is re-imported with a
     // fresh in-memory `current = null`, but sessionStorage still holds the scope.
-    setScanScope({ roots: ['/photos'], globs: [], recursive: false, date_from: null, date_to: null, extension_preset: 'nef' });
+    setScanScope({
+      roots: ['/photos'],
+      globs: [],
+      recursive: false,
+      date_from: null,
+      date_to: null,
+      extension_preset: 'nef',
+    });
     vi.resetModules();
     const fresh = await import('../src/renderer/shared/scanScope.js');
     const restored = fresh.getScanScope();
-    expect(restored).toMatchObject({ roots: ['/photos'], recursive: false, extension_preset: 'nef' });
+    expect(restored).toMatchObject({
+      roots: ['/photos'],
+      recursive: false,
+      extension_preset: 'nef',
+    });
     expect(fresh.scanScopeHasSelection(restored)).toBe(true);
   });
 
@@ -96,18 +132,23 @@ describe('subscribeScanScope (display-only)', () => {
   });
 
   it('a throwing subscriber does not stop the others', () => {
-    const bad = vi.fn(() => { throw new Error('boom'); });
+    const bad = vi.fn(() => {
+      throw new Error('boom');
+    });
     const good = vi.fn();
     const u1 = subscribeScanScope(bad);
     const u2 = subscribeScanScope(good);
     setScanScope({ roots: ['/c'], globs: [] });
     expect(good).toHaveBeenCalled();
-    u1(); u2();
+    u1();
+    u2();
   });
 });
 
 describe('external-load signal', () => {
-  beforeEach(() => { takeExternalLoad(); }); // clear
+  beforeEach(() => {
+    takeExternalLoad();
+  }); // clear
 
   it('is false until signalled, then one-shot true', () => {
     expect(takeExternalLoad()).toBe(false);

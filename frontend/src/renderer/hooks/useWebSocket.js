@@ -62,7 +62,7 @@ export function useWebSocketConnection() {
   useEffect(() => {
     // Connect on mount if not already connected
     if (!apiClient.isConnected()) {
-      apiClient.connectWebSocket().catch(err => {
+      apiClient.connectWebSocket().catch((err) => {
         debugError('WebSocket', 'Failed to connect:', err);
       });
     }
@@ -87,7 +87,7 @@ export function useWebSocketConnection() {
   return {
     isConnected: apiClient.isConnected(),
     connect,
-    disconnect
+    disconnect,
   };
 }
 

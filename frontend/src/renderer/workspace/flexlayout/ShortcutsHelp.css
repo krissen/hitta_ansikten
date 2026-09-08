@@ -19,8 +19,12 @@
 }
 
 @keyframes overlay-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .shortcuts-dialog {
@@ -74,7 +78,9 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-lg);
-  transition: background var(--transition-base), color var(--transition-base);
+  transition:
+    background var(--transition-base),
+    color var(--transition-base);
 }
 
 .shortcuts-close:hover {
@@ -96,7 +102,9 @@
   border-radius: var(--radius-lg);
   padding: var(--space-md) var(--space-md);
   border: 2px solid transparent;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .shortcuts-section.active-module {

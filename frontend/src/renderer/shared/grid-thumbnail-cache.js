@@ -21,7 +21,8 @@ export class GridThumbnailCache {
   constructor(maxSize = 400) {
     this.cache = new Map();
     // Guard against a bad cap (0/negative/non-numeric) that would break LRU.
-    this.maxSize = Number.isFinite(maxSize) && maxSize > 0 ? Math.floor(maxSize) : 400;
+    this.maxSize =
+      Number.isFinite(maxSize) && maxSize > 0 ? Math.floor(maxSize) : 400;
     this.accessOrder = [];
     // In-flight fetches, keyed like the cache, so concurrent requests for the
     // same thumbnail share one fetch/blob URL instead of racing (which would
@@ -48,7 +49,9 @@ export class GridThumbnailCache {
     // actually served (an out-of-range value is clamped server-side otherwise).
     // A non-finite size falls back to the default rather than becoming NaN.
     const n = Number(size);
-    size = Number.isFinite(n) ? Math.max(32, Math.min(1024, Math.round(n))) : 256;
+    size = Number.isFinite(n)
+      ? Math.max(32, Math.min(1024, Math.round(n)))
+      : 256;
     const key = this._getCacheKey(imagePath, size, fingerprint);
 
     if (this.cache.has(key)) {
@@ -63,14 +66,19 @@ export class GridThumbnailCache {
     const promise = this._fetchAndCache(key, imagePath, size, fingerprint)
       // Only clear our own entry — a clear()+re-request could have replaced it
       // with a newer promise for the same key.
-      .finally(() => { if (this.inflight.get(key) === promise) this.inflight.delete(key); });
+      .finally(() => {
+        if (this.inflight.get(key) === promise) this.inflight.delete(key);
+      });
     this.inflight.set(key, promise);
     return promise;
   }
 
   async _fetchAndCache(key, imagePath, size, fingerprint) {
     const startGeneration = this.generation;
-    const url = new URL('/api/v1/preprocessing/preview-thumb', apiClient.baseUrl);
+    const url = new URL(
+      '/api/v1/preprocessing/preview-thumb',
+      apiClient.baseUrl,
+    );
     url.searchParams.set('path', imagePath);
     url.searchParams.set('size', size);
     // Include the fingerprint in the URL too, not just the in-memory key: the
@@ -105,11 +113,17 @@ export class GridThumbnailCache {
 
       this.cache.set(key, blobUrl);
       this.accessOrder.push(key);
-      debug('GridThumbnailCache', `Cached: ${key.slice(0, 40)}... (${this.cache.size}/${this.maxSize})`);
+      debug(
+        'GridThumbnailCache',
+        `Cached: ${key.slice(0, 40)}... (${this.cache.size}/${this.maxSize})`,
+      );
 
       return blobUrl;
     } catch (err) {
-      debugWarn('GridThumbnailCache', `Failed to fetch thumbnail: ${err.message}`);
+      debugWarn(
+        'GridThumbnailCache',
+        `Failed to fetch thumbnail: ${err.message}`,
+      );
       throw err;
     }
   }
@@ -175,7 +189,8 @@ export function useGridThumbnail(imagePath, size = 256, fingerprint) {
     let cancelled = false;
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
-    gridThumbnailCache.getThumbnail(imagePath, size, fingerprint)
+    gridThumbnailCache
+      .getThumbnail(imagePath, size, fingerprint)
       .then((url) => {
         if (!cancelled) {
           setState({ url, loading: false, error: null });

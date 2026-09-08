@@ -8,8 +8,8 @@
  * component so the geometry is unit-testable.
  */
 
-const PAGE_STEP = 10;   // horizontal page jump (cells)
-const PAGE_ROWS = 3;    // vertical page jump (rows)
+const PAGE_STEP = 10; // horizontal page jump (cells)
+const PAGE_ROWS = 3; // vertical page jump (rows)
 
 /**
  * @param {number} index - current focused index (may be -1 for "none")

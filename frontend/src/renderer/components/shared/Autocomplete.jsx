@@ -29,7 +29,13 @@
  * / `.autocomplete-item`), so every consumer renders the same dropdown.
  */
 
-import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { useDropdownPosition } from '../../hooks/useDropdownPosition.js';
 import './shared.css';
@@ -85,9 +91,10 @@ export function Autocomplete({
   const baseId = useRef(id || `autocomplete-${++uid}`).current;
   const listboxId = `${baseId}-listbox`;
 
-  const shown = typeof maxSuggestions === 'number'
-    ? options.slice(0, maxSuggestions)
-    : options;
+  const shown =
+    typeof maxSuggestions === 'number'
+      ? options.slice(0, maxSuggestions)
+      : options;
   const listVisible = open && shown.length > 0;
 
   // Content signature (not array identity): a consumer that recomputes options
@@ -97,13 +104,16 @@ export function Autocomplete({
     .map((o, i) => (getOptionKey ? getOptionKey(o, i) : getOptionLabel(o)))
     .join('\u0000');
 
-  const setInputRef = useCallback((el) => {
-    localInputRef.current = el;
-    if (inputRef) {
-      if (typeof inputRef === 'function') inputRef(el);
-      else inputRef.current = el;
-    }
-  }, [inputRef]);
+  const setInputRef = useCallback(
+    (el) => {
+      localInputRef.current = el;
+      if (inputRef) {
+        if (typeof inputRef === 'function') inputRef(el);
+        else inputRef.current = el;
+      }
+    },
+    [inputRef],
+  );
 
   // A fresh option set (typing) invalidates the previous highlight. Layout
   // effect so the reset lands before paint — otherwise aria-activedescendant
@@ -151,8 +161,11 @@ export function Autocomplete({
       return;
     }
 
-    const down = e.key === 'ArrowDown' || (navigateWithTab && e.key === 'Tab' && !e.shiftKey);
-    const up = e.key === 'ArrowUp' || (navigateWithTab && e.key === 'Tab' && e.shiftKey);
+    const down =
+      e.key === 'ArrowDown' ||
+      (navigateWithTab && e.key === 'Tab' && !e.shiftKey);
+    const up =
+      e.key === 'ArrowUp' || (navigateWithTab && e.key === 'Tab' && e.shiftKey);
 
     if ((down || up) && listVisible) {
       e.preventDefault();
@@ -180,7 +193,8 @@ export function Autocomplete({
     blurTimer.current = setTimeout(() => setOpen(false), 150);
   };
 
-  const activeId = highlighted >= 0 ? `${baseId}-option-${highlighted}` : undefined;
+  const activeId =
+    highlighted >= 0 ? `${baseId}-option-${highlighted}` : undefined;
 
   return (
     <div className="autocomplete-wrapper">
@@ -205,35 +219,36 @@ export function Autocomplete({
         onKeyDown={handleKeyDown}
         onClick={(e) => e.stopPropagation()}
       />
-      {listVisible && createPortal(
-        <div
-          className="autocomplete-dropdown"
-          style={dropdownStyle}
-          role="listbox"
-          id={listboxId}
-        >
-          {shown.map((option, idx) => {
-            const label = getOptionLabel(option);
-            const key = getOptionKey ? getOptionKey(option, idx) : label;
-            return (
-              <div
-                key={key}
-                id={`${baseId}-option-${idx}`}
-                role="option"
-                aria-selected={idx === highlighted}
-                className={`autocomplete-item ${idx === highlighted ? 'selected' : ''}`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  commit(option);
-                }}
-              >
-                {label}
-              </div>
-            );
-          })}
-        </div>,
-        document.body,
-      )}
+      {listVisible &&
+        createPortal(
+          <div
+            className="autocomplete-dropdown"
+            style={dropdownStyle}
+            role="listbox"
+            id={listboxId}
+          >
+            {shown.map((option, idx) => {
+              const label = getOptionLabel(option);
+              const key = getOptionKey ? getOptionKey(option, idx) : label;
+              return (
+                <div
+                  key={key}
+                  id={`${baseId}-option-${idx}`}
+                  role="option"
+                  aria-selected={idx === highlighted}
+                  className={`autocomplete-item ${idx === highlighted ? 'selected' : ''}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    commit(option);
+                  }}
+                >
+                  {label}
+                </div>
+              );
+            })}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

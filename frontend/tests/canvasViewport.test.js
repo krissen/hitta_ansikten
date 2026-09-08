@@ -4,7 +4,7 @@ import {
   MAX_ZOOM,
   clampZoom,
   computeZoom,
-  centerPan
+  centerPan,
 } from '../src/renderer/shared/canvasViewport.js';
 
 describe('clampZoom', () => {
@@ -64,7 +64,12 @@ describe('computeZoom', () => {
 describe('centerPan', () => {
   it('centers a rectangle at the viewport center at 1:1 zoom', () => {
     // rect centered at image (100, 50); viewport 800x600 => center (400,300).
-    const pan = centerPan({ x: 50, y: 25, width: 100, height: 50 }, 1, 800, 600);
+    const pan = centerPan(
+      { x: 50, y: 25, width: 100, height: 50 },
+      1,
+      800,
+      600,
+    );
     // rect center = (100, 50); pan = 400 - 100*1 = 300, 300 - 50*1 = 250
     expect(pan).toEqual({ x: 300, y: 250 });
   });

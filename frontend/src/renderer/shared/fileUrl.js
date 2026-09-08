@@ -31,6 +31,12 @@ export function toFileUrl(p) {
  */
 export function bustedFileUrl(p, fingerprint) {
   const base = toFileUrl(p);
-  if (fingerprint === undefined || fingerprint === null || fingerprint === '') return base;
-  return base + (base.includes('?') ? '&' : '?') + 'v=' + encodeURIComponent(fingerprint);
+  if (fingerprint === undefined || fingerprint === null || fingerprint === '')
+    return base;
+  return (
+    base +
+    (base.includes('?') ? '&' : '?') +
+    'v=' +
+    encodeURIComponent(fingerprint)
+  );
 }

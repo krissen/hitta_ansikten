@@ -38,7 +38,8 @@ function readSources(root) {
       if (entry.name === 'dist' || entry.name === 'node_modules') continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (/\.jsx?$/.test(entry.name)) out.push(fs.readFileSync(full, 'utf8'));
+      else if (/\.jsx?$/.test(entry.name))
+        out.push(fs.readFileSync(full, 'utf8'));
     }
   };
   walk(root);
@@ -49,8 +50,10 @@ function readSources(root) {
 function collectSubscribedEvents() {
   const events = new Set();
   for (const src of readSources(path.resolve(__dirname, '../src/renderer'))) {
-    for (const m of src.matchAll(/useModuleEvent\(\s*'([^']+)'/g)) events.add(m[1]);
-    for (const m of src.matchAll(/moduleAPI\.on\(\s*'([^']+)'/g)) events.add(m[1]);
+    for (const m of src.matchAll(/useModuleEvent\(\s*'([^']+)'/g))
+      events.add(m[1]);
+    for (const m of src.matchAll(/moduleAPI\.on\(\s*'([^']+)'/g))
+      events.add(m[1]);
   }
   return events;
 }
@@ -66,7 +69,10 @@ function collectEmittedEvents() {
   }
   // A menu item sends either a literal or a checked-state ternary of two
   // literals, so take every string literal in the call's arguments.
-  const menu = fs.readFileSync(path.resolve(__dirname, '../src/main/menu.js'), 'utf8');
+  const menu = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/menu.js'),
+    'utf8',
+  );
   for (const call of menu.matchAll(/sendMenuCommand\(([^)]*)\)/g)) {
     for (const lit of call[1].matchAll(/'([^']+)'/g)) events.add(lit[1]);
   }
@@ -75,7 +81,10 @@ function collectEmittedEvents() {
 
 /** Every `menu-command` string src/main/menu.js can send. */
 function collectSentMenuCommands() {
-  const menu = fs.readFileSync(path.resolve(__dirname, '../src/main/menu.js'), 'utf8');
+  const menu = fs.readFileSync(
+    path.resolve(__dirname, '../src/main/menu.js'),
+    'utf8',
+  );
   const commands = new Set();
   // A menu item sends either a literal or a checked-state ternary of two
   // literals, so take every string literal in the call's arguments.
@@ -121,14 +130,19 @@ describe('action catalog integrity', () => {
   it('resolves every titleKey in the i18n catalog', () => {
     // t() returns the key itself on a miss, so key === value means a gap.
     for (const action of ACTIONS) {
-      expect(t(action.titleKey), `${action.id} → ${action.titleKey}`).not.toBe(action.titleKey);
+      expect(t(action.titleKey), `${action.id} → ${action.titleKey}`).not.toBe(
+        action.titleKey,
+      );
     }
   });
 
   it('names a real module id as owner (or none)', () => {
     for (const action of ACTIONS) {
       if (action.owner === null) continue;
-      expect(MODULE_CATALOG[action.owner], `${action.id} owner ${action.owner}`).toBeDefined();
+      expect(
+        MODULE_CATALOG[action.owner],
+        `${action.id} owner ${action.owner}`,
+      ).toBeDefined();
     }
   });
 
@@ -150,7 +164,8 @@ describe('action catalog integrity', () => {
       } else if (action.route.via === 'menu') {
         const commands = [action.route.command].flat();
         expect(commands.length, action.id).toBeGreaterThan(0);
-        for (const command of commands) expect(typeof command, action.id).toBe('string');
+        for (const command of commands)
+          expect(typeof command, action.id).toBe('string');
       } else {
         expect(typeof action.route.intent?.type, action.id).toBe('string');
       }
@@ -165,7 +180,7 @@ describe('action catalog integrity', () => {
     const subscribed = [...collectSubscribedEvents()];
     const emitted = [...collectEmittedEvents()];
     const events = ACTIONS.filter((a) => a.route?.via === 'emit').flatMap((a) =>
-      [a.route.event, a.route.eventDown].filter(Boolean).map((e) => [a.id, e])
+      [a.route.event, a.route.eventDown].filter(Boolean).map((e) => [a.id, e]),
     );
     for (const [id, event] of events) {
       expect(subscribed, `${id} → ${event} (no subscriber)`).toContain(event);
@@ -179,7 +194,10 @@ describe('action catalog integrity', () => {
     // half already fails on.
     const declared = new Set(ACTIONS.flatMap(menuCommandsOf));
     for (const command of collectSentMenuCommands()) {
-      expect(declared, `menu.js sends '${command}', no action declares it`).toContain(command);
+      expect(
+        declared,
+        `menu.js sends '${command}', no action declares it`,
+      ).toContain(command);
     }
   });
 
@@ -193,7 +211,10 @@ describe('action catalog integrity', () => {
     for (const action of ACTIONS) {
       for (const command of menuCommandsOf(action)) {
         if (dead.has(command)) continue;
-        expect(handled, `${action.id} → '${command}' (nothing handles it)`).toContain(command);
+        expect(
+          handled,
+          `${action.id} → '${command}' (nothing handles it)`,
+        ).toContain(command);
       }
     }
   });
@@ -208,7 +229,10 @@ describe('action catalog integrity', () => {
     const sent = collectSentMenuCommands();
     for (const action of ACTIONS) {
       for (const command of menuCommandsOf(action)) {
-        expect(sent, `${action.id} → '${command}' (menu.js no longer sends it)`).toContain(command);
+        expect(
+          sent,
+          `${action.id} → '${command}' (menu.js no longer sends it)`,
+        ).toContain(command);
       }
     }
   });
@@ -220,7 +244,10 @@ describe('action catalog integrity', () => {
     const known = new Set(KNOWN_UNREACHABLE_HANDLERS);
     for (const handler of collectTableHandlers()) {
       if (known.has(handler)) continue;
-      expect(sent, `menuCommands handles '${handler}', no menu item sends it`).toContain(handler);
+      expect(
+        sent,
+        `menuCommands handles '${handler}', no menu item sends it`,
+      ).toContain(handler);
     }
   });
 
@@ -228,8 +255,14 @@ describe('action catalog integrity', () => {
     const sent = collectSentMenuCommands();
     const handlers = collectTableHandlers();
     for (const handler of KNOWN_UNREACHABLE_HANDLERS) {
-      expect(handlers, `'${handler}' is no longer a handler — drop it`).toContain(handler);
-      expect(sent, `'${handler}' has a menu item now — drop it from the list`).not.toContain(handler);
+      expect(
+        handlers,
+        `'${handler}' is no longer a handler — drop it`,
+      ).toContain(handler);
+      expect(
+        sent,
+        `'${handler}' has a menu item now — drop it from the list`,
+      ).not.toContain(handler);
     }
   });
 
@@ -239,15 +272,23 @@ describe('action catalog integrity', () => {
     const handled = collectHandledMenuCommands();
     const sent = collectSentMenuCommands();
     for (const command of KNOWN_DEAD_MENU_COMMANDS) {
-      expect(handled, `'${command}' is handled now — drop it from the list`).not.toContain(command);
-      expect(sent, `'${command}' is no longer a menu command — drop it`).toContain(command);
+      expect(
+        handled,
+        `'${command}' is handled now — drop it from the list`,
+      ).not.toContain(command);
+      expect(
+        sent,
+        `'${command}' is no longer a menu command — drop it`,
+      ).toContain(command);
     }
   });
 
   it('dispatches only intent types the router handles', () => {
     for (const action of ACTIONS) {
       if (action.route?.via !== 'dispatch') continue;
-      expect(ROUTER_INTENT_TYPES, action.id).toContain(action.route.intent.type);
+      expect(ROUTER_INTENT_TYPES, action.id).toContain(
+        action.route.intent.type,
+      );
     }
   });
 
@@ -259,7 +300,10 @@ describe('action catalog integrity', () => {
       expect(Array.isArray(action.route.fills), action.id).toBe(true);
       expect(action.route.fills.length, action.id).toBeGreaterThan(0);
       for (const field of action.route.fills) {
-        expect(action.route.intent, `${action.id} pre-fills ${field}`).not.toHaveProperty(field);
+        expect(
+          action.route.intent,
+          `${action.id} pre-fills ${field}`,
+        ).not.toHaveProperty(field);
       }
     }
     // open-workflow-step needs a moduleId that the range value resolves.
@@ -280,12 +324,17 @@ describe('action catalog integrity', () => {
     for (const action of ACTIONS) {
       expect(Array.isArray(action.keys), action.id).toBe(true);
       const bindings = action.keys.length + menuCommandsOf(action).length;
-      expect(bindings, `${action.id} has no key and no menu command`).toBeGreaterThan(0);
+      expect(
+        bindings,
+        `${action.id} has no key and no menu command`,
+      ).toBeGreaterThan(0);
     }
   });
 
   it('scopes destructive actions to the ones that delete files', () => {
-    const destructive = ACTIONS.filter((a) => a.scope === 'destructive').map((a) => a.id);
+    const destructive = ACTIONS.filter((a) => a.scope === 'destructive').map(
+      (a) => a.id,
+    );
     expect(destructive).toEqual(['review.deleteToTrash', 'culling.cull']);
   });
 
@@ -301,14 +350,17 @@ describe('action catalog integrity', () => {
     for (const section of SECTIONS) {
       expect(t(section.titleKey)).not.toBe(section.titleKey);
       for (const moduleId of section.modules) {
-        expect(MODULE_CATALOG[moduleId], `${section.id} → ${moduleId}`).toBeDefined();
+        expect(
+          MODULE_CATALOG[moduleId],
+          `${section.id} → ${moduleId}`,
+        ).toBeDefined();
       }
     }
   });
 });
 
 describe('catalog lookups', () => {
-  it('returns a section\'s actions in catalog order', () => {
+  it("returns a section's actions in catalog order", () => {
     const ids = actionsForSection('general').map((a) => a.id);
     expect(ids).toEqual([
       'general.showHelp',

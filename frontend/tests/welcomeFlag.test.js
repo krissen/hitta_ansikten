@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest';
-import { hasBeenWelcomed, markWelcomed } from '../src/renderer/workspace/welcomeFlag.js';
+import {
+  hasBeenWelcomed,
+  markWelcomed,
+} from '../src/renderer/workspace/welcomeFlag.js';
 
 // welcomeFlag is the first-run persistence for the StartupLanding welcome card.
 // It reads/writes a single localStorage key and fails OPEN toward showing the

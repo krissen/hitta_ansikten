@@ -22,14 +22,22 @@ vi.mock('../src/renderer/hooks/useModuleEvent.js', () => ({
 }));
 
 import { CullingModule } from '../src/renderer/components/CullingModule.jsx';
-import { setScanScope, takeExternalLoad } from '../src/renderer/shared/scanScope.js';
-import { setWorkingFolder, clearWorkingFolder } from '../src/renderer/shared/workingFolder.js';
+import {
+  setScanScope,
+  takeExternalLoad,
+} from '../src/renderer/shared/scanScope.js';
+import {
+  setWorkingFolder,
+  clearWorkingFolder,
+} from '../src/renderer/shared/workingFolder.js';
 
 function scanFilesCalls() {
   return post.mock.calls.filter(([p]) => p === '/api/v1/culling/files');
 }
 function chipTexts(container) {
-  return [...container.querySelectorAll('.culling-chip')].map((el) => el.textContent.replace(/\s+/g, ' ').trim());
+  return [...container.querySelectorAll('.culling-chip')].map((el) =>
+    el.textContent.replace(/\s+/g, ' ').trim(),
+  );
 }
 
 async function mountCulling() {
@@ -46,7 +54,8 @@ async function mountCulling() {
 
 beforeEach(() => {
   post.mockReset().mockImplementation((path) => {
-    if (path === '/api/v1/culling/files') return Promise.resolve({ files: [], players: [] });
+    if (path === '/api/v1/culling/files')
+      return Promise.resolve({ files: [], players: [] });
     return Promise.resolve({});
   });
   get.mockReset().mockResolvedValue({});
@@ -82,7 +91,14 @@ describe('CullingModule — working-folder anchor seed', () => {
 
   it('lets a present scan scope win over the anchor (adopts and scans)', async () => {
     setWorkingFolder({ roots: ['/events/cupen'], step: 'rename' });
-    setScanScope({ roots: ['/scope/match'], globs: [], recursive: true, date_from: null, date_to: null, extension_preset: 'jpg' });
+    setScanScope({
+      roots: ['/scope/match'],
+      globs: [],
+      recursive: true,
+      date_from: null,
+      date_to: null,
+      extension_preset: 'jpg',
+    });
     const { container } = await mountCulling();
 
     // Scope roots adopted (not the anchor's), and a scan ran.

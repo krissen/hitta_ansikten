@@ -9,11 +9,15 @@ describe('queueFolder', () => {
   });
 
   it('returns the parent directory of the first file (POSIX)', () => {
-    expect(queueFolder([{ filePath: '/events/cupen/img_1.jpg' }])).toBe('/events/cupen');
+    expect(queueFolder([{ filePath: '/events/cupen/img_1.jpg' }])).toBe(
+      '/events/cupen',
+    );
   });
 
   it('handles Windows backslash separators', () => {
-    expect(queueFolder([{ filePath: 'C:\\events\\cupen\\img_1.jpg' }])).toBe('C:/events/cupen');
+    expect(queueFolder([{ filePath: 'C:\\events\\cupen\\img_1.jpg' }])).toBe(
+      'C:/events/cupen',
+    );
   });
 
   it('returns "/" for a file at the filesystem root', () => {
@@ -21,9 +25,8 @@ describe('queueFolder', () => {
   });
 
   it('uses the first file even when later files sit elsewhere', () => {
-    expect(queueFolder([
-      { filePath: '/a/one.jpg' },
-      { filePath: '/b/two.jpg' },
-    ])).toBe('/a');
+    expect(
+      queueFolder([{ filePath: '/a/one.jpg' }, { filePath: '/b/two.jpg' }]),
+    ).toBe('/a');
   });
 });

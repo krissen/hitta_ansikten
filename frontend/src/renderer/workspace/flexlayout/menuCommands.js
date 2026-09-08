@@ -53,7 +53,9 @@ export function buildMenuCommandTable(ctx) {
     // File commands
     'open-file': async () => {
       // Use multi-file dialog (same as Cmd+O and + button)
-      const filePaths = await window.ansiktenAPI?.invoke('open-multi-file-dialog');
+      const filePaths = await window.ansiktenAPI?.invoke(
+        'open-multi-file-dialog',
+      );
       if (filePaths && filePaths.length > 0) {
         if (window.fileQueue?.add) {
           window.fileQueue.add(filePaths);
@@ -76,8 +78,10 @@ export function buildMenuCommandTable(ctx) {
     // alias without a menu item is unreachable by construction. The layouts
     // themselves are untouched — `load-layout` still accepts every name in
     // layouts.js, so a programmatic dispatch reaches them.
-    'layout-template-comparison': () => dispatch({ type: 'load-layout', name: 'comparison' }),
-    'layout-template-stats': () => dispatch({ type: 'load-layout', name: 'database' }),
+    'layout-template-comparison': () =>
+      dispatch({ type: 'load-layout', name: 'comparison' }),
+    'layout-template-stats': () =>
+      dispatch({ type: 'load-layout', name: 'database' }),
 
     // "Reset layout" (Cmd+Shift+L): forget the current step's remembered tweaks
     // and rebuild it to factory. "Reset all layouts": forget every step's memory.
@@ -97,22 +101,35 @@ export function buildMenuCommandTable(ctx) {
     'layout-move-new-below': () => moveToNewTabset('below'),
 
     // Open module commands — each an adapter to the open-module intent.
-    'open-image-viewer': () => dispatch({ type: 'open-module', moduleId: 'image-viewer' }),
-    'open-original-view': () => dispatch({ type: 'open-module', moduleId: 'original-view' }),
-    'open-log-viewer': () => dispatch({ type: 'open-module', moduleId: 'log-viewer' }),
-    'open-review-module': () => dispatch({ type: 'open-module', moduleId: 'review-module' }),
-    'open-statistics-dashboard': () => dispatch({ type: 'open-module', moduleId: 'statistics-dashboard' }),
-    'open-player-count': () => dispatch({ type: 'open-module', moduleId: 'player-count' }),
-    'open-culling': () => dispatch({ type: 'open-module', moduleId: 'culling' }),
+    'open-image-viewer': () =>
+      dispatch({ type: 'open-module', moduleId: 'image-viewer' }),
+    'open-original-view': () =>
+      dispatch({ type: 'open-module', moduleId: 'original-view' }),
+    'open-log-viewer': () =>
+      dispatch({ type: 'open-module', moduleId: 'log-viewer' }),
+    'open-review-module': () =>
+      dispatch({ type: 'open-module', moduleId: 'review-module' }),
+    'open-statistics-dashboard': () =>
+      dispatch({ type: 'open-module', moduleId: 'statistics-dashboard' }),
+    'open-player-count': () =>
+      dispatch({ type: 'open-module', moduleId: 'player-count' }),
+    'open-culling': () =>
+      dispatch({ type: 'open-module', moduleId: 'culling' }),
     'open-trash': () => dispatch({ type: 'open-module', moduleId: 'trash' }),
     'open-import': () => dispatch({ type: 'open-module', moduleId: 'import' }),
-    'open-rename-nef': () => dispatch({ type: 'open-module', moduleId: 'rename-nef' }),
-    'open-database-management': () => dispatch({ type: 'open-module', moduleId: 'database-management' }),
-    'open-refine-faces': () => dispatch({ type: 'open-module', moduleId: 'refine-faces' }),
-    'open-file-queue': () => dispatch({ type: 'open-module', moduleId: 'file-queue' }),
-    'open-theme-editor': () => dispatch({ type: 'open-module', moduleId: 'theme-editor' }),
+    'open-rename-nef': () =>
+      dispatch({ type: 'open-module', moduleId: 'rename-nef' }),
+    'open-database-management': () =>
+      dispatch({ type: 'open-module', moduleId: 'database-management' }),
+    'open-refine-faces': () =>
+      dispatch({ type: 'open-module', moduleId: 'refine-faces' }),
+    'open-file-queue': () =>
+      dispatch({ type: 'open-module', moduleId: 'file-queue' }),
+    'open-theme-editor': () =>
+      dispatch({ type: 'open-module', moduleId: 'theme-editor' }),
 
-    'open-preferences': () => dispatch({ type: 'open-module', moduleId: 'preferences' }),
+    'open-preferences': () =>
+      dispatch({ type: 'open-module', moduleId: 'preferences' }),
 
     // Help ▸ toggle the keyboard-shortcuts overlay (same as the `?` key).
     'show-keyboard-shortcuts': () => toggleShortcutsHelp?.(),
@@ -123,7 +140,7 @@ export function buildMenuCommandTable(ctx) {
     // Theme commands
     'theme-light': () => themeManager.setPreference('light'),
     'theme-dark': () => themeManager.setPreference('dark'),
-    'theme-system': () => themeManager.setPreference('system')
+    'theme-system': () => themeManager.setPreference('system'),
   };
 }
 

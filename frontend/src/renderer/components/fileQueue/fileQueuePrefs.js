@@ -35,20 +35,33 @@ export const getRenameConfig = () => {
       const rename = prefs.rename || {};
       // Only include non-default values
       const config = {};
-      if (rename.prefixSource !== undefined) config.prefixSource = rename.prefixSource;
-      if (rename.exifFallback !== undefined) config.exifFallback = rename.exifFallback;
-      if (rename.datePattern !== undefined) config.datePattern = rename.datePattern;
-      if (rename.filenamePattern !== undefined) config.filenamePattern = rename.filenamePattern;
-      if (rename.nameSeparator !== undefined) config.nameSeparator = rename.nameSeparator;
-      if (rename.useFirstNameOnly !== undefined) config.useFirstNameOnly = rename.useFirstNameOnly;
-      if (rename.alwaysIncludeSurname !== undefined) config.alwaysIncludeSurname = rename.alwaysIncludeSurname;
-      if (rename.disambiguationStyle !== undefined) config.disambiguationStyle = rename.disambiguationStyle;
-      if (rename.removeDiacritics !== undefined) config.removeDiacritics = rename.removeDiacritics;
-      if (rename.includeIgnoredFaces !== undefined) config.includeIgnoredFaces = rename.includeIgnoredFaces;
-      if (rename.allowAlreadyRenamed !== undefined) config.allowAlreadyRenamed = rename.allowAlreadyRenamed;
+      if (rename.prefixSource !== undefined)
+        config.prefixSource = rename.prefixSource;
+      if (rename.exifFallback !== undefined)
+        config.exifFallback = rename.exifFallback;
+      if (rename.datePattern !== undefined)
+        config.datePattern = rename.datePattern;
+      if (rename.filenamePattern !== undefined)
+        config.filenamePattern = rename.filenamePattern;
+      if (rename.nameSeparator !== undefined)
+        config.nameSeparator = rename.nameSeparator;
+      if (rename.useFirstNameOnly !== undefined)
+        config.useFirstNameOnly = rename.useFirstNameOnly;
+      if (rename.alwaysIncludeSurname !== undefined)
+        config.alwaysIncludeSurname = rename.alwaysIncludeSurname;
+      if (rename.disambiguationStyle !== undefined)
+        config.disambiguationStyle = rename.disambiguationStyle;
+      if (rename.removeDiacritics !== undefined)
+        config.removeDiacritics = rename.removeDiacritics;
+      if (rename.includeIgnoredFaces !== undefined)
+        config.includeIgnoredFaces = rename.includeIgnoredFaces;
+      if (rename.allowAlreadyRenamed !== undefined)
+        config.allowAlreadyRenamed = rename.allowAlreadyRenamed;
       // Sidecar settings
-      if (rename.renameSidecars !== undefined) config.renameSidecars = rename.renameSidecars;
-      if (rename.sidecarExtensions !== undefined) config.sidecarExtensions = rename.sidecarExtensions;
+      if (rename.renameSidecars !== undefined)
+        config.renameSidecars = rename.renameSidecars;
+      if (rename.sidecarExtensions !== undefined)
+        config.sidecarExtensions = rename.sidecarExtensions;
       return Object.keys(config).length > 0 ? config : null;
     }
   } catch (e) {
@@ -68,9 +81,12 @@ export const getNotificationPreference = (key) => {
     if (stored) {
       const prefs = JSON.parse(stored);
       const notifications = prefs.preprocessing?.notifications || {};
-      if (key === 'showStatusIndicator') return notifications.showStatusIndicator ?? true;
-      if (key === 'showToastOnPause') return notifications.showToastOnPause ?? true;
-      if (key === 'showToastOnResume') return notifications.showToastOnResume ?? false;
+      if (key === 'showStatusIndicator')
+        return notifications.showStatusIndicator ?? true;
+      if (key === 'showToastOnPause')
+        return notifications.showToastOnPause ?? true;
+      if (key === 'showToastOnResume')
+        return notifications.showToastOnResume ?? false;
     }
   } catch (e) {
     // Ignore parse errors
@@ -95,7 +111,7 @@ export const getPreprocessingConfig = () => {
         enabled: preprocessing.enabled ?? true,
         maxWorkers: preprocessing.parallelWorkers ?? 2,
         steps: preprocessing.steps || {},
-        rollingWindow: preprocessing.rollingWindow || {}
+        rollingWindow: preprocessing.rollingWindow || {},
       };
     }
   } catch (e) {

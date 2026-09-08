@@ -33,7 +33,7 @@
   background: var(--bg-elevated);
 }
 
-.mode-option input[type="radio"] {
+.mode-option input[type='radio'] {
   grid-row: span 2;
   align-self: center;
   margin: 0;
@@ -87,11 +87,11 @@
   border-color: var(--accent-primary);
 }
 
-.config-row input[type="number"] {
+.config-row input[type='number'] {
   width: 80px;
 }
 
-.config-row input[type="text"] {
+.config-row input[type='text'] {
   flex: 1;
 }
 

@@ -54,7 +54,9 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
   useEffect(() => {
     if (!currentPath) {
       lastPreviewPathRef.current = null;
-      setPreviewUrl(null); setPreviewError(null); setPreviewLoading(false);
+      setPreviewUrl(null);
+      setPreviewError(null);
+      setPreviewLoading(false);
       return;
     }
     if (isRaw(currentPath)) {
@@ -83,17 +85,25 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
     let recheckTimer = null;
     if (isNewPath) {
       loadingTimer = setTimeout(() => {
-        if (!cancelled) { setPreviewUrl(null); setPreviewLoading(true); }
+        if (!cancelled) {
+          setPreviewUrl(null);
+          setPreviewLoading(true);
+        }
       }, PREVIEW_LOADING_DELAY_MS);
     }
-    window.ansiktenAPI.invoke('stat-file-stable', { filePath: currentPath })
+    window.ansiktenAPI
+      .invoke('stat-file-stable', { filePath: currentPath })
       .then((res) => {
         if (cancelled) return;
         if (loadingTimer) clearTimeout(loadingTimer);
         if (!res?.ok) {
           setPreviewLoading(false);
           setPreviewUrl(null);
-          setPreviewError(res?.reason === 'not-found' ? t('culling.errors.fileNotFound') : t('culling.errors.fileUnreadable'));
+          setPreviewError(
+            res?.reason === 'not-found'
+              ? t('culling.errors.fileNotFound')
+              : t('culling.errors.fileUnreadable'),
+          );
           return;
         }
         if (res.settled === false) {
@@ -102,7 +112,9 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
           // indicator and re-check shortly (the ongoing write also bumps
           // folderNonce via the watcher, so this is a fallback either way).
           setPreviewLoading(true);
-          recheckTimer = setTimeout(() => { if (!cancelled) setFolderNonce((n) => n + 1); }, PREVIEW_RECHECK_MS);
+          recheckTimer = setTimeout(() => {
+            if (!cancelled) setFolderNonce((n) => n + 1);
+          }, PREVIEW_RECHECK_MS);
           return;
         }
         setPreviewLoading(false);
@@ -129,11 +141,14 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
   useEffect(() => {
     if (!currentPath || !isRaw(currentPath)) return;
     let cancelled = false;
-    setPreviewLoading(true); setPreviewError(null); setPreviewUrl(null);
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewUrl(null);
     // Debounced: clearing the timer on a fast step cancels the POST before it
     // fires, so no abandoned conversions pile up behind the one the user lands on.
     const timer = setTimeout(() => {
-      api.post('/api/v1/preprocessing/nef', { file_path: currentPath })
+      api
+        .post('/api/v1/preprocessing/nef', { file_path: currentPath })
         .then((res) => {
           if (cancelled) return;
           if (res.status === 'error' || !res.nef_jpg_path) {
@@ -142,10 +157,17 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
             setPreviewUrl(toFileUrl(res.nef_jpg_path));
           }
         })
-        .catch((err) => { if (!cancelled) setPreviewError(err.message || String(err)); })
-        .finally(() => { if (!cancelled) setPreviewLoading(false); });
+        .catch((err) => {
+          if (!cancelled) setPreviewError(err.message || String(err));
+        })
+        .finally(() => {
+          if (!cancelled) setPreviewLoading(false);
+        });
     }, PREVIEW_DEBOUNCE_MS);
-    return () => { cancelled = true; clearTimeout(timer); };
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [currentPath, api]);
 
   // Prefetch the next RAW so stepping through is usually a cache hit - also
@@ -154,7 +176,9 @@ export function useCullingPreview(api, currentPath, files, currentIndex) {
     const next = files[currentIndex + 1];
     if (!next || !isRaw(next.path)) return;
     const timer = setTimeout(() => {
-      api.post('/api/v1/preprocessing/nef', { file_path: next.path }).catch(() => {});
+      api
+        .post('/api/v1/preprocessing/nef', { file_path: next.path })
+        .catch(() => {});
     }, PREVIEW_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [currentIndex, files, api]);

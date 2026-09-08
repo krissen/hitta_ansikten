@@ -9,7 +9,15 @@ import { debug, debugWarn, debugError } from './debug.js';
 import { t } from '../../i18n/index.js';
 
 export class NetworkError extends Error {
-  constructor(message, { isOffline = false, isTimeout = false, statusCode = null, retryable = true } = {}) {
+  constructor(
+    message,
+    {
+      isOffline = false,
+      isTimeout = false,
+      statusCode = null,
+      retryable = true,
+    } = {},
+  ) {
     super(message);
     this.name = 'NetworkError';
     this.isOffline = isOffline;
@@ -69,7 +77,7 @@ export class APIClient {
   _setOffline(offline) {
     if (this._isOffline !== offline) {
       this._isOffline = offline;
-      this._offlineListeners.forEach(cb => {
+      this._offlineListeners.forEach((cb) => {
         try {
           cb(offline);
         } catch (e) {
@@ -82,16 +90,25 @@ export class APIClient {
   async _classifyError(err, response = null) {
     if (!navigator.onLine) {
       this._setOffline(true);
-      return new NetworkError(t('errors.noConnection'), { isOffline: true, retryable: true });
+      return new NetworkError(t('errors.noConnection'), {
+        isOffline: true,
+        retryable: true,
+      });
     }
 
     if (err?.name === 'AbortError') {
-      return new NetworkError(t('errors.timeout'), { isTimeout: true, retryable: true });
+      return new NetworkError(t('errors.timeout'), {
+        isTimeout: true,
+        retryable: true,
+      });
     }
 
     if (err?.name === 'TypeError' && err.message.includes('fetch')) {
       this._setOffline(true);
-      return new NetworkError(t('errors.unreachable'), { isOffline: true, retryable: true });
+      return new NetworkError(t('errors.unreachable'), {
+        isOffline: true,
+        retryable: true,
+      });
     }
 
     if (response) {
@@ -104,10 +121,15 @@ export class APIClient {
       // success path returns before classification runs).
       const detail = await this._readErrorDetail(response);
       const message = detail || response.statusText;
-      return new NetworkError(`HTTP ${statusCode}: ${message}`, { statusCode, retryable });
+      return new NetworkError(`HTTP ${statusCode}: ${message}`, {
+        statusCode,
+        retryable,
+      });
     }
 
-    return new NetworkError(err?.message || t('errors.unknown'), { retryable: false });
+    return new NetworkError(err?.message || t('errors.unknown'), {
+      retryable: false,
+    });
   }
 
   /**
@@ -140,7 +162,7 @@ export class APIClient {
 
   _notifyConnectionListeners(connected) {
     this._connected = connected;
-    this.connectionListeners.forEach(cb => {
+    this.connectionListeners.forEach((cb) => {
       try {
         cb(connected);
       } catch (e) {
@@ -171,12 +193,16 @@ export class APIClient {
       externalSignal.addEventListener('abort', onExternalAbort, { once: true });
     }
 
-    const timeoutId = effectiveTimeout > 0
-      ? setTimeout(() => controller.abort(), effectiveTimeout)
-      : null;
+    const timeoutId =
+      effectiveTimeout > 0
+        ? setTimeout(() => controller.abort(), effectiveTimeout)
+        : null;
 
     try {
-      const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: controller.signal,
+      });
       this._setOffline(false);
       return response;
     } finally {
@@ -196,7 +222,7 @@ export class APIClient {
   async get(path, params = {}) {
     const url = new URL(path, this.baseUrl);
 
-    Object.keys(params).forEach(key => {
+    Object.keys(params).forEach((key) => {
       url.searchParams.append(key, params[key]);
     });
 
@@ -204,7 +230,7 @@ export class APIClient {
     try {
       response = await this._fetchWithTimeout(url.toString(), {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
 
       if (!response.ok) {
@@ -239,7 +265,7 @@ export class APIClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-        ...options
+        ...options,
       });
 
       if (!response.ok) {
@@ -283,7 +309,10 @@ export class APIClient {
   async setLogCategories(categories) {
     try {
       await this.post('/api/v1/log-categories', { categories });
-      debug('APIClient', `Backend log categories set: ${categories.length} categories`);
+      debug(
+        'APIClient',
+        `Backend log categories set: ${categories.length} categories`,
+      );
     } catch (err) {
       debugWarn('APIClient', `Failed to set log categories: ${err.message}`);
     }
@@ -307,7 +336,9 @@ export class APIClient {
     this.isConnecting = true;
 
     return new Promise((resolve, reject) => {
-      const wsUrl = this.baseUrl.replace('http://', 'ws://').replace('https://', 'wss://');
+      const wsUrl = this.baseUrl
+        .replace('http://', 'ws://')
+        .replace('https://', 'wss://');
       const url = `${wsUrl}/ws/progress`;
 
       debug('WebSocket', 'Connecting to WebSocket:', url);
@@ -331,11 +362,15 @@ export class APIClient {
 
           // Trigger all registered handlers for this event
           if (this.wsHandlers.has(eventName)) {
-            this.wsHandlers.get(eventName).forEach(callback => {
+            this.wsHandlers.get(eventName).forEach((callback) => {
               try {
                 callback(data);
               } catch (err) {
-                debugError('WebSocket', `Error in WebSocket handler for ${eventName}:`, err);
+                debugError(
+                  'WebSocket',
+                  `Error in WebSocket handler for ${eventName}:`,
+                  err,
+                );
               }
             });
           }
@@ -365,17 +400,21 @@ export class APIClient {
           this.reconnectAttempts++;
 
           // Exponential backoff with cap and jitter
-          let delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+          let delay =
+            this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
           delay = Math.min(delay, this.maxReconnectDelay); // Cap at max
 
           // Add ±20% jitter to prevent thundering herd
           const jitter = delay * 0.2 * (Math.random() * 2 - 1);
           delay = Math.round(delay + jitter);
 
-          debug('WebSocket', `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+          debug(
+            'WebSocket',
+            `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`,
+          );
 
           setTimeout(() => {
-            this.connectWebSocket().catch(err => {
+            this.connectWebSocket().catch((err) => {
               debugError('WebSocket', 'Reconnection failed:', err);
             });
           }, delay);
@@ -440,7 +479,7 @@ export class APIClient {
   async detectFaces(imagePath, forceReprocess = false) {
     return await this.post('/api/v1/detect-faces', {
       image_path: imagePath,
-      force_reprocess: forceReprocess
+      force_reprocess: forceReprocess,
     });
   }
 
@@ -455,7 +494,7 @@ export class APIClient {
     return await this.post('/api/v1/confirm-identity', {
       face_id: faceId,
       person_name: personName,
-      image_path: imagePath
+      image_path: imagePath,
     });
   }
 
@@ -468,7 +507,7 @@ export class APIClient {
   async ignoreFace(faceId, imagePath) {
     return await this.post('/api/v1/ignore-face', {
       face_id: faceId,
-      image_path: imagePath
+      image_path: imagePath,
     });
   }
 
@@ -548,7 +587,7 @@ export class APIClient {
     try {
       response = await this._fetchWithTimeout(url.toString(), {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
 
       if (!response.ok) {
@@ -558,11 +597,19 @@ export class APIClient {
       return await response.json();
     } catch (err) {
       if (err instanceof NetworkError) {
-        debugError('Backend', 'DELETE /api/v1/preprocessing/cache failed:', err.message);
+        debugError(
+          'Backend',
+          'DELETE /api/v1/preprocessing/cache failed:',
+          err.message,
+        );
         throw err;
       }
       const classified = await this._classifyError(err, response);
-      debugError('Backend', 'DELETE /api/v1/preprocessing/cache failed:', classified.message);
+      debugError(
+        'Backend',
+        'DELETE /api/v1/preprocessing/cache failed:',
+        classified.message,
+      );
       throw classified;
     }
   }
@@ -573,7 +620,9 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async batchDeleteCache(fileHashes) {
-    return await this.post('/api/v1/preprocessing/cache/batch-delete', { file_hashes: fileHashes });
+    return await this.post('/api/v1/preprocessing/cache/batch-delete', {
+      file_hashes: fileHashes,
+    });
   }
 
   /**
@@ -582,7 +631,9 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async setPriorityCacheHashes(fileHashes) {
-    return await this.post('/api/v1/preprocessing/cache/priority', { file_hashes: fileHashes });
+    return await this.post('/api/v1/preprocessing/cache/priority', {
+      file_hashes: fileHashes,
+    });
   }
 
   /**
@@ -591,7 +642,9 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async computeFileHash(filePath) {
-    return await this.post('/api/v1/preprocessing/hash', { file_path: filePath });
+    return await this.post('/api/v1/preprocessing/hash', {
+      file_path: filePath,
+    });
   }
 
   /**
@@ -600,7 +653,9 @@ export class APIClient {
    * @returns {Promise<object>}
    */
   async checkCache(fileHash) {
-    return await this.post('/api/v1/preprocessing/check', { file_hash: fileHash });
+    return await this.post('/api/v1/preprocessing/check', {
+      file_hash: fileHash,
+    });
   }
 
   /**
@@ -612,7 +667,7 @@ export class APIClient {
   async preprocessFile(filePath, steps = null) {
     return await this.post('/api/v1/preprocessing/all', {
       file_path: filePath,
-      steps: steps
+      steps: steps,
     });
   }
 }

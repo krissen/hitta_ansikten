@@ -129,9 +129,13 @@ describe('findTabsetInDirection', () => {
     const c = tabsetNode('ts-c');
     const model = makeModel([a, b, c]);
 
-    expect(findTabsetInDirection(model, layoutRef, a, 'right').getId()).toBe('ts-b');
+    expect(findTabsetInDirection(model, layoutRef, a, 'right').getId()).toBe(
+      'ts-b',
+    );
     // And from the far end going left, the nearer neighbor is again ts-b.
-    expect(findTabsetInDirection(model, layoutRef, c, 'left').getId()).toBe('ts-b');
+    expect(findTabsetInDirection(model, layoutRef, c, 'left').getId()).toBe(
+      'ts-b',
+    );
   });
 });
 
@@ -233,7 +237,13 @@ describe('groupAsTab', () => {
 
     groupAsTab(model, layoutRef, 'right');
 
-    expect(moveSpy).toHaveBeenCalledWith('tab-1', 'ts-b', DockLocation.CENTER, -1, true);
+    expect(moveSpy).toHaveBeenCalledWith(
+      'tab-1',
+      'ts-b',
+      DockLocation.CENTER,
+      -1,
+      true,
+    );
     expect(model.doAction).toHaveBeenCalledTimes(1);
   });
 });

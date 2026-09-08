@@ -36,7 +36,7 @@ export function ImportModule() {
   const [volumes, setVolumes] = useState([]);
   const [selectedMount, setSelectedMount] = useState('');
   const [destination, setDestination] = useState(
-    () => preferences.get('import.destination') || DEFAULT_DEST
+    () => preferences.get('import.destination') || DEFAULT_DEST,
   );
   const [mode, setMode] = useState('move');
   const [eject, setEject] = useState(isMac);
@@ -109,54 +109,61 @@ export function ImportModule() {
     }
   }, [api]);
 
-  useEffect(() => { loadVolumes(); }, [loadVolumes]);
+  useEffect(() => {
+    loadVolumes();
+  }, [loadVolumes]);
 
   // Live progress + terminal "done" event.
-  const onProgress = useCallback((data) => {
-    if (!data) return;
-    if (data.phase === 'done') {
-      // Terminal event — stop the watchdog and leave ongoing mode.
-      clearWatchdog();
-      ongoingRef.current = false;
-      // Sole source of the summary when the HTTP response was lost, and a
-      // harmless duplicate of it otherwise (the panel prefers the HTTP result).
-      setDoneSummary({
-        transferredCount: data.transferred,
-        skippedCount: data.skipped,
-        errorCount: data.errors,
-        ejected: data.ejected,
-        ejectError: data.eject_error,
-        destination: data.destination,
-      });
-      if (data.destination) {
-        setImportedDest(data.destination);
-        setWorkingFolder({ roots: [data.destination], step: 'import' });
+  const onProgress = useCallback(
+    (data) => {
+      if (!data) return;
+      if (data.phase === 'done') {
+        // Terminal event — stop the watchdog and leave ongoing mode.
+        clearWatchdog();
+        ongoingRef.current = false;
+        // Sole source of the summary when the HTTP response was lost, and a
+        // harmless duplicate of it otherwise (the panel prefers the HTTP result).
+        setDoneSummary({
+          transferredCount: data.transferred,
+          skippedCount: data.skipped,
+          errorCount: data.errors,
+          ejected: data.ejected,
+          ejectError: data.eject_error,
+          destination: data.destination,
+        });
+        if (data.destination) {
+          setImportedDest(data.destination);
+          setWorkingFolder({ roots: [data.destination], step: 'import' });
+        }
+        // Clear any error banner raised by a lost HTTP response — the transfer
+        // completed server-side, so the summary must not sit under a stale error.
+        setError(null);
+        setRunning(false);
+        setProgress(null);
+        // When this is the only completion path (HTTP response lost), the card is
+        // likely ejected/gone — refresh the list so a stale selection can't post
+        // against an unmounted volume, mirroring the HTTP-success path.
+        loadVolumes();
+        return;
       }
-      // Clear any error banner raised by a lost HTTP response — the transfer
-      // completed server-side, so the summary must not sit under a stale error.
-      setError(null);
-      setRunning(false);
-      setProgress(null);
-      // When this is the only completion path (HTTP response lost), the card is
-      // likely ejected/gone — refresh the list so a stale selection can't post
-      // against an unmounted volume, mirroring the HTTP-success path.
-      loadVolumes();
-      return;
-    }
-    // A per-file transfer event proves the backend accepted the request and is
-    // working — mark this run as started so a later lost response is treated as
-    // ongoing rather than a failure.
-    sawProgressRef.current = true;
-    // While ongoing, each event proves the backend is still alive — push the
-    // stall deadline back.
-    if (ongoingRef.current) armWatchdog();
-    setProgress(data.percent ?? null);
-    setProgressLabel(t('import.progressLabel', {
-      current: data.current,
-      total: data.total,
-      file: data.file || '',
-    }));
-  }, [loadVolumes, clearWatchdog, armWatchdog]);
+      // A per-file transfer event proves the backend accepted the request and is
+      // working — mark this run as started so a later lost response is treated as
+      // ongoing rather than a failure.
+      sawProgressRef.current = true;
+      // While ongoing, each event proves the backend is still alive — push the
+      // stall deadline back.
+      if (ongoingRef.current) armWatchdog();
+      setProgress(data.percent ?? null);
+      setProgressLabel(
+        t('import.progressLabel', {
+          current: data.current,
+          total: data.total,
+          file: data.file || '',
+        }),
+      );
+    },
+    [loadVolumes, clearWatchdog, armWatchdog],
+  );
   useWebSocket('import-progress', onProgress);
 
   const pickDestination = useCallback(async () => {
@@ -179,18 +186,22 @@ export function ImportModule() {
   // CLI hand-off from `ansikten import [DEST]`. A given destination pre-fills the
   // field and is persisted (mirrors onDestinationChange); no destination leaves
   // the preference default in place.
-  useModuleEvent('import-load', (data) => {
-    const dest = data?.destination;
-    if (dest) {
-      setDestination(dest);
-      preferences.set('import.destination', dest);
-    }
-    // A CLI `ansikten import` is the most likely "I just inserted a card"
-    // moment. loadVolumes otherwise runs only on mount, so an already-open
-    // module would show a stale/empty card dropdown until manual refresh —
-    // re-scan here so the command delivers on its "card autodetected" promise.
-    loadVolumes();
-  }, [loadVolumes]);
+  useModuleEvent(
+    'import-load',
+    (data) => {
+      const dest = data?.destination;
+      if (dest) {
+        setDestination(dest);
+        preferences.set('import.destination', dest);
+      }
+      // A CLI `ansikten import` is the most likely "I just inserted a card"
+      // moment. loadVolumes otherwise runs only on mount, so an already-open
+      // module would show a stale/empty card dropdown until manual refresh —
+      // re-scan here so the command delivers on its "card autodetected" promise.
+      loadVolumes();
+    },
+    [loadVolumes],
+  );
 
   const runImport = useCallback(async () => {
     if (!selectedMount || !destination.trim()) return;
@@ -208,12 +219,16 @@ export function ImportModule() {
     // for minutes and must not be aborted mid-transfer.
     let ongoing = false;
     try {
-      const res = await api.post('/api/v1/import/run', {
-        volume_mount: selectedMount,
-        destination: usedDestination,
-        mode,
-        eject,
-      }, { timeout: 0 });
+      const res = await api.post(
+        '/api/v1/import/run',
+        {
+          volume_mount: selectedMount,
+          destination: usedDestination,
+          mode,
+          eject,
+        },
+        { timeout: 0 },
+      );
       setResult(res);
       setImportedDest(usedDestination);
       // Anchor the pipeline on the just-imported folder so the rename step can
@@ -253,7 +268,17 @@ export function ImportModule() {
         setProgress(null);
       }
     }
-  }, [api, selectedMount, destination, mode, eject, loadVolumes, showToast, clearWatchdog, armWatchdog]);
+  }, [
+    api,
+    selectedMount,
+    destination,
+    mode,
+    eject,
+    loadVolumes,
+    showToast,
+    clearWatchdog,
+    armWatchdog,
+  ]);
 
   // Hand the just-imported folder to the rename step (opt-in; never auto-opened).
   const openRename = useCallback(() => {
@@ -284,19 +309,30 @@ export function ImportModule() {
       <div className="module-header">
         <h3 className="module-title">{t('import.title')}</h3>
         <div className="button-group">
-          <Button variant="secondary" size="sm" onClick={loadVolumes} disabled={loadingVolumes || running}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={loadVolumes}
+            disabled={loadingVolumes || running}
+          >
             {loadingVolumes ? '…' : t('import.refresh')}
           </Button>
         </div>
       </div>
 
       <div className="module-body import-body">
-        {error && <Alert variant="error">{t('import.errorPrefix', { message: error })}</Alert>}
+        {error && (
+          <Alert variant="error">
+            {t('import.errorPrefix', { message: error })}
+          </Alert>
+        )}
 
         <label className="import-field">
           <span className="import-label">{t('import.cardLabel')}</span>
           {volumes.length === 0 ? (
-            <span className="import-empty">{loadingVolumes ? t('import.searching') : t('import.noCard')}</span>
+            <span className="import-empty">
+              {loadingVolumes ? t('import.searching') : t('import.noCard')}
+            </span>
           ) : (
             <select
               className="form-select"
@@ -327,7 +363,13 @@ export function ImportModule() {
               onChange={onDestinationChange}
               disabled={running}
             />
-            <Button variant="secondary" onClick={pickDestination} disabled={running}>{t('import.pick')}</Button>
+            <Button
+              variant="secondary"
+              onClick={pickDestination}
+              disabled={running}
+            >
+              {t('import.pick')}
+            </Button>
           </span>
         </label>
 
@@ -335,18 +377,35 @@ export function ImportModule() {
           <span className="import-label">{t('import.transferLabel')}</span>
           <span className="import-radios">
             <label className="form-checkbox">
-              <input type="radio" name="mode" checked={mode === 'move'} onChange={() => setMode('move')} disabled={running} />
+              <input
+                type="radio"
+                name="mode"
+                checked={mode === 'move'}
+                onChange={() => setMode('move')}
+                disabled={running}
+              />
               {t('import.move')}
             </label>
             <label className="form-checkbox">
-              <input type="radio" name="mode" checked={mode === 'copy'} onChange={() => setMode('copy')} disabled={running} />
+              <input
+                type="radio"
+                name="mode"
+                checked={mode === 'copy'}
+                onChange={() => setMode('copy')}
+                disabled={running}
+              />
               {t('import.copy')}
             </label>
           </span>
         </div>
 
         <label className="form-checkbox import-eject">
-          <input type="checkbox" checked={eject} onChange={(e) => setEject(e.target.checked)} disabled={running || !isMac} />
+          <input
+            type="checkbox"
+            checked={eject}
+            onChange={(e) => setEject(e.target.checked)}
+            disabled={running || !isMac}
+          />
           {isMac ? t('import.eject') : t('import.ejectMacOnly')}
         </label>
 
@@ -356,7 +415,10 @@ export function ImportModule() {
           </Button>
           {selected && !running && (
             <span className="import-hint">
-              {t(mode === 'move' ? 'import.readyToMove' : 'import.readyToCopy', { count: selected.nef_count })}
+              {t(
+                mode === 'move' ? 'import.readyToMove' : 'import.readyToCopy',
+                { count: selected.nef_count },
+              )}
             </span>
           )}
         </div>
@@ -371,24 +433,43 @@ export function ImportModule() {
         {summary && !running && (
           <div className="import-result">
             <div>
-              <strong>{summary.transferredCount}</strong> {t('import.transferred')}
-              {summary.skippedCount > 0 && t('import.skippedSuffix', { count: summary.skippedCount })}
+              <strong>{summary.transferredCount}</strong>{' '}
+              {t('import.transferred')}
+              {summary.skippedCount > 0 &&
+                t('import.skippedSuffix', { count: summary.skippedCount })}
             </div>
             {summary.destination && (
-              <div className="import-dest-used">{t('import.destUsed', { path: summary.destination })}</div>
+              <div className="import-dest-used">
+                {t('import.destUsed', { path: summary.destination })}
+              </div>
             )}
-            {summary.ejected && <div className="import-ok">{t('import.ejected')}</div>}
+            {summary.ejected && (
+              <div className="import-ok">{t('import.ejected')}</div>
+            )}
             {!summary.ejected && summary.ejectError && (
               <div className="import-warn">{t('import.ejectFailed')}</div>
             )}
-            {Array.isArray(summary.errorList) && summary.errorList.length > 0 && (
-              <details className="import-errors">
-                <summary>{t('import.errorsSummary', { count: summary.errorList.length })}</summary>
-                <ul>{summary.errorList.map((e, i) => <li key={i}>{e.path}: {e.error}</li>)}</ul>
-              </details>
-            )}
+            {Array.isArray(summary.errorList) &&
+              summary.errorList.length > 0 && (
+                <details className="import-errors">
+                  <summary>
+                    {t('import.errorsSummary', {
+                      count: summary.errorList.length,
+                    })}
+                  </summary>
+                  <ul>
+                    {summary.errorList.map((e, i) => (
+                      <li key={i}>
+                        {e.path}: {e.error}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             {!summary.errorList && summary.errorCount > 0 && (
-              <div className="import-warn">{t('import.errorsSummary', { count: summary.errorCount })}</div>
+              <div className="import-warn">
+                {t('import.errorsSummary', { count: summary.errorCount })}
+              </div>
             )}
             {importedDest && (
               <div className="import-next handoff-next">

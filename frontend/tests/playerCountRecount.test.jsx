@@ -80,7 +80,9 @@ describe('PlayerCountModule — one recount per committed option change', () => 
     // leaving exactly one request.
     fireEvent.blur(gap);
     await waitFor(() => expect(countCalls().length).toBe(1));
-    expect(countCalls()[0][1]).toEqual(expect.objectContaining({ gap_minutes: 45 }));
+    expect(countCalls()[0][1]).toEqual(
+      expect.objectContaining({ gap_minutes: 45 }),
+    );
     // Give any erroneous second (subscription-triggered) recount a chance to
     // land before asserting the total stayed at one.
     await new Promise((r) => setTimeout(r, 0));
@@ -99,7 +101,9 @@ describe('PlayerCountModule — one recount per committed option change', () => 
     const select = screen.getByTitle('Referens för över-/underrepresentation');
     fireEvent.change(select, { target: { value: 'mean' } });
     await waitFor(() => expect(countCalls().length).toBe(1));
-    expect(countCalls()[0][1]).toEqual(expect.objectContaining({ baseline: 'mean' }));
+    expect(countCalls()[0][1]).toEqual(
+      expect.objectContaining({ baseline: 'mean' }),
+    );
     await new Promise((r) => setTimeout(r, 0));
     expect(countCalls().length).toBe(1);
   });

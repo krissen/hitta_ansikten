@@ -25,7 +25,7 @@ export function useOperationStatus(options = {}) {
   const {
     successTimeout = 5000,
     autoClearError = false,
-    errorTimeout = 10000
+    errorTimeout = 10000,
   } = options;
 
   const [isLoading, setIsLoading] = useState(false);
@@ -55,46 +55,55 @@ export function useOperationStatus(options = {}) {
   /**
    * Show success message (auto-clears after timeout)
    */
-  const showSuccess = useCallback((message) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    setStatus({ type: 'success', message });
-    timeoutRef.current = setTimeout(() => {
-      setStatus({ type: '', message: '' });
-      timeoutRef.current = null;
-    }, successTimeout);
-  }, [successTimeout]);
+  const showSuccess = useCallback(
+    (message) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      setStatus({ type: 'success', message });
+      timeoutRef.current = setTimeout(() => {
+        setStatus({ type: '', message: '' });
+        timeoutRef.current = null;
+      }, successTimeout);
+    },
+    [successTimeout],
+  );
 
   /**
    * Show error message (optionally auto-clears)
    */
-  const showError = useCallback((message) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    setStatus({ type: 'error', message });
-    if (autoClearError) {
-      timeoutRef.current = setTimeout(() => {
-        setStatus({ type: '', message: '' });
-        timeoutRef.current = null;
-      }, errorTimeout);
-    }
-  }, [autoClearError, errorTimeout]);
+  const showError = useCallback(
+    (message) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      setStatus({ type: 'error', message });
+      if (autoClearError) {
+        timeoutRef.current = setTimeout(() => {
+          setStatus({ type: '', message: '' });
+          timeoutRef.current = null;
+        }, errorTimeout);
+      }
+    },
+    [autoClearError, errorTimeout],
+  );
 
   /**
    * Show info message (auto-clears after timeout)
    */
-  const showInfo = useCallback((message) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    setStatus({ type: 'info', message });
-    timeoutRef.current = setTimeout(() => {
-      setStatus({ type: '', message: '' });
-      timeoutRef.current = null;
-    }, successTimeout);
-  }, [successTimeout]);
+  const showInfo = useCallback(
+    (message) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      setStatus({ type: 'info', message });
+      timeoutRef.current = setTimeout(() => {
+        setStatus({ type: '', message: '' });
+        timeoutRef.current = null;
+      }, successTimeout);
+    },
+    [successTimeout],
+  );
 
   /**
    * Start loading state
@@ -130,7 +139,7 @@ export function useOperationStatus(options = {}) {
     showInfo,
     clearStatus,
     startLoading,
-    stopLoading
+    stopLoading,
   };
 }
 
@@ -151,33 +160,46 @@ export function useAsyncOperation(asyncFn, statusHook, options = {}) {
     onSuccess,
     onError,
     successMessage,
-    errorPrefix = 'Operation failed: '
+    errorPrefix = 'Operation failed: ',
   } = options;
 
   const { startLoading, stopLoading, showSuccess, showError } = statusHook;
 
-  return useCallback(async (...args) => {
-    startLoading();
-    try {
-      const result = await asyncFn(...args);
-      if (successMessage) {
-        showSuccess(successMessage);
+  return useCallback(
+    async (...args) => {
+      startLoading();
+      try {
+        const result = await asyncFn(...args);
+        if (successMessage) {
+          showSuccess(successMessage);
+        }
+        if (onSuccess) {
+          onSuccess(result);
+        }
+        return result;
+      } catch (err) {
+        const message = errorPrefix + (err.message || 'Unknown error');
+        showError(message);
+        if (onError) {
+          onError(err);
+        }
+        throw err;
+      } finally {
+        stopLoading();
       }
-      if (onSuccess) {
-        onSuccess(result);
-      }
-      return result;
-    } catch (err) {
-      const message = errorPrefix + (err.message || 'Unknown error');
-      showError(message);
-      if (onError) {
-        onError(err);
-      }
-      throw err;
-    } finally {
-      stopLoading();
-    }
-  }, [asyncFn, startLoading, stopLoading, showSuccess, showError, successMessage, errorPrefix, onSuccess, onError]);
+    },
+    [
+      asyncFn,
+      startLoading,
+      stopLoading,
+      showSuccess,
+      showError,
+      successMessage,
+      errorPrefix,
+      onSuccess,
+      onError,
+    ],
+  );
 }
 
 export default useOperationStatus;
