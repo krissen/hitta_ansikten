@@ -11,17 +11,27 @@
 # clean here if this target only ran prek. `ruff check .` and `eslint .`
 # with no fix flag give that file a real, failing verdict instead.
 #
-# Uses whatever `prek` is on PATH (brew, `git config prek.enabled true`'s
-# only local prerequisite besides this file) rather than CI's pinned
-# `pipx run --spec prek==0.5.2`: this target runs on a developer's own
-# machine, which already has a specific prek install to keep in sync with
-# by hand; the version pin matters for the reproducible CI checkout, not
-# here.
+# Uses whatever `prek` is on PATH (brew) rather than CI's pinned `pipx run
+# --spec prek==0.5.2`: this target runs on a developer's own machine, which
+# already has a specific prek install to keep in sync with by hand; the
+# version pin matters for the reproducible CI checkout, not here.
+#
+# Also needs backend/.venv (ruff, pytest) and frontend/node_modules
+# (eslint, vitest) already set up -- see "Backend API" and "Frontend"
+# under Quick Commands above. The preflight check below fails with a
+# one-line setup hint instead of a bare "No such file or directory" from
+# deep inside the target.
 LOG := $(CURDIR)/.check.log
 
 .PHONY: check
 
 check:
+	@test -x backend/.venv/bin/ruff || { \
+	  echo "backend/.venv missing -- run: cd backend && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'"; \
+	  exit 1; }
+	@test -d frontend/node_modules || { \
+	  echo "frontend/node_modules missing -- run: cd frontend && npm ci"; \
+	  exit 1; }
 	@rm -f $(LOG)
 	@{ echo "== prek --all-files =="; \
 	   prek run --all-files; \
