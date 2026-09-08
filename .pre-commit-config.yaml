@@ -86,8 +86,8 @@ repos:
         language: system
         # Whole frontend tree, not just src/scripts: eslint.config.mjs
         # defines rules for frontend/tests/, main.js and *.config.{js,mjs}
-        # too, and CI no longer has a separate `npm run lint` step running
-        # `eslint .` to cover them now that this hook is the only ESLint
-        # invocation in CI.
-        files: '^frontend/.*\.(js|jsx)$'
+        # too (.mjs included -- eslint.config.mjs itself is one), and CI no
+        # longer has a separate `npm run lint` step running `eslint .` to
+        # cover them now that this hook is the only ESLint invocation in CI.
+        files: '^frontend/.*\.(js|jsx|mjs)$'
         stages: [pre-commit]
